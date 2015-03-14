@@ -1,0 +1,324 @@
+#!/bin/sh
+# sysinstall is a front-end to tar/compress that allows packages (tar archives,
+# optionally compressed)  to be installed, removed, or files to be extracted 
+# into packages from disk.  It also will execute the script /install/doinst.sh
+# if found in the package, with one of the following args: -install (install 
+# files), -remove (uninstall package), -extract (move files to locations in
+# preparation for extraction), and -retract (move files back after
+# an extract has been done).  
+#
+# requires:  tar, sed, basename, compress/zcat/gzip, mv, mount and umount.
+# copywrite Softlanding Software, 1992:  Distribute and use freely, don't restrict.
+
+function PrintUsage() {
+	echo "usage: sysinstall -all                * install everything: base + X11"
+	echo "       sysinstall -base               * install full base: no X11"
+	echo "       sysinstall -mini               * install a minimal base: ~10 Meg"
+	echo "       sysinstall -rest               * install the rest of the base"
+	echo "       sysinstall -X11                * install just X11"
+	echo "       sysinstall -special C          * install the C set of disks"
+	echo "       sysinstall -install pkg.taz    * install a specific pkg file"
+	echo "       sysinstall -install pkg.tpz    * install a specific pkg file"
+	echo "       sysinstall -install pkg.tar    * same as above, but compressed pkg"
+	echo "       sysinstall -remove pkg         * uninstall a pkg"
+	echo "       sysinstall -extract pkg        * collect pkg files into new pkg.tpz"
+	echo "       sysinstall -extracttar pkg     * same as above, but into pkg.tar if smaller"
+	echo "       sysinstall -disk               * install all pkgs on a disk"
+	echo "       sysinstall -disk DISKNAME      * install pkgs on disk DISKNAME"
+	echo "       sysinstall -mount              * mount floppy"
+	echo "       sysinstall -unmount            * unmount floppy"
+	echo "       sysinstall -instdev INSTDEV    * device to install from"
+	echo "       sysinstall -instroot INSTROOT  * directory to use as root"
+	echo "       sysinstall -instsrc  INSTSRC   * use directory INSTSRC instead of floppy"
+	echo "       sysinstall -doprompt           * prompt user before installing each package"
+	echo "       sysinstall -compress           * use the old compress program, not gzip"
+}
+
+umask 0
+INSTROOT=/
+INSTDEV=/dev/fd0
+INSTSRC=""
+DOPROMPT="false"
+COMPR=gzip
+ZEXT=tgz
+
+while [ 0 ]; do
+	if [ $# -gt 1 -a "$1" = "-instdev" ]; then
+		INSTDEV=$2;
+		shift 2;
+		continue;
+	elif [ $# -gt 1 -a "$1" = "-instroot" ]; then
+		INSTROOT=$2;
+		shift 2;
+		continue;
+	elif [ $# -gt 1 -a "$1" = "-doprompt" ]; then
+		DOPROMPT="true";
+		shift 1;
+		continue;
+	elif [ $# -gt 1 -a "$1" = "-instsrc" ]; then
+		INSTSRC=$2;
+		shift 2;
+		continue;
+	elif [ $# -gt 0 -a "$1" = "-compress" ]; then
+		COMPR=compress;
+		ZEXT=taz
+		shift;
+		continue;
+	else
+		break;
+	fi
+done;
+
+INSTTOPDIR=$INSTROOT/install
+INSTDIR=$INSTTOPDIR/installed
+INSTSCRDIR=$INSTTOPDIR/scripts
+INSTSCRIPT=doinst.sh
+
+MNTDIR=/user
+MOUNTTYPE=minix
+
+function MountDisk() {
+	declare -i MountStat
+	if [ "$INSTSRC" != "" ]; then
+		test -d $INSTSRC;
+		MountStat=$?
+		return $MountStat;
+	fi
+	for j in 1 2 3; do
+		echo -n "Insert disk $1 into the floppy drive then hit enter, or q to quit"
+		read ans;
+		if [ "$ans" = "q" ]; then
+			exit 1;
+		fi;
+		MountStat=0
+		for k in $MOUNTTYPE minix msdos ext; do
+			if [ $MountStat = 0 -o $k != $MOUNTTYPE ]; then
+				mount -r -t $k $INSTDEV $MNTDIR  >& /dev/null
+				MountStat=$?
+				if [ $MountStat = 0 ]; then
+					MOUNTTYPE=$k
+					return 0;
+				fi
+			fi
+		done
+	done
+	exit 1
+}
+
+function UnmountDisk() {
+	if [ "$INSTSRC" = "" ]; then
+		umount $INSTDEV > /dev/null
+	fi;
+}
+
+function InstallPkg() {
+	if [ -f $1 ]; then
+		echo -n "installing `basename $1 .$2`..."
+		if [ -e $INSTTOPDIR/$INSTSCRIPT ]; then
+			rm $INSTTOPDIR/$INSTSCRIPT
+		fi
+		if [ "tar" = "$2" ]; then
+			(cd $INSTROOT; tar -xvlpf - | sed "/\/$/d" ) < $1 > $INSTDIR/`basename $1 .$2`
+		else
+			(cd $INSTROOT; $COMPR -dc | tar -xvlpf - | sed "/\/$/d" ) < $1 > $INSTDIR/`basename $1 .$2`
+		fi
+		if [ -f $INSTTOPDIR/$INSTSCRIPT ]; then
+			(cd $INSTROOT; sh $INSTTOPDIR/$INSTSCRIPT -install;)
+			mv $INSTTOPDIR/$INSTSCRIPT $INSTSCRDIR/`basename $1 .$2`;
+		fi
+		if [ "bin" = "`basename $1 .$2`" ]; then
+			hash -r
+		fi
+		echo "done"
+	else
+		echo "$1 not found"
+	fi;
+}
+
+function InstallDisk() {
+	declare -i Status;
+	declare -i FileSize;
+	for k in 1 2 3; do
+		MountDisk $1
+		Status=$?
+		if [ $Status != 0 ]; then
+			return 1;
+		fi
+		if [ "$INSTSRC" = "" ]; then
+			SRCDIR=$MNTDIR
+		else
+			SRCDIR=$INSTSRC/$1
+		fi
+		if [ -e $SRCDIR/disk$1 -o $1 = Disk ]; then
+			DISKNAME=$SRCDIR/disk*;
+			if [ -f $DISKNAME ]; then
+				cat $DISKNAME > $INSTROOT/install/catalog/`basename $DISKNAME`
+				FileSize=`filesize $DISKNAME`;
+				echo "`basename $DISKNAME`  	$FileSize" >> $INSTROOT/install/disks/`basename $DISKNAME`
+			fi
+			for FileExt in taz tpz tar tgz; do
+				for FileZ in $SRCDIR/*.$FileExt; do
+					if [ "$FileZ" = "$SRCDIR/*.$FileExt" ]; then
+						continue;
+					fi
+					if [ $1 = Disk -o "$DOPROMPT" = "true" ]; then
+						echo ""
+						fgrep "`basename $FileZ .$FileExt`:" $SRCDIR/disk*;
+						FileSize=`filesize $FileZ`/341;  
+						echo -n "Install pkg `basename $FileZ .$FileExt` [\~${FileSize}K] (y/n/q)?"
+						read ans;
+						if [ "$ans" = "Y" -o  "$ans" = "y" ]; then
+							InstallPkg $FileZ $FileExt;
+						elif [ "$ans" = "q" -o  "$ans" = "Q" ]; then
+							UnmountDisk
+							exit 0;
+						fi
+					else
+						InstallPkg $FileZ $FileExt;
+					fi
+					if [ $1 != Disk ]; then
+						echo "`basename $FileZ`  	`filesize $FileZ`" >> $INSTROOT/install/disks/`basename $DISKNAME`
+					fi
+				done
+			done
+			if [ -e $SRCDIR/install.end ]; then
+				Status=1;
+			else
+				Status=0;
+			fi
+			UnmountDisk
+			return $Status 
+		else
+			UnmountDisk
+			echo -n "error: wrong disk (file disk$1 not found), try again or skip (y/n/s)?"
+			read ans;
+			if [ "$ans" = "N" -o  "$ans" = "n" ]; then
+				return 1
+			fi
+			if [ "$ans" = "S" -o  "$ans" = "s" ]; then
+				return 2
+			fi
+		fi;
+	done
+}
+
+function RemovePkg() {
+	if [ -f $INSTDIR/$1 ]; then
+		if [ -f $INSTSCRDIR/$1 ]; then
+			(cd $INSTROOT; sh $INSTSCRDIR/$1 -remove;)
+			rm $INSTSCRDIR/$1
+		fi
+		(cd $INSTROOT; xargs /bin/rm -f ) < $INSTDIR/$1 
+		rm $INSTDIR/$1
+	else
+		echo "error: unknown package $1"
+	fi
+}
+
+function DoInstall() {
+	declare -i Counter;
+	if [ "$1" = "a" ]; then
+		Counter=2;
+	else
+		Counter=1;
+	fi
+	while [ 0 ]; do
+		InstallDisk $1$Counter;
+		if [ $? = 1 ]; then
+			return 0;
+		fi
+		Counter=$Counter+1;
+	done;
+}
+
+function ShowInstalled() {
+	for i in $INSTDIR/*; do
+		echo "`basename $i`";
+	done;
+}
+
+function DoExtract() {
+	if [ "$COMPR" = "compress" ]; then
+		(cd $INSTROOT; tar -clpf - -T $INSTDIR/$2 ) > $2.tar
+		$COMPR $2.tar
+		if [ -e $2.tar.Z ]; then
+			mv $2.tar.Z $2.taz
+		fi
+	else
+		(cd $INSTROOT; tar -clpf - -T $INSTDIR/$2  | $COMPR ) > $2.$ZEXT
+	fi
+}
+
+if [ $# = 0 ]; then
+	PrintUsage;
+elif [ "$1" = "-view" ]; then 
+	ShowInstalled;
+elif [ "$1" = "-everything" ]; then 
+	DoInstall a;
+	DoInstall b;
+	DoInstall c;
+	DoInstall d;
+	DoInstall s;
+	DoInstall t;
+	DoInstall x;
+elif [ "$1" = "-all" ]; then 
+	DoInstall a;
+	DoInstall b;
+	DoInstall c;
+	DoInstall x;
+elif [ "$1" = "-base" ]; then 
+	DoInstall a;
+	DoInstall b;
+	DoInstall c;
+elif [ "$1" = "-mini" ]; then 
+	DoInstall a;
+elif [ "$1" = "-rest" ]; then 
+	DoInstall b;
+	DoInstall c;
+elif [ "$1" = "-X11" ]; then 
+	DoInstall x;
+elif [ "$1" = "-remove" -a $# = 2 ]; then
+	RemovePkg $2
+elif [ "$1" = "-install" -a $# = 2 ]; then
+	if [ "`basename $2 .$ZEXT`" != "`basename $2`" ]; then
+		InstallPkg $2 "$ZEXT"
+	else
+		InstallPkg $2 "tar"
+	fi
+elif [ "$1" = "-series" -a $# = 2 ]; then
+	DoInstall $2
+elif [ "$1" = "-extract" -a $# = 2 -o $1 = "-extracttar"  -a $# = 2 ]; then
+	if [ -f $INSTDIR/$2 ]; then
+		if [ -f $INSTSCRDIR/$2 ]; then
+			cp $INSTSCRDIR/$2 $INSTTOPDIR/$INSTSCRIPT
+			(cd $INSTROOT; sh $INSTSCRDIR/$2 -extract;)
+			if [ $1 = "-extract" ]; then
+				(cd $INSTROOT; tar -clpf - -T $INSTDIR/$2 | $COMPR ) > $2.$ZEXT
+			else
+				DoExtract $1 $2
+			fi
+			(cd $INSTROOT; sh $INSTSCRDIR/$2 -retract;)
+			rm $INSTTOPDIR/$INSTSCRIPT
+		else
+			if [ $1 = "-extract" ]; then
+				(cd $INSTROOT; tar -clpf - -T $INSTDIR/$2 | $COMPR ) > $2.$ZEXT
+			else
+				DoExtract $1 $2
+			fi
+		fi
+	else
+		echo "$INSTDIR/$2 not found";
+	fi;
+elif [ "$1" = "-disk" ]; then
+	if [ $# = 1 ] ; then
+		InstallDisk Disk
+	else
+		InstallDisk $2
+	fi
+elif [ "$1" = "-mount" ]; then
+	MountDisk;
+elif [ "$1" = "-unmount" ]; then
+	UnmountDisk;
+else
+	PrintUsage;
+fi;

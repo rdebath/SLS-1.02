@@ -1,0 +1,109 @@
+XCOMM $Header: /home/x_cvs/mit/Imakefile,v 1.3 1992/07/07 11:46:36 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.105 91/07/27 14:13:23 rws Exp $
+#define IHaveSubdirs
+#define PassCDebugFlags
+
+      WORLDOPTS = -k
+     CHECKFNSRC = $(UTILSRC)/checkfn
+        CHECKFN = $(CHECKFNSRC)/checkfn
+
+#if BuildServer
+SERVERDIRSTOMAKE = server rgb
+#endif
+        SUBDIRS = config include lib extensions fonts $(SERVERDIRSTOMAKE) \
+			clients demos util man
+  LNINSTALLDIRS = $(LIBSRC) $(EXTENSIONSRC)
+
+
+MakeSubdirs($(SUBDIRS))
+
+MakeLintSubdirs($(LNINSTALLDIRS),install.ln,install.ln)
+
+MakeLintSubdirs($(LNINSTALLDIRS),external.ln,lintlib)
+
+
+XCOMM
+XCOMM Watch out!!!  Make sure you do make includes after removing X11....
+XCOMM
+clean::
+	$(RM) -r X11
+
+includes::
+	$(RM) -r X11
+
+
+XCOMM
+XCOMM before depending, be sure to have run make includes
+XCOMM
+/* depend::  includes */
+
+DependSubdirs($(SUBDIRS))
+
+XCOMM do not name your log file make.log when you run this ...
+World::
+	@echo ""
+	@echo "Building Release 5 of the X Window System"
+	@echo ""
+	@echo "##############################################################"
+	@echo "# Did you remember to check the configuration parameters in  #"
+	@echo "# the directory ./config and set BOOTSTRAPCFLAGS if needed?  #"
+	@echo "##############################################################"
+	@echo ""
+	@date
+	@echo ""
+	cd $(IMAKESRC); $(MAKE) $(MFLAGS) -f Makefile.ini clean; $(MAKE) $(MFLAGS) -f Makefile.ini BOOTSTRAPCFLAGS="$(BOOTSTRAPCFLAGS)"
+	-$(RM) Makefile.bak; $(MV) Makefile Makefile.bak
+	$(MAKE) $(MFLAGS) -f Makefile.bak Makefile
+	$(MAKE) $(MFLAGS) Makefiles
+	$(MAKE) $(MFLAGS) clean
+	$(MAKE) $(MFLAGS) includes
+	$(MAKE) $(MFLAGS) depend
+	$(MAKE) $(MFLAGS) $(WORLDOPTS)
+	@echo ""
+	@date
+	@echo ""
+	@echo "Full build of Release 5 of the X Window System complete."
+	@echo ""
+
+Everything::
+	@echo ""
+	@echo "Rebuilding Release 5 of the X Window System"
+	@echo ""
+	@date
+	@echo ""
+	cd $(IMAKESRC); $(MAKE) $(MFLAGS) -f Makefile.ini BOOTSTRAPCFLAGS="$(BOOTSTRAPCFLAGS)"
+	-$(RM) Makefile.bak; $(MV) Makefile Makefile.bak
+	$(MAKE) $(MFLAGS) -f Makefile.bak Makefile
+	$(MAKE) $(MFLAGS) Makefiles
+	$(MAKE) $(MFLAGS) includes
+	$(MAKE) $(MFLAGS) depend
+	$(MAKE) $(MFLAGS) $(WORLDOPTS)
+	@echo ""
+	@date
+	@echo ""
+	@echo "Rebuild of Release 5 of the X Window System complete."
+	@echo ""
+
+
+RELNOTES.PS::  RELNOTES.ms
+	$(TBL) RELNOTES.ms | $(TROFF) $(MSMACROS) >$@
+
+RELNOTES.lpt:  RELNOTES.ms
+	$(TBL) RELNOTES.ms | nroff $(MSMACROS) >$@
+
+RELNOTES.txt:  RELNOTES.ms
+	$(TBL) RELNOTES.ms | nroff $(MSMACROS) | colcrt >$@
+
+/*
+ * This section used for generating distributions will not be useful to most
+ * people.
+ */
+XCOMM check all filenames for length, letters, and content
+checkfilenames::  $(CHECKFNSRC)/checkfn
+	@find . -type d \! -name RCS -exec $(CHECKFNSRC)/find.sh $(CHECKFN) {} \;
+
+XCOMM clean out link tree looking for stuff that should get checked in
+flushlinks::
+	make -k clean
+	find . -type l -exec rm {} \;
+	find . \( \! \( -type d -o -name Makefile \) \) -print

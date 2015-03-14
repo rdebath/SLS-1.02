@@ -1,0 +1,431 @@
+.TH CLISP 1 "17 March 1993"
+
+
+.SH NAME
+clisp \- Common Lisp language interpreter and compiler
+
+
+.SH SYNOPSIS
+.B clisp
+[
+.B -h
+]
+[
+.B -m
+.I memsize
+]
+#ifndef NO_SP_MALLOC
+[
+.B -s
+.I stacksize
+]
+#endif
+#ifdef MULTIMAP_MEMORY_VIA_FILE
+[
+.B -t
+.I tempdir
+]
+#endif
+[
+.B -M
+.I memfile
+]
+[
+.B -q
+]
+[
+.B -i
+.IR initfile " ..."
+]
+[
+.B -c
+[
+.B -l
+]
+.IR lispfile " ..."
+]
+[
+.B -x
+.I expression
+]
+
+
+.SH DESCRIPTION
+Invokes the common lisp interpreter and compiler.
+Invoked without arguments, executes a read-eval-print loop,
+in which expressions are in turn read from standard input, evaluated
+by the lisp interpreter, and their results output to standard output.
+Invoked with
+.BR \-c ,
+the specified lisp files are compiled to a bytecode that can be
+executed more efficiently.
+
+
+.SH OPTIONS
+
+.TP
+.B -h
+Displays a help message on how to use
+.BR clisp .
+
+.TP
+.BI "-m " memsize
+Sets the amount of memory
+.B clisp
+tries to grab on startup.
+The amount may be given as
+.I nnnnnnn
+(measured in bytes),
+.IB nnnn K
+or
+.IB nnnn KB
+(measured in kilobytes) or
+.IB n M
+or
+.IB n MB
+(measured in megabytes).
+#ifdef WIDE
+Default is 4 megabytes.
+#else
+Default is 2 megabytes.
+#endif
+#if (oint_addr_len+addr_shift==24)
+The argument is constrained between 100 KB and 16 MB.
+#elif (oint_addr_len+addr_shift==26)
+The argument is constrained between 100 KB and 64 MB.
+#elif (oint_addr_len+addr_shift==28)
+The argument is constrained between 100 KB and 256 MB.
+#else
+The argument is constrained above 100 KB.
+#endif
+#ifndef SPVW_MIXED_BLOCKS
+-- This version of
+.I clisp
+allocates memory dynamically.
+.I memsize
+is essentially ignored.
+#endif
+
+#ifndef NO_SP_MALLOC
+.TP
+.BI "-s " stacksize
+Sets the size of the stack
+.B clisp
+allocates for itself. The syntax is the same as for
+.IR memsize .
+Default is one eighth of
+.IR memsize .
+The argument is constrained between 40 KB and 8 MB.
+#endif
+
+#ifdef MULTIMAP_MEMORY_VIA_FILE
+.TP
+.BI "-t " tempdir
+Specifies the directory where the temporary core file is to be held.
+This option takes precedence over the environment variable
+.BR TMPDIR .
+#endif
+
+.TP
+.BI "-M " memfile
+Specifies the initial memory image.
+This must be a memory dump produced by the
+.I saveinitmem
+function.
+#ifdef UNIX
+This option is normally already set by the shell script
+.BR /usr/local/bin/clisp .
+#endif
+
+.TP
+.B -q
+Quiet:
+.B clisp
+displays no banner at startup and no good-bye message when quitting.
+
+.TP
+.BI "-i " "initfile ..."
+Specifies initialization files to be
+.IR load ed
+at startup. These should be lisp files (source or compiled).
+
+.TP
+.BI "-c " "lispfile ..."
+Compiles the specified lispfiles to bytecode. The compiled files
+can then be
+.IR load ed
+instead of the sources to gain efficiency.
+
+.TP
+.B -l
+A bytecode listing of the files being compiled will be produced.
+Useful only for debugging purposes.
+
+.TP
+.BI "-x " expressions
+Executes a series of arbitrary expressions instead of a read-eval-print loop.
+The values of the expressions will be output to standard output.
+Due to the argument processing done by the shell, the
+.I expressions
+must be enclosed in single quotes, and double quotes and backslashes must
+be preceded by backslashes.
+
+#ifdef EMUNIX
+.TP
+.BI @ optionfile
+substitutes the contents of
+.I optionfile
+as arguments. Each line of
+.I optionfile
+is treated as a separate argument to
+.BR clisp .
+#endif
+
+#ifdef AMIGAOS
+
+.PP
+.SH WORKBENCH
+Two kinds of tooltypes are supported:
+
+.TP
+.BI "WINDOW= " windowspec
+.B clisp
+will communicate with the console window or pipe specified by
+.IR windowspec .
+
+.TP
+.BI "ARGS= " arguments
+Specifies the command line arguments for
+.BR clisp .
+Within
+.I arguments
+the token `*' may be used to denote the project's filename.
+.I arguments
+defaults to `-i *' which means that the file will be
+.IR load ed
+(see above).
+
+#endif
+
+.PP
+.SH REFERENCE
+The language implemented conforms to
+.RS 1
+      Guy L. Steele Jr.: Common Lisp - The Language.
+      Digital Press. 1st edition 1984, 465 pages.
+      ("CLtL1" for short)
+.RE
+and to the older parts of
+.RS 1
+      Guy L. Steele Jr.: Common Lisp - The Language.
+      Digital Press. 2nd edition 1990, 1032 pages.
+      ("CLtL2" for short)
+.RE
+
+
+.SH USE
+
+.TP
+.B help
+to get some on-line help.
+
+.TP
+.BI "(apropos " name ")"
+lists the symbols relating to
+.IR name .
+
+.TP
+.BR "(exit)" " or " "(quit)" " or " "(bye)"
+to quit
+.BR clisp .
+
+#if defined(UNIX) || defined(MSDOS) || defined(AMIGAOS)
+.TP
+#ifdef UNIX
+EOF (Ctrl-D)
+#endif
+#ifdef MSDOS
+EOF (Ctrl-Z)
+#endif
+#ifdef AMIGAOS
+EOF (Ctrl-\e)
+#endif
+to leave the current read-eval-print loop.
+#endif
+
+#ifdef GNU_READLINE
+.TP
+arrow keys
+for editing and viewing the input history.
+
+.TP
+Tab key
+to complete the symbol's name you are just typing.
+#endif
+
+
+.SH FILES
+
+#ifdef UNIX
+.TP
+.I clisp
+startup script
+#endif
+
+.TP
+#if defined(UNIX)
+.I lisp.run
+#endif
+#if defined(MSDOS)
+.I lisp.exe
+#endif
+#if defined(ATARI)
+.I lisp.prg
+#endif
+#if defined(AMIGAOS)
+.I lisp.run
+#endif
+main executable
+
+.TP
+.I lispinit.mem
+initial memory image
+
+.TP
+.I config.lsp
+site-dependent configuration
+
+.TP
+.I *.lsp
+lisp source
+
+.TP
+.I *.fas
+lisp code, compiled by
+.B clisp
+
+.TP
+.I *.lib
+lisp source library information, generated and used by the
+.B clisp
+compiler
+
+
+.SH ENVIRONMENT
+
+#ifdef UNIX
+.TP
+.BR HOME " and " USER
+are used for determining the value of the function
+.IR user-homedir-pathname .
+(Unix implementation only.)
+#endif
+
+#if defined(UNIX) || defined(MSDOS)
+.TP
+#ifdef UNIX
+.BR SHELL " (Unix implementation only) "
+#endif
+#ifdef MSDOS
+.BR COMSPEC " (DOS, OS/2 implementations only)"
+#endif
+is used to find the command interpreter called by the function
+.IR shell .
+#endif
+
+#ifdef UNIX
+.TP
+.SB TERM
+determines the screen size recognized by the pretty printer.
+This environment variable is also mandatory for the built-in screen editor.
+#endif
+
+#ifdef EMUNIX_PORTABEL
+.TP
+.SB TERM
+specifies the terminal emulation
+.B clisp
+relies on. If you have ANSI.SYS loaded, possible values are
+.IR ansi ,
+.IR ansi-color-2 ,
+.I ansi-color-3
+and
+.IR mono .
+
+.TP
+.SB TERMCAP
+should be set to the slashified file name of the terminal capabilities database
+.IR termcap.dat .
+#endif
+
+#ifdef MULTIMAP_MEMORY_VIA_FILE
+.TP
+.BR TMPDIR " (Sparc implementation only)"
+specifies the directory where the temporary core file is to be held.
+#endif
+
+
+.SH SEE ALSO
+
+.IR cmulisp (1),
+.IR emacs (1).
+
+
+.SH BUGS
+
+.PP
+The function
+.I inspect
+is not implemented.
+
+#ifdef SPVW_MIXED_BLOCKS
+.PP
+The memory management scheme is not very flexible.
+#endif
+
+.PP
+Only very few extensions from CLtL2 are supported.
+
+.PP
+No on-line documentation beyond
+.I apropos
+and
+.I describe
+is available.
+
+#ifdef EMUNIX
+.PP
+Stack overflow aborts the program ungracefully, with a register dump.
+.PP
+Pressing Control-C may not interrupt
+.B clisp
+in every situation.
+.PP
+Calling the function EXECUTE on batch files crashes the machine.
+#endif
+
+
+.SH PROJECTS
+
+.PP
+Writing on-line documentation.
+
+.PP
+Building a foreign function interface (ability to call C code directly).
+
+.PP
+Write
+.IR inspect .
+
+.PP
+Enhance the compiler such that it can inline local functions. 
+
+.PP
+Specify a portable set of window and graphics operations.
+
+
+.SH AUTHORS
+
+Bruno Haible
+<haible@ma2s2.mathematik.uni-karlsruhe.de>
+and Michael Stoll.

@@ -1,0 +1,88 @@
+NOTE: This is a patched version of ftpd-diku that was ported to Linux by
+      Mitch Dsouza (m.dsouza@mrc-apu.cam.ac.uk) at some point in the mists
+      of time.
+
+      I have added the CERT security patch (09/04/93) to make it secure.
+
+      I have modified it to compile cleanly under SLS 0.99p6 with the 0.99p7A
+      kernel. I had to comment out the contents od is_shutdown() and just get
+      it to always return 0.
+
+      I also changed the anonymous ftp users bin directory to usr/bin so that
+      the dir command would work in normal and anonymous ftp modes.
+
+      The following is the little changes I made to get everything setup OK:
+
+      - Compiled ftpd with -DLOG_DAEMON -DSHADOW_PWD and linked with -lshadow
+        Had to add #include <shadow.h> to all files that included <pwd.h>.
+        Also had to change all change all "/bin/ls ..." to "/usr/bin/ls ..."
+      - mkdir ~ftp/etc/msgs. Copied all msg.welcome etc. there for user info.   
+      - mkdir /etc/msgs. Copied all msg.welcome etc. there for user info.
+      - mkdir ~ftp/usr
+      - mv ~ftp/bin ~ftp/usr
+      - chmod 711 ~ftp/[usr|etc|lib]
+      - chmod 755 ~ftp/pub
+      - edited /etc/ftpaccess to reflect new directory layout.
+      - cp /usr/spool/ftpd/groupaccess /etc
+      - mv /usr/spool/ftpd/groupaccess ~ftp/etc
+      - rd /usr/spool/ftpd
+      - mv ftpd-diku/ftpcount /usr/bin
+      - mv ftpd-diku/mkgroup /usr/bin/ftpmkgroup
+      - mv ftpd-diku/xferstats /usr/bin/ftpxferstats
+
+Iain Lea (iain.lea@erlm.siemens.de / Iain.Lea@anl433.uucp)
+
+-- Original README.linux follows --
+
+Well, here's yet another ftp deamon. It generates much more logging, and
+much more verbose messages for anonymous users. It will tar and compress
+files and directories on the fly (if U set it up properly). Read the man page.
+
+Essentially it will make your Linux box look like one of the big-boy archive
+sites ;-) with all the informative messages.
+
+There are a lot of bugs in the public source code. I tracked most of them
+down, but there are still a few left I'm sure.  Most noticeably is the fact
+that a combination of the original files glob.c and popen.c crash the deamon
+with a core dump. (See glob.orig and popen.orig). To overcome the problem I
+used the original files from the old code. (See the old ftpd.tar.Z I put up
+a while ago - and are included here). These seem to work OK.
+
+o 	I fixed the broken %F, %M and %N options used in message files as
+	doccumented in the CHANGES file.
+
+o	I fixed the groupaccess file such that more than one line is read!!
+
+
+This should compile and work on any Unix machine too!! (We have it working on
+our Sun)
+
+Where it all goes:
+
+ftpd			->		/etc/ (or wherever inetd.conf says)
+ftpaccess		->		/etc/
+ftpusers		->		/etc/
+
+msgs/*			->		/var/spool/ftpd/ (or wherever
+							ftpaccess file says)
+groupaccess		->		/var/spool/ftpd/ (put a encrypted
+								password here)
+
+mkgroup			->		/var/spool/ftpd (must run it here)
+
+
+A lot of people are stumped by the fact that welcome messages etc. pertaining
+to anonymous users *must* be rooted somewhere under the user 'ftp' directory.
+Whereas a normal user messages can be anywhere in the filing system. The
+reason is that for an anonymous user the deamon performs a chroot() and thus
+cannot access anything outside the user ftp's home directory. However
+messages before this chroot() is performed can be located anywhere - e.g.
+msg.toomany, msg.dead (look in the msgs subdirectory)
+This is also the reason why symbolic links to the utilities necessary in
+~ftp/bin and ~ftp/lib will not work. Hard links are ok (if you wanna save
+disk space).
+
+Mitch
+=====
+Email me for questions/help/problems.
+(m.dsouza@mrc-apu.cam.ac.uk)

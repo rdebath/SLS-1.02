@@ -1,0 +1,45 @@
+# Generic UNIX login script.
+# Can be used to automatically login to almost every UNIX box.
+#
+	# Some variables.
+	set a 0
+	set b a
+	print Trying to Login..
+	# Skip initial 'send ""', it seems to matter sometimes..
+	goto skip
+loop1:
+	# Send loginname not more than three times.
+	send ""
+	inc a
+skip:
+	if a > 3 goto failed1
+	expect {
+		"ogin:"
+		"assword:"	send ""
+		"NO CARRIER"	exit
+		timeout 2	goto loop1
+	}
+loop2:
+	send "$(LOGIN)"
+
+	# Send password not more than three times.
+	inc b
+	if b > 3 goto failed1
+	expect {
+		"assword:"
+		"ogin:"		goto loop2
+		timeout 2	goto loop2
+	}
+	send "$(PASS)"
+	# If we don't get "incorrect" within 3 seconds, it's probably OK.
+	# If they ask for a terminal, we are logged in. Tell them we're
+	# using vt100.
+	expect {
+		"TERM="		send "vt100"
+		"incorrect"	goto loop1
+		timeout 3 	break
+	}
+	exit
+failed1:
+	print \nLogin Failed (wrong password?)
+	exit

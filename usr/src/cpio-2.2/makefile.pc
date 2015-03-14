@@ -1,0 +1,55 @@
+# MS-DOS makefile for GNU cpio.
+# Copyright (C) 1991, 1992 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+# no more optimizations for MS C 6.00 than -Olt
+# otherwise it produces bad code!
+
+CC = bcc
+MODEL = s
+DEFS = -DSTDC_HEADERS -DHAVE_VPRINTF -DHAVE_STRERROR -DNO_REMOTE -Dmain=_main
+CFLAGS = -m$(MODEL) -I. $(DEFS)
+LDFLAGS = -m$(MODEL)
+LIBS =
+OBJS = copyin.obj copyout.obj copypass.obj dstring.obj fnmatch.obj \
+global.obj main.obj tar.obj util.obj error.obj getopt.obj getopt1.obj \
+filemode.obj version.obj alloca.obj xmalloc.obj xstrdup.obj \
+makepath.obj bcopy.obj dirname.obj stripslash.obj tcexparg.obj
+
+all:	cpio.exe
+
+cpio.exe:	$(OBJS)
+	$(CC) -ecpio.exe $(LDFLAGS) *.obj $(LIBS)
+
+.c.obj:
+	$(CC) -c $(CFLAGS) $<
+
+# Need to use -A to get __STDC__ defined, but the other files can't
+# use -A because they use MS-DOS non-ANSI things.  Turbo C is stupid.
+error.obj: error.c
+	$(CC) -c -A $(CFLAGS) error.c
+
+copyin.obj: cpio.h cpiohdr.h dstring.h extern.h filetypes.h fnmatch.h rmt.h system.h
+copyout.obj: cpio.h cpiohdr.h dstring.h extern.h filetypes.h rmt.h system.h
+copypass.obj: cpio.h cpiohdr.h dstring.h extern.h filetypes.h system.h
+dstring.obj: dstring.h
+global.obj: cpio.h cpiohdr.h dstring.h extern.h system.h
+main.obj: cpio.h cpiohdr.h dstring.h extern.h filetypes.h rmt.h
+tar.obj: filetypes.h cpio.h cpiohdr.h dstring.h extern.h rmt.h tar.h tarhdr.h system.h
+util.obj: extern.h rmt.h system.h
+
+clean:
+	rm cpio.exe *.obj

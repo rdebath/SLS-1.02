@@ -1,0 +1,375 @@
+\input texinfo @c -*-texinfo-*-
+@c %**start of header
+@setfilename time.info
+@settitle @code{time}: Measuring Program Resource Usage
+@setchapternewpage odd
+@c %**end of header
+
+@ifinfo
+This file documents the the GNU @code{time} command for running programs
+and summarizing the system resources they use.
+
+Copyright @copyright{} 1989, 1991 Free Software Foundation, Inc.
+
+Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+@ignore
+Permission is granted to process this file through TeX and print the
+results, provided the printed document carries copying permission
+notice identical to this one except for the removal of this paragraph
+(this paragraph not being relevant to the printed manual).
+
+@end ignore
+Permission is granted to copy and distribute modified versions of this
+manual under the conditions for verbatim copying, provided that the entire
+resulting derived work is distributed under the terms of a permission
+notice identical to this one.
+
+Permission is granted to copy and distribute translations of this manual
+into another language, under the above conditions for modified versions,
+except that this permission notice may be stated in a translation approved
+by the Foundation.
+@end ifinfo
+
+@titlepage
+@title The GNU @code{time} Command
+@subtitle Measuring Program Resource Usage
+
+@page
+@vskip 0pt plus 1filll
+Copyright @copyright{} 1989, 1991 Free Software Foundation, Inc.
+
+Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+Permission is granted to copy and distribute modified versions of this
+manual under the conditions for verbatim copying, provided that the entire
+resulting derived work is distributed under the terms of a permission
+notice identical to this one.
+
+Permission is granted to copy and distribute translations of this manual
+into another language, under the above conditions for modified versions,
+except that this permission notice may be stated in a translation approved
+by the Foundation.
+@end titlepage
+
+@node     Top,        ,  (dir),      (dir)
+@comment  node-name,  next,  previous,  up
+@chapter @code{time}: Measuring Program Resource Usage
+@findex time
+@kindex time
+@pindex time
+@pindex measurement
+
+The @code{time} command runs another program, then displays information
+about the resources used by that program, collected by the system while
+the program was running.  You can select which information is reported
+and the format in which it is shown (@pxref{Format}), or have
+@code{time} save the information in a file instead of display it on the
+screen (@pxref{Invoking time}).
+
+The format of the @code{time} command is:
+
+@example
+time [-apvV] [-f @var{format}] [-o @var{file}] [--append] [--portability] [--verbose]
+[--format=@var{format}] [--output-file=@var{file}] [--version]
+@var{command} [@var{arg}@dots{}]
+@end example
+
+Here is an example of using @code{time} to measure the time and other
+resources used by running the program @code{a.out}:
+
+@example
+time a.out
+@end example
+
+@menu
+* Invoking time::	Running the @code{time} command, and its options.
+* Format::		Selecting the information reported by @code{time}.
+* Examples::		Examples of using @code{time}.
+* Accuracy::		Limitations on the accuracy of @code{time} output.
+@end menu
+
+@node     Invoking time,      Format,        ,  Top
+@comment  node-name,  next,  previous,  up
+@section Using the @code{time} command
+
+The format of the @code{time} command is:
+
+@example
+time [-apvV] [-f @var{format}] [-o @var{file}] [--append] [--portability] [--verbose]
+[--format=@var{format}] [--output-file=@var{file}] [--version]
+@var{command} [@var{arg}@dots{}]
+@end example
+
+@kindex resources
+@code{time} first runs the program @var{command}.  When @var{command}
+finishes, @code{time} displays information about resources used by
+@var{command}, on the standard error output by default.  If
+@var{command} exits with non-zero status, @code{time} displays
+a warning message and the exit status.
+
+@code{time} determines which information to display about the resources
+used by the @var{command} from a @dfn{format string} (@pxref{Format}).
+If no format is specified on the command line, but the @code{TIME}
+environment variable is set, its value is used as the format.
+Otherwise, a default format built into @code{time} is used
+(@pxref{Format}).
+
+Options to @code{time} must appear on the command line before
+@var{command}.  Anything on the command line after @var{command} is
+passed as arguments to @var{command}.
+
+The long-named options can be introduced with @samp{+} as well as
+@samp{--}, for compatibility with previous releases.  Eventually support
+for @samp{+} will be removed, because it is incompatible with the
+POSIX.2 standard.
+
+@table @samp
+@item -o @var{file}
+@itemx --output-file=@var{file}
+Write the resource usage statistics to @var{file} instead of to the
+standard error stream.  By default, this @emph{overwrites} the file,
+destroying the file's previous contents.  This option is useful for
+collecting information on interactive programs and programs that produce
+output on the standard error stream.
+
+@item -a
+@itemx --append
+@emph{Append} the resource usage information to the output file instead
+of overwriting it.  This option is only useful with the @samp{-o} or
+@samp{--output-file} option.
+
+@item -f @var{format}
+@itemx --format=@var{format}
+Use @var{format} as the format string that controls the output of
+@code{time}.
+
+@item -p
+@itemx --portability
+Use the following format string, for conformance with POSIX 1003.2:
+
+@example
+real %e
+user %U
+sys %S
+@end example
+
+@item -v
+@itemx --verbose
+@cindex format
+Use the built-in verbose format (different from the built-in default
+format), which displays every available piece of information on the
+program's resource usage, on its own line with an English description of
+its meaning.
+
+@item -V
+@itemx --version
+@cindex version number
+Print the version number of @code{time}.
+@end table
+
+@node     Format,     Examples, Invoking time,  Top
+@comment  node-name,  next,  previous,  up
+@section Formatting The Output
+
+@cindex format
+@kindex resource
+The @dfn{format string} controls the contents of the @code{time} output.
+The format string can be set using the @samp{-f} or @samp{--format}
+options, or a built-in verbose format can be selected using the
+@samp{-v} or @samp{--verbose} options; if they are not given, but the
+@code{TIME} environment variable is set, its value is used as the format
+string.  Otherwise, a built-in default format is used.  The default
+format is:
+
+@example
+%Uuser %Ssystem %Eelapsed %PCPU (%Xtext+%Ddata %Mmax)k
+%Iinputs+%Ooutputs (%Fmajor+%Rminor)pagefaults %Wswaps
+@end example
+
+The format string usually consists of @dfn{resource specifiers}
+interspersed with plain text.  A percent sign (@samp{%}) in the format
+string causes the following character to be interpreted as a resource
+specifier, which is similar to the formatting characters in the C
+@code{printf} function.
+
+A backslash (@samp{\}) introduces a @dfn{backslash escape}, which is
+translated into a single printing character upon output.  @samp{\t}
+outputs a tab character, @samp{\n} outputs a newline, and @samp{\\}
+outputs a backslash.  A backslash followed by any other character
+outputs a question mark (@samp{?}) followed by a backslash, to indicate
+that an invalid backslash escape was given.
+
+Other text in the format string is copied verbatim to the output.
+@code{time} always prints a newline after printing the resource usage
+information, so normally format strings do not end with a newline
+character (or @samp{\n}).
+
+There are many resource specifications.  Not all resources are measured
+by all versions of Unix, so some of the values might be reported as 0.
+Any character following a percent sign that is not listed in the table
+below causes a question mark (@samp{?}) to be output, followed by that
+character, to indicate that an invalid resource specifier was given.
+
+@noindent
+The resource specification characters are:
+@table @samp
+
+@item %
+A literal @samp{%}.
+
+@item C
+The name and command line arguments of the command being timed.
+
+@item D
+The average size of the process's unshared data area, in Kilobytes.
+
+@item E
+The elapsed real (wall clock) time used by the process, in
+[hours:]minutes:seconds.microseconds.
+
+@item F
+Number of major, or I/O-requiring, page faults that occurred while the
+process was running.  These are faults where the page has actually
+migrated out of primary memory.
+
+@item I
+Number of file system inputs by the process.
+
+@item K
+The average total memory usage of the process, in Kilobytes.
+
+@item M
+The maximum resident set size of the process during its lifetime, in
+Kilobytes.
+
+@item O
+Number of file system outputs by the process.
+
+@item P
+The percentage of the CPU that this job got.  This is just user + system
+times divied by the total running time.
+
+@item R
+Number of minor, or recoverable, page faults.  These are pages that are
+not valid (so they fault) but which have not yet been claimed by other
+virtual pages.  Thus the data in the page is still valid but the system
+tables must be updated.
+
+@item S
+Total number of CPU-seconds used by the system on behalf of the process
+(in kernel mode), in seconds:microseconds.
+
+@item U
+Total number of CPU-seconds that the process used directly (in user
+mode), in seconds:microseconds.
+
+@item W
+Number of times the process was swapped out of main memory.
+
+@item X
+Average amount of shared text in the process, in Kilobytes.
+
+@item Z
+The system's page size, in bytes.  This is a per-system constant, but
+varies between systems.
+
+@item c
+Number of times the process was context-switched involuntarily (because
+the time slice expired).
+
+@item e
+The elapsed real (wall clock) time used by the process, in
+seconds.microseconds.
+
+@item k
+Number of signals delivered to the process.
+
+@item p
+The average unshared stack size of the process, in Kilobytes.
+
+@item r
+Number of socket messages received by the process.
+
+@item s
+Number of socket messages sent by the process.
+
+@item t
+The average resident set size of the process, in Kilobytes.
+
+@item w
+Number of times that the program was context-swapped voluntarily, for
+instance while waiting for an I/O operation to complete.
+
+@item x
+The exit status of the process.
+@end table
+
+The resource specification characters are a superset of those recognized
+by the @code{tcsh} builtin @code{time} command.
+
+@node     Examples,   Accuracy, Format, Top
+@comment  node-name,  next,  previous,  up
+@section Examples
+
+These examples assume that your command interpreter is @code{bash}.
+
+@noindent
+To run the command @samp{wc /etc/hosts} and show the default information:
+
+@example
+time wc /etc/hosts
+@end example
+
+@noindent
+To run the command @samp{ls -Fs} and show just the user, system, and
+total time:
+
+@example
+time -f "\t%E real,\t%U user,\t%S sys" ls -Fs
+@end example
+
+@noindent
+To edit the file @var{bork} and have @code{time} append the elapsed time
+and number of signals to the file @file{log}, reading the format string
+from the environment variable @code{TIME}:
+
+@example
+export TIME="\t%E,\t%k"
+time -a -o log emacs bork
+@end example
+
+@node     Accuracy,       ,  Examples,  Top
+@comment  node-name,  next,  previous,  up
+@section Accuracy
+@kindex error (in measurement)
+
+The elapsed time is not collected atomically with the execution of the
+program; as a result, in bizarre circumstances (if the @code{time}
+command gets stopped or swapped out in between when the program being
+timed exits and when @code{time} calculates how long it took to run), it
+could be much larger than the actual execution time.
+
+When the running time of a command is very nearly zero, some values
+(e.g., the percentage of CPU used) may be reported as either zero (which
+is wrong) or a question mark.
+
+Most information shown by @code{time} is derived from the @code{wait3}
+system call.  The numbers are only as good as those returned by
+@code{wait3}.  On systems that do not have a @code{wait3} call that
+returns status information, the @code{times} system call is used
+instead.  However, it provides much less information than
+@code{wait3}, so on those systems @code{time} reports the majority
+of the resources as zero.
+
+The @samp{%I} and @samp{%O} values are allegedly only ``real'' input
+and output and do not include those supplied by caching devices.  The
+meaning of ``real'' I/O reported by @samp{%I} and @samp{%O} may be
+muddled for workstations, especially diskless ones.
+
+@contents
+@bye

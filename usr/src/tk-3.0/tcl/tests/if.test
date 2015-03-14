@@ -1,0 +1,170 @@
+# Commands covered:  if
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright 1991 Regents of the University of California
+# Permission to use, copy, modify, and distribute this
+# software and its documentation for any purpose and without
+# fee is hereby granted, provided that this copyright notice
+# appears in all copies.  The University of California makes no
+# representations about the suitability of this software for any
+# purpose.  It is provided "as is" without express or implied
+# warranty.
+#
+# $Header: /sprite/src/lib/tcl/tests/RCS/if.test,v 1.3 91/08/20 14:19:03 ouster Exp $ (Berkeley)
+
+if {[string compare test [info procs test]] == 1} then {source defs}
+
+test if-1.1 {taking proper branch} {
+    set a {}
+    if 0 {set a 1} else {set a 2}
+    set a
+} 2
+test if-1.2 {taking proper branch} {
+    set a {}
+    if 1 {set a 1} else {set a 2}
+    set a
+} 1
+test if-1.3 {taking proper branch} {
+    set a {}
+    if 1<2 {set a 1}
+    set a
+} 1
+test if-1.4 {taking proper branch} {
+    set a {}
+    if 1>2 {set a 1}
+    set a
+} {}
+test if-1.4 {taking proper branch} {
+    set a {}
+    if 1>2 {set a 1} else {}
+    set a
+} {}
+
+test if-2.1 {optional then-else args} {
+    set a 44
+    if 1==3 then {set a 1} else {set a 2}
+    set a
+} 2
+test if-2.2 {optional then-else args} {
+    set a 44
+    if 1!=3 then {set a 1} else {set a 2}
+    set a
+} 1
+test if-2.3 {optional then-else args} {
+    set a 44
+    if 1==3 {set a 1} else {set a 2}
+    set a
+} 2
+test if-2.4 {optional then-else args} {
+    set a 44
+    if 1!=3 {set a 1} else {set a 2}
+    set a
+} 1
+test if-2.5 {optional then-else args} {
+    set a 44
+    if 1==3 then {set a 1} {set a 2}
+    set a
+} 2
+test if-2.6 {optional then-else args} {
+    set a 44
+    if 1!=3 then {set a 1} {set a 2}
+    set a
+} 1
+test if-2.7 {optional then-else args} {
+    set a 44
+    if 1==3 {set a 1} {set a 2}
+    set a
+} 2
+test if-2.8 {optional then-else args} {
+    set a 44
+    if 1!=3 {set a 1} {set a 2}
+    set a
+} 1
+test if-2.9 {optional then-else args} {
+    set a 44
+    if 1==3 t {set a 1} e {set a 2}
+    set a
+} 2
+
+test if-3.1 {error conditions} {
+    catch {if 2}
+} 1
+test if-3.2 {error conditions} {
+    catch {if 2} msg
+    set msg
+} {wrong # args: should be "if bool ?then? command ?else? ?command?"}
+test if-3.3 {error conditions} {
+    catch {if 1 then}
+} 1
+test if-3.4 {error conditions} {
+    catch {if 1 then} msg
+    set msg
+} {wrong # args: should be "if bool ?then? command ?else? ?command?"}
+test if-3.5 {error conditions} {
+    catch {if 1 {set a b} else}
+} 1
+test if-3.6 {error conditions} {
+    catch {if 1 {set a b} else} msg
+    set msg
+} {wrong # args: should be "if bool ?then? command ?else? ?command?"}
+test if-3.7 {error conditions} {
+    catch {if {[error "error in condition"]} foo}
+} 1
+test if-3.8 {error conditions} {
+    catch {if {[error "error in condition"]} foo} msg
+    set msg
+} {error in condition}
+test if-3.9 {error conditions} {
+    catch {if {[error "error in condition"]} foo} msg
+    set errorInfo
+} {error in condition
+    while executing
+"error "error in condition""
+    ("if" test line 1)
+    invoked from within
+"if {[error "error in condition"]} foo"}
+test if-3.10 {error conditions} {
+    catch {if 1 then {error "error in then clause"}}
+} 1
+test if-3.11 {error conditions} {
+    catch {if 1 then {error "error in then clause"}} msg
+    set msg
+} {error in then clause}
+test if-3.12 {error conditions} {
+    catch {if 1 then {error "error in then clause"}} msg
+    set errorInfo
+} {error in then clause
+    while executing
+"error "error in then clause""
+    ("then" clause line 1)
+    invoked from within
+"if 1 then {error "error in then clause"}"}
+test if-3.13 {error conditions} {
+    catch {if 0 {} {error "error in else clause"}}
+} 1
+test if-3.14 {error conditions} {
+    catch {if 0 {} {error "error in else clause"}} msg
+    set msg
+} {error in else clause}
+test if-3.15 {error conditions} {
+    catch {if 0 {} {error "error in else clause"}} msg
+    set errorInfo
+} {error in else clause
+    while executing
+"error "error in else clause""
+    ("else" clause line 1)
+    invoked from within
+"if 0 {} {error "error in else clause"}"}
+
+test if-4.1 {return value} {
+    if 1 then {set a 22; format abc}
+} abc
+test if-4.2 {return value} {
+    if 0 then {set a 22; format abc} else {format def}
+} def
+test if-4.3 {return value} {
+    if 0 then {set a 22; format abc}
+} {}

@@ -1,0 +1,251 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 11
+%label{glyph}{2.1}
+%label{req}{?}
+%label{allot}{2.4}
+%label{char}{2.5}
+%label{glue}{2.7}
+%label{layout}{2.8}
+%label{box}{2.9}
+%label{deck}{2.10}
+%label{page}{2.11}
+%label{monoglyph}{2.12}
+%label{background}{2.13}
+%label{margin}{2.14}
+%label{shadow}{2.15}
+%label{markers}{12.1}
+%label{tformsetter}{2.17}
+%label{center}{2.18}
+%label{composition}{12.2}
+%label{compositor}{12.3}
+%label{patch}{2.21}
+%label{rule}{2.6}
+%label{hit}{2.2}
+%label{requisition}{2.3}
+
+\begin{document}
+%
+%
+\chapter{DocumentKit}%
+%
+\float{figure}{12-\pagenumber{00}}%372.72 -645.84 -2
+\float{figure}{12-\pagenumber{00}}%372.72 -645.84 0
+In Chapter 11, we described the LayoutKit class, which provides operations
+for creating layout objects.  The DocumentKit class will provide operations
+for creating document objects that use LayoutKit objects to produce
+formatted documents.  The DocumentKit class has not yet been implemented,
+so for now we describe several objects that can be useful for building
+document editors in conjunction with the LayoutKit objects.
+
+\quad A %
+%
+\term{discretionary}%
+%
+ can take on one of several appearances depending on whether a break
+occurs on it.  A common use of a discretionary is for white space
+in a line of text, where the white space becomes zero-width glue if
+a break occurs on the discretionary.  The penalty associated with
+a discretionary defines the relative cost of breaking.  Currently,
+operations to create discretionaries are defined on the LayoutKit.
+
+\quad An %
+%
+\term{lr-marker}%
+%
+ is a glyph that can mark a region of its body.  The marking is done
+by painting a color under the area or a color on top of the area (or
+both).  The region is a shape normally associated with text selections.  The
+LRMarker constructor takes two colors, either of which can be nil
+if the associated underlay or overlay drawing is not desired.  LRMarker::mark
+paints the given region.  If y1 and y2 are the same, then the mark
+region is a single rectangle.  Otherwise, the region is defined as
+starting at (x1,y1) and filling a height of h1 to (x1,right()), then
+filling (left(),y1+h1) to (right(),y2) and filling a height of h2
+from (left(),y2) to (x2,y2).  LRMarker::unmark restores the area to
+its unmarked appearance.  An %
+%
+\term{xy-marker}%
+%
+ is simliar to an lr-marker, but it only paints a rectangular area.  While
+an lr-marker is most useful for selecting text, xy-markers are useful
+for selecting an item in a list or table.  Figure \ref{markers} shows
+the LRMarker and XYMarker class interfaces.%
+%
+\code{interface LRMarker : MonoGlyph \{\
+\quad LRMarker(Glyph*, Color* overlay, Color* underlay);\
+\quad void mark(\
+\quad \quad Coord left, Coord right, Coord x1, Coord y1,\
+\quad \quad Coord h1, Coord x2, Coord y2, Coord h2\
+\quad );\
+\quad void unmark();\
+\};\
+\
+interface XYMarker : MonoGlyph \{\
+\quad XYMarker(Glyph*, Color* overlay, Color* underlay);\
+\quad void mark(Coord left, Coord bottom, Coord right, Coord top);\
+\quad void unmark();\
+\}; %
+%
+\figurecaption{LRMarker and XYMarker protocols\label{markers}}%
+%
+%-4.57764e-05 1.91998 1
+}%
+%
+%
+%
+\section{Compositions}%
+%
+A %
+%
+\term{composition}%
+%
+ is a glyph that uses a {\bf {\font{Times-Roman}%
+%
+\term{compositor}%
+%
+}} to determine suitable breaks between groups of its components.  Figure
+\ref{composition} shows the class interfaces for the composition and
+its subclasses.  The list of components is broken into sublists that
+are put into separate composite glyphs and then inserted into the
+body.  The LRComposition subclass uses LayoutKit::hbox\_first\_aligned
+to create each sublist, while the TBComposition subclass uses LayoutKit::vbox\_first\_aligned.
+
+\quad Compositions can be used to break paragraphs into lines, lines
+into columns, or columns into pages.  A document editor might create
+an lr-composition for characters that puts the resulting hboxes for
+lines into a tb-composition, which in turn puts the vboxes for columns
+into an lr-composition, which puts the resulting lr-boxes for pages
+into a deck.
+
+\quad Compositions also can be used just as easily for arranging buttons
+in a box, where one wants the buttons to ``wrap-around'' if there
+are too many to fit horizontally.  The code to do this could look
+as follows:
+
+{\sf {\small \
+\quad \quad \quad LRComposition* c = new LRComposition(\
+\quad \quad \quad \quad layout.vbox(), new SimpleCompositor, /* no
+separator */ nil, /* width */ 4*72.0\
+\quad \quad \quad );\
+\quad \quad \quad Discretionary* ok = layout.discretionary(0, nil,
+nil, nil, nil);\
+\quad \quad \quad for (unsigned int i = 0; i < nbuttons; i++) \{\
+\quad \quad \quad \quad c->append(button[i]);\
+\quad \quad \quad \quad c->append(ok);\
+\quad \quad \quad \}\
+\quad \quad \quad c->repair();\
+ }}
+
+\quad The composition constructor takes a body in which to insert
+sublists, a compositor to determine where to break, a separator to
+be inserted at each break (unless it is nil), the dimension to use,
+the width in which the sublists must fit, and optionally the initial
+size of the list of components.  The initial size is not a maximum,
+but the list by default starts at a small size and is dynamically
+reallocated as needed.  For large lists, it can be more efficient
+to specify an estimate of the list size.  Composition::repair updates
+the composition to reflect changes to its structure.  Composition::item
+returns the index of the sublist (in other words, the component of
+the body) containing the component specified by the given index.  For
+example, this function could be used to return the line that contains
+a particular character.  Composition::beginning\_of returns the index
+of the component that starts the sublist specified by the given item.  For
+example, this function could be used to return the character that
+starts a particular line.  Composition::end\_of is like beginning\_of
+except it returns the end of the sublist.  Composition::margin causes
+space to be left at the beginning and end of the specified item in
+the body.  For example, this function could be used to put margins
+on a line of text.%
+%
+\code{interface Composition : MonoGlyph \{\
+\quad Composition(\
+\quad \quad Glyph*, Compositor*, Glyph* separator, DimensionName,\
+\quad \quad Coord width, GlyphIndex size\
+\quad );\
+\quad void repair();\
+\quad GlyphIndex item(GlyphIndex);\
+\quad lyphIndex beginning\_of(GlyphIndex);\
+\quad GlyphIndex end\_of(GlyphIndex);\
+\quad void margin(GlyphIndex, Coord begin, Coord end);\
+\quad void view(GlyphIndex first, GlyphIndex last);\
+\};\
+\
+interface LRComposition : Composition \{\
+\quad LRComposition(\
+\quad \quad Glyph*, Compositor*, Glyph* sep, Coord, GlyphIndex = 10\
+\quad );\
+\};\
+\
+interface TBComposition : Composition \{\
+\quad TBComposition(\
+\quad \quad Glyph*, Compositor*, Glyph* sep, Coord, GlyphIndex = 10\
+\quad );\
+\}; %
+%
+\figurecaption{Composition classes\label{composition}}%
+%
+ %-0.960052 0.9599 2
+}%
+%
+ Composition::view guarantees that breaks are computed for the components
+between indices {\it first} and {\it last} inclusively.  By restricting
+the viewing area, this operation can eliminate the computation of
+breaks for components that are not visible.
+
+\quad A compositor computes the breaks based on assessing the penalty
+for a possible breaks.  Three subclasses are provided that use different
+levels of sophistication in determining breaks.  An %
+%
+\term{array-compositor}%
+%
+ positions breaks every N elements, where N is specified in the constructor.  A
+%
+%
+\term{simple-compositor}%
+%
+ finds a simple set of breaks quickly.  It  is analogous to a line-at-a-time
+text formatter.  A %
+%
+\term{TeX-compositor}%
+%
+ finds breaks using Knuth's TeX algorithm.
+
+\quad Figure \ref{compositor} shows the interfaces to the compositor
+classes.  Compositor::compose uses the natural, stretch, shrink, penalty,
+and span information for each component as input parameters.  The
+return value is the number of breaks found.  The {\sf {\size{10}breaks}}
+array contains the positions of the breaks; that is, {\sf {\size{10}break[i]}}
+is the index of the component where the {\it i}th break occurs.%
+%
+\code{interface Compositor \{\
+\quad virtual int compose(\
+\quad \quad Coord* natural, Coord* stretch, Coord* shrink,\
+\quad \quad int* penalties, int component\_count,\
+\quad \quad Coord* spans, int span\_count,\
+\quad \quad int* breaks, int break\_count\
+\quad );\
+\};\
+\
+interface ArrayCompositor : Compositor \{\
+\quad ArrayCompositor(int N);\
+\};\
+\
+interface SimpleCompositor : Compositor \{\
+\quad SimpleCompositor();\
+\};\
+\
+interface TeXCompositor : Compositor \{\
+\quad \quad TeXCompositor(int penalty);\
+\}; %
+%
+\figurecaption{Compositor classes\label{compositor}}%
+%
+%-1.92003 -8.64017 3
+}%
+%
+\pagebreak
+See iv/src/examples/preview.%
+\end{document}

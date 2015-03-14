@@ -1,0 +1,100 @@
+# autocis - xc script to visit CIS automagically.
+# This file uses 4-character tabstops.
+# It will log in, visit CIS Mail (if mail is waiting), then the
+#  PRACTICE and UNIX Fora, uploading any prepared files, downloading
+#  all new messages, and capture into three separate files.
+# The following assumptions are made about your CIS interactions:
+
+#  You go to MAIL upon login if any mail is waiting.
+#  You are in "expert" mode in MAIL.
+#  You are in Command mode in all Fora.
+#  You have opted for continuous reading in all Fora.
+#  You have set your Prompt Char set to '^H' --backspace-- in all Fora.
+#	This last is VERY critical to the properly trigger the WAITFORs
+
+# The script can be modified to set all of these options on a per/session
+# basis if you wish to remain in menu-mode at other times
+
+tty "on"		# echo to the tty while script is running
+debug "on"		# capture in debug.log providing file pre-exists
+set 7bit on		# CIS is happier
+set bps 2400
+set cis off		# don't trigger on any stray ENQ character
+set xoff on		# set XON/XOFF signalling
+
+if ! linked; then dial "7662080"; endif	# dial this number
+while ! waitfor "2400" 52				# give modem 52 secs to say "2400"
+	do
+		redial
+	done
+
+pause 2						# let network catch up
+transmit "^C"				# First thing to send CIS
+pause 3						# let network catch up
+
+# Now send CIS one string with PPN, first service to go to, and password
+transmit "72160,1341/go:mail\\beige*screw^M"
+
+if waitfor "CompuServe Mail^M" 8			# we already asked to GO MAIL
+then if ! waitfor "No messages pending" 4	# unless nothing waiting, then
+	 set cfile "/pub/jpr/comm/email"		# use this capture file
+		capture "on"							# open it
+		file echo `date`						# time stamp it
+		transmit "rec all^M"					# ask to read everything
+		while ! waitfor "Mail!"					#  until this string appears
+			do; done							#  script does nothing
+		transmit "del all^M"				# remove msgs from CIS mbox
+		capture "off"						# close the capture file
+	fi
+else
+	beep							# beep if we never get to CISMail
+endif
+
+set cfile "/pub/jpr/comm/pra"		# new capture file
+transmit "g practice^M"				# new Forum
+waitfor "moment please..."			# "Welcome" should follow this
+capture "on"						# start appending to 'pra'
+if waitfor "forum !^H" 40			# Prompt with a backspace
+then	assign Upload eq `ls rp 2>/dev/null`
+	if Upload eq "rp"				# is there an 'rp' file
+	then	capture "off"			# then turn off capturing
+		type "rp"					# transmit the 'rp' file
+		transmit "^M"				# this extra newline will trigger
+		while ! waitfor "% choice required"	# this response after the upload
+			do; done
+		shell "mv rp /pub/rescue/rp$$"	# rename the 'rp' file
+		capture "on"				# start capturing again
+	fi
+	transmit "rea new^M^M"			# read all new messages
+	while ! waitfor "% choice required"
+		do; done
+	capture "off"
+else
+	beep							# beep if Forum closed, or you get bumped
+fi
+
+set cfile "/pub/jpr/comm/uni"		# same stuff in another Forum
+transmit "g unixforum^M"
+waitfor "moment please..."
+capture "on"
+if waitfor "forum !^H" 40
+then	assign Upload eq `ls ru 2>/dev/null`
+	if Upload eq "ru"
+	then	capture "off"
+		type "ru"
+		transmit "^M"
+		while ! waitfor "% choice required"
+			do; done
+		shell "mv ru /pub/rescue/ru$$"
+		capture "on"
+	fi
+	transmit "rea new^M^M"
+	while ! waitfor "% choice required"
+		do; done
+	capture "off"
+else
+	beep
+fi
+
+transmit "off^M"
+quit

@@ -1,0 +1,297 @@
+.TH CSOUND 1Csound "7 Feb 1991"
+.SH NAME
+Csound \- digital audio processing and sound synthesis
+.SH SYNOPSIS
+	csound [flags] orchfile scorefile
+.SH OVERVIEW
+.PP
+.I Csound
+is an environment in which a "scorefile" or external event sequence can invoke
+arbitrarily complex signal-processing "instruments" to produce sound.
+Audio may be displayed during its creation, and the resulting sound sent
+to an on-line audio device or to an intermediate soundfile for later playback.
+.I Csound
+is invoked by a single command, which induces three phases of action:
+.in +3
+.I Score
+sorting
+.br
+.I Orchestra
+translation and loading
+.br
+.I Sound
+generation (audio processing and synthesis).
+.in -3
+.PP
+.I Csound
+audio processing is supported by various score manipulation languages
+(SCOT, CSCORE, SCSORT, EXTRACT) and by soundfile analysis-synthesis
+methods including additive synthesis (ADSYN), linear predictive coding (LPC),
+and phase vocoding (PVOC).
+.PP
+There is no complete on-line manual, but
+.I man
+entries exist for the stand-alone analysis and scoring programs.
+More complete information can be found in the troff-able
+.I "Csound Reference Manual,"
+which provides an overview, tutorial, details of behavior,
+and step-by-step examples.
+.SH DESCRIPTION
+.PP
+\fIcsound\fR is a command for passing an orchestra file and score file to the
+\fICsound\fR environment to generate a soundfile.  In the above SYNOPSIS, all
+flag arguments are optional with set defaults.  Flags may appear either
+separately or bundled;  those that take an argument will expect
+to find it either immediately following or as the next argument.
+Recognized flags are:
+.TP 9
+.B \-I
+Init-time processing only.  Allocate and initialize all instrument events
+as per the score, but skip all Performance-time processing (no k-signals or
+a-signals, thus no amplitudes and no sound).  Provides a fast validity check
+of all score pfields and instrument i-variables.  Implies
+.B \-n.
+.TP 9
+.B \-n
+No sound output, i.e. do all sound generation, but bypass audio output.
+This flag will override a \fB-o\fR flag.
+.TP 9
+.B \-i sfnam
+Input soundfile name or audio-device name.  If this flag \fIis present\fR,
+sound will be continuously read from the named file or device,
+and will be available to all instruments containing an "in" unit.
+If no explicit path is given, the file will be sought in the user's sound
+directory (environment variable SFDIR); if \fIsfnam\fR is of the form
+\fIpath/name\fR, the file will be sought in the 'path' directory.
+If \fIsfnam\fR is of the form \fI/dev/name\fR or \fIstdin\fR,
+sound will be read from there.   The encoding \fIformat\fR of an audio input file
+is self-defining, described by its \fIsoundfile header\fR;  if no header is
+present, the format is presumed the same as the generated output.
+The channel count and sampling rate of an audio input file must match that
+of the receiving Orchestra.
+
+.TP 9
+.B \-o sfnam
+Output soundfile name or audio-device name; the default name is "test".
+.I Csound
+writes continuously to a soundfile or device, unless prevented by a \fB-n\fR flag.
+If \fIsfnam\fR is omitted or contains no explicit path, sound will be written
+to the user's soundfile directory (environment variable SFDIR); if \fIsfnam\fR
+is of the form \fIpath/name\fR, sound will be placed in the 'path' directory.
+If \fIsfnam\fR is of the form \fI/dev/name\fR or \fIstdout\fR,
+sound will be sent there.
+.TP 9
+.B \-b N
+Blocksize, in \fIsamples\fR (not bytes), for the above sound I/O.  Typically
+512 samples per buffer.  A larger number is more efficient, but small numbers
+reduce the delay in realtime performances.
+.TP 9
+.B \-h
+Do not write a soundfile header in the sound output stream.
+.TP 9
+.B \-c
+Write 8-bit signed-character sound samples.
+.TP 9
+.B \-a
+Write 8-bit alaw-encoded sound samples.
+.TP 9
+.B \-u
+Write 8-bit ulaw-encoded sound samples.
+.TP 9
+.B \-s
+Write 16-bit short_integer sound samples.
+.TP 9
+.B \-l
+Write 32-bit long_integer sound samples.
+.TP 9
+.B \-f
+Write single-precision floating-point sound samples.
+A float file cannot generally be played, but can be \fIrescaled\fR,
+or read by \fBsoundin\fR and GEN01.
+.TP 9
+.B \-v
+Verbose translate and run.  Prints details of orch translation and performance,
+enabling errors to be more clearly located.
+.TP 9
+.B \-m N
+Message level for standard (terminal) output.
+Takes the \fIsum\fR of 3 print control flags, turned on
+by the following values:
+1 = note amplitude messages,  2 = samples out of range message,
+4 = warning messages.
+The default value is
+.I m7
+(all messages on).
+.TP 9
+.B \-d
+Suppress all display functions.
+.TP 9
+.B \-g
+Suppress graphics, and use ascii displays instead.
+If the user terminal supports graphic windows, display functions ordinarily
+appear in that form.  This flag will invoke an alternate system, printing graphs
+in ascii characters--as would occur if the terminal did not support graphics.
+.TP 9
+.B \-S sname
+Interpret
+.I sname
+as a Scot scorefile, create a standard score file from it,
+then perform the result.
+.TP 9
+.B \-x xname
+Extract a portion of the sorted \fIscorefile\fR (or 'score.srt')
+according to the contents of \fIxname\fR (see Extract below).
+.TP 9
+.B \-B
+Beat mode.  Use the uninterpreted Beats of \fIscore.srt\fR for this performance.
+In this mode, the \fIbeat rate\fR of score performance is controllable from
+within the orchestra by a \fBtempo\fR unit.
+.TP 9
+.B \-R indev
+Allow Realtime Line-oriented ascii-defined events via device \fIindev\fR
+to activate instruments of the Orchestra.  E.g., the name \fIstdin\fR would
+enable an associated realtime process to initiate fully-specified score events
+through a \fIpipe\fR.  The format of events is identical to that in an unsorted
+scorefile, except that pfield 3 (duration) is given in seconds and pfield 2
+(start-time) is automatically set at event-time.  A parallel score is optional.
+.TP 9
+.B \-M indev
+Allow MIDI invocation of the orchestra instruments via device \fIindev\fR,
+of the form \fI/dev/midi\fR or \fIstdin\fR.  A parallel score is optional.
+
+.PP
+The
+.I orchfile
+is a collection of Instruments which are sequences of Csound statements
+invoking control-signal and audio-signal processing modules.
+A simple instrument might appear as follows:
+
+.nf
+		instr	3
+	k1	linseg	p4, p3, p4/10
+	a1	oscil	k1, p5, 1
+		out   	a1
+		endin
+.fi
+
+The
+.I scorefile
+is a collection of statements that create stored waveforms or activate
+orchestra instruments at some specified time.
+A score statement contains parameter values that are passed to the instrument.
+The following would create a single stored waveform, then invoke the above
+instrument to generate two two-beat audio events, with p4 amplitude 1000 and
+p5 pitches 440 and 522 Hertz:
+
+.nf
+	f 1	0	256	10	1
+	i 3	0	2	1000	440
+	i 3	2	2	1000	522
+	e
+.fi
+.SH
+The Extract feature:
+.PP
+This feature will
+.B extract
+a segment of a
+.I "sorted numeric score"
+file according to instructions taken from a control file.
+The control file contains an instrument list and two time points,
+.I from
+and
+.I to,
+in the form:
+.in +3
+instruments 1 2   from 1:27.5    to 2:2
+.in -3
+.PP
+The component labels may be abbreviated as
+.I "i, f"
+and
+.I t.
+The time points denote the begininng and end of the extract in terms of:
+.in +3
+[section no.] : [beat no.].
+.in -3
+Each of the three parts is also optional.
+The default values for missing
+.I "i, f"
+or
+.I t
+are:
+.in +3
+all instruments,   begining of score,   end of score.
+.in -3
+.PP
+.I extract
+reads an orchestra-readable score file and produces an
+orchestra-readable result.
+Comments, tabs and extra spaces are flushed,
+.I w
+and
+.I a
+statements are added and an 
+.I f0
+reflecting the extract length is appended to the output.
+Following an
+.I extract
+process, the abbreviated score will contain all function table statements,
+together with just those note statements that occur in the
+.I from-to
+interval specified.  Notes lying completely in the interval will be
+unmodified;  notes that lie only partly within will their p3 durations
+truncated as necessary.
+
+.SH
+Independent Preprocessing:
+.PP
+Although the result of all score preprocessing is retained in the file
+.I score.srt
+after orchestra performance (it exists as soon as score preprocessing
+has completed), the user may sometimes want to run these phases independently.
+The command
+.in +3
+scot  filename
+.in -3
+will process the
+.I Scot
+formatted
+.I filename,
+and leave a
+.I "standard numeric score"
+result in a file named
+.I score
+for perusal or later processing.
+
+The command
+.in +3
+scscort < infile   > outfile
+.in -3
+will put a numeric score
+.I infile
+through Carry, Tempo, and Sort preprocessing, leaving the result in
+.I outfile.
+
+Likewise
+.B extract,
+also normally invoked as part of the
+.B perf
+command, can be invoked as a standalone program:
+.in +3
+extract xfile < score.sort  > score.extract
+.in -3
+This command expects an already sorted score.
+An unsorted score should first be sent through
+.I scsort
+then piped to the extract program:
+.in +3
+scsort < scorefile | extract xfile > score.extract
+.in -3
+.SH "SEE ALSO"
+hetro(1Csound), lpcanal(1Csound), pvanal(1Csound),
+.I "The Csound Reference Manual"
+.SH AUTHOR
+.PP
+Written by Barry Vercoe, Music and Cognition group of the
+Media Laboratory at MIT. 

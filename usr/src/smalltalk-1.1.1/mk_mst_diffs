@@ -1,0 +1,43 @@
+#!/bin/csh -f
+
+# This file computes the differences between the original version of the 
+# GNU Smalltalk source files and the current version of the same.  It's
+# end result is the file mst.diffs that contains those differences in a format
+# that can be applied to patch to upgrade some other person's version of
+# GNU Smalltalk to your current version.
+
+# The entire process is driven off the file "mstfiles".  This file contains the
+# names of all of the files that make up the GNU Smalltalk distribution.  If
+# you add any files, you should be sure to add them to this file.
+
+set path=($cwd $path)		# make sure that any cd's don't lose us
+
+print_file_names `cat mstfiles` | sort > mstfiles.srt
+
+print_file_names -d ./orig `cat ./orig/mstfiles` | sort > mstfiles.osrt
+
+comm -23 mstfiles.srt mstfiles.osrt > mstfiles.dif
+
+foreach file (`cat mstfiles.dif`)
+    if ( -d $file )  then 
+	echo "You created new directory '$file'"
+  	mkdir ./orig/$file
+    else 
+	echo "You created new file '$file'"
+	touch ./orig/$file 
+    endif
+end
+rm -rf mstfiles.osrt mstfiles.dif mst.diffs
+
+foreach file (`cat mstfiles.srt`)
+    if (-f ${file} ) then
+	diff -c ./orig/${file} ./${file} > a.diff
+	if (${status} == 1) then
+	    cat a.diff >> mst.diffs
+	endif
+    endif
+end
+
+rm -rf mstfiles.srt a.diff
+
+exit 0

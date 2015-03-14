@@ -1,0 +1,128 @@
+# Makefile for Zip, ZipNote, ZipSplit, and Ship, for Power C.
+
+# This version by Bob Hardy, 07-16-91
+
+# Make sure you have plenty of free diskspace before invoking make,
+# especially for "make zips".  If you run out of space, several lines
+# will lose dramatically, and the make will fail.  You may even have
+# to rename some source files.
+
+CC=pc
+LD=pcl
+MODEL=m
+# (note from the editor: the "m" here for MODEL looks a little suspicious--
+#  it probably should be s or c, since the small or compact models are what
+#  should be used.)
+CFLAGS=/f- /m$(MODEL) /dMSDOS /dNO_ASM /dEXPORT
+LDFLAGS=/d 
+STRIP=lzexe
+# If you don't have lzexe, get it. Then define:
+#    STRIP=lzexe
+# This makes a *big* difference in .exe size (hence load time)
+# If you want to make without it, comment out all the STRIP lines and the
+# "rm *.old" lines.  This will cost you in terms of disk usage, though.
+
+# variables
+OBJZ1 = zip.mix zipfile.mix zipup.mix fileio.mix util.mix
+OBJZ2 = shrink.mix globals.mix tempf.mix
+OBJC2 = util.mix globals.mix
+OBJI = implode.mix im_lmat.mix im_ctree.mix im_bits.mix
+OBJN = zipnote.mix zipfile_.mix zipup_.mix fileio_.mix globals.mix
+OBJS = zipsplit.mix zipfile_.mix zipup_.mix fileio_.mix globals.mix
+
+zips:		zip.exe zipnote.exe zipsplit.exe ship.exe
+
+zip.mix:	zip.h ziperr.h tailor.h revision.h zip.c
+	$(CC) $(CFLAGS) zip.c
+
+zipfile.mix:	zip.h ziperr.h tailor.h zipfile.c
+	$(CC) $(CFLAGS) zipfile.c
+
+zipup.mix:	zip.h ziperr.h tailor.h revision.h zipup.c
+	$(CC) $(CFLAGS) zipup.c
+
+fileio.mix:	zip.h ziperr.h tailor.h fileio.c
+	$(CC) $(CFLAGS) fileio.c
+
+util.mix:	zip.h ziperr.h tailor.h util.c
+	$(CC) $(CFLAGS) util.c
+
+shrink.mix:	zip.h ziperr.h tailor.h shrink.c
+	$(CC) $(CFLAGS) shrink.c
+
+globals.mix:	zip.h ziperr.h tailor.h globals.c
+	$(CC) $(CFLAGS) globals.c
+
+zipnote.mix:	zip.h ziperr.h tailor.h revision.h zipnote.c
+	$(CC) $(CFLAGS) zipnote.c
+
+zipsplit.mix: zipsplit.c zip.h ziperr.h tailor.h revision.h
+	$(CC) $(CFLAGS) zipsplit.c
+
+implode.mix:	implode.h crypt.h ziperr.h tailor.h tempf.h implode.c
+	$(CC) $(CFLAGS) implode.c
+
+tempf.mix:	tempf.h tailor.h tempf.c
+	$(CC) $(CFLAGS) tempf.c
+
+im_lmat.mix:	implode.h crypt.h ziperr.h tailor.h im_lmat.c
+	$(CC) $(CFLAGS) im_lmat.c
+
+im_ctree.mix:	implode.h crypt.h ziperr.h tailor.h tempf.h im_ctree.c
+	$(CC) $(CFLAGS) im_ctree.c
+
+im_bits.mix:	implode.h crypt.h ziperr.h tailor.h im_bits.c
+	$(CC) $(CFLAGS) im_bits.c
+
+zipfile_.mix: zipfile.c zip.h
+	+ren zipfile.c zipfile_.c
+	$(CC) /dUTIL $(CFLAGS) zipfile_.c
+	+ren zipfile_.c zipfile.c
+
+zipup_.mix: zipup.c zip.h
+	+ren zipup.c zipup_.c
+	$(CC) /dUTIL $(CFLAGS) zipup_.c
+	+ren zipup_.c zipup.c
+
+fileio_.mix: fileio.c zip.h
+	+ren fileio.c fileio_.c
+	$(CC) /dUTIL $(CFLAGS) fileio_.c
+	+ren fileio_.c fileio.c
+
+# we must cut the command line to fit in the MS/DOS 128 byte limit:
+zip.exe: $(OBJZ1) $(OBJZ2) $(OBJI)
+	+echo L $(OBJZ1) > zip.rsp
+	+echo L $(OBJZ2) >> zip.rsp
+	+echo L $(OBJI) >> zip.rsp
+	+echo FA; >> zip.rsp
+	+echo b zip,,, >> zip.rsp
+	$(LD) $(LDFLAGS) @zip.rsp
+	rm zip.rsp
+	$(STRIP) zip.exe
+#	rm zip.old
+# Leave these "rm *.old" lines in if you have a shortage of diskspace.
+# Particularly if you intend to "make zips".
+
+zipnote.exe: $(OBJN)
+	+echo L $(OBJN) > zipn.rsp
+	+echo FA; >> zipn.rsp
+	+echo b zipnote,,, >> zipn.rsp
+	$(LD) $(LDFLAGS) @zipn.rsp
+	rm zipn.rsp
+	$(STRIP) zipnote.exe
+#	rm zipnote.old
+
+zipsplit.exe: $(OBJS)
+	+echo L $(OBJS) > zips.rsp
+	+echo FA; >> zips.rsp
+	+echo b zipsplit,,, >> zips.rsp
+	$(LD) $(LDFLAGS) @zips.rsp
+	rm zips.rsp
+	$(STRIP) zipsplit.exe
+#	rm zipsplit.old
+
+ship.exe: ship.c
+	$(CC) $(CFLAGS) ship.c
+	$(LD) $(LDFLAGS) ship.mix
+	$(STRIP) ship.exe
+#	rm ship.old

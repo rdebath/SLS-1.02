@@ -1,0 +1,173 @@
+.\" This file Copyright 1992 Michael K. Johnson (johnsonm@stolaf.edu)
+.\" It may be distributed under the GNU Public License, version 2, or
+.\" any higher version.  See section COPYING of the GNU Public license
+.\" for conditions under which this file may be redistributed.
+.TH PS 1 "14 Jan 1993" "Cohesive Systems" "Linux Programmer's Manual"
+.SH NAME
+ps \- report process status
+.SH SYNOPSIS
+ps [\-][lujsvmaxScewhrnu][txx]
+.SH DESCRIPTION
+.B "ps "
+gives a snapshot of the current processes.  If you want a repetitive
+update of this status, use
+.B top.
+This man page documents the /proc-based version of ps, or tries to.
+.PP
+.SH "COMMAND\-LINE OPTIONS"
+Command line arguments may optionally be preceeded by a '\-', but
+there is no need for it.  Please note that not all these options may
+work, but most should.  If you depend on one that isn't there, please
+contact johnsonm@stolaf.edu about it, explaining what you need.  If it
+can be added, I will, and if it can't you will want to use the
+kmem-based ps.
+.TP 0.5i
+.B "l "
+long format
+.TP 0.5i
+.B "u "
+user format: gives user name and start time
+.TP 0.5i
+.B "j "
+jobs format: pgid sid
+.TP 0.5i
+.B "s"
+signal format
+.TP 0.5i
+.B "v "
+vm format
+.TP 0.5i
+.B "m "
+displays memory info (combine with p flag to get number of pages).
+.TP 0.5i
+.B "a "
+show processes of other users too
+.TP 0.5i
+.B "x "
+show processes without controlling terminal
+.TP 0.5i
+.B "S "
+add child cpu time and page faults
+.TP 0.5i
+.B "c "
+command name from task_struct
+.TP 0.5i
+.B "e "
+show environment
+.TP 0.5i
+.B "w "
+wide output: don't truncate command lines to fit on one line.
+.TP 0.5i
+.B "h "
+no header
+.TP 0.5i
+.B "r "
+running procs only
+.TP 0.5i
+.B "n "
+numeric output for USER and WCHAN.  Actually, right now, numeric
+output is all you can get for WCHAN, but I digress...
+.TP 0.5i
+.B "txx "
+only procs with controlling tty xx, use for xx the same letters as
+shown in TT field.  tty name or pid must be given after the last
+option, with no space between options and pid or tty.
+
+.SH "FIELD DESCRIPTIONS"
+.TP 0.5i
+.B "PRI "
+This is the counter field in the task struct.  It is the time in HZ of
+the process's possible timeslice.
+.TP 0.5i
+.B "NI "
+Standard unix nice value, a positive value means less cpu time.
+.TP 0.5i
+.B "SIZE "
+virtual image size, size of text+data+stack
+.TP 0.5i
+.B "RSS "
+resident set size, kilobytes of program in memory.
+.TP 0.5i
+.B "WCHAN "
+name of the kernel function where the process is sleeping.  This does
+not work, because namelist functionality has not been added to ps yet.
+.TP 0.5i
+.B "STAT "
+.TP 0.25i
+.B "R "
+runnable
+.TP 0.25i
+.B "S "
+sleeping
+.TP 0.25i
+.B "D "
+uninterruptible sleep
+.TP 0.25i
+.B "T "
+stopped or traced
+.TP 0.25i
+.B "Z "
+zombie
+.TP 0.25i
+.B "W "
+process has no resident pages
+.TP 0.5i
+.B "TT "
+controlling tty
+.TP 0.5i
+.B "PAGEIN "
+number of major page faults, that is, page faults that cause pages to
+be read from disk.
+.TP 0.5i
+.B "TRS "
+text resident size
+.TP 0.5i
+.B "SWAP "
+kilobytes (with \-p pages) on swap device
+.TP 0.5i
+.B "SHARE "
+shared memory
+.SH UPDATING
+.B ps
+This proc-based ps works by reading the files in the proc filesystem,
+mounted on /proc.  In the future, it will be able to determine WCHAN
+information by reading a namelist file, but this ps does not need to
+be suid kmem or anything else to run.  Do not give this ps any special
+permissions.
+.PP
+You will update the /etc/psdatabase file by running a special sgid
+program when I write the program to do that.  In the meantime, WCHAN
+is numeric only.  Sorry.
+.PP
+.SH NOTES
+The member 'used_math' of task_struct is not shown, since crt0.s
+checks to see if math is present.  This causes the math flag to be set
+for all processes, and so it is worthless.
+.PP
+Programs swapped out to disk will be shown without command line
+arguments, and unless the "c" option is given, in parentheses.
+.PP
+WCHAN (l format) will show the function in which the process is sleeping,
+the 'sys_' part is stripped from function names.  Right now, it is
+just a hex number.  Sorry.
+.PP
+%CPU (u format) shows the cputime/realtime percentage.
+.PP
+PAGEIN (v format): pages read from the buffer cache are counted as
+major page faults.
+.PP
+The SIZE and RSS fields don't count the page tables and the
+task_struct of a proc, this is at least 12k of memory that is always
+resident. SIZE is the virtual size of the proc (code+data+stack).
+.PP
+%CPU will not add up to 100% unless you are lucky.  It is time used
+divided by the time the process has been running.
+.SH BUGS
+Tty names are hard coded: virtual consoles are a1, a2, ...  serial
+lines are A0 and A1, pty's are p0, p1 ...
+.SH AUTHOR
+.B ps
+was originally written by Branko Lankester (lankeste@fwi.uva.nl)
+Michael K. Johnson (johnsonm@stolaf.edu) re-wrote it significantly to
+use the proc filesystem, changing a few things in the process.
+

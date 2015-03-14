@@ -1,0 +1,70 @@
+#!/bin/csh -f
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+# 
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# appear in all copies, and that the name of Bellcore not be 
+# used in advertising or publicity pertaining to this 
+# material without the specific, prior written permission 
+# of an authorized representative of Bellcore.  BELLCORE 
+# MAKES NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+
+# This is to make metamail/showaudio do playback on the speaker, not the phone.
+setenv AUDIOSPEAKERFORCE 1 
+
+if (-d /usr/sony) then
+    set dev=/dev/sb0
+else
+    set dev=/dev/audio
+endif
+
+set audiofile=$1
+if (-e $audiofile && ! -z $audiofile) goto whatnext
+
+record:
+echo -n "Press RETURN when you are ready to start recording: "
+set foo = $<
+
+# THIS IS UNBELIEVABLY GRUBBY
+onintr cleanup
+if (! $?RECORD_AUDIO) then
+    (/bin/cat < $dev > $audiofile) &
+else
+    ($RECORD_AUDIO > $audiofile) &
+endif
+jobs -l > /tmp/AUDCAT.$$
+set foo=`/bin/cat /tmp/AUDCAT.$$`
+/bin/rm /tmp/AUDCAT.$$
+set PID=$foo[2]
+echo -n "press RETURN when you are done recording: "
+set foo=$<
+echo One moment please...
+/bin/sleep 1
+echo -n Killing recording job...
+/bin/kill -9 $PID >& /dev/null
+
+whatnext:
+echo ""
+echo "What do you want to do?"
+echo ""
+echo "1 -- Listen to recorded message"
+echo "2 -- Replace with a new recording"
+echo "3 -- All Done, Quit"
+set which = $<
+    switch ($which)
+        case 1:
+          cat $audiofile > $dev
+          breaksw
+        case 2:
+          goto record
+        case 3:
+          exit
+    endsw
+goto whatnext
+exit 0
+cleanup:
+kill -9 $PID >& /dev/null

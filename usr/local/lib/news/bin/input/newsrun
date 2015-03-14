@@ -1,0 +1,155 @@
+#! /bin/sh
+# Process spooled news.
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/input:$NEWSBIN/relay:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+# Should we be running on this machine at all?
+if test -r $NEWSCTL/server
+then
+	me="`hostname`"
+	server="`cat $NEWSCTL/server`"
+	if test " $server" != " `hostname`"
+	then
+		exec rsh $server exec /bin/sh -c "PATH=$PATH exec newsrun $*"
+		exit 2		# should never be reached
+	fi
+fi
+
+# Options.
+hold=
+case "$1" in
+-h)	hold=y ; shift	;;
+esac
+
+# Go to our base of operations.
+cd $NEWSARTS/in.coming
+
+# Consider what grades we should process, and check for work.
+sawstop=n
+stoppat='0\.'
+if test -r stop
+then
+	pat="$stoppat"
+	sawstop=y
+else
+	pat='[0-9]'
+fi
+case "$1" in
+'')			;;
+*)	pat="[$1]\."	;;
+esac
+if test " `ls | egrep \"^$pat\" | wc -l`" -eq 0
+then
+	exit 0	
+fi
+
+# Lock against others running.
+lock="$NEWSCTL/LOCKinput"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+if newslock $ltemp $lock
+then
+	trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+else
+	exit 0
+fi
+
+# Misc. setup.
+stale="`staleness`"
+
+# Master loop.
+while :				# "while true", but : is faster
+do
+	# Find some work.  "sort -n" gets grades ordered right.
+	them="`ls | egrep \"^$pat\" | sort -n | sed 50q`"
+	if test " $them" = " "		# if no work...
+	then
+		break			# NOTE BREAK OUT
+	fi
+
+	# Check space.  It is *probably* better to stop processing
+	# when things get too full.  (This test is actually a bit
+	# inaccurate since the batches may be compressed, but it's
+	# good enough to catch major space problems.)
+	allsize=`sizeof $them`
+	if test " `spacefor $allsize articles`" -gt 1	# lots of room
+	then
+		muchroom=y
+	else
+		muchroom=
+	fi
+
+	# Decompression etc.
+	list=
+	for f in $them
+	do
+		# If the stop file has come into existence, punch out to
+		# the outer loop to process what we've got and then rethink.
+		if test " $sawstop" = " n" -a -r stop
+		then
+			sawstop=y
+			pat="$stoppat"
+			break		# NOTE BREAK OUT
+		fi
+
+		# Space check, if we're close.
+		if test " $muchroom" != " y"
+		then
+			batchsize=`sizeof $f`
+			if test " `spacefor $batchsize articles`" -le 1
+			then
+				if test " $list" = " "
+				then
+					exit 0
+				else
+					break	# NOTE BREAK OUT
+				fi
+			fi
+		fi
+
+		# Save a copy in hold if requested.
+		if test " $hold" = " y" -a -d hold
+		then
+			ln $f hold/$f
+		fi
+
+		# Decompress if necessary.
+		text=${f}.t
+		case $f in
+		*.Z)	uncompress <$f >$text	;;
+		*.7)	c7decode <$f | uncompress >$text	;;
+		*.t)	text=$f ; : okay	;;
+		*)	uncompress <$f >$text 2>/dev/null ||
+				{ rm -f $text ; text=$f ; : okay ; }	;;
+		esac || ln $f bad/$f
+		if test " $f" != " $text"
+		then
+			rm -f $f
+		fi
+
+		# Empty batches need no processing.
+		if test -s $text
+		then
+			list="$list $text"
+		else
+			rm -f $text
+		fi
+	done
+
+	# Do it.  -r redirects stdout and stderr into logs.  -n makes
+	# history entries for refused articles; this is right for
+	# NNTP-feed sites and doesn't hurt uucp-feed sites unless
+	# they refuse a good fraction of what they get.  -u tells relaynews
+	# to unlink the files that work.
+	relaynews -r -n $stale -u $list
+
+	# Deal with the leftovers, if any.
+	mv $list bad 2>/dev/null	# simpler than testing them all again
+done
+
+exit 0

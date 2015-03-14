@@ -1,0 +1,1386 @@
+the process can set an alarm signal before calling
+.I svc_run()
+But if the other activity
+involves waiting on a a file descriptor, the
+.I svc_run()
+call won't work.
+The code for
+.I svc_run()
+is as follows:
+.ie t .DS
+.el .DS L
+.ft CW
+.vs 11
+void
+svc_run()
+{
+	fd_set readfds;
+	int dtbsz = getdtablesize();
+
+	for (;;) {
+		readfds = svc_fds;
+		switch (select(dtbsz, &readfds, NULL,NULL,NULL)) {
+
+		case -1:
+			if (errno == EINTR)
+				continue;
+			perror("select");
+			return;
+		case 0:
+			break;
+		default:
+			svc_getreqset(&readfds);
+		}
+	}
+}
+.vs
+.DE
+.KE
+.LP
+You can bypass
+.I svc_run()
+and call
+.I svc_getreqset()
+yourself.
+All you need to know are the file descriptors
+of the socket(s) associated with the programs you are waiting on.
+Thus you can have your own
+.I select() 
+.IX select() "" \fIselect()\fP
+that waits on both the RPC socket,
+and your own descriptors.  Note that
+.I svc_fds() 
+is a bit mask of all the file descriptors that RPC is using for 
+services.  It can change everytime that
+.I any
+RPC library routine is called, because descriptors are constantly 
+being opened and closed, for example for TCP connections.
+.NH 2
+\&Broadcast RPC
+.IX "broadcast RPC"
+.IX RPC "broadcast"
+.LP
+The
+.I portmapper
+is a daemon that converts RPC program numbers
+into DARPA protocol port numbers; see the
+.I portmap 
+man page.  You can't do broadcast RPC without the portmapper.
+Here are the main differences between
+broadcast RPC and normal RPC calls:
+.IP  1.
+Normal RPC expects one answer, whereas
+broadcast RPC expects many answers
+(one or more answer from each responding machine).
+.IP  2.
+Broadcast RPC can only be supported by packet-oriented (connectionless)
+transport protocols like UPD/IP.
+.IP  3.
+The implementation of broadcast RPC
+treats all unsuccessful responses as garbage by filtering them out.
+Thus, if there is a version mismatch between the
+broadcaster and a remote service,
+the user of broadcast RPC never knows.
+.IP  4.
+All broadcast messages are sent to the portmap port.
+Thus, only services that register themselves with their portmapper
+are accessible via the broadcast RPC mechanism.
+.IP  5.
+Broadcast requests are limited in size to the MTU (Maximum Transfer
+Unit) of the local network.  For Ethernet, the MTU is 1500 bytes.
+.KS
+.NH 3
+\&Broadcast RPC Synopsis
+.IX "broadcast RPC" synopsis
+.IX "RPC" "broadcast synopsis"
+.ie t .DS
+.el .DS L
+.ft CW
+#include <rpc/pmap_clnt.h>
+	. . .
+enum clnt_stat	clnt_stat;
+	. . .
+clnt_stat = clnt_broadcast(prognum, versnum, procnum,
+  inproc, in, outproc, out, eachresult)
+	u_long    prognum;        /* \fIprogram number\fP */
+	u_long    versnum;        /* \fIversion number\fP */
+	u_long    procnum;        /* \fIprocedure number\fP */
+	xdrproc_t inproc;         /* \fIxdr routine for args\fP */
+	caddr_t   in;             /* \fIpointer to args\fP */
+	xdrproc_t outproc;        /* \fIxdr routine for results\fP */
+	caddr_t   out;            /* \fIpointer to results\fP */
+	bool_t    (*eachresult)();/* \fIcall with each result gotten\fP */
+.DE
+.KE
+The procedure
+.I eachresult()
+is called each time a valid result is obtained.
+It returns a boolean that indicates
+whether or not the user wants more responses.
+.ie t .DS
+.el .DS L
+.ft CW
+bool_t done;
+	. . . 
+done = eachresult(resultsp, raddr)
+	caddr_t resultsp;
+	struct sockaddr_in *raddr; /* \fIAddr of responding machine\fP */
+.DE
+If
+.I done
+is
+.I TRUE ,
+then broadcasting stops and
+.I clnt_broadcast()
+returns successfully.
+Otherwise, the routine waits for another response.
+The request is rebroadcast
+after a few seconds of waiting.
+If no responses come back,
+the routine returns with
+.I RPC_TIMEDOUT .
+.NH 2
+\&Batching
+.IX "batching"
+.IX RPC "batching"
+.LP
+The RPC architecture is designed so that clients send a call message,
+and wait for servers to reply that the call succeeded.
+This implies that clients do not compute
+while servers are processing a call.
+This is inefficient if the client does not want or need
+an acknowledgement for every message sent.
+It is possible for clients to continue computing
+while waiting for a response,
+using RPC batch facilities.
+.LP
+RPC messages can be placed in a \*Qpipeline\*U of calls
+to a desired server; this is called batching.
+Batching assumes that:
+1) each RPC call in the pipeline requires no response from the server,
+and the server does not send a response message; and
+2) the pipeline of calls is transported on a reliable
+byte stream transport such as TCP/IP.
+Since the server does not respond to every call,
+the client can generate new calls in parallel
+with the server executing previous calls.
+Furthermore, the TCP/IP implementation can buffer up
+many call messages, and send them to the server in one
+.I write()
+system call.  This overlapped execution
+greatly decreases the interprocess communication overhead of
+the client and server processes,
+and the total elapsed time of a series of calls.
+.LP
+Since the batched calls are buffered,
+the client should eventually do a nonbatched call
+in order to flush the pipeline.
+.LP
+A contrived example of batching follows.
+Assume a string rendering service (like a window system)
+has two similar calls: one renders a string and returns void results,
+while the other renders a string and remains silent.
+The service (using the TCP/IP transport) may look like:
+.ie t .DS
+.el .DS L
+.ft CW
+#include <stdio.h>
+#include <rpc/rpc.h>
+#include <suntool/windows.h>
+
+void windowdispatch();
+
+main()
+{
+	SVCXPRT *transp;
+
+	transp = svctcp_create(RPC_ANYSOCK, 0, 0);
+	if (transp == NULL){
+		fprintf(stderr, "can't create an RPC server\en");
+		exit(1);
+	}
+	pmap_unset(WINDOWPROG, WINDOWVERS);
+	if (!svc_register(transp, WINDOWPROG, WINDOWVERS,
+	  windowdispatch, IPPROTO_TCP)) {
+		fprintf(stderr, "can't register WINDOW service\en");
+		exit(1);
+	}
+	svc_run();  /* \fINever returns\fP */
+	fprintf(stderr, "should never reach this point\en");
+}
+
+void
+windowdispatch(rqstp, transp)
+	struct svc_req *rqstp;
+	SVCXPRT *transp;
+{
+	char *s = NULL;
+
+	switch (rqstp->rq_proc) {
+	case NULLPROC:
+		if (!svc_sendreply(transp, xdr_void, 0)) 
+			fprintf(stderr, "can't reply to RPC call\en");
+		return;
+	case RENDERSTRING:
+		if (!svc_getargs(transp, xdr_wrapstring, &s)) {
+			fprintf(stderr, "can't decode arguments\en");
+.ft I
+			/*
+			 * Tell caller he screwed up
+			 */
+.ft CW
+			svcerr_decode(transp);
+			break;
+		}
+.ft I
+		/*
+		 * Code here to render the string \fIs\fP
+		 */
+.ft CW
+		if (!svc_sendreply(transp, xdr_void, NULL)) 
+			fprintf(stderr, "can't reply to RPC call\en");
+		break;
+	case RENDERSTRING_BATCHED:
+		if (!svc_getargs(transp, xdr_wrapstring, &s)) {
+			fprintf(stderr, "can't decode arguments\en");
+.ft I
+			/*
+			 * We are silent in the face of protocol errors
+			 */
+.ft CW
+			break;
+		}
+.ft I
+		/*
+		 * Code here to render string s, but send no reply!
+		 */
+.ft CW
+		break;
+	default:
+		svcerr_noproc(transp);
+		return;
+	}
+.ft I
+	/*
+	 * Now free string allocated while decoding arguments
+	 */
+.ft CW
+	svc_freeargs(transp, xdr_wrapstring, &s);
+}
+.DE
+Of course the service could have one procedure
+that takes the string and a boolean
+to indicate whether or not the procedure should respond.
+.LP
+In order for a client to take advantage of batching,
+the client must perform RPC calls on a TCP-based transport
+and the actual calls must have the following attributes:
+1) the result's XDR routine must be zero
+.I NULL ),
+and 2) the RPC call's timeout must be zero.
+.KS
+.LP
+Here is an example of a client that uses batching to render a
+bunch of strings; the batching is flushed when the client gets
+a null string (EOF):
+.ie t .DS
+.el .DS L
+.ft CW
+.vs 11
+#include <stdio.h>
+#include <rpc/rpc.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <netdb.h>
+#include <suntool/windows.h>
+
+main(argc, argv)
+	int argc;
+	char **argv;
+{
+	struct hostent *hp;
+	struct timeval pertry_timeout, total_timeout;
+	struct sockaddr_in server_addr;
+	int sock = RPC_ANYSOCK;
+	register CLIENT *client;
+	enum clnt_stat clnt_stat;
+	char buf[1000], *s = buf;
+
+	if ((client = clnttcp_create(&server_addr,
+	  WINDOWPROG, WINDOWVERS, &sock, 0, 0)) == NULL) {
+		perror("clnttcp_create");
+		exit(-1);
+	}
+	total_timeout.tv_sec = 0;
+	total_timeout.tv_usec = 0;
+	while (scanf("%s", s) != EOF) {
+		clnt_stat = clnt_call(client, RENDERSTRING_BATCHED,
+			xdr_wrapstring, &s, NULL, NULL, total_timeout);
+		if (clnt_stat != RPC_SUCCESS) {
+			clnt_perror(client, "batched rpc");
+			exit(-1);
+		}
+	}
+
+	/* \fINow flush the pipeline\fP */
+
+	total_timeout.tv_sec = 20;
+	clnt_stat = clnt_call(client, NULLPROC, xdr_void, NULL,
+		xdr_void, NULL, total_timeout);
+	if (clnt_stat != RPC_SUCCESS) {
+		clnt_perror(client, "rpc");
+		exit(-1);
+	}
+	clnt_destroy(client);
+	exit(0);
+}
+.vs
+.DE
+.KE
+Since the server sends no message,
+the clients cannot be notified of any of the failures that may occur.
+Therefore, clients are on their own when it comes to handling errors.
+.LP
+The above example was completed to render
+all of the (2000) lines in the file
+.I /etc/termcap .
+The rendering service did nothing but throw the lines away.
+The example was run in the following four configurations:
+1) machine to itself, regular RPC;
+2) machine to itself, batched RPC;
+3) machine to another, regular RPC; and
+4) machine to another, batched RPC.
+The results are as follows:
+1) 50 seconds;
+2) 16 seconds;
+3) 52 seconds;
+4) 10 seconds.
+Running
+.I fscanf()
+on
+.I /etc/termcap
+only requires six seconds.
+These timings show the advantage of protocols
+that allow for overlapped execution,
+though these protocols are often hard to design.
+.NH 2
+\&Authentication
+.IX "authentication"
+.IX "RPC" "authentication"
+.LP
+In the examples presented so far,
+the caller never identified itself to the server,
+and the server never required an ID from the caller.
+Clearly, some network services, such as a network filesystem,
+require stronger security than what has been presented so far.
+.LP
+In reality, every RPC call is authenticated by
+the RPC package on the server, and similarly,
+the RPC client package generates and sends authentication parameters.
+Just as different transports (TCP/IP or UDP/IP)
+can be used when creating RPC clients and servers,
+different forms of authentication can be associated with RPC clients;
+the default authentication type used as a default is type
+.I none .
+.LP
+The authentication subsystem of the RPC package is open ended.
+That is, numerous types of authentication are easy to support.
+.NH 3
+\&UNIX Authentication
+.IX "UNIX Authentication"
+.IP "\fIThe Client Side\fP"
+.LP
+When a caller creates a new RPC client handle as in:
+.DS
+.ft CW
+clnt = clntudp_create(address, prognum, versnum,
+		      wait, sockp)
+.DE
+the appropriate transport instance defaults
+the associate authentication handle to be
+.DS
+.ft CW
+clnt->cl_auth = authnone_create();
+.DE
+The RPC client can choose to use
+.I UNIX
+style authentication by setting
+.I clnt\->cl_auth
+after creating the RPC client handle:
+.DS
+.ft CW
+clnt->cl_auth = authunix_create_default();
+.DE
+This causes each RPC call associated with
+.I clnt
+to carry with it the following authentication credentials structure:
+.ie t .DS
+.el .DS L
+.ft I
+/*
+ * UNIX style credentials.
+ */
+.ft CW
+struct authunix_parms {
+    u_long  aup_time;       /* \fIcredentials creation time\fP */
+    char    *aup_machname;  /* \fIhost name where client is\fP */
+    int     aup_uid;        /* \fIclient's UNIX effective uid\fP */
+    int     aup_gid;        /* \fIclient's current group id\fP */
+    u_int   aup_len;        /* \fIelement length of aup_gids\fP */
+    int     *aup_gids;      /* \fIarray of groups user is in\fP */
+};
+.DE
+These fields are set by
+.I authunix_create_default()
+by invoking the appropriate system calls.
+Since the RPC user created this new style of authentication,
+the user is responsible for destroying it with:
+.DS
+.ft CW
+auth_destroy(clnt->cl_auth);
+.DE
+This should be done in all cases, to conserve memory.
+.sp
+.IP "\fIThe Server Side\fP"
+.LP
+Service implementors have a harder time dealing with authentication issues
+since the RPC package passes the service dispatch routine a request
+that has an arbitrary authentication style associated with it.
+Consider the fields of a request handle passed to a service dispatch routine:
+.ie t .DS
+.el .DS L
+.ft I
+/*
+ * An RPC Service request
+ */
+.ft CW
+struct svc_req {
+    u_long    rq_prog;    	/* \fIservice program number\fP */
+    u_long    rq_vers;    	/* \fIservice protocol vers num\fP */
+    u_long    rq_proc;    	/* \fIdesired procedure number\fP */
+    struct opaque_auth rq_cred; /* \fIraw credentials from wire\fP */
+    caddr_t   rq_clntcred;  /* \fIcredentials (read only)\fP */
+};
+.DE
+The
+.I rq_cred
+is mostly opaque, except for one field of interest:
+the style or flavor of authentication credentials:
+.ie t .DS
+.el .DS L
+.ft I
+/*
+ * Authentication info.  Mostly opaque to the programmer.
+ */
+.ft CW
+struct opaque_auth {
+    enum_t  oa_flavor;  /* \fIstyle of credentials\fP */
+    caddr_t oa_base;    /* \fIaddress of more auth stuff\fP */
+    u_int   oa_length;  /* \fInot to exceed \fIMAX_AUTH_BYTES */
+};
+.DE
+.IX RPC guarantees
+The RPC package guarantees the following
+to the service dispatch routine:
+.IP  1.
+That the request's
+.I rq_cred
+is well formed.  Thus the service implementor may inspect the request's
+.I rq_cred.oa_flavor
+to determine which style of authentication the caller used.
+The service implementor may also wish to inspect the other fields of
+.I rq_cred
+if the style is not one of the styles supported by the RPC package.
+.IP  2.
+That the request's
+.I rq_clntcred
+field is either
+.I NULL 
+or points to a well formed structure
+that corresponds to a supported style of authentication credentials.
+Remember that only
+.I unix
+style is currently supported, so (currently)
+.I rq_clntcred
+could be cast to a pointer to an
+.I authunix_parms
+structure.  If
+.I rq_clntcred
+is
+.I NULL ,
+the service implementor may wish to inspect the other (opaque) fields of
+.I rq_cred
+in case the service knows about a new type of authentication
+that the RPC package does not know about.
+.LP
+Our remote users service example can be extended so that
+it computes results for all users except UID 16:
+.ie t .DS
+.el .DS L
+.ft CW
+.vs 11
+nuser(rqstp, transp)
+	struct svc_req *rqstp;
+	SVCXPRT *transp;
+{
+	struct authunix_parms *unix_cred;
+	int uid;
+	unsigned long nusers;
+
+.ft I
+	/*
+	 * we don't care about authentication for null proc
+	 */
+.ft CW
+	if (rqstp->rq_proc == NULLPROC) {
+		if (!svc_sendreply(transp, xdr_void, 0)) {
+			fprintf(stderr, "can't reply to RPC call\en");
+			return (1);
+		 }
+		 return;
+	}
+.ft I
+	/*
+	 * now get the uid
+	 */
+.ft CW
+	switch (rqstp->rq_cred.oa_flavor) {
+	case AUTH_UNIX:
+		unix_cred = 
+			(struct authunix_parms *)rqstp->rq_clntcred;
+		uid = unix_cred->aup_uid;
+		break;
+	case AUTH_NULL:
+	default:
+		svcerr_weakauth(transp);
+		return;
+	}
+	switch (rqstp->rq_proc) {
+	case RUSERSPROC_NUM:
+.ft I
+		/*
+		 * make sure caller is allowed to call this proc
+		 */
+.ft CW
+		if (uid == 16) {
+			svcerr_systemerr(transp);
+			return;
+		}
+.ft I
+		/*
+		 * Code here to compute the number of users
+		 * and assign it to the variable \fInusers\fP
+		 */
+.ft CW
+		if (!svc_sendreply(transp, xdr_u_long, &nusers)) {
+			fprintf(stderr, "can't reply to RPC call\en");
+			return (1);
+		}
+		return;
+	default:
+		svcerr_noproc(transp);
+		return;
+	}
+}
+.vs
+.DE
+A few things should be noted here.
+First, it is customary not to check
+the authentication parameters associated with the
+.I NULLPROC
+(procedure number zero).
+Second, if the authentication parameter's type is not suitable
+for your service, you should call
+.I svcerr_weakauth() .
+And finally, the service protocol itself should return status
+for access denied; in the case of our example, the protocol
+does not have such a status, so we call the service primitive
+.I svcerr_systemerr()
+instead.
+.LP
+The last point underscores the relation between
+the RPC authentication package and the services;
+RPC deals only with 
+.I authentication 
+and not with individual services' 
+.I "access control" .
+The services themselves must implement their own access control policies
+and reflect these policies as return statuses in their protocols.
+.NH 2
+\&DES Authentication
+.IX RPC DES
+.IX RPC authentication
+.LP
+UNIX authentication is quite easy to defeat.  Instead of using
+.I authunix_create_default (),
+one can call
+.I authunix_create() 
+and then modify the RPC authentication handle it returns by filling in
+whatever user ID and hostname they wish the server to think they have.
+DES authentication is thus recommended for people who want more security
+than UNIX authentication offers.
+.LP
+The details of the DES authentication protocol are complicated and
+are not explained here.  
+See
+.I "Remote Procedure Calls: Protocol Specification"
+for the details.
+.LP
+In  order for  DES authentication   to  work, the
+.I keyserv(8c) 
+daemon must be running  on both  the  server  and client machines.  The
+users on  these machines  need  public  keys  assigned by  the network
+administrator in  the
+.I publickey(5) 
+database.  And,  they  need to have decrypted  their  secret keys
+using  their  login   password.  This automatically happens when one
+logs in using
+.I login(1) ,
+or can be done manually using
+.I keylogin(1) .
+The
+.I "Network Services"
+chapter
+./" XXX
+explains more how to setup secure networking.
+.sp
+.IP "\fIClient Side\fP"
+.LP
+If a client wishes to use DES authentication, it must set its
+authentication handle appropriately.  Here is an example:
+.DS
+cl->cl_auth =
+	authdes_create(servername, 60, &server_addr, NULL);
+.DE
+The first argument is the network name or \*Qnetname\*U of the owner of
+the server process.  Typically, server processes are root processes
+and their netname can be derived using the following call:
+.DS
+char servername[MAXNETNAMELEN];
+
+host2netname(servername, rhostname, NULL);
+.DE
+Here,
+.I rhostname
+is the hostname of the machine the server process is running on.
+.I host2netname() 
+fills in
+.I servername
+to contain this root process's netname.  If the
+server process was run by a regular user, one could use the call
+.I user2netname() 
+instead.  Here is an example for a server process with the same user
+ID as the client:
+.DS
+char servername[MAXNETNAMELEN];
+
+user2netname(servername, getuid(), NULL);
+.DE
+The last argument to both of these calls,
+.I user2netname() 
+and
+.I host2netname (),
+is the name of the naming domain where the server is located.  The
+.I NULL 
+used here means \*Quse the local domain name.\*U
+.LP
+The second argument to
+.I authdes_create() 
+is a lifetime for the credential.  Here it is set to sixty
+seconds.  What that means is that the credential will expire 60
+seconds from now.  If some mischievous user tries to reuse the
+credential, the server RPC subsystem will recognize that it has
+expired and not grant any requests.  If the same mischievous user
+tries to reuse the credential within the sixty second lifetime,
+he will still be rejected because the server RPC subsystem
+remembers which credentials it has already seen in the near past,
+and will not grant requests to duplicates.
+.LP
+The third argument to
+.I authdes_create() 
+is the address of the host to synchronize with.  In order for DES
+authentication to work, the server and client must agree upon the
+time.  Here we pass the address of the server itself, so the
+client and server will both be using the same time: the server's
+time.  The argument can be
+.I NULL ,
+which means \*Qdon't bother synchronizing.\*U You should only do this
+if you are sure the client and server are already synchronized.
+.LP
+The final argument to
+.I authdes_create() 
+is the address of a DES encryption key to use for encrypting
+timestamps and data.  If this argument is
+.I NULL ,
+as it is in this example, a random key will be chosen.  The client
+may find out the encryption key being used by consulting the
+.I ah_key 
+field of the authentication handle.
+.sp
+.IP "\fIServer Side\fP"
+.LP
+The server side is a lot simpler than the client side.  Here is the
+previous example rewritten to use
+.I AUTH_DES
+instead of
+.I AUTH_UNIX :
+.ie t .DS
+.el .DS L
+.ft CW
+.vs 11
+#include <sys/time.h>
+#include <rpc/auth_des.h>
+	. . .
+	. . .
+nuser(rqstp, transp)
+	struct svc_req *rqstp;
+	SVCXPRT *transp;
+{
+	struct authdes_cred *des_cred;
+	int uid;
+	int gid;
+	int gidlen;
+	int gidlist[10];
+.ft I
+	/*
+	 * we don't care about authentication for null proc
+	 */
+.ft CW
+
+	if (rqstp->rq_proc == NULLPROC) { 
+		/* \fIsame as before\fP */
+	}
+
+.ft I
+	/*
+	 * now get the uid
+	 */
+.ft CW
+	switch (rqstp->rq_cred.oa_flavor) {
+	case AUTH_DES:
+		des_cred =
+			(struct authdes_cred *) rqstp->rq_clntcred;
+		if (! netname2user(des_cred->adc_fullname.name,
+			&uid, &gid, &gidlen, gidlist))
+		{
+			fprintf(stderr, "unknown user: %s\n",
+				des_cred->adc_fullname.name);
+			svcerr_systemerr(transp);
+			return;
+		}
+		break;
+	case AUTH_NULL:
+	default:
+		svcerr_weakauth(transp);
+		return;
+	}
+
+.ft I
+	/*
+	 * The rest is the same as before
+ 	 */	
+.ft CW
+.vs
+.DE
+Note the use of the routine
+.I netname2user (),
+the inverse of
+.I user2netname ():
+it takes a network ID and converts to a unix ID.
+.I netname2user () 
+also supplies the group IDs which we don't use in this example,
+but which may be useful to other UNIX programs.
+.NH 2
+\&Using Inetd
+.IX inetd "" "using \fIinetd\fP"
+.LP
+An RPC server can be started from
+.I inetd
+The only difference from the usual code is that the service
+creation routine should be called in the following form:
+.ie t .DS
+.el .DS L
+.ft CW
+transp = svcudp_create(0);     /* \fIFor UDP\fP */
+transp = svctcp_create(0,0,0); /* \fIFor listener TCP sockets\fP */
+transp = svcfd_create(0,0,0);  /* \fIFor connected TCP sockets\fP */
+.DE
+since
+.I inet
+passes a socket as file descriptor 0.
+Also,
+.I svc_register()
+should be called as
+.ie t .DS
+.el .DS L
+.ft CW
+svc_register(transp, PROGNUM, VERSNUM, service, 0);
+.DE
+with the final flag as 0,
+since the program would already be registered by
+.I inetd
+Remember that if you want to exit
+from the server process and return control to
+.I inet
+you need to explicitly exit, since
+.I svc_run()
+never returns.
+.LP
+The format of entries in 
+.I /etc/inetd.conf 
+for RPC services is in one of the following two forms:
+.ie t .DS
+.el .DS L
+.ft CW
+p_name/version dgram  rpc/udp wait/nowait user server args
+p_name/version stream rpc/tcp wait/nowait user server args
+.DE
+where
+.I p_name
+is the symbolic name of the program as it appears in
+.I rpc(5) ,
+.I server
+is the program implementing the server,
+and
+.I program
+and
+.I version
+are the program and version numbers of the service.
+For more information, see
+.I inetd.conf(5) .
+.LP
+If the same program handles multiple versions,
+then the version number can be a range,
+as in this example:
+.ie t .DS
+.el .DS L
+.ft CW
+rstatd/1-2 dgram rpc/udp wait root /usr/etc/rpc.rstatd
+.DE
+.NH 1
+\&More Examples
+.sp 1
+.NH 2
+\&Versions
+.IX "versions"
+.IX "RPC" "versions"
+.LP
+By convention, the first version number of program
+.I PROG
+is
+.I PROGVERS_ORIG
+and the most recent version is
+.I PROGVERS
+Suppose there is a new version of the
+.I user
+program that returns an
+.I "unsigned short"
+rather than a
+.I long .
+If we name this version
+.I RUSERSVERS_SHORT
+then a server that wants to support both versions
+would do a double register.
+.ie t .DS
+.el .DS L
+.ft CW
+if (!svc_register(transp, RUSERSPROG, RUSERSVERS_ORIG,
+  nuser, IPPROTO_TCP)) {
+	fprintf(stderr, "can't register RUSER service\en");
+	exit(1);
+}
+if (!svc_register(transp, RUSERSPROG, RUSERSVERS_SHORT,
+  nuser, IPPROTO_TCP)) {
+	fprintf(stderr, "can't register RUSER service\en");
+	exit(1);
+}
+.DE
+Both versions can be handled by the same C procedure:
+.ie t .DS
+.el .DS L
+.ft CW
+.vs 11
+nuser(rqstp, transp)
+	struct svc_req *rqstp;
+	SVCXPRT *transp;
+{
+	unsigned long nusers;
+	unsigned short nusers2;
+
+	switch (rqstp->rq_proc) {
+	case NULLPROC:
+		if (!svc_sendreply(transp, xdr_void, 0)) {
+			fprintf(stderr, "can't reply to RPC call\en");
+            return (1);
+		}
+		return;
+	case RUSERSPROC_NUM:
+.ft I
+		/*
+         * Code here to compute the number of users
+         * and assign it to the variable \fInusers\fP
+		 */
+.ft CW
+		nusers2 = nusers;
+		switch (rqstp->rq_vers) {
+		case RUSERSVERS_ORIG:
+            if (!svc_sendreply(transp, xdr_u_long, 
+		    &nusers)) {
+                fprintf(stderr,"can't reply to RPC call\en");
+			}
+			break;
+		case RUSERSVERS_SHORT:
+            if (!svc_sendreply(transp, xdr_u_short, 
+		    &nusers2)) {
+                fprintf(stderr,"can't reply to RPC call\en");
+			}
+			break;
+		}
+	default:
+		svcerr_noproc(transp);
+		return;
+	}
+}
+.vs
+.DE
+.KS
+.NH 2
+\&TCP
+.IX "TCP"
+.LP
+Here is an example that is essentially
+.I rcp.
+The initiator of the RPC
+.I snd
+call takes its standard input and sends it to the server
+.I rcv
+which prints it on standard output.
+The RPC call uses TCP.
+This also illustrates an XDR procedure that behaves differently
+on serialization than on deserialization.
+.ie t .DS
+.el .DS L
+.vs 11
+.ft I
+/*
+ * The xdr routine:
+ *		on decode, read from wire, write onto fp
+ *		on encode, read from fp, write onto wire
+ */
+.ft CW
+#include <stdio.h>
+#include <rpc/rpc.h>
+
+xdr_rcp(xdrs, fp)
+	XDR *xdrs;
+	FILE *fp;
+{
+	unsigned long size;
+	char buf[BUFSIZ], *p;
+
+	if (xdrs->x_op == XDR_FREE)/* nothing to free */
+		return 1;
+	while (1) {
+		if (xdrs->x_op == XDR_ENCODE) {
+			if ((size = fread(buf, sizeof(char), BUFSIZ,
+			  fp)) == 0 && ferror(fp)) {
+				fprintf(stderr, "can't fread\en");
+				return (1);
+			}
+		}
+		p = buf;
+		if (!xdr_bytes(xdrs, &p, &size, BUFSIZ))
+			return 0;
+		if (size == 0)
+			return 1;
+		if (xdrs->x_op == XDR_DECODE) {
+			if (fwrite(buf, sizeof(char), size,
+			  fp) != size) {
+				fprintf(stderr, "can't fwrite\en");
+				return (1);
+			}
+		}
+	}
+}
+.vs
+.DE
+.KE
+.ie t .DS
+.el .DS L
+.vs 11
+.ft I
+/*
+ * The sender routines
+ */
+.ft CW
+#include <stdio.h>
+#include <netdb.h>
+#include <rpc/rpc.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+
+main(argc, argv)
+	int argc;
+	char **argv;
+{
+	int xdr_rcp();
+	int err;
+
+	if (argc < 2) {
+		fprintf(stderr, "usage: %s servername\en", argv[0]);
+		exit(-1);
+	}
+	if ((err = callrpctcp(argv[1], RCPPROG, RCPPROC,
+	  RCPVERS, xdr_rcp, stdin, xdr_void, 0) != 0)) {
+		clnt_perrno(err);
+		fprintf(stderr, "can't make RPC call\en");
+		exit(1);
+	}
+	exit(0);
+}
+
+callrpctcp(host, prognum, procnum, versnum,
+           inproc, in, outproc, out)
+	char *host, *in, *out;
+	xdrproc_t inproc, outproc;
+{
+	struct sockaddr_in server_addr;
+	int socket = RPC_ANYSOCK;
+	enum clnt_stat clnt_stat;
+	struct hostent *hp;
+	register CLIENT *client;
+	struct timeval total_timeout;
+
+	if ((hp = gethostbyname(host)) == NULL) {
+		fprintf(stderr, "can't get addr for '%s'\en", host);
+		return (-1);
+	}
+	bcopy(hp->h_addr, (caddr_t)&server_addr.sin_addr,
+		hp->h_length);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port =  0;
+	if ((client = clnttcp_create(&server_addr, prognum,
+	  versnum, &socket, BUFSIZ, BUFSIZ)) == NULL) {
+		perror("rpctcp_create");
+		return (-1);
+	}
+	total_timeout.tv_sec = 20;
+	total_timeout.tv_usec = 0;
+	clnt_stat = clnt_call(client, procnum,
+		inproc, in, outproc, out, total_timeout);
+	clnt_destroy(client);
+	return (int)clnt_stat;
+}
+.vs
+.DE
+.ie t .DS
+.el .DS L
+.vs 11
+.ft I
+/*
+ * The receiving routines
+ */
+.ft CW
+#include <stdio.h>
+#include <rpc/rpc.h>
+
+main()
+{
+	register SVCXPRT *transp;
+     int rcp_service(), xdr_rcp(); 
+
+	if ((transp = svctcp_create(RPC_ANYSOCK,
+	  BUFSIZ, BUFSIZ)) == NULL) {
+		fprintf("svctcp_create: error\en");
+		exit(1);
+	}
+	pmap_unset(RCPPROG, RCPVERS);
+	if (!svc_register(transp,
+	  RCPPROG, RCPVERS, rcp_service, IPPROTO_TCP)) {
+		fprintf(stderr, "svc_register: error\en");
+		exit(1);
+	}
+	svc_run();  /* \fInever returns\fP */
+	fprintf(stderr, "svc_run should never return\en");
+}
+
+rcp_service(rqstp, transp)
+	register struct svc_req *rqstp;
+	register SVCXPRT *transp;
+{
+	switch (rqstp->rq_proc) {
+	case NULLPROC:
+		if (svc_sendreply(transp, xdr_void, 0) == 0) {
+			fprintf(stderr, "err: rcp_service");
+			return (1);
+		}
+		return;
+	case RCPPROC_FP:
+		if (!svc_getargs(transp, xdr_rcp, stdout)) {
+			svcerr_decode(transp);
+			return;
+		}
+		if (!svc_sendreply(transp, xdr_void, 0)) {
+			fprintf(stderr, "can't reply\en");
+			return;
+		}
+		return (0);
+	default:
+		svcerr_noproc(transp);
+		return;
+	}
+}
+.vs
+.DE
+.NH 2
+\&Callback Procedures
+.IX RPC "callback procedures"
+.LP
+Occasionally, it is useful to have a server become a client,
+and make an RPC call back to the process which is its client.
+An example is remote debugging,
+where the client is a window system program,
+and the server is a debugger running on the remote machine.
+Most of the time,
+the user clicks a mouse button at the debugging window,
+which converts this to a debugger command,
+and then makes an RPC call to the server
+(where the debugger is actually running),
+telling it to execute that command.
+However, when the debugger hits a breakpoint, the roles are reversed,
+and the debugger wants to make an rpc call to the window program,
+so that it can inform the user that a breakpoint has been reached.
+.LP
+In order to do an RPC callback,
+you need a program number to make the RPC call on.
+Since this will be a dynamically generated program number,
+it should be in the transient range,
+.I "0x40000000 - 0x5fffffff" .
+The routine
+.I gettransient()
+returns a valid program number in the transient range,
+and registers it with the portmapper.
+It only talks to the portmapper running on the same machine as the
+.I gettransient()
+routine itself.  The call to
+.I pmap_set()
+is a test and set operation,
+in that it indivisibly tests whether a program number
+has already been registered,
+and if it has not, then reserves it.  On return, the
+.I sockp
+argument will contain a socket that can be used
+as the argument to an
+.I svcudp_create()
+or
+.I svctcp_create()
+call.
+.ie t .DS
+.el .DS L
+.ft CW
+.vs 11
+#include <stdio.h>
+#include <rpc/rpc.h>
+#include <sys/socket.h>
+
+gettransient(proto, vers, sockp)
+	int proto, vers, *sockp;
+{
+	static int prognum = 0x40000000;
+	int s, len, socktype;
+	struct sockaddr_in addr;
+
+	switch(proto) {
+		case IPPROTO_UDP:
+			socktype = SOCK_DGRAM;
+			break;
+		case IPPROTO_TCP:
+			socktype = SOCK_STREAM;
+			break;
+		default:
+			fprintf(stderr, "unknown protocol type\en");
+			return 0;
+	}
+	if (*sockp == RPC_ANYSOCK) {
+		if ((s = socket(AF_INET, socktype, 0)) < 0) {
+			perror("socket");
+			return (0);
+		}
+		*sockp = s;
+	}
+	else
+		s = *sockp;
+	addr.sin_addr.s_addr = 0;
+	addr.sin_family = AF_INET;
+	addr.sin_port = 0;
+	len = sizeof(addr);
+.ft I
+	/*
+	 * may be already bound, so don't check for error
+	 */
+.ft CW
+	bind(s, &addr, len);
+	if (getsockname(s, &addr, &len)< 0) {
+		perror("getsockname");
+		return (0);
+	}
+	while (!pmap_set(prognum++, vers, proto, 
+		ntohs(addr.sin_port))) continue;
+	return (prognum-1);
+}
+.vs
+.DE
+.SH
+Note:
+.I
+The call to
+.I ntohs() 
+is necessary to ensure that the port number in
+.I "addr.sin_port" ,
+which is in 
+.I network 
+byte order, is passed in 
+.I host
+byte order (as
+.I pmap_set() 
+expects).  See the
+.I byteorder(3N) 
+man page for more details on the conversion of network
+addresses from network to host byte order.
+.KS
+.LP
+The following pair of programs illustrate how to use the
+.I gettransient()
+routine.
+The client makes an RPC call to the server,
+passing it a transient program number.
+Then the client waits around to receive a callback
+from the server at that program number.
+The server registers the program
+.I EXAMPLEPROG
+so that it can receive the RPC call
+informing it of the callback program number.
+Then at some random time (on receiving an
+.I ALRM
+signal in this example), it sends a callback RPC call,
+using the program number it received earlier.
+.ie t .DS
+.el .DS L
+.vs 11
+.ft I
+/*
+ * client
+ */
+.ft CW
+#include <stdio.h>
+#include <rpc/rpc.h>
+
+int callback();
+char hostname[256];
+
+main()
+{
+	int x, ans, s;
+	SVCXPRT *xprt;
+
+	gethostname(hostname, sizeof(hostname));
+	s = RPC_ANYSOCK;
+	x = gettransient(IPPROTO_UDP, 1, &s);
+	fprintf(stderr, "client gets prognum %d\en", x);
+	if ((xprt = svcudp_create(s)) == NULL) {
+	  fprintf(stderr, "rpc_server: svcudp_create\en");
+		exit(1);
+	}
+.ft I
+	/* protocol is 0 - gettransient does registering
+	 */
+.ft CW
+	(void)svc_register(xprt, x, 1, callback, 0);
+	ans = callrpc(hostname, EXAMPLEPROG, EXAMPLEVERS,
+		EXAMPLEPROC_CALLBACK, xdr_int, &x, xdr_void, 0);
+	if ((enum clnt_stat) ans != RPC_SUCCESS) {
+		fprintf(stderr, "call: ");
+		clnt_perrno(ans);
+		fprintf(stderr, "\en");
+	}
+	svc_run();
+	fprintf(stderr, "Error: svc_run shouldn't return\en");
+}
+
+callback(rqstp, transp)
+	register struct svc_req *rqstp;
+	register SVCXPRT *transp;
+{
+	switch (rqstp->rq_proc) {
+		case 0:
+			if (!svc_sendreply(transp, xdr_void, 0)) {
+				fprintf(stderr, "err: exampleprog\en");
+				return (1);
+			}
+			return (0);
+		case 1:
+			if (!svc_getargs(transp, xdr_void, 0)) {
+				svcerr_decode(transp);
+				return (1);
+			}
+			fprintf(stderr, "client got callback\en");
+			if (!svc_sendreply(transp, xdr_void, 0)) {
+				fprintf(stderr, "err: exampleprog");
+				return (1);
+			}
+	}
+}
+.vs
+.DE
+.KE
+.ie t .DS
+.el .DS L
+.vs 11
+.ft I
+/*
+ * server
+ */
+.ft CW
+#include <stdio.h>
+#include <rpc/rpc.h>
+#include <sys/signal.h>
+
+char *getnewprog();
+char hostname[256];
+int docallback();
+int pnum;		/* \fIprogram number for callback routine\fP */
+
+main()
+{
+	gethostname(hostname, sizeof(hostname));
+	registerrpc(EXAMPLEPROG, EXAMPLEVERS,
+	  EXAMPLEPROC_CALLBACK, getnewprog, xdr_int, xdr_void);
+	fprintf(stderr, "server going into svc_run\en");
+	signal(SIGALRM, docallback);
+	alarm(10);
+	svc_run();
+	fprintf(stderr, "Error: svc_run shouldn't return\en");
+}
+
+char *
+getnewprog(pnump)
+	char *pnump;
+{
+	pnum = *(int *)pnump;
+	return NULL;
+}
+
+docallback()
+{
+	int ans;
+
+	ans = callrpc(hostname, pnum, 1, 1, xdr_void, 0,
+		xdr_void, 0);
+	if (ans != 0) {
+		fprintf(stderr, "server: ");
+		clnt_perrno(ans);
+		fprintf(stderr, "\en");
+	}
+}
+.vs
+.DE

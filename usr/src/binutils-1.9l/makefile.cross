@@ -1,0 +1,197 @@
+# gprof.c contains `void *' and very long string constants which many
+# C compilers can't handle, so you might need gcc to compile it.
+GNUCC = gcc -O
+# But you might need to use your old C compiler to compile the other
+# programs (ld at least), if you can't run gcc without them
+# (particularly on COFF systems).
+#CC = cc
+CC=/net/irl/users/hlu/local/bin/gcc -V ss-921016 -O6
+#CPP=gcc -E
+#CC=cc
+
+Archpfx=l-
+
+#.c.o:
+#	$(CC) $(CFLAGS) -c -o $(archpfx)$*.o $<
+
+bindir=/usr/bin
+CROSS_AR=/local/i386-linux/bin/ar
+CROSS_AR=/net/irl/users/hlu/local/i386-linux/bin/ar
+
+# For BSD:
+# For SunOS 4.x, take out -DVPRINTF_MISSING.
+CFLAGS = -g -DVPRINTF_MISSING
+# Don't add robotussin; it won't compile on BSD or GNU systems.
+# objdump is not here because it (at least used to) not compile
+# on most systems (trouble with N_DATADDR).  Some of those problems
+# have been fixed, though.
+PROGS = $(archpfx)gprof $(archpfx)ld $(archpfx)size \
+        $(archpfx)nm $(archpfx)strip $(archpfx)ar $(archpfx)ranlib
+
+# For USG systems using COFF_ENCAPSULATE:
+# Also, you will want to make the target libc.a (but it takes a long time).
+# Note that you should leave a copy of `ar' in this directory
+# after you install it, since `ranlib' will try to run it from here.
+#CFLAGS=-g -DUSG -DCOFF_ENCAPSULATE -DPORTAR -DNON_NATIVE -DSYS_SIGLIST_MISSING
+CFLAGS= -Dlinux -DUSG -DSYS_SIGLIST_MISSING -DCROSS_LINKER \
+	-DNON_NATIVE -DNO_FIX_MALLOC -DLINUX_DEBUG \
+	-DAR_H=\"../libc/include/ar.h\" \
+	-DOLD_LINUX -DA_OUT_H=\"../linux/include/linux/a.out.h\"
+
+CFLAGS= -Dlinux -DCROSS_LINKER -DHAVE_TRAILING_SLASH_IN_NAME \
+	-DHAVE_RENAME \
+	-DNON_NATIVE -DNO_FIX_MALLOC -DLINUX_DEBUG \
+	-DAR_H=\"/net/irl/users/hlu/local/i386-linux/include/ar.h\" \
+	-DOLD_LINUX -DA_OUT_H=\"/net/irl/users/hlu/local/i386-linux/include/linux/a.out.h\"
+
+#	-DA_OUT_H=\"../../usr/newgcc/include/a.out.h\"
+#CFLAGS= -DUSG -DSYS_SIGLIST_MISSING -DHAVE_RENAME -DSTDC_HEADERS \
+#	-DAR_H=\<ar.h\> -DA_OUT_H=\<a.out.h\> # -DBSD_STDIO
+
+# rename in linux may have bugs.
+#CFLAGS= -DUSG -DSYS_SIGLIST_MISSING -DSTDC_HEADERS \
+#	-DAR_H=\<ar.h\> -DA_OUT_H=\<a.out.h\> # -DBSD_STDIO
+
+PROGS = ld size nm strip ar robotussin objdump ranlib
+PROGS = $(Archpfx)ld $(Archpfx)size $(Archpfx)nm $(Archpfx)strip $(Archpfx)ar $(Archpfx)objdump $(Archpfx)ranlib
+
+SIGNAME = $(archpfx)signame.o
+# On ALTOS systems, add -DALTOS to CFLAGS.
+
+#It's better to move a copy of alloca into your libc than to risk getting some
+#incompatible functions from -lPW (like index()), but if you
+#want to be lazy, uncomment this line.
+#ALLOCALIBS = -lPW
+
+# For HP-UX:
+# Don't add `robotussin'; use `hpxt' instead.
+# Note that you should leave a copy of `ar' in this directory
+# after you install it, since `ranlib' will try to run it from here.
+#CFLAGS = -g -Ihp-include -DUSG -DNON_NATIVE -DVPRINTF_MISSING
+#PROGS = ld size nm strip ar ranlib
+#ALLOCALIBS = alloca.o
+
+# For the NeXT:
+# Set GNUCC = cc -O.
+# Put -DMACH_O in CFLAGS, take out -DVPRINTF_MISSING.
+# Comment out MALLOC below to use the system's malloc().
+
+# For Sun386:
+# Compile with -DPORTAR -DCOFF_ENCAPSULATE.
+# Depending on how you configure gcc, you might also want -Dnounderscore,
+# though I did not wind up using it.
+
+# If you run out of stack space while running GNU ar or GNU ld (this
+# manifests itself as a segment violation), you should link in alloca.c
+# from the gcc sources, and get rid of the "#define alloca" in ar.c and
+# ld.c; or you could try to get Sun to fix this annoying "feature".
+#CFLAGS = -g -DCOFF_ENCAPSULATE -DPORTAR
+#PROGS = ld size nm strip ar robotussin objdump ranlib gprof
+
+# nm tries to malloc enough space for the string table.  The old GNU malloc
+# rounds this up to a power of two (e.g. 5M becomes 8M), and so it might 
+# fail unnecessarily.  I've also seen some Unix malloc's fail, even when
+# there is enough memory.  So use the new GNU malloc.
+#MALLOC = $(archpfx)gmalloc.o
+
+GNU_GETOPT = $(archpfx)getopt.o
+GNU_GETOPT_LONG = $(archpfx)getopt.o $(archpfx)getopt1.o
+
+# C++ demangler
+CPLUS_DEM = $(archpfx)cplus-dem.o
+
+#LIBS= -lPW
+
+.SUFFIXES: .i
+
+.c.i:
+	$(CC) -c $(CFLAGS) -E -o $*.i $<
+
+all: $(PROGS)
+
+$(Archpfx)ld: $(archpfx)ld.o $(GNU_GETOPT_LONG) $(CPLUS_DEM) \
+	$(ALLOCALIBS) $(MALLOC)
+# LIBS is used here since ld needs to use alloca.
+# Alternatively, compile it with GNU C--then the compiler handles alloca.
+	$(CC) $(CFLAGS) -o $(Archpfx)ld $(archpfx)ld.o $(GNU_GETOPT_LONG) $(CPLUS_DEM) $(ALLOCALIBS) $(MALLOC) $(LIBS)
+
+$(Archpfx)size: $(archpfx)size.o $(ALLOCALIBS) $(MALLOC)
+	$(CC) $(CFLAGS) -o $(Archpfx)size $(archpfx)size.o \
+	$(ALLOCALIBS) $(MALLOC) $(LIBS)
+
+$(Archpfx)nm: $(archpfx)nm.o $(GNU_GETOPT_LONG) $(CPLUS_DEM) \
+	$(ALLOCALIBS) $(MALLOC)
+	$(CC) $(CFLAGS) -o $(Archpfx)nm $(archpfx)nm.o \
+		$(GNU_GETOPT_LONG) $(CPLUS_DEM) \
+		$(ALLOCALIBS) $(MALLOC) $(LIBS)
+
+$(Archpfx)strip: $(archpfx)strip.o $(archpfx)error.o \
+	$(GNU_GETOPT_LONG) $(ALLOCALIBS) $(MALLOC)
+	$(CC) $(CFLAGS) -o $(Archpfx)strip $(archpfx)strip.o $(archpfx)error.o $(GNU_GETOPT_LONG) $(ALLOCALIBS) $(MALLOC) $(LIBS)
+
+$(Archpfx)ar: $(archpfx)ar.o
+	$(CC) $(CFLAGS) -o $(Archpfx)ar $(archpfx)ar.o $(LIBS)
+
+$(Archpfx)gprof: $(archpfx)gprof.o $(GNU_GETOPT_LONG) $(CPLUS_DEM) \
+	$(ALLOCALIBS) $(MALLOC)
+	$(GNUCC) $(CFLAGS) -o $(Archpfx)gprof $(archpfx)gprof.o \
+		$(GNU_GETOPT_LONG) $(CPLUS_DEM) \
+		$(ALLOCALIBS) $(MALLOC) $(LIBS)
+$(archpfx)gprof.o: gprof.c gmon.h
+	$(GNUCC) $(CFLAGS) -c gprof.c $(OUTPUT_OPTION)
+
+$(Archpfx)ranlib: $(archpfx)ranlib.o $(GNU_GETOPT_LONG) \
+	$(SIGNAME) $(ALLOCALIBS) $(MALLOC)
+	$(CC) $(CFLAGS) -o $(Archpfx)ranlib $(archpfx)ranlib.o \
+		$(GNU_GETOPT_LONG) $(SIGNAME) $(ALLOCALIBS) $(MALLOC) \
+		$(LIBS)
+
+$(archpfx)ranlib.o: ranlib.c
+	$(CC) -c $(CFLAGS) -DAR_PROG=\"$(bindir)/ar\" \
+		-DCROSS_AR=\"$(CROSS_AR)\" \
+		ranlib.c $(OUTPUT_OPTION)
+
+$(Archpfx)objdump: $(archpfx)objdump.o $(archpfx)error.o \
+	$(GNU_GETOPT_LONG) a.out.gnu.h $(ALLOCALIBS) $(MALLOC)
+	$(CC) $(CFLAGS) -o $(Archpfx)objdump $(archpfx)objdump.o $(archpfx)error.o \
+		$(GNU_GETOPT_LONG) $(ALLOCALIBS) $(MALLOC) $(LIBS)
+
+# Robotussin is NOT part of `all'.
+$(Archpfx)robotussin: $(archpfx)robotussin.o
+	$(CC) $(CFLAGS) -o $(Archpfx)robotussin $(archpfx)robotussin.o
+
+libc.a: $(Archpfx)robotussin libconvert $(Archpfx)ar
+	libconvert /lib/libc.a libc.a
+
+# usg-gnulib is the file gcc makes using the usg compiler
+gnulib: $(Archpfx)robotussin libconvert usg-gnulib $(Archpfx)ar
+	libconvert usg-gnulib gnulib
+
+clean:
+	-rm -f *.o core
+	-rm -f $(archpfx)*.o
+	-rm -f $(PROGS) objdump
+
+DISTNAME = binutils-1.9
+dist:
+	rm -rf $(DISTNAME)
+	mkdir $(DISTNAME) $(DISTNAME)/hp-bin $(DISTNAME)/hp-include
+	ln COPYING ChangeLog Makefile README README-ENCAP \
+	a.out.encap.h a.out.gnu.h ar.c cplus-dem.c \
+	error.c getopt.c getopt.h getopt1.c gmalloc.c \
+	gmon.h gprof.c gprof.texinfo ld.c libconvert nm.c objdump.c \
+	ranlib.c ranlib.h robotussin.c signame.c signame.h size.c \
+	stab.def stab.h strip.c symseg.h $(DISTNAME)
+	cd hp-bin; ln Makefile chatr.c hpxt.c ioutil.c ioutil.h \
+	mkhplib ../$(DISTNAME)/hp-bin
+	cd hp-include; ln a.out.h stab.def stab.h ../$(DISTNAME)/hp-include
+	tar chZf $(DISTNAME).tar.Z $(DISTNAME)
+	rm -rf $(DISTNAME)
+.PHONY: dist
+
+.PHONY: install
+install: $(PROGS)
+	for file in $(PROGS); do \
+	cp $$file $(bindir)/$${file}.new; \
+	mv $(bindir)/$${file}.new $(bindir)/$$file; \
+	done

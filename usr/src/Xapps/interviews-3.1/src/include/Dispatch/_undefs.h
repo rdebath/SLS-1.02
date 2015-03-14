@@ -1,0 +1,16 @@
+#undef Dispatcher
+#undef FdMask
+#undef IOHandler
+#undef RpcHdr
+#undef RpcPeer
+#undef RpcReader
+#undef RpcRegistry
+#undef RpcService
+#undef RpcWriter
+#undef TimerQueue
+#undef iosb
+#undef iostreamb
+#undef istreamb
+#undef ostreamb
+#undef rpcbuf
+#undef rpcstream

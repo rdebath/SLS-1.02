@@ -1,0 +1,41 @@
+#! /bin/sh
+# newshist - get history line for a message-ID, if any
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+history="$NEWSCTL/history"
+case "$1" in
+-f)	history="$2"
+	shift ; shift
+	;;
+esac
+
+usage="Usage: newshist [-f historyfile] messageid ..."
+case "$#" in
+0)	echo "$usage" >&2 ; exit 2	;;
+esac
+case "$1" in
+-*)	echo "$usage" >&2 ; exit 2	;;
+esac
+
+status=1
+for mid
+do
+	it="`echo \"$mid\" | dbz -ix $history`"
+	if test " $it" = " "
+	then
+		it="`echo \"<$mid>\" | dbz -ix $history`"
+	fi
+	if test " $it" = " "
+	then
+		echo "$0: no history entry for \`$mid' nor \`<$mid>'" >&2
+	else
+		echo "$it"
+		status=0
+	fi
+done
+
+exit $status

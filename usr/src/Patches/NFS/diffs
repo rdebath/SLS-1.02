@@ -1,0 +1,652 @@
+diff -rc ../sunrpc-4.0.orig/sunrpc/Makefile ./sunrpc/Makefile
+*** ../sunrpc-4.0.orig/sunrpc/Makefile	Sat May 27 20:16:16 1989
+--- ./sunrpc/Makefile	Sun Sep 20 00:04:19 1992
+***************
+*** 7,13 ****
+  #    /usr/lib /usr/bin /usr/include
+  #
+  DESTDIR=
+! CFLAGS=-O
+  MAKE=make
+  
+  SUBDIR= rpcgen etc rpcsvc
+--- 7,13 ----
+  #    /usr/lib /usr/bin /usr/include
+  #
+  DESTDIR=
+! CFLAGS=-O2
+  MAKE=make
+  
+  SUBDIR= rpcgen etc rpcsvc
+diff -rc ../sunrpc-4.0.orig/sunrpc/demo/dir/Makefile ./sunrpc/demo/dir/Makefile
+*** ../sunrpc-4.0.orig/sunrpc/demo/dir/Makefile	Sat May 27 20:16:17 1989
+--- ./sunrpc/demo/dir/Makefile	Sat Sep 19 23:53:17 1992
+***************
+*** 3,10 ****
+  #
+  BIN = dir_svc rls
+  GEN = dir_clnt.c dir_svc.c dir_xdr.c dir.h
+! LIB = -lrpclib
+  RPCCOM = rpcgen
+  
+  all: $(BIN)
+  
+--- 3,11 ----
+  #
+  BIN = dir_svc rls
+  GEN = dir_clnt.c dir_svc.c dir_xdr.c dir.h
+! LIB = -L../../rpc -lrpclib -linet
+  RPCCOM = rpcgen
++ CC = gcc -g
+  
+  all: $(BIN)
+  
+diff -rc ../sunrpc-4.0.orig/sunrpc/etc/Makefile ./sunrpc/etc/Makefile
+*** ../sunrpc-4.0.orig/sunrpc/etc/Makefile	Sat May 27 20:16:20 1989
+--- ./sunrpc/etc/Makefile	Sun Sep 20 00:20:10 1992
+***************
+*** 4,12 ****
+  #   Files and programs for /etc.  rpclib must have already been installed.
+  #
+  DESTDIR=
+! CFLAGS=	-O
+! LIB = -lrpclib
+! LDFLAGS= $(LIB)
+  
+  BIN = portmap rpcinfo
+  MISC= rpc
+--- 4,12 ----
+  #   Files and programs for /etc.  rpclib must have already been installed.
+  #
+  DESTDIR=
+! CFLAGS=	-O2 -I. -I.. #-DDEBUG
+! LIB = -L../rpc -lrpclib
+! LDFLAGS= -s $(LIB)
+  
+  BIN = portmap rpcinfo
+  MISC= rpc
+***************
+*** 13,22 ****
+  
+  all:	${BIN}
+  
+! portmap:
+  	${CC} ${CFLAGS} -o $@ $@.c ${LDFLAGS}
+  
+! rpcinfo:	getopt.o
+  	${CC} ${CFLAGS} -o $@ $@.c getopt.o ${LDFLAGS}
+  
+  install: ${BIN}
+--- 13,22 ----
+  
+  all:	${BIN}
+  
+! portmap: portmap.c
+  	${CC} ${CFLAGS} -o $@ $@.c ${LDFLAGS}
+  
+! rpcinfo: rpcinfo.c getopt.o
+  	${CC} ${CFLAGS} -o $@ $@.c getopt.o ${LDFLAGS}
+  
+  install: ${BIN}
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/Makefile ./sunrpc/rpc/Makefile
+*** ../sunrpc-4.0.orig/sunrpc/rpc/Makefile	Sat May 27 20:16:24 1989
+--- ./sunrpc/rpc/Makefile	Sun Sep 20 21:56:19 1992
+***************
+*** 7,13 ****
+  DESTDIR=
+  
+  CPPFLAGS = -I..
+! CFLAGS = -I..
+  
+  SRCS = auth_none.c auth_unix.c  authunix_prot.c bindresvport.c \
+  	clnt_generic.c clnt_perror.c clnt_raw.c clnt_simple.c clnt_tcp.c \
+--- 7,13 ----
+  DESTDIR=
+  
+  CPPFLAGS = -I..
+! CFLAGS = -O2 -fomit-frame-pointer
+  
+  SRCS = auth_none.c auth_unix.c  authunix_prot.c bindresvport.c \
+  	clnt_generic.c clnt_perror.c clnt_raw.c clnt_simple.c clnt_tcp.c \
+***************
+*** 35,40 ****
+--- 35,41 ----
+  librpclib.a: ${OBJS}
+  	@echo "building librpclib.a"
+  	@ar cru librpclib.a ${OBJS}
++ 	@ranlib librpclib.a
+  
+  install: $(HDRS) librpclib.a
+  	@echo "Creating RPC header directory"
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/clnt_generic.c ./sunrpc/rpc/clnt_generic.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/clnt_generic.c	Sat May 27 20:16:29 1989
+--- ./sunrpc/rpc/clnt_generic.c	Sat Sep 19 23:53:17 1992
+***************
+*** 70,78 ****
+--- 70,83 ----
+  		rpc_createerr.cf_error.re_errno = EAFNOSUPPORT; 
+  		return (NULL);
+  	}
++ #ifdef linux
++ 	bzero((char *) &sin, sizeof(sin));
++ #endif
+  	sin.sin_family = h->h_addrtype;
+  	sin.sin_port = 0;
++ #ifndef linux
+  	bzero(sin.sin_zero, sizeof(sin.sin_zero));
++ #endif
+  	bcopy(h->h_addr, (char*)&sin.sin_addr, h->h_length);
+  	p = getprotobyname(proto);
+  	if (p == NULL) {
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/clnt_perror.c ./sunrpc/rpc/clnt_perror.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/clnt_perror.c	Sat May 27 20:16:27 1989
+--- ./sunrpc/rpc/clnt_perror.c	Sat Sep 19 23:53:17 1992
+***************
+*** 44,50 ****
+--- 44,52 ----
+  #include <rpc/clnt.h>
+  
+  extern char *sys_errlist[];
++ #ifndef linux
+  extern char *sprintf();
++ #endif
+  static char *auth_errmsg();
+  
+  extern char *strcpy();
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/get_myaddress.c ./sunrpc/rpc/get_myaddress.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/get_myaddress.c	Sat May 27 20:16:22 1989
+--- ./sunrpc/rpc/get_myaddress.c	Sat Sep 19 23:53:17 1992
+***************
+*** 47,52 ****
+--- 47,71 ----
+  #include <arpa/inet.h>
+  #include <netinet/in.h>
+  
++ #ifdef linux
++ /* DO use gethostbyname because it's portable */
++ #include <netdb.h>
++ get_myaddress(addr)
++ 	struct sockaddr_in *addr;
++ {
++ 	char localhost[256 + 1];
++ 	struct hostent *hp;
++ 
++ 	gethostname(localhost, 256);
++ 	if ((hp = gethostbyname(localhost)) == NULL) {
++ 		perror("get_myaddress: gethostbyname");
++ 		exit(1);
++ 	}
++ 	addr->sin_family = AF_INET;
++ 	bcopy((char *) hp->h_addr, (char *) &addr->sin_addr, hp->h_length);
++ 	addr->sin_port = htons(PMAPPORT);
++ }
++ #else
+  /* 
+   * don't use gethostbyname, which would invoke yellow pages
+   */
+***************
+*** 86,88 ****
+--- 105,108 ----
+  	}
+  	(void) close(s);
+  }
++ #endif
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/getrpcent.c ./sunrpc/rpc/getrpcent.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/getrpcent.c	Sat May 27 20:16:26 1989
+--- ./sunrpc/rpc/getrpcent.c	Sun Sep 20 02:19:25 1992
+***************
+*** 60,66 ****
+--- 60,70 ----
+  static	struct rpcent *interpret();
+  struct	hostent *gethostent();
+  char	*inet_ntoa();
++ #ifndef linux
+  static	char *index();
++ #else
++ char *index();
++ #endif
+  
+  static char RPCDB[] = "/etc/rpc";
+  
+***************
+*** 98,105 ****
+--- 102,113 ----
+  }
+  
+  struct rpcent *
++ #ifdef linux
++ getrpcbyname(const char *name)
++ #else
+  getrpcbyname(name)
+  	char *name;
++ #endif
+  {
+  	struct rpcent *rpc;
+  	char **rp;
+***************
+*** 117,122 ****
+--- 125,133 ----
+  	return (NULL);
+  }
+  
++ #ifdef linux
++ void
++ #endif
+  setrpcent(f)
+  	int f;
+  {
+***************
+*** 134,139 ****
+--- 145,153 ----
+  	d->stayopen |= f;
+  }
+  
++ #ifdef linux
++ void
++ #endif
+  endrpcent()
+  {
+  	register struct rpcdata *d = _rpcdata();
+***************
+*** 168,173 ****
+--- 182,207 ----
+  	return interpret(d->line, strlen(d->line));
+  }
+  
++ #ifdef linux
++ static char *
++ firstwhite(s)
++ char *s;
++ {
++ 	char *s1, *s2;
++ 
++ 	s1 = index(s, ' ');
++ 	s2 = index(s, '\t');
++ 	if (s1) {
++ 		if (s2)
++ 			return (s1 < s2) ? s1 : s2;
++ 		else
++ 			return s1;
++ 	}
++ 	else
++ 		return s2;
++ }
++ #endif
++ 
+  static struct rpcent *
+  interpret(val, len)
+  {
+***************
+*** 190,195 ****
+--- 224,235 ----
+  			return (getrpcent());
+  	}
+  	*cp = '\0';
++ #ifdef linux
++ 	if ((cp = firstwhite(p)))
++ 		*cp++ = 0;
++ 	else
++ 		return (getrpcent());
++ #else
+  	cp = index(p, ' ');
+  	if (cp == NULL)
+      {
+***************
+*** 198,203 ****
+--- 238,244 ----
+  			return (getrpcent());
+  	}
+  	*cp++ = '\0';
++ #endif
+  	/* THIS STUFF IS INTERNET SPECIFIC */
+  	d->rpc.r_name = d->line;
+  	while (*cp == ' ' || *cp == '\t')
+***************
+*** 204,209 ****
+--- 245,254 ----
+  		cp++;
+  	d->rpc.r_number = atoi(cp);
+  	q = d->rpc.r_aliases = d->rpc_aliases;
++ #ifdef linux
++ 	if ((cp = firstwhite(cp)))
++ 		*cp++ = '\0';
++ #else
+  	cp = index(p, ' ');
+  	if (cp != NULL)
+  		*cp++ = '\0';
+***************
+*** 213,218 ****
+--- 258,264 ----
+  		if (cp != NULL)
+  			*cp++ = '\0';
+  	}
++ #endif
+  	while (cp && *cp) {
+  		if (*cp == ' ' || *cp == '\t') {
+  			cp++;
+***************
+*** 220,225 ****
+--- 266,275 ----
+  		}
+  		if (q < &(d->rpc_aliases[MAXALIASES - 1]))
+  			*q++ = cp;
++ #ifdef linux
++ 		if ((cp = firstwhite(cp)))
++ 			*cp++ = '\0';
++ #else
+  		cp = index(p, ' ');
+  		if (cp != NULL)
+  			*cp++ = '\0';
+***************
+*** 229,234 ****
+--- 279,285 ----
+  			if (cp != NULL)
+  				*cp++ = '\0';
+  		}
++ #endif
+  	}
+  	*q = NULL;
+  	return (&d->rpc);
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/pmap_rmt.c ./sunrpc/rpc/pmap_rmt.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/pmap_rmt.c	Sat May 27 20:16:28 1989
+--- ./sunrpc/rpc/pmap_rmt.c	Sat Sep 19 23:53:18 1992
+***************
+*** 164,169 ****
+--- 164,176 ----
+  	int sock;  /* any valid socket will do */
+  	char *buf;  /* why allocxate more when we can use existing... */
+  {
++ #ifdef linux
++ 	struct sockaddr_in addr;
++ 
++ 	get_myaddress(&addr);
++ 	addrs[0] = inet_makeaddr(inet_netof(addr.sin_addr), INADDR_ANY);
++ 	return 1;
++ #else
+  	struct ifconf ifc;
+          struct ifreq ifreq, *ifr;
+  	struct sockaddr_in *sin;
+***************
+*** 201,206 ****
+--- 208,214 ----
+  		}
+  	}
+  	return (i);
++ #endif
+  }
+  
+  typedef bool_t (*resultproc_t)();
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/rpc.h ./sunrpc/rpc/rpc.h
+*** ../sunrpc-4.0.orig/sunrpc/rpc/rpc.h	Sat May 27 20:16:23 1989
+--- ./sunrpc/rpc/rpc.h	Sat Sep 19 23:53:18 1992
+***************
+*** 37,42 ****
+--- 37,46 ----
+  #ifndef __RPC_HEADER__
+  #define __RPC_HEADER__
+  
++ #ifdef linux
++ #include <sys/time.h>
++ #endif
++ 
+  #include <rpc/types.h>		/* some typedefs */
+  #include <netinet/in.h>
+  
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/svc.c ./sunrpc/rpc/svc.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/svc.c	Sat May 27 20:16:28 1989
+--- ./sunrpc/rpc/svc.c	Sun Sep 20 00:14:41 1992
+***************
+*** 44,49 ****
+--- 44,52 ----
+  #include <sys/errno.h>
+  #include <rpc/rpc.h>
+  #include <rpc/pmap_clnt.h>
++ #ifdef linux
++ #include <sys/types.h>
++ #endif
+  
+  extern int errno;
+  
+***************
+*** 372,378 ****
+--- 375,385 ----
+  	fd_set readfds;
+  
+  	FD_ZERO(&readfds);
++ #ifdef linux
++ 	readfds = rdfds;
++ #else
+  	readfds.fds_bits[0] = rdfds;
++ #endif
+  	svc_getreqset(&readfds);
+  #else
+  	int readfds = rdfds & svc_fds;
+***************
+*** 411,417 ****
+--- 418,429 ----
+  
+  #ifdef FD_SETSIZE
+  	setsize = _rpc_dtablesize();	
++ #ifdef linux
++ #define NFDBITS	32
++ 	maskp = (u_long *)readfds;
++ #else
+  	maskp = (u_long *)readfds->fds_bits;
++ #endif
+  	for (sock = 0; sock < setsize; sock += NFDBITS) {
+  	    for (mask = *maskp++; bit = ffs(mask); mask ^= (1 << (bit - 1))) {
+  		/* sock has input waiting */
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/svc_tcp.c ./sunrpc/rpc/svc_tcp.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/svc_tcp.c	Sat May 27 20:16:28 1989
+--- ./sunrpc/rpc/svc_tcp.c	Sat Sep 19 23:53:18 1992
+***************
+*** 45,51 ****
+--- 45,53 ----
+  #include <rpc/rpc.h>
+  #include <sys/socket.h>
+  #include <errno.h>
++ #ifndef linux
+  extern bool_t abort();
++ #endif
+  extern errno;
+  
+  /*
+***************
+*** 131,137 ****
+  
+  	if (sock == RPC_ANYSOCK) {
+  		if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+! 			perror("svctcp_.c - udp socket creation problem");
+  			return ((SVCXPRT *)NULL);
+  		}
+  		madesock = TRUE;
+--- 133,139 ----
+  
+  	if (sock == RPC_ANYSOCK) {
+  		if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+! 			perror("svc_tcp.c - tcp socket creation problem");
+  			return ((SVCXPRT *)NULL);
+  		}
+  		madesock = TRUE;
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/types.h ./sunrpc/rpc/types.h
+*** ../sunrpc-4.0.orig/sunrpc/rpc/types.h	Sat May 27 20:16:24 1989
+--- ./sunrpc/rpc/types.h	Sun Sep 20 00:07:59 1992
+***************
+*** 53,60 ****
+--- 53,62 ----
+  #endif
+  #include <sys/time.h>
+  
++ #ifndef linux
+  #ifndef INADDR_LOOPBACK
+  #define       INADDR_LOOPBACK         (u_long)0x7F000001
++ #endif
+  #endif
+  #ifndef MAXHOSTNAMELEN
+  #define        MAXHOSTNAMELEN  64
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpc/xdr_float.c ./sunrpc/rpc/xdr_float.c
+*** ../sunrpc-4.0.orig/sunrpc/rpc/xdr_float.c	Sat May 27 20:16:28 1989
+--- ./sunrpc/rpc/xdr_float.c	Sat Sep 19 23:53:18 1992
+***************
+*** 51,56 ****
+--- 51,61 ----
+   * This routine works on Suns (Sky / 68000's) and Vaxen.
+   */
+  
++ #ifdef linux
++ /* cheat big time */
++ #define sparc
++ #endif
++ 
+  #ifdef vax
+  
+  /* What IEEE single precision floating point looks like on a Vax */
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpcgen/Makefile ./sunrpc/rpcgen/Makefile
+*** ../sunrpc-4.0.orig/sunrpc/rpcgen/Makefile	Sat May 27 20:16:30 1989
+--- ./sunrpc/rpcgen/Makefile	Sun Sep 20 00:18:02 1992
+***************
+*** 11,17 ****
+  	rpc_svcout.o rpc_clntout.o
+  
+  GOAL=rpcgen
+! CFLAGS = -O
+  DESTDIR=
+  
+  $(GOAL): $(OBJS)
+--- 11,17 ----
+  	rpc_svcout.o rpc_clntout.o
+  
+  GOAL=rpcgen
+! CFLAGS = -O2 -s
+  DESTDIR=
+  
+  $(GOAL): $(OBJS)
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpcgen/rpc_util.h ./sunrpc/rpcgen/rpc_util.h
+*** ../sunrpc-4.0.orig/sunrpc/rpcgen/rpc_util.h	Sat May 27 20:16:29 1989
+--- ./sunrpc/rpcgen/rpc_util.h	Sat Sep 19 23:53:18 1992
+***************
+*** 38,44 ****
+--- 38,46 ----
+  #define alloc(size)		malloc((unsigned)(size))
+  #define ALLOC(object)   (object *) malloc(sizeof(object))
+  
++ #ifndef linux
+  extern char *sprintf();
++ #endif
+  
+  #define s_print	(void) sprintf
+  #define f_print (void) fprintf
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpcsvc/Makefile ./sunrpc/rpcsvc/Makefile
+*** ../sunrpc-4.0.orig/sunrpc/rpcsvc/Makefile	Sat May 27 20:16:30 1989
+--- ./sunrpc/rpcsvc/Makefile	Sun Sep 20 01:12:50 1992
+***************
+*** 2,13 ****
+  # @(#)Makefile	2.3 88/08/11 4.0 RPCSRC
+  #
+  #
+! RPCCOM = rpcgen
+! LIB = -lrpclib
+  
+  DESTDIR=
+! CFLAGS= -O
+! LDFLAGS=
+  
+  HDRS= klm_prot.h mount.h nfs_prot.h nlm_prot.h rex.h rquota.h rnusers.h\
+        rquota.h rstat.h sm_inter.h spray.h yppasswd.h yp.h
+--- 2,14 ----
+  # @(#)Makefile	2.3 88/08/11 4.0 RPCSRC
+  #
+  #
+! CC = cc -I..
+! RPCCOM = ../rpcgen/rpcgen
+! LIB = -L../rpc -lrpclib
+  
+  DESTDIR=
+! CFLAGS= -O2 -DNO_UPDATE
+! LDFLAGS= -s
+  
+  HDRS= klm_prot.h mount.h nfs_prot.h nlm_prot.h rex.h rquota.h rnusers.h\
+        rquota.h rstat.h sm_inter.h spray.h yppasswd.h yp.h
+***************
+*** 17,22 ****
+--- 18,25 ----
+  SVCBIN= rstat_svc
+  GEN= rstat_clnt.c rstat_svc.c rstat_xdr.c
+  
++ MISC= nlist.o psdata.o
++ 
+  all:	$(HDRS) $(BIN) $(SVCBIN)
+  
+  install: $(HDRS) $(XFILES)
+***************
+*** 36,43 ****
+  	@set -x;for i in ${BIN}; do \
+  		(install -c -s $$i ${DESTDIR}/usr/bin/$$i); done
+  
+! rstat_svc: rstat_proc.o rstat_svc.o rstat_xdr.o
+! 	$(CC) $(LDFLAGS) -o $@ rstat_proc.o rstat_svc.o rstat_xdr.o $(LIB)
+  
+  rstat: rstat.o rstat_clnt.o rstat_xdr.o
+  	$(CC) $(LDFLAGS) -o $@ rstat.o rstat_clnt.o rstat_xdr.o $(LIB)
+--- 39,46 ----
+  	@set -x;for i in ${BIN}; do \
+  		(install -c -s $$i ${DESTDIR}/usr/bin/$$i); done
+  
+! rstat_svc: rstat_proc.o rstat_svc.o rstat_xdr.o $(MISC)
+! 	$(CC) $(LDFLAGS) -o $@ rstat_proc.o rstat_svc.o rstat_xdr.o $(MISC) $(LIB)
+  
+  rstat: rstat.o rstat_clnt.o rstat_xdr.o
+  	$(CC) $(LDFLAGS) -o $@ rstat.o rstat_clnt.o rstat_xdr.o $(LIB)
+diff -rc ../sunrpc-4.0.orig/sunrpc/rpcsvc/rstat_proc.c ./sunrpc/rpcsvc/rstat_proc.c
+*** ../sunrpc-4.0.orig/sunrpc/rpcsvc/rstat_proc.c	Sat May 27 20:16:31 1989
+--- ./sunrpc/rpcsvc/rstat_proc.c	Sun Sep 20 00:53:35 1992
+***************
+*** 44,53 ****
+--- 44,68 ----
+  #include <stdio.h>
+  #include <rpc/rpc.h>
+  #include <sys/socket.h>
++ #ifdef linux
++ #include <a.out.h>
++ #else
+  #include <nlist.h>
+  #include <sys/dk.h>
++ #endif
+  #include <sys/errno.h>
++ #ifdef linux
++ struct vmmeter {
++ 	u_long v_pgpgin;
++ 	u_long v_pgpgout;
++ 	u_long v_pswpin;
++ 	u_long v_pswpout;
++ 	u_long v_intr;
++ 	u_long v_swtch;
++ };
++ #else
+  #include <sys/vmmeter.h>
++ #endif
+  #include <net/if.h>
+  #include "rstat.h"
+  
+***************
+*** 225,230 ****
+--- 240,248 ----
+  	    stats_all.s1.cp_time[1], stats_all.s1.cp_time[2], stats_all.s1.cp_time[3]);
+  #endif
+  
++ #ifdef linux
++ 	bzero((char *) &sum, sizeof (sum));
++ #else
+  	if (lseek(kmem, (long)nl[X_SUM].n_value, 0) ==-1) {
+  		fprintf(stderr, "rstat: can't seek in kmem\n");
+  		exit(1);
+***************
+*** 233,238 ****
+--- 251,257 ----
+  		fprintf(stderr, "rstat: can't read sum from kmem\n");
+  		exit(1);
+  	}
++ #endif
+  	stats_all.s1.v_pgpgin = sum.v_pgpgin;
+  	stats_all.s1.v_pgpgout = sum.v_pgpgout;
+  	stats_all.s1.v_pswpin = sum.v_pswpin;

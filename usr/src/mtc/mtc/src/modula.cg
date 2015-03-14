@@ -1,0 +1,2239 @@
+/*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: Specification of the abstract syntax of Modula-2
+ *		 Specification of a partial semantic analysis
+ *		 Specification of the computation of code generation
+ *		 attributes
+ *		 Generated tree handler defines the structure of the
+ *		 abstract tree and offers procedures to construct it
+ *		 Generated attribute evaluator computes the attributes
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/08/07 15:50:57 $
+ *	$Revision: 1.9 $
+ *
+ ***/
+
+MODULE Abstract
+
+TREE
+
+IMPORT	{
+FROM SYSTEM	IMPORT ADDRESS;
+FROM StringMem	IMPORT tStringRef;
+FROM Idents	IMPORT tIdent;
+FROM Positions	IMPORT tPosition;
+FROM Defs	IMPORT tObject, tObjects, tType, tTypes, tEnv,
+		       tSelectors, tVoid, tCObjects, tStrings;
+FROM Values	IMPORT tValue;
+FROM UniqueIds	IMPORT tIdents;
+
+TYPE
+  yyEstra	= ADDRESS;		(* type used by ESTRA		*)
+}
+
+EXPORT	{
+CONST
+  Definition		=  1;		(* compilation unit kind	*) 
+  Foreign		=  2;
+  Implementation	=  3;
+  Program		=  4;
+
+  NotEqual		=  1;		(* operators			*)
+  Times			=  2;
+  Plus			=  3;
+  Minus			=  4;
+  Divide		=  5;
+  Less			=  6;
+  LessEqual		=  7;
+  Equal			=  8;
+  Greater		=  9;
+  GreaterEqual		= 10;
+  And			= 11;
+  Div			= 12;
+  In			= 13;
+  Mod			= 14;
+  Not			= 15;
+  Or			= 16;
+
+  Decimal		=  1;		(* integer constant kind	*)
+  Octal			=  2;
+  Hexadecimal		=  3;
+}
+
+GLOBAL	{
+FROM StringMem	IMPORT tStringRef;
+FROM Idents	IMPORT tIdent;
+FROM Positions	IMPORT tPosition;
+}
+
+EVAL Semantics
+
+GLOBAL	{
+FROM Idents	IMPORT
+  tIdent	;
+
+FROM Tree	IMPORT
+  Definition	, Foreign	, Implementation, Program	;
+
+FROM UniqueIds	IMPORT
+  BeginUniqueIds, CloseUniqueIds;
+
+FROM Values	IMPORT
+  CompConst	;
+}
+
+BEGIN	{
+  BeginUniqueIds;
+}
+
+CLOSE	{
+  CloseUniqueIds;
+}
+
+RULE
+
+/*======= abstract syntax ==============================================*/
+
+ROOT		= CompUnits .
+
+CompUnits	= <
+  CompUnits0	= .
+  CompUnit	= [Kind: SHORTCARD OUT] [Ident: tIdent OUT] [Pos: tPosition OUT] Next: CompUnits REVERSE <
+    DefMod	= Import Decls .
+    ProgMod	= Import Decls Stmts .
+  >.
+>.
+
+Import		= <
+  Import0	= .
+  Import1	= Next: Import REVERSE <
+    From	= [Ident: tIdent OUT] [Pos: tPosition OUT] ImpIds .
+    Objects	= ImpIds .
+  >.
+>.
+
+ImpIds		= <
+  ImpIds0	= .
+  ImpIds1	= [Ident: tIdent OUT] [Pos: tPosition OUT] Next: ImpIds REVERSE .
+>.
+
+Export		= <
+  Export0	= .
+  Export1	= [Qualified: BOOLEAN] ExpIds .
+>.
+
+ExpIds		= <
+  ExpIds0	= .
+  ExpIds1	= [Ident: tIdent] Next: ExpIds REVERSE .
+>.
+
+Decls		= <
+  Decls0	= .
+  Decl		= Next: Decls REVERSE <
+    Var		= VarIds Type .
+    Object	= [Ident: tIdent] <
+      Const	= Expr .
+      TypeDecl	= Type [Pos: tPosition] .
+      Proc	= Formals ResultType: PrimaryType Decls Stmts .
+      ProcHead	= Formals ResultType: PrimaryType [Pos: tPosition] .
+      Module	= Import Export Decls Stmts .
+      Opaque	= .
+    >.
+  >.
+>.
+
+VarIds		= <
+  VarIds0	= .
+  VarIds1	= [Ident: tIdent] Next: VarIds REVERSE .
+>.
+
+Formals		= <
+  Formals0	= .
+  Formals1	= [IsVAR: BOOLEAN] ParIds Type Next: Formals REVERSE .
+>.
+
+ParIds		= <
+  ParIds0	= .
+  ParIds1	= [Ident: tIdent] Next: ParIds REVERSE .
+>.
+
+Type		= <
+  Array		= [IsOpen: BOOLEAN OUT] IndexType: SimpleType ElemType: Type .
+  Record	= Fields .
+  SetType	= BaseType: SimpleType .
+  Pointer	= TargetType: Type .
+  ProcType	= FormalTypes ResultType: PrimaryType .
+  SimpleType	= <
+    Enumeration	= EnumIds .
+    Subrange	= BaseType: PrimaryType Lwb: Expr Upb: Expr .
+    PrimaryType	= <
+      Void	= .
+      TypeId	= [Ident: tIdent] [Pos: tPosition OUT] <
+	TypeId0	= .
+	TypeId1	= TypeId .
+      >.
+    >.
+  >.
+>.
+
+Fields		= <
+  Fields0	= .
+  Fields1	= Next: Fields REVERSE <
+    RecordSect 	= FieldIds Type .
+    VariantSect	= TagField Variants Else: Fields.
+  >.
+>.
+
+FieldIds	= <
+  FieldIds0	= .
+  FieldIds1	= [Ident: tIdent] Next: FieldIds REVERSE .
+>.
+
+TagField	= Type: TypeId <
+  TagField0	= .
+  TagField1	= [Ident: tIdent] .
+>.
+
+Variants	= <
+  Variants0	= .
+  Variant	= Labels Variant: Fields Next: Variants REVERSE .
+>.
+
+FormalTypes	= <
+  FormalTypes0	= .
+  FormalType	= [IsVAR: BOOLEAN] Type Next: FormalTypes REVERSE .
+>.
+
+EnumIds		= <
+  EnumIds0	= .
+  EnumIds1	= [Ident: tIdent] Next: EnumIds REVERSE .
+>.
+
+Expr		= <
+  Binary	= [Operator: SHORTCARD] Lop: Expr Rop: Expr .
+  Unary		= [Operator: SHORTCARD] Mop: Expr .
+  IntConst	= [Kind: SHORTCARD OUT] [IntVal: CARDINAL OUT] [Pos: tPosition OUT] .
+  RealConst	= [RealVal: tStringRef OUT] .
+  StringConst	= [StringVal: tStringRef OUT] .
+  CharConst	= [CharVal: CHAR OUT] .
+  FuncCall	= Designator Actuals .
+  Set		= BaseType: Qualid Elems .
+  BitSet	= Elems .
+  Designator	= [Pos: tPosition OUT] <
+    Qualid	= [Ident: tIdent OUT] <
+      Qualid0	= .
+      Qualid1	= Qualid .
+    >.
+    Subscript	= Designator Index: Expr .
+    Deref	= Designator .
+    Select	= Designator [Field: tIdent] .
+  >.
+>.
+
+Elems		= <
+  Elems0	= .
+  Elems1	= Next: Elems REVERSE <
+    Elem	= Elem: Expr .
+    ElemRange	= Lwb: Expr Upb: Expr .
+  >.
+>.
+
+Actuals		= <
+  Actuals0	= .
+  Actual	= Expr Next: Actuals REVERSE .
+>.
+
+Stmts		= <
+  Stmts0	= .
+  Stmt		= Next: Stmts REVERSE <
+    Assign	= Designator Expr .
+    Call	= Designator Actuals .
+    If		= Cond: Expr Then: Stmts Elsifs Else: Stmts .
+    Case	= Expr Cases Else: Stmts [Default: BOOLEAN OUT] .
+    While	= Cond: Expr Stmts .
+    Repeat	= Stmts Cond: Expr .
+    Loop	= Stmts .
+    For	 	= Qualid From: Expr To: Expr By: Expr Stmts .
+    With	= Designator Stmts .
+    Exit	= .
+    Return1	= .
+    Return2	= Result: Expr .
+  >.
+>.
+
+Elsifs		= <
+  Elsifs0	= .
+  Elsifs1	= Cond: Expr Stmts Next: Elsifs REVERSE .
+>.
+
+Cases		= <
+  Cases0	= .
+  Cases1	= Labels Stmts Next: Cases REVERSE .
+>.
+
+Labels	 	= <
+  Labels0	= .
+  Labels1	= Next: Labels REVERSE <
+    Label	= Label: Expr .
+    LabelRange	= Lwb: Expr Upb: Expr .
+  >.
+>.
+
+END Abstract
+
+/*======= semantic analysis ============================================*/
+
+MODULE Objects	/*------------------------------------------------------*/
+
+/* generate and collect object descriptions	*/
+
+EVAL GLOBAL	{
+FROM SYSTEM	IMPORT
+  ADDRESS	;
+
+FROM Defs	IMPORT
+  tObject	, tObjects	, tVoid		,
+  NoObject	, NoObjects	,
+  mConst1	, mEnumLiteral1	, mField1	, mModule1	,
+  mModule2	, mModule3	, mProc1	, mProc2	,
+  mProcHead1	, mTypeDecl1	, mTypeDecl2	, mTypeDecl3	,
+  mOpaque1	, mOpaque2	, mOpaque3	, mVar1		,
+  mStdProc1	,
+  mVoid1	, mVoid2	, mElmt		, UNION		,
+  Filter	;
+}
+
+DECLARE
+
+  CompUnits	= -> [Objects1: tObjects] [Objects2: tVoid]
+		     [Objects3: tObjects]
+		     [Objects4In: tVoid] [Objects4Out: tVoid] .
+
+  ProgMod	= -> [DefObjects1: tObjects] [DefObjects3: tObjects] .
+
+  Decls		= -> [Objects1: tObjects] [Objects2: tVoid]
+		     [Objects3: tObjects]
+		     [Objects4In: tObjects] [Objects4Out: tObjects] .
+
+  VarIds	Formals		 ParIds		Type		Variants
+  Fields
+		= -> [Objects3: tObjects] .
+
+  VarIds		ParIds
+		= -> [Type: tType] [TypeTree: ADDRESS] .
+
+  ParIds	= -> [IsVAR: BOOLEAN] .
+
+  CompUnit	VarIds1		ParIds1		Const		TypeDecl
+  Proc		ProcHead	Module		Opaque
+		= -> [Object: tObject OUT] .
+
+RULE
+
+ROOT		= { CompUnits:Objects4In:= cVoid			; } .
+
+CompUnits	= { Objects1		:= NoObjects			;
+		    Objects2		:= cVoid			;
+		    Objects3		:= Objects1			;
+		    Objects4Out		:= Objects4In			; } .
+CompUnit	= { Object		:= NoObject			;
+		    Objects1		:= Next:Objects1		;
+		    Objects2		:= Next:Objects2		;
+		    Objects3		:= Next:Objects3		;
+		    Next:Objects4In	:= Objects4In			;
+		    Objects4Out		:= Next:Objects4Out		; } .
+DefMod		= { Object		:= mModule1 (Ident, Decls:Objects1);
+		    Objects1		:= mElmt (Ident, FALSE, Object, Next:Objects1);
+		    Objects2		:= mVoid2 (Decls:Objects2, Next:Objects2);
+		    Objects3		:= mElmt (Ident, FALSE, mModule2 (Object, Decls:Objects3), Next:Objects3);
+		    Decls:Objects4In	:= NoObjects			;
+		    Decls:Objects4In AFTER Objects4In;
+		    Next:Objects4In AFTER Decls:Objects4Out;		  } .
+ProgMod		= {
+		    Object		:= {
+		  IF Kind = Program THEN
+		    Object		:= mModule2 (mModule1 (Ident, NoObjects), NoObjects);
+		  ELSE
+		    Object		:= NoObject			;
+		  END;			}				;
+		    Objects1		:= {
+		  IF Kind = Program THEN
+		    Objects1		:= mElmt (Ident, FALSE, Object, Next:Objects1);
+		  ELSE
+		    Objects1		:= Next:Objects1		;
+		  END;			}				;
+		    DefObjects1		:= Filter (GetExport1 (Identify (Ident, Env1)));
+		    Objects2		:= mVoid2 (Decls:Objects2, Next:Objects2);
+		    Objects3		:= {
+		  IF Kind = Program THEN
+		    Objects3		:= mElmt (Ident, FALSE, Object, Next:Objects1);
+		  ELSE
+		    Objects3		:= Next:Objects3		;
+		  END;			}				;
+		    DefObjects3		:= Filter (GetExport2 (Identify (Ident, Env3)));
+		    Decls:Objects4In	:= NoObjects			;
+		    Decls:Objects4In AFTER Objects4In;
+		    Next:Objects4In AFTER Decls:Objects4Out;		  } .
+
+Decls		= { Objects1		:= NoObjects			;
+		    Objects2		:= cVoid			;
+		    Objects3		:= Objects1			;
+		    Objects4Out		:= Objects3			; } .
+Decls0		= { Objects4Out		:= Objects4In			; } .
+Decl		= { Objects1		:= Next:Objects1		;
+		    Objects2		:= Next:Objects2		;
+		    Objects3		:= Next:Objects3		;
+		    Next:Objects4In	:= Objects4In			;
+		    Objects4Out		:= Next:Objects4Out		; } .
+Var		= { VarIds:Type		:= Type:Type2			;
+		    VarIds:TypeTree	:= Type				; 
+		    Objects3		:= UNION (VarIds:Objects3, UNION (Type:Objects3, Next:Objects3));
+		    Next:Objects4In	:= UNION (VarIds:Objects3, UNION (Type:Objects3, Objects4In)); } .
+Const		= { Object		:= mConst1 (Ident)		;
+		    Objects3		:= mElmt (Ident, FALSE, Object, Next:Objects3);
+		    Next:Objects4In	:= {
+					   CompConst (Expr, Env3, Object^.Const1.Value)	;
+		    			   /* besides Env3 depends on Objects4In, too! */
+		    Next:Objects4In	:= mElmt (Ident, FALSE, Object, Objects4In);
+					}				; } .
+TypeDecl	= { Object		:= mTypeDecl1 (Ident, Type:PosOut);
+		    Objects1		:= mElmt (Ident, FALSE, Object, Next:Objects1);
+		    Objects2		:= mVoid1 (mTypeDecl2 (Object, Type1), Next:Objects2);
+		    Objects3		:= mElmt (Ident, FALSE, mTypeDecl3 (Object, Type2), UNION (Type:Objects3, Next:Objects3));
+		    Next:Objects4In	:= mElmt (Ident, FALSE, Object, UNION (Type:Objects3, Objects4In));	  } .
+Proc		= { Object		:= mProc1 (Ident, Type)		;
+		    Objects2		:= mVoid2 (Decls:Objects2, Next:Objects2);
+		    Objects3		:= mElmt (Ident, FALSE, Object, Next:Objects3);
+		    Next:Objects4In	:= mElmt (Ident, FALSE, mProc2 (Object,
+UNION (Formals:Objects3, Decls:Objects4Out), IsDeclared (Ident, DefObjects)), Objects4In);
+		    Decls:Objects4In	:= NoObjects			;
+		    Decls:Objects4In AFTER Objects4In;			  } .
+ProcHead	= { Object		:= mProcHead1 (Ident, Type)	;
+		    Objects3		:= mElmt (Ident, FALSE, Object, Next:Objects3);
+		    Next:Objects4In	:= mElmt (Ident, FALSE, Object, Objects4In); } .
+Module		= { Object		:= mModule1 (Ident, Export:Objects1);
+		    Objects1		:= {
+		  IF Export:IsQualified THEN
+		    Objects1		:= mElmt (Ident, FALSE, Object, Next:Objects1);
+		  ELSE
+		    Objects1		:= mElmt (Ident, FALSE, Object, UNION (Export:Objects1, Next:Objects1));
+		  END;			}				;
+		    Objects2		:= mVoid2 (Decls:Objects2, Next:Objects2);
+		    Objects3		:= {
+		  IF Export:IsQualified THEN
+		    Objects3		:= mElmt (Ident, FALSE, mModule2 (Object, Export:Objects2), Next:Objects3);
+		  ELSE
+		    Objects3		:= mElmt (Ident, FALSE, mModule2 (Object, Export:Objects2), UNION (Export:Objects2, Next:Objects3));
+		  END;			}				;
+		    Next:Objects4In	:= {
+		  IF Export:IsQualified THEN
+		    Next:Objects4In	:= mElmt (Ident, FALSE, mModule3 (Object, Decls:Objects4Out), Objects4In);
+		  ELSE
+		    Next:Objects4In	:= mElmt (Ident, FALSE, mModule3 (Object, Decls:Objects4Out), UNION (Export:Objects2, Objects4In));
+		  END;			}				;
+		    Decls:Objects4In AFTER Objects4In;
+		    Decls:Objects4In	:= NoObjects			; } .
+Opaque		= { Object		:= mOpaque1 (Ident, Next: PosIn);
+		    Objects1		:= mElmt (Ident, FALSE, Object, Next:Objects1);
+		    Objects2		:= mVoid1 (mOpaque2 (Object, Type1), Next:Objects2);
+		    Objects3		:= mElmt (Ident, FALSE, mOpaque3 (Object, Type2), Next:Objects3);
+		    Next:Objects4In	:= mElmt (Ident, FALSE, Object, Objects4In); } .
+
+VarIds		= { Objects3		:= NoObjects			; } .
+VarIds1		= { Next:Type		:= Type				;
+		    Next:TypeTree	:= TypeTree			;
+		    Object		:= mVar1 (Ident, Type, FALSE, Level, FALSE, TypeTree);
+		    Objects3 := mElmt (Ident, FALSE, Object, Next:Objects3)	; } .
+
+
+Formals		= { Objects3		:= NoObjects			; } .
+Formals1	= { Objects3		:= UNION (ParIds:Objects3, Next:Objects3);
+		    ParIds:Type		:= Type:Type2			;
+		    ParIds:TypeTree	:= Type				;
+		    ParIds:IsVAR	:= IsVAR			; } .
+
+ParIds		= { Objects3		:= NoObjects			; } .
+ParIds1		= { Object		:= mVar1 (Ident, Type, IsVAR, Level, FALSE, TypeTree);
+		    Next:Type		:= Type				;
+		    Next:TypeTree	:= TypeTree			;
+		    Next:IsVAR		:= IsVAR				;
+		    Objects3		:= mElmt (Ident, FALSE, Object, Next:Objects3); } .
+
+Type		= { Objects3		:= NoObjects			; } .
+Array		= { Objects3		:= UNION (IndexType:Objects3, ElemType:Objects3); } .
+Record		= { Objects3		:= Fields:Objects3		; } .
+SetType		= { Objects3		:= BaseType:Objects3		; } .
+Pointer		= { Objects3		:= TargetType:Objects3		; } .
+Enumeration	= { Objects3		:= EnumIds:Objects		; } .
+
+Fields		= { Objects3		:= NoObjects			; } .
+Fields1		= { Objects3		:= Next:Objects3		; } .
+RecordSect 	= { Objects3		:= UNION (Type:Objects3, Next:Objects3);
+} .
+VariantSect	= { Objects3		:= UNION (Variants:Objects3, UNION (Else:Objects3, Next:Objects3)); } .
+
+Variants	= { Objects3		:= NoObjects			; } .
+Variant		= { Objects3		:= UNION (Variant:Objects3, Next:Objects3); } .
+
+END Objects
+
+MODULE Types	/*------------------------------------------------------*/
+
+/* generate type descriptions	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  tType		, tTypes	,
+  NoType	, NoTypes	,
+  mTypes	,
+  mQualident1	, mOpaqueType1	, mOpaqueType2	, mArray1	,
+  mArray2	, mEnumeration1	, mEnumeration2	, mPointer1	,
+  mPointer2	, mProcType1	, mProcType2	, mRecord1	,
+  mRecord2	, mSet1		, mSet2		, mSubrange1	,
+  mSubrange2	, mSubrange3	,
+  OpaqueType1	,
+  TypeVOID	, 
+  GroundType	;
+
+FROM GenIdents	IMPORT
+  GenStruct1	, GenStruct2	;
+}
+
+DECLARE
+
+  Type		= -> [TypeObj: tObject] [Type1: tType] [Type2: tType OUT] .
+
+  Subrange	= -> [Type3: tType] .
+
+  Enumeration	= -> [Type0: tType] .
+
+  Proc		ProcHead	EnumIds		FieldIds
+		= -> [Type: tType] .
+
+  TypeDecl	= -> [Type1: tType] [Type2: tType] .
+
+  Opaque	= -> [Type1: tType] [FullType: tType] [Type2: tType] .
+
+  EnumIds	= -> [Objects: tObjects] [IndexIn: SHORTCARD] [IndexOut: SHORTCARD] .
+
+  EnumIds1	 FieldIds1	TagField1
+		= -> [Object: tObject OUT] .
+
+  FieldIds	TagField	Variants	Fields
+		= -> [FieldsIn: tObjects] [FieldsOut: tObjects].
+
+  Formals	FormalTypes
+		= -> [Types: tTypes] .
+
+  ParIds	= -> [TypesIn: tType] [TypesOut: tTypes] .
+
+RULE
+
+Var	    = { Type:	    TypeObj	:= NoObject			; } .
+TypeDecl    = { Type:	    TypeObj	:= Object			;
+			    Type1	:= {
+	      IF IsDeclared (Ident, DefTypes) THEN
+			    Type1	:= mOpaqueType1 (Object)	;
+	      ELSE
+			    Type1	:= Type:	Type1		;
+	      END;			}				;
+			    Type2	:= {
+	      IF IsDeclared (Ident, DefTypes) THEN
+			    Type2	:= mOpaqueType2 (Type1, Type:Type2);
+	      ELSE
+			    Type2	:= Type:	Type2		;
+	      END;			}				; } .
+Proc	    = {		    Type	:= mProcType2 (mProcType1 (NoObject), Formals:Types, ResultType:Type2);
+			    
+		ResultType: TypeObj	:= NoObject			; } .
+ProcHead    = {		    Type	:= mProcType2 (mProcType1 (NoObject), Formals:Types, ResultType:Type2);
+		ResultType: TypeObj	:= NoObject			; } .
+
+Opaque      = {		    Type1	:= mOpaqueType1 (Object)	;
+			    FullType	:= GetType (Identify2 (Ident, ImplTypes));
+			    Type2	:= {
+	      IF FullType^.\Kind = OpaqueType1 THEN
+			    Type2	:= mOpaqueType2 (Type1, FullType^.OpaqueType1.Type);
+	      ELSE
+		/* full type specification is unknown	*/
+			    Type2	:= mOpaqueType2 (Type1, NoType);
+	      END;			}				; } .
+
+Formals	    = {		    Types	:= NoTypes			; } .
+Formals1    = { ParIds:	    TypesIn	:= Next:	Types		;
+			    Types	:= ParIds:	TypesOut	;
+		Type:	    TypeObj	:= NoObject			; } .
+
+ParIds	    = {		    TypesOut	:=		TypesIn		; } .
+ParIds1	    = { Next:	    TypesIn	:=		TypesIn		;
+			    TypesOut	:= mTypes (IsVAR, Type, Next:TypesOut); } .
+
+EnumIds	    = {		    Objects	:= NoObjects			;
+			    IndexOut	:=		IndexIn		; } .
+EnumIds1    = { Next:	    Type	:=		Type		;
+		Next:	    IndexIn	:=		IndexIn + 1	;
+			    Object	:= mEnumLiteral1 (Ident, Type, IndexIn);
+			    Objects	:= mElmt (Ident, FALSE, Object, Next:Objects);
+			    IndexOut	:= Next:	IndexOut	; } .
+
+FieldIds    = {		    FieldsOut	:=		FieldsIn	; } .
+FieldIds1   = { Next:	    Type	:=		Type		;
+			    Object	:= mField1 (Ident, Type, Select);
+		Next:	    FieldsIn	:=		FieldsIn	;
+			    FieldsOut	:= mElmt (Ident, FALSE, Object, Next:FieldsOut); } .
+
+Type	    = {		    Type1	:= NoType			;
+			    Type2	:=		Type1		; } .
+Array	    = {		    Type1	:= {
+			IF Kind IN {Definition, Foreign} THEN
+			    Type1	:= mArray1 (TypeObj, GenStruct1 (Module, CntIn+1));
+			ELSE
+			    Type1	:= mArray1 (TypeObj, GenStruct2 ());
+			END;		}				;
+			    Type2	:= mArray2 (Type1, IsOpen, IndexType:Type2, ElemType:Type2);
+		IndexType:  TypeObj	:= NoObject			;
+		ElemType:   TypeObj	:= NoObject			; } .
+Record	    = {		    Type1	:= {
+			IF Kind IN {Definition, Foreign} THEN
+			    Type1	:= mRecord1 (TypeObj, GenStruct1 (Module, CntIn+1));
+			ELSE
+			    Type1	:= mRecord1 (TypeObj, GenStruct2 ());
+			END;		}				;
+		Fields:     FieldsIn	:= NoObjects			;
+			    Type2	:= mRecord2 (Type1, Fields:FieldsOut); } .
+SetType	    = {		    Type1	:= mSet1 (TypeObj)		;
+			    Type2	:= mSet2 (Type1, BaseType:Type2);
+		BaseType:   TypeObj	:= NoObject			; } .
+Pointer	    = {		    Type1	:= mPointer1 (TypeObj)		;
+			    Type2	:= mPointer2 (Type1, TargetType:Type2);
+		TargetType:  TypeObj	:= NoObject			; } .
+ProcType    = {		     Type1	:= mProcType1 (TypeObj)		;
+			     Type2	:= mProcType2 (Type1, FormalTypes:Types, ResultType:Type2);
+		ResultType:  TypeObj	:= NoObject			; } .
+Enumeration = {		     Type0	:= mEnumeration1 (TypeObj)	;
+		EnumIds:     Type	:= Type0			;
+		EnumIds:     IndexIn	:= 0				;
+			     Type1	:= mEnumeration2 (Type0, EnumIds:Objects, EnumIds:IndexOut-1); } .
+Subrange    = {		     Type1	:= mSubrange1 (TypeObj, Lwb, Upb);
+			     Type2	:= mSubrange2 (Type1, BaseType:Type2);
+			     Type3	:= {
+			     CompConst (Lwb, Env3, Type2^.Subrange1.\Lwb);
+			     CompConst (Upb, Env3, Type2^.Subrange1.\Upb);
+			     /* besides Env3 depend on Objects4In, too! */
+			     Type3	:= mSubrange3 (Type2, Type2^.Subrange1.\Lwb, Type2^.Subrange1.\Upb);
+					}				;
+		BaseType:    TypeObj	:= NoObject			; } .
+Void	    = {		     Type1	:= TypeVOID			; } .
+TypeId0	    = {		     Type1	:= mQualident1 (Object)		;
+			     Type2	:= GroundType (Type1)		; } .
+TypeId1	    = {		     Type1	:= mQualident1 (Object)		;
+			     Type2	:= GroundType (Type1)		;
+		TypeId:	     TypeObj	:=		TypeObj		; } .
+
+Fields	    = {		     FieldsOut	:=		FieldsIn	; } .
+Fields1	    = { Next:	     FieldsIn	:=		FieldsIn	;
+			     FieldsOut	:= Next:	FieldsOut	; } .
+RecordSect  = { FieldIds:    Type	:= Type:	Type2		;
+			     FieldsOut	:= FieldIds:	FieldsOut	;
+		FieldIds:    FieldsIn	:= Next:	FieldsOut	;
+		Type:	     TypeObj	:= NoObject			; } .
+VariantSect = { Else:	     FieldsIn	:= Next:	FieldsOut	;
+		Variants:    FieldsIn	:= Else:	FieldsOut	;
+		TagField:    FieldsIn	:= Variants:	FieldsOut	;
+			     FieldsOut	:= TagField:	FieldsOut	; } .
+
+TagField    = {		     FieldsOut	:=		FieldsIn	;
+		Type:	     TypeObj	:= NoObject			; } .
+TagField1   = {		     Object	:= mField1 (Ident, Type:Type2, Select);
+			     FieldsOut	:= mElmt (Ident, FALSE, Object, FieldsIn); } .
+
+Variants    = {		     FieldsOut	:=		FieldsIn	; } .
+Variant	    = { Next:	     FieldsIn	:=		FieldsIn	;
+		Variant:     FieldsIn	:= Next:	FieldsOut	;
+			     FieldsOut	:= Variant:	FieldsOut	; } .
+
+FormalTypes = {		     Types	:= NoTypes			; } .
+FormalType  = {		     Types	:= mTypes (IsVAR, Type:Type2, Next:Types);
+		Type:	     TypeObj	:= NoObject			; } .
+
+END Types
+
+MODULE ImportExport	/*----------------------------------------------*/
+
+/* handling of IMPORT and EXPORT statements	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT Enumeration1;
+}
+
+DECLARE
+
+  Import	ImpIds		Export		ExpIds
+		= -> [Objects1: tObjects] [Objects2: tObjects] .
+
+  Export	= -> [IsQualified: BOOLEAN] .
+
+  ImpIds1	ExpIds1
+  		= -> [Type: tType] .
+
+RULE
+
+Import		= { Objects1	:= NoObjects				;
+		    Objects2	:= NoObjects				; } .
+From		= { Objects1	:= UNION (ImpIds:Objects1, Next:Objects1);
+		    Objects2	:= UNION (ImpIds:Objects2, Next:Objects2); } .
+Objects		= { Objects1	:= UNION (ImpIds:Objects1, Next:Objects1);
+		    Objects2	:= UNION (ImpIds:Objects2, Next:Objects2); } .
+
+
+ImpIds		= { Objects1	:= NoObjects				;
+		    Objects2	:= NoObjects				; } .
+ImpIds1		= { Objects1	:= {
+		  IF Object1 = NoObject THEN
+		    Objects1	:= Next:Objects1			;
+		  ELSE
+		    Objects1	:= mElmt (Ident, TRUE, Object1, Next:Objects1);
+		  END;		}					;
+
+		    Type	:= GetType (Object2)			;
+		    Objects2	:= {
+		  IF (Object2^.Kind = TypeDecl1   ) AND
+		     (Type^.Kind    = Enumeration1) THEN
+		    Objects2	:= mElmt (Ident, TRUE, Object2, UNION (Type^.Enumeration1.Objects, Next:Objects2));
+		  ELSE
+		    Objects2	:= mElmt (Ident, TRUE, Object2, Next:Objects2);
+		  END;		}					; } .
+
+
+Export		= { Objects1	:= NoObjects				;
+		    Objects2	:= NoObjects				;
+		    IsQualified	:= TRUE					; } .
+Export1		= { Objects1	:= ExpIds:Objects1			;
+		    Objects2	:= ExpIds:Objects2			;
+		    IsQualified	:= Qualified				; } .
+
+ExpIds		= { Objects1	:= NoObjects				;
+		    Objects2	:= NoObjects				; } .
+ExpIds1		= { Objects1	:= {
+		  IF Object1 = NoObject THEN
+		    Objects1	:= Next:Objects1			;
+		  ELSE
+		    Objects1	:= mElmt (Ident, TRUE, Object1, Next:Objects1);
+		  END;		}					;
+
+		    Type	:= GetType (Object2)			;
+		    Objects2	:= {
+		  IF (Object2^.Kind = TypeDecl1   ) AND
+		     (Type^.Kind    = Enumeration1) THEN
+		    Objects2	:= mElmt (Ident, TRUE, Object2, UNION (Type^.Enumeration1.Objects, Next:Objects2));
+		  ELSE
+		    Objects2	:= mElmt (Ident, TRUE, Object2, Next:Objects2);
+		  END;		}					; } .
+
+END ImportExport
+
+MODULE Redeclarations	/*-----------------------------------------------*/
+
+/* For each object (procedure or type) of an implementation	*/
+/* module it has to be checked if it is a redeclaration of an	*/
+/* object (procedure heading or opaque type) declared in the	*/
+/* corresponding definition module.				*/	
+/* For an opaque type declared in a definition module the full	*/
+/* type specification from the corresponding implementation	*/
+/* module has to be known if the implementation module is	*/
+/* compiled.							*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT IsDeclared;
+}
+
+DECLARE
+
+  CompUnits	= -> [ImplIdent: tIdent] [ImplTypes: tObjects] .
+
+  Decls		= -> [DefTypes: tObjects] [DefObjects: tObjects] [ImplTypes: tObjects] .
+
+  Export	ExpIds
+		= -> [DefTypesIn: tObjects] [DefTypesOut: tObjects] 
+		     [DefObjsIn: tObjects] [DefObjsOut: tObjects] .
+
+RULE
+
+CompUnits	= { ImplIdent		:= NoIdent			;
+		    ImplTypes		:= NoObjects			; } .
+DefMod		= { Decls:DefTypes	:= NoObjects			;
+		    Decls:DefObjects	:= NoObjects			;
+		    ImplIdent		:= Next:ImplIdent		;
+		    ImplTypes		:= Next:ImplTypes		;
+		    Decls:ImplTypes	:= {
+		  IF Ident = ImplIdent THEN
+		    Decls:ImplTypes	:= Next:ImplTypes		;
+		    /* an implementation module is always the last	*/
+		    /* compilation unit!				*/
+		  ELSE
+		    Decls:ImplTypes	:= NoObjects			;
+		  END;			}				; } .
+ProgMod		= { Decls:DefTypes	:= GetExport1 (Identify (Ident, Env1));
+		    Decls:DefObjects	:= GetExport2 (Identify (Ident, Env3));
+		    ImplIdent		:= Ident			;
+		    ImplTypes		:= Decls:Objects3		;
+		    Decls:ImplTypes	:= NoObjects			; } .
+
+Export		= { DefTypesOut		:= NoObjects			;
+		    DefObjsOut		:= NoObjects			; } .
+Export1		= { ExpIds:DefTypesIn 	:= DefTypesIn			;
+		    DefTypesOut		:= ExpIds:DefTypesOut		;
+		    ExpIds:DefObjsIn 	:= DefObjsIn			;
+		    DefObjsOut		:= ExpIds:DefObjsOut		; } .
+
+ExpIds		= { DefTypesOut		:= NoObjects			;
+		    DefObjsOut		:= NoObjects			; } .
+ExpIds1		= { Next:DefTypesIn	:= DefTypesIn			;
+		    DefTypesOut		:= {
+		  IF IsDeclared (Ident, DefTypesIn) THEN
+		    DefTypesOut		:= mElmt (Ident, FALSE, Object1, Next:DefTypesOut);
+		  ELSE
+		    DefTypesOut		:= Next:DefTypesOut		;
+		  END;			}				;
+		    Next:DefObjsIn	:= DefObjsIn			;
+		    DefObjsOut		:= {
+		  IF IsDeclared (Ident, DefObjsIn) THEN
+		    DefObjsOut		:= mElmt (Ident, FALSE, Object2, Next:DefObjsOut);
+		  ELSE
+		    DefObjsOut		:= Next:DefObjsOut		;
+		  END;			}				; } .
+
+Decl		= { Next:DefTypes	:= DefTypes			;
+		    Next:DefObjects	:= DefObjects			;
+		    Next:ImplTypes	:= ImplTypes			; } .
+Proc		= { Decls:DefTypes	:= NoObjects			;
+		    Decls:DefObjects	:= NoObjects			;
+		    Decls:ImplTypes	:= NoObjects			; } .
+Module		= { Export:DefTypesIn	:= {
+		  IF Export:IsQualified THEN
+		    Export:DefTypesIn	:= NoObjects			;
+		  ELSE
+		    Export:DefTypesIn	:= DefTypes			;
+		  END;			}				;
+		    Decls:DefTypes	:= Export:DefTypesOut		;
+		    Export:DefObjsIn	:= {
+		  IF Export:IsQualified THEN
+		    Export:DefObjsIn	:= NoObjects			;
+		  ELSE
+		    Export:DefObjsIn	:= DefObjects			;
+		  END;			}				;
+		    Decls:DefObjects	:= Export:DefObjsOut		;
+		    Decls:ImplTypes	:= NoObjects			; } .
+
+END Redeclarations
+
+MODULE Env	/*------------------------------------------------------*/
+
+/* computation of environment attribute(s)	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  tEnv		, NoEnv		, mEnv		,
+  IdentSYSTEM	, ModuleSYSTEM	, Predefs	;
+}
+
+DECLARE
+
+  Decls
+		= -> [Env1: tEnv INH] [Env2: tVoid INH] [Env3: tEnv INH] [Env4: tEnv INH] .
+
+  CompUnits	Formals		Type		Fields		TagField
+  Variants	FormalTypes
+		= -> [Env1: tEnv INH] [Env2: tVoid INH] [Env3: tEnv INH] .
+
+  Import	ImpIds		Export		ExpIds
+		= -> [Env1: tEnv INH] [Env2: tEnv INH] .
+
+  Stmts		Elsifs		Cases		Labels		Expr
+  Elems		Actuals
+		= -> [Env: tEnv INH] .
+
+RULE
+
+ROOT		= { CompUnits:	Env1	:= mEnv (mElmt (IdentSYSTEM, FALSE, ModuleSYSTEM, CompUnits:Objects1), NoEnv);
+		    CompUnits:	Env2	:= CompUnits:Objects2;
+		    CompUnits:	Env3	:= mEnv (mElmt (IdentSYSTEM, FALSE, ModuleSYSTEM, CompUnits:Objects3), NoEnv); } .
+
+DefMod		= { Import:	Env2	:=		Env3		;
+		    Decls:	Env1	:= mEnv (UNION (UNION (Predefs, Import:Objects1), Decls:Objects1), NoEnv);
+		    Decls:	Env3	:= mEnv (UNION (UNION (Predefs, Import:Objects2), Decls:Objects3), NoEnv);
+		    Decls:	Env4	:= mEnv (UNION (UNION (Predefs, Import:Objects2), Decls:Objects4Out), NoEnv); } .
+ProgMod		= { Import:	Env2	:=		Env3		;
+		    Decls:	Env1	:= mEnv (UNION (UNION (UNION (Predefs, Import:Objects1), Decls:Objects1), DefObjects1), NoEnv);
+		    Decls:	Env3	:= mEnv (UNION (UNION (UNION (Predefs, Import:Objects2), Decls:Objects3), DefObjects3), NoEnv);
+		    Decls:	Env4	:= mEnv (UNION (UNION (UNION (Predefs, Import:Objects2), Decls:Objects4Out), DefObjects3), NoEnv);
+		    Stmts:	Env	:= Decls:	Env4		; } .
+
+From		= { ImpIds:	Env1	:= mEnv (GetExport1 (Object1), NoEnv);
+		    ImpIds:	Env2	:= mEnv (GetExport2 (Object2), NoEnv); } .
+Var		= { Type:Env3 AFTER Objects4In;				  } .
+Const		= { Expr:	Env	:=		Env3		;
+		    Expr:Env AFTER Objects4In;				  } .
+TypeDecl	= { Type:Env3 AFTER Objects4In;				  } .
+Proc		= { Decls:	Env1	:= mEnv (Decls:Objects1, Env1);
+		    Decls:	Env3	:= mEnv (UNION (Formals:Objects3, Decls:Objects3), Env3);
+		    Decls:	Env4	:= mEnv (UNION (Formals:Objects3, Decls:Objects4Out), Env4);
+		    Stmts:	Env	:= Decls:	Env4		; } .
+Module		= { Export:	Env1	:= mEnv (Decls:Objects1, NoEnv);
+		    Export:	Env2	:= mEnv (Decls:Objects3, NoEnv);
+		    Import:	Env2	:=		Env3		;
+		    Decls:	Env1	:= mEnv (UNION (UNION (Predefs, Import:Objects1), Decls:Objects1), NoEnv);
+		    Decls:	Env3	:= mEnv (UNION (UNION (Predefs, Import:Objects2), Decls:Objects3), NoEnv);
+		    Decls:	Env4	:= mEnv (UNION (UNION (Predefs, Import:Objects2), Decls:Objects4Out), NoEnv);
+		    Decls:Env4 AFTER Env4;
+		    Stmts:	Env	:= Decls:	Env4		; } .
+Type		= { Env2 BEFORE Type2;					  } .
+Subrange	= { Lwb:	Env	:=		Env3		;
+		    Upb:	Env	:=		Env3		; } .
+RecordSect 	= { Objects3 AFTER Env2;				  } .
+Variant		= { Labels:	Env	:=		Env3		; } .
+With		= { Stmts:	Env	:= mEnv (GetFields (Designator:Type), Env); } .
+
+END Env
+
+MODULE Object	/*------------------------------------------------------*/
+
+/* name analysis	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  GetExport1	, GetExport2	, GetObjects	, GetFields	,
+  Identify	, Identify2	;
+}
+
+DECLARE	From ImpIds1 ExpIds1	= -> [Object1: tObject]
+			             [Object2: tObject] .
+	TypeId Qualid Select	= -> [Object: tObject OUT] .
+
+RULE
+
+From	= { Object1	:= Identify (Ident, Env1)			;
+	    Object2	:= Identify (Ident, Env2)			; } .
+
+ImpIds1	= { Object1	:= Identify (Ident, Env1)			;
+	    Object2	:= Identify (Ident, Env2)			; } .
+
+ExpIds1	= { Object1	:= Identify (Ident, Env1)			;
+	    Object2	:= Identify (Ident, Env2)			; } .
+
+TypeId	= { Object	:= NoObject					; } .
+TypeId0	= { Object	:= Identify (Ident, Env1)			; } .
+TypeId1	= { Object	:= Identify2 (Ident, GetExport1 (TypeId:Object)); } .
+			   /* GetExport1 only works for types! */
+
+Qualid	= { Object	:= NoObject					; } .
+Qualid0	= { Object	:= Identify (Ident, Env)			; } .
+Qualid1	= { Object	:= Identify2 (Ident, GetObjects (Qualid:Object)); } .
+Select	= { Object	:= Identify2 (Field, GetFields (Designator:Type));} .
+
+END Object
+
+MODULE Type	/*------------------------------------------------------*/
+
+/* determine type of expressions	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  GetType	, GetElemType	, GetTargetType	, GetResultType	, 
+  TypeREAL	, TypeCHAR	, TypeBITSET	, TypeIntCard	,
+  TypeSTRING	, TypeStringChar,
+  ProcType1	, StdProcType1	;
+
+FROM StringMem	IMPORT
+  Length	;
+
+FROM Types	IMPORT
+  ResultType	, StdResultType	;
+}
+
+DECLARE Expr	= -> [Type: tType OUT] .
+	Actuals	= -> [Types: tTypes] .
+
+RULE
+
+Expr		= { Type	:=	NoType				; } .
+Binary		= { Type	:=	ResultType (Operator, Lop:Type, Rop:Type); } .
+Unary		= { Type	:=	ResultType (Operator, Mop:Type, Mop:Type); } .
+IntConst	= { Type	:=	TypeIntCard			; } .
+RealConst	= { Type	:=	TypeREAL			; } .
+StringConst	= { Type	:= {
+		  IF Length (StringVal) = 1 THEN
+		    Type	:=	TypeStringChar			;
+		  ELSE
+		    Type	:=	TypeSTRING			;
+		  END;		}					; } .
+CharConst	= { Type	:=	TypeCHAR			; } .
+FuncCall	= { Type	:= {
+		  IF Designator:Type^.Kind = StdProcType1 THEN
+		    Type	:=	StdResultType (Designator:Type, Actuals:Types);
+		  ELSIF Designator:Type^.Kind = ProcType1 THEN
+		    Type	:=	GetResultType (Designator:Type)	;
+		  ELSE
+		    /* may be a type transfer function	*/
+		    Type	:=	Designator:Type			;
+		  END;		}					; } .
+
+Set		= { Type	:=	BaseType:Type			; } .
+BitSet		= { Type	:=	TypeBITSET			; } .
+Qualid0		= { Type	:=	GetType (Object)		; } .
+Qualid1		= { Type	:=	GetType (Object)		; } .
+Subscript	= { Type	:=      GetElemType (Designator:Type)	; } .
+Deref		= { Type	:=	GetTargetType (Designator:Type)	; } .
+Select		= { Type	:=	GetType (Object)		; } .
+
+Actuals		= { Types	:=	NoTypes				; } .
+Actual		= { Types	:=	mTypes (FALSE, Expr:Type, Next:Types)	; } .
+
+END Type
+
+MODULE Formals	/*------------------------------------------------------*/
+
+/* Determine type and parameter kind of formal parameters for	*/
+/* procedure calls. Formal types of standard procedures are	*/
+/* not handled within the AG i.e. GetFormals will return an	*/
+/* empty formal parameter list if the designator is a standard	*/
+/* procedure.							*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT GetFormals, Head, Tail;
+}
+
+DECLARE Actuals		= -> [Formals: tTypes] .
+	Actual		= -> [IsVAR: BOOLEAN OUT] [Formal: tType OUT] .
+
+RULE
+
+FuncCall	= { Actuals:	Formals	:= GetFormals (Designator:Type)	; } .
+Call		= { Actuals:	Formals	:= GetFormals (Designator:Type)	; } .
+Actual		= { Next:	Formals	:= Tail (Formals)		;
+				IsVAR	,
+				Formal	:= {Head (Formals, IsVAR, Formal);}; } .
+
+END Formals
+
+/*======= computation of code generation attributes ====================*/
+
+MODULE Value	/*------------------------------------------------------*/
+
+/* evaluation of (some) constant expressions	*/
+
+EVAL GLOBAL	{
+FROM Values	IMPORT ErrorValue;
+}
+
+DECLARE Label		= -> [LabelVal: tValue OUT] .
+        LabelRange	= -> [LwbVal: tValue OUT] [UpbVal: tValue OUT] .
+	For		= -> [ToVal: tValue OUT] [ByVal: tValue OUT] .
+
+RULE
+
+Label		= { LabelVal	:= { CompConst (Label, Env, LabelVal); }; } .
+LabelRange	= { LwbVal	:= { CompConst (Lwb, Env, LwbVal); }	;
+		    UpbVal	:= { CompConst (Upb, Env, UpbVal); }	; } .
+
+For		= { ToVal	:= {
+		  IF To:IsCConst THEN
+		    CompConst (To, Env, ToVal)				;
+		  ELSE
+		    ToVal	:= ErrorValue				;
+		  END;		}					;
+		    ByVal	:= { CompConst (By, Env, ByVal); }	; } .
+
+END Value
+
+MODULE Rename		/*----------------------------------------------*/
+
+/* Renaming of identifiers to prevent name conflicts in the generated	*/
+/* C programs.								*/
+/*									*/
+/* The module UniqueIds is used for the administration of all Modula-2	*/
+/* identifiers (identifiers of the form letter (letter | digit) *) used	*/
+/* in the generated C program(s) (according to C scope rules).		*/
+/* UniqueIds treats a number of identifiers as keywords (Identifiers	*/
+/* from SYSTEM.h, compiler generated identifiers and C keywords	and	*/
+/* preprocessor directives. For more details see module UniqueIds).	*/
+/* Most operations from UniqueIds have a side effect. The attributes	*/
+/* IdsIn and IdsOut and the attribution rules guarantee that these	*/
+/* operations are executed in the correct order. Particularly they	*/
+/* guarantee that the C identifier for an object is computed after	*/
+/* IdsIn and before Next:IdsIn resp. IdsOut.				*/
+/* For qualified identifiers of the form Module_Ident, there can be no	*/
+/* name conflicts, because the identifiers of global modules have to be	*/
+/* unique. All qualified identifiers which are not generated in module	*/
+/* Rename (identifiers from SYSTEM.h or compiler generated identifiers)	*/
+/* cannot clash with those generated in module Rename. This is achieved	*/
+/* by using a Modula-2 keyword for either Module or Ident, or by	*/
+/* using more than one underscore.					*/
+
+EVAL GLOBAL	{
+FROM SYSTEM	IMPORT
+  ADR		;
+
+FROM Idents	IMPORT
+  NoIdent	;
+
+FROM Defs	IMPORT
+  DefineCIdent	;
+
+FROM UniqueIds	IMPORT
+  tIdents	, tIdentClass	, EnterProc	, LeaveProc	,
+  NameConflict	, DeclareIdent	;
+
+FROM GenIdents	IMPORT
+  MakeQualified	, Rename	, RenameField	, GenOpaque	;
+
+FROM Errors	IMPORT
+  ErrorMessagePI, Restriction	, Warning	,
+  OpaqueConflict, ForeignConflict;
+IMPORT Errors;
+}
+
+DECLARE
+
+  VarIds1	ParIds1		EnumIds1	FieldIds1	TagField1
+  Object
+			= -> [CIdent: tIdent OUT] .
+
+  VarIds	EnumIds		Type		Fields		Variants
+  TagField	FormalTypes	Decls		Formals
+			= -> [Kind: SHORTCARD] [Module: tIdent] .
+
+  VarIds	Decls	= -> [InLocal: BOOLEAN] .
+
+  CompUnits	VarIds		ParIds		EnumIds		FieldIds
+  Type		Fields		TagField	Variants	FormalTypes
+  Decls		Formals
+			= -> [IdsIn: tIdents] [IdsOut: tIdents] .
+
+RULE
+
+ROOT		= { CompUnits:	IdsIn	:= cIdents			; } .
+
+CompUnits	= {		IdsOut	:=		IdsIn		; } .
+CompUnit	= { Next:	IdsIn	:=		IdsIn		;
+				IdsOut	:= Next:	IdsOut		; } .
+DefMod		= { Decls:	Module	:=		Ident		;
+		    Decls:	Kind	:=		Kind		;
+		    Decls:	InLocal	:= FALSE			;
+		    Decls:	IdsIn	:= 		IdsIn		;
+		    Next:	IdsIn	:= Decls:	IdsOut		;  } .
+ProgMod		= { Decls:	Module	:=		Ident		;
+		    Decls:	Kind	:=		Kind		;
+		    Decls:	InLocal	:= FALSE			;
+		    Decls:	IdsIn	:= 		IdsIn		;
+		    Next:	IdsIn	:= Decls:	IdsOut		;  } .
+
+VarIds		= {		IdsOut	:=		IdsIn		; } .
+VarIds1		= { Next:	Kind	:=		Kind		;
+		    Next:	Module	:=		Module		;
+		    Next:	InLocal	:=		InLocal		;
+		    Next:	IdsIn	,
+		    		CIdent	:= {
+		  IF Kind IN {Definition, Foreign} THEN
+		    		CIdent	:= DefineCIdent (Object, MakeQualified (Module, Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSIF InLocal THEN
+		    IF NameConflict (IdsIn, eModuleVar, Ident) THEN
+		    		CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		    ELSE
+		    		CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eModuleVar, Ident);
+		    END;
+		  ELSE
+		    IF NameConflict (IdsIn, eVar, Ident) THEN
+		    		CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		    ELSE
+		    		CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eVar, Ident);
+		    END;
+		  END;			}				;
+				IdsOut	:= Next:	IdsOut		; } .
+
+ParIds		= {		IdsOut	:=		IdsIn		; } .
+ParIds1		= { Next:	IdsIn	,
+				CIdent	:= {
+		  IF NameConflict (IdsIn, eVar, Ident) THEN
+				CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eVar, Ident);
+		  END;			}				;
+				IdsOut	:= Next:	IdsOut		; } .
+
+EnumIds		= {		IdsOut	:=		IdsIn		; } .
+EnumIds1	= { Next:	Kind	:=		Kind		;
+		    Next:	Module	:=		Module		;
+		    Next:	IdsIn	,
+				CIdent	:= {
+		  IF Kind IN {Definition, Foreign} THEN
+				CIdent	:= DefineCIdent (Object, MakeQualified (Module, Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSIF NameConflict (IdsIn, eConst, Ident) THEN
+				CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eConst, Ident);
+		  END;			}				;
+				IdsOut	:= Next:	IdsOut		; } .
+
+FieldIds	= {		IdsOut	:=		IdsIn		; } .
+FieldIds1	= { Next:	IdsIn	,
+				CIdent	:= {
+		  IF NameConflict (IdsIn, eField, Ident) THEN
+				CIdent	:= DefineCIdent (Object, RenameField (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eField, Ident);
+		  END;			}				;
+				IdsOut	:= Next:	IdsOut		; } .
+
+Type		= {		IdsOut	:=		IdsIn		; } .
+Array		= { IndexType:	Kind	:=		Kind		;
+		    ElemType:	Kind	:=		Kind		;
+		    IndexType:	Module	:=		Module		;
+		    ElemType:	Module	:=		Module		;
+		    IndexType:	IdsIn	:=		IdsIn		;
+		    ElemType:	IdsIn	:= IndexType:	IdsOut		;
+				IdsOut	:= ElemType:	IdsOut		; } .
+Record		= { Fields:	Kind	:=		Kind		;
+		    Fields:	Module	:=		Module		;
+		    Fields:	IdsIn	:=		IdsIn		;
+				IdsOut	:= Fields:	IdsOut		; } .
+SetType		= { BaseType:	Kind	:=		Kind		;
+		    BaseType:	Module	:=		Module		;
+		    BaseType:	IdsIn	:=		IdsIn		;
+				IdsOut	:= BaseType:	IdsOut		; } .
+Pointer		= { TargetType:	Kind	:=		Kind		;
+		    TargetType:	Module	:=		Module		;
+		    TargetType:	IdsIn	:=		IdsIn		;
+				IdsOut	:= TargetType:	IdsOut		; } .
+ProcType	= { FormalTypes:Kind	:=		Kind		;
+		    ResultType:	Kind	:=		Kind		;
+		    FormalTypes:Module	:=		Module		;
+		    ResultType:	Module	:=		Module		;
+		    FormalTypes:IdsIn	:=		IdsIn		;
+		    ResultType:	IdsIn	:= FormalTypes:	IdsOut		;
+				IdsOut	:= ResultType:	IdsOut		; } .
+Enumeration	= { EnumIds:	Kind	:=		Kind		;
+		    EnumIds:	Module	:=		Module		;
+		    EnumIds:	IdsIn	:=		IdsIn		;
+				IdsOut	:= EnumIds:	IdsOut		; } .
+Subrange	= { BaseType:	Kind	:=		Kind		;
+		    BaseType:	Module	:=		Module		;
+		    BaseType:	IdsIn	:=		IdsIn		;
+				IdsOut	:= BaseType:	IdsOut		; } .
+TypeId		= {		IdsOut	:=		IdsIn		; } .
+TypeId1		= { TypeId:	Kind	:=		Kind		;
+		    TypeId:	Module	:=		Module		;
+		    TypeId:	IdsIn	:=		IdsIn		;
+				IdsOut	:= TypeId:	IdsOut		; } .
+
+Fields		= { 		IdsOut	:= 		IdsIn		; } .
+Fields1		= { Next:	Kind	:=		Kind		;
+		    Next:	Module	:=		Module		;
+		    Next:	IdsIn	:=		IdsIn		;
+				IdsOut	:= Next:	IdsOut		; } .
+RecordSect	= { Type:	Kind	:=		Kind		;
+		    Type:	Module	:=		Module		;
+				Kind Module BEFORE CntOut PosOut	;
+		    FieldIds:	IdsIn	:=		IdsIn		;
+		    Type:	IdsIn	:= FieldIds:	IdsOut		;
+		    Next:	IdsIn	:= Type:	IdsOut		; } .
+VariantSect	= { TagField:	Kind	:=		Kind		;
+		    Variants:	Kind	:=		Kind		;
+		    Else:	Kind	:=		Kind		;
+		    TagField:	Module	:=		Module		;
+		    Variants:	Module	:=		Module		;
+		    Else:	Module	:=		Module		;
+		    TagField:	IdsIn	:=		IdsIn		;
+		    Variants:	IdsIn	:= TagField:	IdsOut		;
+		    Else:	IdsIn	:= Variants:	IdsOut		;
+		    Next:	IdsIn	:= Else:	IdsOut		; } .
+
+TagField	= { Type:	Kind	:=		Kind		;
+		    Type:	Module	:=		Module		;
+				Kind Module BEFORE PosOut		;
+		    Type:	IdsIn	:=		IdsIn		;
+		    IdsOut		:= Type:	IdsOut		; } .
+TagField1	= {		CIdent BEFORE IdsOut			;
+				CIdent	:= {
+		  IF NameConflict (Type:IdsOut, eField, Ident) THEN
+				CIdent	:= DefineCIdent (Object, RenameField (Ident));
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		  END;			}				;
+				IdsOut	:= {
+		  IF NameConflict (Type:IdsOut, eField, Ident) THEN
+				IdsOut	:= Type:	IdsOut		;
+		  ELSE
+				IdsOut	:= DeclareIdent (Type:IdsOut, eField, Ident);
+		  END;			}				; } .
+
+Variants	= {		IdsOut	:=		IdsIn		; } .
+Variant		= { Variant:	Kind	:=		Kind		;
+		    Next:	Kind	:=		Kind		;
+		    Variant:	Module	:=		Module		;
+		    Next:	Module	:=		Module		;
+		    Variant:	IdsIn	:=		IdsIn		;
+		    Next:	IdsIn	:= Variant:	IdsOut		;
+				IdsOut	:= Next:	IdsOut		; } .
+
+FormalTypes	= {		IdsOut	:=		IdsIn		; } .
+FormalType	= { Type:	Kind	:=		Kind		;
+		    Next:	Kind	:=		Kind		;
+		    Type:	Module	:=		Module		;
+		    Next:	Module	:=		Module		;
+		    Type:	IdsIn	:=		IdsIn		;
+		    Next:	IdsIn	:= Type:	IdsOut		;
+				IdsOut	:= Next:	IdsOut		; } .
+		      
+Decls		= {		IdsOut	:=		IdsIn		; } .
+Decl		= { Next:	Kind	:=		Kind		;
+		    Next:	Module	:=		Module		;
+		    Next:	InLocal	:=		InLocal		;
+		    Next:	IdsIn	:=		IdsIn		;
+				IdsOut	:= Next:	IdsOut		; } .
+Var		= { VarIds:	Kind	:=		Kind		;
+		    Type:	Kind	:=		Kind		;
+		    VarIds:	Module	:=		Module		;
+		    Type:	Module	:=		Module		;
+		    VarIds:	InLocal	:=		InLocal		;
+		    VarIds:	IdsIn	:=		IdsIn		;
+		    Type:	IdsIn	:= VarIds:	IdsOut		;
+		    Next:	IdsIn	:= Type:	IdsOut		; } .
+Object		= {		CIdent	:= NoIdent			; } .
+Const		= { Next:	IdsIn	,
+				CIdent	:= {
+		  IF Kind IN {Definition, Foreign} THEN
+				CIdent	:= DefineCIdent (Object, MakeQualified (Module, Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSIF NameConflict (IdsIn, eConst, Ident) THEN
+				CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eConst, Ident);
+		  END;			}				; } .
+TypeDecl	= { Type:	Kind	:=		Kind		;
+		    Type:	Module	:=		Module		;
+		    Type:	IdsIn	:=		IdsIn		;
+		    Next:	IdsIn	,
+				CIdent	:= {
+		  IF Kind IN {Definition, Foreign} THEN
+				CIdent	:= DefineCIdent (Object, MakeQualified (Module, Ident));
+		    Next:	IdsIn	:= Type:	IdsOut		;
+		  ELSIF IsDeclared (Ident, DefObjects) THEN
+		    /* Redeclaration of an opaque type! Define CIdent	*/
+		    /* as Ident (used in the full specification of the	*/
+		    /* type). Define Object.CIdent as Module_Ident i.e.	*/
+		    /* CIdent from definition module (used in other	*/
+		    /* declarations).					*/ 
+				CIdent	:= GenOpaque (DefineCIdent (Object, MakeQualified (Module, Ident)));
+		    IF NameConflict (Type:IdsOut, eType, Ident) THEN
+		      ErrorMessagePI (OpaqueConflict, Restriction, Pos, Errors.\Ident, ADR (Ident));
+		      Next:	IdsIn	:= Type:	IdsOut		;
+		    ELSE
+		      Next:	IdsIn	:= DeclareIdent (Type:IdsOut, eType, Ident);
+		    END;
+		  ELSIF NameConflict (Type:IdsOut, eType, Ident) THEN
+				CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:= Type:	IdsOut		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (Type:IdsOut, eType, Ident);
+		  END;			}				; } .
+
+Proc		= { Formals:	Kind	:=		Kind		;
+		    ResultType:	Kind	:=		Kind		;
+		    Decls:	Kind	:=		Kind		;
+		    Formals:	Module	:=		Module		;
+		    ResultType:	Module	:=		Module		;
+		    Decls:	Module	:=		Module		;
+		    Decls:	InLocal	:= FALSE			;
+		    ResultType:	IdsIn	:=		IdsIn		;
+		    Next:	IdsIn	,
+				CIdent	:= {
+		  IF IsDeclared (Ident, DefObjects) THEN
+				CIdent	:= DefineCIdent (Object, MakeQualified (Module, Ident));
+		    Next:	IdsIn	:= ResultType:	IdsOut		;
+		  ELSIF NameConflict (ResultType:IdsOut, eProc, Ident) THEN
+				CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:= ResultType:	IdsOut		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (ResultType:IdsOut, eProc, Ident);
+		  END;			}				;
+		    Formals:	IdsIn	:= EnterProc (Next:IdsOut)	;
+		    Decls:	IdsIn	:= Formals:	IdsOut		;
+				IdsOut	:= LeaveProc (Decls:IdsOut)	; } .
+
+ProcHead	= { Formals:	Kind	:=		Kind		;
+		    ResultType:	Kind	:=		Kind		;
+		    Formals:	Module	:=		Module		;
+		    ResultType:	Module	:=		Module		;
+		    Formals:	IdsIn	:= EnterProc (IdsIn)		;
+		    ResultType:	IdsIn	:= LeaveProc (Formals:IdsOut)	;
+		    Next:	IdsIn	,
+				CIdent	:= {
+		  IF Kind = Foreign THEN
+				CIdent	:= DefineCIdent (Object, Ident)	;
+	
+		    IF NameConflict (ResultType:IdsOut, eProc, Ident) THEN
+		      ErrorMessagePI (ForeignConflict, Warning, Pos, Errors.\Ident, ADR (Ident));
+		      Next:	IdsIn	:= ResultType:	IdsOut		;
+		    ELSE
+		      Next:	IdsIn	:= DeclareIdent (ResultType:IdsOut, eProc, Ident);
+		    END;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, MakeQualified (Module, Ident));
+		    Next:	IdsIn	:= ResultType:	IdsOut		;
+		  END;			}				;
+									  } .
+Module		= { Decls:	Kind	:=		Kind		;
+		    Decls:	Module	:=		Module		;
+		    Decls:	InLocal	:= TRUE				;
+		    Next:	IdsIn	,
+				CIdent	:= {
+		  IF NameConflict (IdsIn, eProc, Ident) THEN
+				CIdent	:= DefineCIdent (Object, Rename (Ident));
+		    Next:	IdsIn	:=		IdsIn		;
+		  ELSE
+				CIdent	:= DefineCIdent (Object, Ident)	;
+		    Next:	IdsIn	:= DeclareIdent (IdsIn, eProc, Ident);
+		  END;			}				;
+		    Decls:	IdsIn	:= Next:	IdsOut		;
+				IdsOut	:= Decls:	IdsOut		; } .
+Opaque		= { CIdent		:= DefineCIdent (Object, MakeQualified (Module, Ident)); } .
+
+Formals		= {		IdsOut	:= IdsIn			; } .
+Formals1	= { Type:	Kind	:=		Kind		;
+		    Next:	Kind	:=		Kind		;
+		    Type:	Module	:=		Module		;
+		    Next:	Module	:=		Module		;
+		    ParIds:	IdsIn	:= 		IdsIn		;
+		    Type:	IdsIn	:= ParIds:	IdsOut		;
+		    Next:	IdsIn	:= Type:	IdsOut		;
+				IdsOut	:= Next:	IdsOut		; } .
+
+END Rename
+
+MODULE StructIds	/* -------------------------------------------- */
+
+/* Computation of numbers for compiler generated structure identifiers	*/
+/* within definition modules (of the form Module_Number). To preserve	*/
+/* the separate compilation facility, these identifiers have to be the	*/
+/* same every time a definition module is compiled!			*/
+
+DECLARE
+
+  Decls Type Fields Variants	= -> [CntIn: SHORTCARD] [CntOut: SHORTCARD] .
+
+RULE
+					
+DefMod		= { Decls:	CntIn	:= 0				; } .
+ProgMod		= { Decls:	CntIn	:= 0				; } .
+
+Decls		= {		CntOut	:= 		CntIn		; } .
+Decl		= { Next:	CntIn	:=		CntIn		;
+				CntOut	:= Next:	CntOut		; } .
+Var		= { Type:	CntIn	:=		CntIn		;
+		    Next:	CntIn	:= Type:	CntOut		; } .
+TypeDecl	= { Type:	CntIn	:=		CntIn		;
+		    Next:	CntIn	:= Type:	CntOut		; } .
+Proc		= { ResultType:	CntIn	:= 0	/* don't care	*/	;
+		    Decls:	CntIn	:= 0	/* don't care	*/	; } .
+ProcHead	= { ResultType: CntIn	:= 0	/* don't care	*/	; } .
+Module		= { Decls:	CntIn	:= 0	/* don't care	*/	; } .
+
+Formals1	= { Type:	CntIn	:= 0	/* don't care	*/	; } .
+
+Type		= {		CntOut	:=		CntIn		; } .
+Array		= { IndexType:	CntIn	:=		CntIn + 1	;
+		    ElemType:	CntIn	:= IndexType:	CntOut		;
+				CntOut	:= ElemType:	CntOut		; } .
+Record		= { Fields:	CntIn	:=		CntIn + 1	;
+				CntOut	:= Fields:	CntOut		;
+		    		CntIn BEFORE PosOut;			  } .
+SetType		= { BaseType:	CntIn	:= 0	/* don't care	*/	; } .
+Pointer		= { TargetType:	CntIn	:=		CntIn		;
+				CntOut	:= TargetType:	CntOut		; } .
+ProcType	= { ResultType:	CntIn	:= 0	/* don't care	*/	; } .
+Subrange	= { BaseType:	CntIn	:= 0	/* don't care	*/	; } .
+TypeId1		= { TypeId:	CntIn	:= 0	/* don't care	*/	; } .
+
+Fields		= {		CntOut	:=		CntIn		; } .
+Fields1		= { Next:	CntIn	:=		CntIn		;
+				CntOut	:= Next:	CntOut		; } .
+RecordSect 	= { Type:	CntIn	:=		CntIn		;
+		    Next:	CntIn	:= Type:	CntOut		; } .
+VariantSect	= { Variants:	CntIn	:=		CntIn		;
+		    Else:	CntIn	:= Variants:	CntOut		;
+		    Next:	CntIn	:= Else:	CntOut		; } .
+
+TagField	= { Type:	CntIn	:= 0	/* don't care	*/	; } .
+
+Variants	= {		CntOut	:=		CntIn		; } .
+Variant		= { Variant:	CntIn	:=		CntIn		;
+		    Next:	CntIn	:= Variant:	CntOut		;
+				CntOut	:= Next:	CntOut		; } .
+
+FormalType	= { Type:	CntIn	:= 0	/* don't care	*/	; } .
+
+END StructIds
+
+MODULE Selectors	/* -------------------------------------------- */
+
+/* Computation of additional record field selectors, which are	*/
+/* necessary to translate variant records from Modula-2 to C.	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  tSelectors	, NoSelectors	, mSelectors	;
+
+FROM GenIdents	IMPORT
+  GenSelector	;
+}
+
+DECLARE
+
+  Fields		= -> [nUnion: SHORTCARD] .
+  Variants		= -> [nStruct: SHORTCARD] .
+
+  FieldIds	Fields		TagField	Variants
+			= -> [Select: tSelectors] .
+
+  VariantSect		= -> [UnionId: tIdent OUT] [ElseId: tIdent OUT] .
+  Variant		= -> [StructId: tIdent OUT] .
+
+RULE
+
+FieldIds1	= { Next:	Select	:=		Select		; } .
+
+Record		= { Fields:	nUnion	:= 0				;
+		    Fields:	Select	:= NoSelectors			; } .	
+
+Fields1		= { Next:	nUnion	:=		nUnion		;
+		    Next:	Select	:=		Select		; } .
+RecordSect	= { FieldIds:	Select	:=		Select		; } .
+VariantSect	= { 		UnionId	:= GenSelector ('U', nUnion + 1);
+		    TagField:	Select	:=		Select		;
+		    Variants:	Select	:= mSelectors (UnionId, Select);
+				ElseId	:= GenSelector ('V', 0)		;
+		    Else:	Select	:= mSelectors (
+							ElseId		,
+					   Variants:	Select
+					   		)		;
+		    Else:	nUnion	:= 0				;
+		    Next:	nUnion	:=		nUnion + 1	;
+		    Variants:	nStruct	:= 0				; } .
+
+Variant		= {		StructId:= GenSelector ('V', nStruct + 1);
+		    Next:	Select	:=		Select		;
+		    Variant:	Select	:= mSelectors (StructId, Select);
+		    Variant:	nUnion	:= 0				;
+		    Next:	nStruct	:=		nStruct + 1	; } .
+
+END Selectors
+
+MODULE Level		/* --------------------------------------------	*/
+
+/* computation of nesting level	*/
+
+DECLARE
+
+  Var		= -> [IsGlobal: BOOLEAN OUT] .
+
+  VarIds	ParIds		Expr		Elems		Actuals
+  Stmts		Elsifs		Cases		Decls		Formals
+		= -> [Level: SHORTCARD INH] .
+
+RULE
+
+DefMod		= { Decls:	Level	:= 0				; } .
+ProgMod		= { Decls:	Level	:= 0				;
+		    Stmts:	Level	:= 0				; } .
+Subrange	= { Lwb:	Level	:= 0	/* don't care	*/	;
+		    Upb:	Level	:= 0	/* don't care	*/	; } .
+Label		= { Label:	Level	:= 0	/* don't care	*/	; } .
+LabelRange	= { Lwb:	Level	:= 0	/* don't care	*/	;
+		    Upb:	Level	:= 0	/* don't care	*/	; } .
+Var		= { IsGlobal		:=		Level = 0	; } .
+Proc		= { Formals:	Level	:=		Level + 1	;
+		    Decls:	Level	:=		Level + 1	;
+		    Stmts:	Level	:=		Level + 1	; } .
+ProcHead	= { Formals:	Level	:=		Level + 1	; } .
+Module		= { /* The module body becomes an initialization	*/
+		    /* routine in C!					*/
+		    Stmts:	Level	:=		Level + 1	; } .
+
+END Level
+
+MODULE COperator	/* --------------------------------------------	*/
+
+/* operator identification	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  Set1		;
+
+FROM Tree	IMPORT
+  NotEqual	, Times		, Plus		, Minus		,
+  Divide	, Less		, LessEqual	, Equal		,
+  Greater	, GreaterEqual	, And		, Div		,
+  In		, Mod		, Not		, Or		;
+
+FROM Code	IMPORT
+  cNoOp		,
+  cNotEqual	, cTimes	, cPlus		, cMinus	,
+  cDivide	, cLess		, cLessEqual	, cEqual	,
+  cGreater	, cGreaterEqual	, cAnd		, cIn		,
+  cMod		, cNot		, cOr		, cUnion	,
+  cDifference	, cIntersection	, cSymDiff	, cIsSubset1	,
+  cIsSubset2	;
+}
+
+DECLARE Binary Unary	= -> [COperator: SHORTCARD OUT] .
+
+RULE
+
+Binary	= { COperator	:= {
+	  IF ((Lop:Type = TypeBITSET) OR (Lop:Type^.Kind = Set1)) AND
+	     ((Rop:Type = TypeBITSET) OR (Rop:Type^.Kind = Set1)) THEN
+	    CASE Operator OF
+	    | Times		\:	COperator := cIntersection	;
+	    | Plus		\:	COperator := cUnion		;
+	    | Minus		\:	COperator := cDifference	;
+	    | Divide		\:	COperator := cSymDiff		;
+	    | LessEqual		\:	COperator := cIsSubset1		;
+	    | GreaterEqual	\:	COperator := cIsSubset2		;
+	    | NotEqual		\:	COperator := cNotEqual		;
+	    | Equal		\:	COperator := cEqual		;
+	    ELSE			COperator := cNoOp		;
+	    END;
+	  ELSE
+	    CASE Operator OF
+	    | NotEqual		\:	COperator := cNotEqual		;
+	    | Less		\:	COperator := cLess		;
+	    | Equal		\:	COperator := cEqual		;
+	    | Greater		\:	COperator := cGreater		;
+	    | And		\:	COperator := cAnd		;
+	    | Div		\:	COperator := cDivide		;
+	    | In		\:	COperator := cIn		;
+	    | Mod		\:	COperator := cMod		;
+	    | Or		\:	COperator := cOr		;
+	    | Times		\:	COperator := cTimes		;
+	    | Plus		\:	COperator := cPlus		;
+	    | Minus		\:	COperator := cMinus		;
+	    | Divide		\:	COperator := cDivide		;
+	    | LessEqual		\:	COperator := cLessEqual		;
+	    | GreaterEqual	\:	COperator := cGreaterEqual	;
+	    END;
+	  END;		}						; } .
+
+Unary	= { COperator	:= {
+	  CASE Operator OF
+	  | Minus	\:	COperator := cMinus			;
+	  | Not		\:	COperator := cNot			;
+	  END;		}						; } .
+
+END COperator
+
+MODULE IsCConstExpr	/* --------------------------------------------	*/
+
+/* determine for each expression if it is a constant expression in C	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  ProcCHR	, ProcFLOAT	, ProcMAX	, ProcMIN	,
+  ProcODD	, ProcORD	, ProcSIZE	, ProcTRUNC	,
+  ProcVAL	, ProcTSIZE	,
+  Const1	, EnumLiteral1	, TypeDecl1	, Opaque1	;
+}
+
+DECLARE	Elems Actuals	= -> [IsCConst: BOOLEAN] .
+	Expr		= -> [IsCConst: BOOLEAN OUT] .
+
+RULE
+
+Expr		= { IsCConst		:= TRUE				; } .
+Binary		= { IsCConst		:= {
+		  IF COperator IN {cAnd, cOr, cIsSubset1, cIsSubset2} THEN
+		    IsCConst		:= FALSE			;
+		  ELSE
+		    IsCConst		:= Lop:		IsCConst AND
+					   Rop:		IsCConst	;
+		  END;			}				; } .
+Unary		= { IsCConst		:= {
+		  IF COperator = cNot THEN
+		    IsCConst		:= FALSE			;
+		  ELSE
+		    IsCConst		:= Mop:		IsCConst	;
+		  END;			}				; } .
+FuncCall	= { IsCConst		:= {
+		  IF (Designator:Type^.Kind = StdProcType1) AND
+		     (Designator:Type^.StdProcType1.StdProc IN
+		     {ProcCHR, ProcFLOAT, ProcMAX, ProcMIN, ProcODD,
+		      ProcORD, ProcSIZE, ProcTRUNC, ProcVAL, ProcTSIZE}) THEN
+		    IsCConst		:= Actuals:	IsCConst	;
+		  ELSE
+		    IsCConst		:= FALSE			;
+		  END;			}				; } .
+Set		= { IsCConst		:= Elems:	IsCConst	; } .
+BitSet		= { IsCConst		:= Elems:	IsCConst	; } .
+Designator	= { IsCConst		:= FALSE			; } .
+Qualid		= { IsCConst		:= {
+		  IF (Object^.Kind = Const1	 ) OR
+		     (Object^.Kind = EnumLiteral1) OR
+		     (Object^.Kind = TypeDecl1	 ) OR
+		     (Object^.Kind = Opaque1	 ) THEN
+		    IsCConst		:= TRUE				;
+		  ELSE
+		    IsCConst		:= FALSE			;
+		  END;			}				; } .
+
+Elems		= { IsCConst		:= TRUE				; } .
+Elem		= { IsCConst		:= Elem:	IsCConst AND
+					   Next:	IsCConst	; } .
+ElemRange	= { IsCConst		:= Lwb:		IsCConst AND
+					   Upb:		IsCConst AND
+					   Next:	IsCConst	; } .
+
+Actuals		= { IsCConst		:= TRUE				; } .
+Actual		= { IsCConst		:= Expr:	IsCConst AND
+					   Next:	IsCConst	; } .
+
+END IsCConstExpr
+
+MODULE OpenAccessOrCall	/*----------------------------------------------*/
+
+/* Determine for each expression if it possibly contains an access to	*/
+/* an open array or a call to a (local) procedure. The access to the	*/
+/* open array may be direct or it may be an indirect access (see below)	*/
+/* and possibly hidden within a function call.				*/
+/*									*/
+/* e.g.		PROCEDURE p (a : ARRAY OF CHAR): CHAR;			*/
+/*		VAR p : POINTER TO CHAR;				*/
+/*		BEGIN							*/
+/*		  p := ADR (a [0]);					*/
+/*		  RETURN p^;						*/
+/*		END p;							*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT IsOpenArray;
+}
+
+DECLARE	Expr Elems	= -> [OpenAccessOrCall: BOOLEAN] .
+	Return2		= -> [OpenAccessOrCall: BOOLEAN OUT] .
+
+RULE
+
+Return2		= { OpenAccessOrCall	:= Result:	OpenAccessOrCall; } .
+
+Expr		= { OpenAccessOrCall	:= FALSE			; } .
+Binary		= { OpenAccessOrCall	:= Lop:		OpenAccessOrCall OR
+					   Rop:		OpenAccessOrCall; } .
+Unary		= { OpenAccessOrCall	:= Mop:		OpenAccessOrCall; } .
+FuncCall	= { OpenAccessOrCall	:= 	    NOT	IsCConst	; } .
+Set		= { OpenAccessOrCall	:= Elems:	OpenAccessOrCall; } .
+BitSet		= { OpenAccessOrCall	:= Elems:	OpenAccessOrCall; } .
+Qualid0		= { OpenAccessOrCall	:= IsOpenArray (Object)		; } .
+Subscript	= { OpenAccessOrCall	:= Designator:	OpenAccessOrCall; } .
+Deref		= { OpenAccessOrCall	:= TRUE				; } .
+Select		= { OpenAccessOrCall	:= Designator:	OpenAccessOrCall; }.
+
+Elems		= { OpenAccessOrCall	:= FALSE			; } .
+Elem		= { OpenAccessOrCall	:= Elem:	OpenAccessOrCall OR
+					   Next:	OpenAccessOrCall; } .
+ElemRange	= { OpenAccessOrCall	:= Lwb:		OpenAccessOrCall OR
+					   Upb:		OpenAccessOrCall OR
+					   Next:	OpenAccessOrCall; } .
+
+END OpenAccessOrCall
+
+MODULE TypePos		/* --------------------------------------------	*/
+
+/* compute position of types (used to detect forward references	within	*/
+/* pointer declarations)						*/
+
+DECLARE
+
+  CompUnits	Decls		Formals		Type		Fields
+  TagField	Variants	FormalTypes
+			= -> [PosIn: SHORTCARD] [PosOut: SHORTCARD] .
+
+  Pointer		= -> [TypePos: SHORTCARD OUT] .
+
+RULE
+
+ROOT		= { CompUnits:	PosIn	:= 0				; } .
+
+CompUnits	= {		PosOut	:=		PosIn		; } .
+CompUnit	= { Next:	PosIn	:=		PosIn		;
+				PosOut	:= Next:	PosOut		; } .
+DefMod		= { Decls:	PosIn	:= 		PosIn		;
+		    Next:	PosIn	:= Decls:	PosOut		; } .
+ProgMod		= { Decls:	PosIn	:= 		PosIn		;
+		    Next:	PosIn	:= Decls:	PosOut		; } .
+
+Type		= {		PosOut	:=		PosIn + 1	; } .
+Array		= { IndexType:	PosIn	:=		PosIn		;
+		    ElemType:	PosIn	:= IndexType:	PosOut		;
+				PosOut	:= ElemType:	PosOut + 1	; } .
+Record		= { Fields:	PosIn	:=		PosIn		;
+				PosOut	:= Fields:	PosOut + 1	; } .
+SetType		= { BaseType:	PosIn	:=		PosIn		;
+				PosOut	:= BaseType:	PosOut + 1	; } .
+Pointer		= { TargetType:	PosIn	:=		PosIn		;
+				PosOut	:= TargetType:	PosOut + 1	;
+				TypePos	:=		PosOut		; } .
+ProcType	= { FormalTypes:PosIn	:=		PosIn		;
+		    ResultType:	PosIn	:= FormalTypes:	PosOut		;
+				PosOut	:= ResultType:	PosOut + 1	; } .
+Subrange	= { BaseType:	PosIn	:=		PosIn		;
+				PosOut	:= BaseType:	PosOut + 1	; } .
+Void		= {		PosOut	:=		PosIn		; } .
+TypeId1		= { TypeId:	PosIn	:=		PosIn		;
+				PosOut	:= TypeId:	PosOut + 1	; } .
+
+Fields		= { 		PosOut	:= 		PosIn		; } .
+Fields1		= { Next:	PosIn	:=		PosIn		;
+				PosOut	:= Next:	PosOut		; } .
+RecordSect	= { Type:	PosIn	:=		PosIn		;
+		    Next:	PosIn	:= Type:	PosOut		; } .
+VariantSect	= { TagField:	PosIn	:=		PosIn		;
+		    Variants:	PosIn	:= TagField:	PosOut		;
+		    Else:	PosIn	:= Variants:	PosOut		;
+		    Next:	PosIn	:= Else:	PosOut		; } .
+
+TagField	= { Type:	PosIn	:=		PosIn		;
+		    PosOut		:= Type:	PosOut		; } .
+
+Variants	= {		PosOut	:=		PosIn		; } .
+Variant		= { Variant:	PosIn	:=		PosIn		;
+		    Next:	PosIn	:= Variant:	PosOut		;
+				PosOut	:= Next:	PosOut		; } .
+
+FormalTypes	= {		PosOut	:=		PosIn		; } .
+FormalType	= { Type:	PosIn	:=		PosIn		;
+		    Next:	PosIn	:= Type:	PosOut		;
+				PosOut	:= Next:	PosOut		; } .
+		      
+Decls		= {		PosOut	:=		PosIn		; } .
+Decl		= { Next:	PosIn	:=		PosIn		;
+				PosOut	:= Next:	PosOut		; } .
+Var		= { Type:	PosIn	:=		PosIn		;
+		    Next:	PosIn	:= Type:	PosOut		; } .
+TypeDecl	= { Type:	PosIn	:=		PosIn		;
+		    Next:	PosIn	:= Type:	PosOut		; } .
+
+Proc		= { Formals:	PosIn	:=		PosIn		;
+		    ResultType:	PosIn	:= Formals:	PosOut		;
+		    Decls:	PosIn	:= ResultType:	PosOut		;
+		    Next:	PosIn	:= Decls:	PosOut + 1	; } .
+ProcHead	= { Formals:	PosIn	:= 		PosIn		;
+		    ResultType:	PosIn	:= Formals:	PosOut		;
+		    Next:	PosIn	:= ResultType:	PosOut + 1	; } .
+Module		= { Decls:	PosIn	:= 		PosIn		;
+		    Next:	PosIn	:= Decls:	PosOut		; } .
+Opaque		= { Next:	PosIn	:=		PosIn + 1	; } .
+
+Formals		= {		PosOut	:= PosIn			; } .
+Formals1	= { Type:	PosIn	:=		PosIn		;
+		    Next:	PosIn	:= Type:	PosOut		;
+				PosOut	:= Next:	PosOut		; } .
+
+END TypePos
+
+MODULE OpenArrays	/* --------------------------------------------	*/
+
+/* Extract the open array parameters from the parameter list	*/
+/* (used to generate additional parameters and code for the	*/
+/*  translation of open array parameters).			*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT OpenArrays;
+}
+
+DECLARE
+
+  Proc	= -> [ValueOpens: tCObjects OUT] [VAROpens: tCObjects OUT] .
+
+RULE
+
+Proc		= { ValueOpens		,
+		    VAROpens		:= {
+		      OpenArrays (Formals:Objects3, ValueOpens, VAROpens);
+					}				; } .
+END OpenArrays
+
+MODULE Pointers		/* -------------------------------------------- */
+
+/* Determine which parameters or local variables of a procedure p (or	*/
+/* module l declared local to p) are used within a procedure/module q	*/
+/* declared local to p (or l) (attribute LocalPtrs). The attribute	*/
+/* GlobalPtrs (of node ProgMod) is the union of all LocalPtrs. The	*/
+/* attribute IsGlobalPtr is TRUE if the object belonging to the corres-*/
+/* ponding Qualid is a parameter or local variable of a statically	*/
+/* enclosing procedure p (or module l declared local to p).		*/
+/* LocalPtrs resp. GlobalPtrs are used to generate local resp. global	*/
+/* pointer variables, which are used to translate the access to local	*/
+/* variables or parameters of statically enclosing procedures (if	*/
+/* IsGlobalPtr = TRUE).							*/
+/* If the predicate NestedUse returns TRUE, as a side effect the	*/
+/* attribute NestedUse of its first parameter Object is set to TRUE	*/
+/* (the object must be a variable in this case). This attribute is used	*/
+/* by the procedure Pointers to compute the attributes LocalPtrs and	*/
+/* GlobalPtrs (of node ProgMod). The attribute GlobalPtrs (of type	*/
+/* BOOLEAN) guarantees that the attribute NestedUse has been set	*/
+/* appropriately for all variables before calling the procedure		*/
+/* Pointers.								*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT tCObjects, NoCObjects, Pointers, NestedUse;
+}
+
+DECLARE
+
+  ProgMod	= -> [GlobalPtrs: tCObjects OUT] .
+
+  Proc		= -> [LocalPtrs: tCObjects OUT] .
+
+  Qualid	= -> [IsGlobalPtr: BOOLEAN OUT] .
+
+  Decls		Expr		Elems		Actuals		Stmts
+  Elsifs	Cases
+		= -> [GlobalPtrs: BOOLEAN] .
+
+RULE
+
+ProgMod		= { GlobalPtrs		:= {
+		  IF Decls:GlobalPtrs THEN
+		    GlobalPtrs		:= Pointers (TRUE, Decls:Objects4Out);
+		  ELSE
+		    GlobalPtrs		:= NoCObjects			;
+		  END;			}				; } .
+
+Decls		= { GlobalPtrs		:= FALSE			; } .
+Decl		= { GlobalPtrs		:= Next:	GlobalPtrs	; } .
+Proc		= { GlobalPtrs		:= Decls:	GlobalPtrs OR
+					   Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	;
+		    LocalPtrs		:= {
+		  IF Decls:GlobalPtrs THEN
+		    LocalPtrs		:= Pointers (FALSE, UNION (Formals:Objects3, Decls:Objects4Out));
+		  ELSE
+		    LocalPtrs		:= NoCObjects			;
+		  END;			}				; } .
+Module		= { GlobalPtrs		:= Decls:	GlobalPtrs OR
+					   Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+
+Expr		= { GlobalPtrs		:= FALSE			; } .
+Binary		= { GlobalPtrs		:= Lop:		GlobalPtrs OR
+					   Rop:		GlobalPtrs	; }.
+Unary		= { GlobalPtrs		:= Mop:		GlobalPtrs	; } .
+FuncCall	= { GlobalPtrs		:= Designator:	GlobalPtrs OR
+					   Actuals:	GlobalPtrs	; } .
+Set		= { GlobalPtrs		:= Elems:	GlobalPtrs	; } .
+BitSet		= { GlobalPtrs		:= Elems:	GlobalPtrs	; } .
+Qualid		= { IsGlobalPtr		:= NestedUse (Object, Level)	; } .
+Qualid0		= { GlobalPtrs		:=		IsGlobalPtr	; } .
+Qualid1		= { GlobalPtrs		:= Qualid:	GlobalPtrs OR
+							IsGlobalPtr	; } .
+Subscript	= { GlobalPtrs		:= Designator:	GlobalPtrs OR
+					   Index:	GlobalPtrs	; } .
+Deref		= { GlobalPtrs		:= Designator:	GlobalPtrs	; } .
+Select		= { GlobalPtrs		:= Designator:	GlobalPtrs	; } .
+
+Elems		= { GlobalPtrs		:= FALSE			; } .
+Elems1		= { GlobalPtrs		:= Next:	GlobalPtrs	; } .
+Elem		= { GlobalPtrs		:= Elem:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+ElemRange	= { GlobalPtrs		:= Lwb:		GlobalPtrs OR
+					   Upb:		GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+
+Actuals		= { GlobalPtrs		:= FALSE			; } .
+Actual		= { GlobalPtrs		:= Expr:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+
+Stmts		= { GlobalPtrs		:= FALSE			; } .
+Stmt		= { GlobalPtrs		:= Next:	GlobalPtrs	; } .
+Assign		= { GlobalPtrs		:= Designator:	GlobalPtrs OR
+					   Expr:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+Call		= { GlobalPtrs		:= Designator:	GlobalPtrs OR
+					   Actuals:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+If		= { GlobalPtrs		:= Cond:	GlobalPtrs OR
+					   Then:	GlobalPtrs OR
+					   Elsifs:	GlobalPtrs OR
+					   Else:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+Case		= { GlobalPtrs		:= Expr:	GlobalPtrs OR
+					   Cases:	GlobalPtrs OR
+					   Else:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+While		= { GlobalPtrs		:= Cond:	GlobalPtrs OR
+					   Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+Repeat		= { GlobalPtrs		:= Stmts:	GlobalPtrs OR
+					   Cond:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+Loop		= { GlobalPtrs		:= Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+For		= { GlobalPtrs		:= Qualid:	GlobalPtrs OR
+					   From:	GlobalPtrs OR
+					   To:		GlobalPtrs OR
+					   Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+With		= { GlobalPtrs		:= Designator:	GlobalPtrs OR
+					   Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+Return2		= { GlobalPtrs		:= Result:	GlobalPtrs OR
+					   Next:	GlobalPtrs	; } .
+
+Elsifs		= { GlobalPtrs		:= FALSE			; } .
+Elsifs1		= { GlobalPtrs		:= Cond:	GlobalPtrs OR
+					   Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs 	; } .
+
+Cases		= { GlobalPtrs		:= FALSE			; } .
+Cases1		= { GlobalPtrs		:= Stmts:	GlobalPtrs OR
+					   Next:	GlobalPtrs	;  } .
+
+END Pointers
+
+MODULE StringParams	/* -------------------------------------------- */
+
+/* Handling of passing strings as actual parameters where the formal	*/
+/* parameter is no open array.						*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT
+  tStrings	, NoStrings	, mStringPar	,
+  Array1	, IsOpen	;
+
+FROM GenIdents	IMPORT
+  GenString	;
+}
+
+DECLARE
+
+  Actual	= -> [String: tIdent OUT] .
+
+  ProgMod	Proc		Module	
+		= -> [Strings: tStrings OUT] .
+
+  Expr		Elems		Actuals		Stmts		Elsifs
+  Cases
+		= -> [StrsIn: tStrings] [StrsOut: tStrings] .
+
+RULE
+
+ProgMod		= { Stmts:	StrsIn	:= NoStrings			;
+				Strings	:= Stmts:	StrsOut		; } .
+
+Const		= { Expr:	StrsIn	:= NoStrings /* don't care */	; } .
+Proc		= { Stmts:	StrsIn	:= NoStrings			;
+				Strings	:= Stmts:	StrsOut		; } .
+Module		= { Stmts:	StrsIn	:= NoStrings			;
+				Strings	:= Stmts:	StrsOut		; } .
+
+Subrange	= { Lwb:	StrsIn	:= NoStrings /* don't care */	;
+		    Upb:	StrsIn	:= NoStrings /* don't care */	; } .
+
+Expr		= {		StrsOut	:=		StrsIn		; } .
+Binary		= { Lop:	StrsIn	:=		StrsIn		;
+		    Rop:	StrsIn	:= Lop:		StrsOut		;
+				StrsOut	:= Rop:		StrsOut		; } .
+Unary		= { Mop:	StrsIn	:=		StrsIn		;
+				StrsOut := Mop:		StrsOut		; } .
+FuncCall	= { Designator: StrsIn	:=		StrsIn		;
+		    Actuals:	StrsIn	:= Designator:	StrsOut		;
+				StrsOut := Actuals:	StrsOut		; } .
+Set		= { BaseType:	StrsIn	:=		StrsIn		;
+		    Elems:	StrsIn	:= BaseType:	StrsOut		;
+				StrsOut	:= Elems:	StrsOut		; } .
+BitSet		= { Elems:	StrsIn	:=		StrsIn		;
+				StrsOut	:= Elems:	StrsOut		; } .
+Qualid1		= { Qualid:	StrsIn	:=		StrsIn		;
+				StrsOut	:= Qualid:	StrsOut		; } .
+Subscript	= { Designator:	StrsIn	:=		StrsIn		;
+		    Index:	StrsIn	:= Designator:	StrsOut		;
+				StrsOut	:= Index:	StrsOut		; } .
+Deref		= { Designator:	StrsIn	:=		StrsIn		;
+				StrsOut	:= Designator:	StrsOut		; } .
+Select		= { Designator:	StrsIn	:=		StrsIn		;
+				StrsOut	:= Designator:	StrsOut		; } .
+
+Elems		= {		StrsOut	:=		StrsIn		; } .
+Elems1		= { Next:	StrsIn	:=		StrsIn		;
+				StrsOut	:= Next:	StrsOut		; } .
+Elem		= { Elem:	StrsIn	:=		StrsIn		;
+		    Next:	StrsIn	:= Elem:	StrsOut		; } .
+ElemRange	= { Lwb:	StrsIn	:=		StrsIn		;
+		    Upb:	StrsIn	:= Lwb:		StrsOut		;
+		    Next:	StrsIn	:= Upb:		StrsOut		; } .
+
+Actuals		= {		StrsOut	:=		StrsIn		; } .
+Actual		= { Expr:	StrsIn	:=		StrsIn		;
+		    Next:	StrsIn	:= Expr:	StrsOut		;
+				String	,
+				StrsOut	:= {
+		IF ((Expr:Type = TypeSTRING) OR (Expr:Type = TypeStringChar)) AND 	
+		   (Formal^.Kind = Array1) AND NOT IsOpen (Formal) THEN
+				String	:= GenString ()			;
+				StrsOut	:= mStringPar (String, Formal, Expr, Next:StrsOut);
+		ELSE
+				String	:= NoIdent			;
+				StrsOut	:= Next:	StrsOut		;
+		END;			}				; } .
+
+Stmts		= {		StrsOut	:=		StrsIn		; } .
+Stmt		= { Next:	StrsIn	:=		StrsIn		;
+				StrsOut	:= Next:	StrsOut		; } .
+Assign		= { Designator: StrsIn	:=		StrsIn		;
+		    Expr:	StrsIn	:= Designator:	StrsOut		;
+		    Next:	StrsIn	:= Expr:	StrsOut		; } .
+Call		= { Designator: StrsIn	:=		StrsIn		;
+		    Actuals:	StrsIn	:= Designator:	StrsOut		;
+		    Next:	StrsIn	:= Actuals:	StrsOut		; } .
+If		= { Cond:	StrsIn	:=		StrsIn		;
+		    Then:	StrsIn	:= Cond:	StrsOut		;
+		    Elsifs:	StrsIn	:= Then:	StrsOut		;
+		    Else:	StrsIn	:= Elsifs:	StrsOut		;
+		    Next:	StrsIn	:= Else:	StrsOut		; } .
+Case		= { Expr:	StrsIn	:=		StrsIn		;
+		    Cases:	StrsIn	:= Expr:	StrsOut		;
+		    Else:	StrsIn	:= Cases:	StrsOut		;
+		    Next:	StrsIn	:= Else:	StrsOut		; } .
+While		= { Cond:	StrsIn	:=		StrsIn		;
+		    Stmts:	StrsIn	:= Cond:	StrsOut		;
+		    Next:	StrsIn	:= Stmts:	StrsOut		; } .
+Repeat		= { Stmts:	StrsIn	:=		StrsIn		;
+		    Cond:	StrsIn	:= Stmts:	StrsOut		;
+		    Next:	StrsIn	:= Cond:	StrsOut		; } .
+Loop		= { Stmts:	StrsIn	:=		StrsIn		;
+		    Next:	StrsIn	:= Stmts:	StrsOut		; } .
+For		= { Qualid:	StrsIn	:=		StrsIn		;
+		    From:	StrsIn	:= Qualid:	StrsOut		;
+		    To:		StrsIn	:= From:	StrsOut		;
+		    By:		StrsIn	:= To:		StrsOut		;
+		    Stmts:	StrsIn	:= By:		StrsOut		;
+		    Next:	StrsIn	:= Stmts:	StrsOut		; } .
+With		= { Designator:	StrsIn	:=		StrsIn		;
+		    Stmts:	StrsIn	:= Designator:	StrsOut		;
+		    Next:	StrsIn	:= Stmts:	StrsOut		; } .
+Return2		= { Result:	StrsIn	:=		StrsIn		;
+		    Next:	StrsIn	:= Result:	StrsOut		; } .
+
+Elsifs		= {		StrsOut	:=		StrsIn		; } .
+Elsifs1		= { Cond:	StrsIn	:=		StrsIn		;
+		    Stmts:	StrsIn	:= Cond:	StrsOut		;
+		    Next:	StrsIn	:= Stmts:	StrsOut		;
+				StrsOut	:= Next:	StrsOut		; } .
+
+Cases		= {		StrsOut	:=		StrsIn		; } .
+Cases1		= { Stmts:	StrsIn	:=		StrsIn		;
+		    Next:	StrsIn	:= Stmts:	StrsOut		;
+				StrsOut	:= Next:	StrsOut		; } .
+
+Label		= { Label:	StrsIn	:= NoStrings /* don't care */	; } .
+LabelRange	= { Lwb:	StrsIn	:= NoStrings /* don't care */	;
+		    Upb:	StrsIn	:= NoStrings /* don't care */	; } .
+
+END StringParams
+
+MODULE FunctionType	/* --------------------------------------------	*/
+
+/* Transfer the result type of a (function) procedure to the	*/
+/* RETURN-statements within its body (used to generate type	*/
+/* casts).							*/
+
+DECLARE
+
+  Return2	= -> [ResultType: tType OUT] .
+
+  Stmts		Cases		Elsifs
+		= -> [Type: tType] .
+
+RULE
+
+ProgMod		= { Stmts:	Type	:= TypeVOID			; } .
+
+Proc		= { Stmts:	Type	:= GetResultType (Type)		; } .
+Module		= { Stmts:	Type	:= TypeVOID			; } .
+
+Stmt		= { Next:	Type	:=		Type		; } .
+If		= { Then:	Type	:=		Type		;
+		    Elsifs:	Type	:=		Type		;
+		    Else:	Type	:=		Type		; } .
+Case		= { Cases:	Type	:=		Type		;
+		    Else:	Type	:=		Type		; } .
+While		= { Stmts:	Type	:=		Type		; } .
+Repeat		= { Stmts:	Type	:=		Type		; } .
+Loop		= { Stmts:	Type	:=		Type		; } .
+For		= { Stmts:	Type	:=		Type		; } .
+With		= { Stmts:	Type	:=		Type		; } .
+Return2		= {	     ResultType	:=		Type		; } .
+
+Elsifs1		= { Stmts:	Type	:=		Type		;
+		    Next:	Type	:=		Type		; } .
+
+Cases1		= { Stmts:	Type	:=		Type		;
+		    Next:	Type	:=		Type		; } .
+
+END FunctionType
+
+MODULE NewOrDispose	/* --------------------------------------------	*/
+
+/* handling of standard procedures NEW and DISPOSE	*/
+
+EVAL GLOBAL	{
+FROM Defs	IMPORT ProcNEW, IdentALLOC, ProcDISPOSE, IdentDEALLOC;
+}
+
+DECLARE Call	= -> [AllocOrDealloc: tObject OUT] .
+
+RULE
+
+Call		= { AllocOrDealloc	:= {
+		IF (Designator:Type^.Kind = StdProcType1) THEN
+		  IF (Designator:Type^.StdProcType1.StdProc = ProcNEW) THEN
+		    AllocOrDealloc	:= Identify (IdentALLOC, Env);
+		  ELSIF (Designator:Type^.StdProcType1.StdProc = ProcDISPOSE) THEN
+		    AllocOrDealloc	:= Identify (IdentDEALLOC, Env);
+		  ELSE
+		    AllocOrDealloc	:= NoObject			;
+		  END;
+		ELSE
+		    AllocOrDealloc	:= NoObject			;
+		END;				}			; } .
+
+END NewOrDispose
+
+MODULE OrderAG	/* ----------------------------------------------------	*/
+
+/* introduce additional attribute dependencies to get an OAG */
+
+RULE
+
+Proc		= { Next:IdsIn AFTER Decls:Objects4Out;			  } .
+Module		= { Next:IdsIn AFTER Decls:Objects4Out;
+		    Strings AFTER CIdent;				  } .
+
+END OrderAG

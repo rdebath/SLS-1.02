@@ -1,0 +1,64 @@
+#! /bin/sh
+# addmissing - add missing articles to history
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/expire:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+lock="$NEWSCTL/LOCK"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+while true
+do
+	if newslock $ltemp $lock
+	then
+		trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+		break
+	fi
+	sleep 30
+done
+if newslock $ltemp $NEWSCTL/LOCKexpire
+then
+	trap "rm -f $ltemp $lock $NEWSCTL/LOCKexpire ; exit 0" 0 1 2 15
+else
+	echo "$0: expire is running, $0 aborted" >&2
+	exit 1
+fi
+
+cd $NEWSCTL
+size="`sizeof history history.pag history.dir`"
+if test " `spacefor $size control`" -le 0
+then
+	echo "$0: not enough space for temporaries, $0 aborted" >&2
+	exit 1
+fi
+
+egrep '	.*	' history | sed 's/.*	//' | tr '. ' '/
+' | egrep '/' | sort -u >/tmp/hist$$
+
+cd $NEWSARTS
+them=
+for f in `ls | egrep -v '\.|(^lost\+found$)'`
+do
+	if test -d $f -a -r $f
+	then
+		them="$them $f"
+	fi
+done
+find $them -type f -name '[0-9]*' -print | sort >/tmp/tree$$
+
+comm -13 /tmp/hist$$ /tmp/tree$$ | histinfo | sort |
+	awk -f $NEWSBIN/expire/histdups | histslash >/tmp/new$$
+
+cd $NEWSCTL
+if egrep '^<[^>]*@trash>	' /tmp/new$$ >/dev/null
+then
+	echo "$0: (warning) empty/trash articles found, will expire at once" >&2
+	echo "$0:     (grep history file for '@trash' to see them)" >&2
+fi
+
+dbz -a history /tmp/new$$
+
+rm -f /tmp/hist$$ /tmp/tree$$ /tmp/new$$

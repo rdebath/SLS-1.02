@@ -1,0 +1,74 @@
+
+.nf
+krmsr,krmso,kerr,kcps	\fBlpread\fR		ktimpnt, ifilno[, inpoles][, ifrmrate]
+	ar		\fBlpreson\fR		asig
+	ar		\fBlpfreson\fR    	asig, kfrqratio
+.fi
+
+These units, used as a read/reson pair, use a control file of time-varying
+filter coefficients to dynamically modify the spectrum of an audio signal.
+
+
+INITIALIZATION
+
+\fIifilno\fR - control-file suffix (m) referring to a file named 'lp.m'
+containing frames of reflection coefficients and four special parameter values
+derived from n-pole linear predictive spectral analysis of a source file.
+A negative value will cause file opening and initialization to be skipped.
+
+\fIinpoles, ifrmrate\fR (optional) - number of poles, and frame rate per second
+in the lpc analysis.  These arguments are required only when the control file
+does not have a header;  they are ignored when a header is detected.
+The default value for both is zero.
+
+
+PERFORMANCE
+
+\fBlpread\fR accesses a control file of time-ordered information frames,
+each containing n-pole filter coefficients derived from linear predictive
+analysis of a source signal at fixed time intervals (e.g. 1/100 of a second),
+plus four parameter values:
+.br
+	\fIkrmsr\fR - root-mean-square (rms) of the residual of analysis,
+.br
+	\fIkrmso\fR - rms of the original signal,
+.br
+	\fIkerr\fR - the normalized error signal,
+.br
+	\fIkcps\fR - pitch in cps.
+.br
+\fBlpread\fR gets its values from the control file according to the input
+value \fIktimpnt\fR (in seconds).  If \fIktimpnt\fR proceeds at the analysis
+rate, time-normal synthesis will result;  proceeding at a faster, slower,
+or variable rate will result in time-warped synthesis.  At each K-period,
+\fBlpread\fR automatically interpolates between adjacent frames
+to more accurately determine the parameter values (presented as output) and the
+filter coefficient settings (passed internally to a subsequent \fBlpreson\fR).
+
+The error signal \fIkerr\fR (between 0 and 1) derived during predictive analysis
+reflects the deterministic/random nature of the analyzed source.
+This will emerge low for pitched (periodic) material and higher for
+noisy material.  The transition from voiced to unvoiced speech,
+for example, produces an error signal value of about .3.
+During synthesis, the error signal value can be used to determine the
+nature of the \fBlpreson\fR driving function:  for example, by arbitrating
+between pitched and non-pitched input, or even by determining a mix of the
+two.  In normal speech resynthesis, the pitched input to \fBlpreson\fR is a
+wideband periodic signal or pulse train derived from a unit such as
+\fBbuzz\fR, and the non-pitched source is usually derived from \fBrand\fR.
+However, any audio signal can be used as the driving function, the only
+assumption of the analysis being that it has a flat response.
+
+\fBlpfreson\fR is a formant shifted \fBlpreson\fR, in which \fIkfrqratio\fR
+is the (cps) ratio of shifted to original formant positions.
+This permits synthesis in which the source object changes its apparent
+acoustic size.  \fBlpfreson\fR with \fIkfrqratio\fR = 1 is equivalent to
+\fBlpreson\fR.
+
+Generally, \fBlpreson\fR provides a means whereby the time-varying
+content and spectral shaping of a composite audio signal can be controlled
+by the dynamic spectral content of another.
+There can be any number of \fBlpread/lpreson\fR (or \fBlpfreson\fR) pairs
+in an instrument or in an orchestra;
+they can read from the same or different control files independently.
+.bp

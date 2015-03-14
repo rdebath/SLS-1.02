@@ -1,0 +1,42 @@
+#!/bin/sh
+# chamod ng flag - change the "moderated" flag for ng to flag
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+case "$1" in
+"")
+	echo "$0: null newsgroup not permitted" >&2
+	exit 1
+	;;
+esac
+case "$2" in
+moderated)	flag=m ;;
+*)		flag=y ;;
+esac
+
+# watch closely - shell quoting is tricky in the next two awk invocations
+aflag=`awk '$1 == "'$1'" { print $4 }' $NEWSCTL/active`
+if test "$aflag" != "$flag" -a \( "$aflag" = m -o "$aflag" = y \); then
+	# old & new flags differ & old flag is m or y
+	awk '
+$1 == "'$1'"	{			# this line is for first arg.
+	print $1, $2, $3, "'$flag'"
+	next
+}
+	{ print }
+' $NEWSCTL/active >$NEWSCTL/active.new
+	cp $NEWSCTL/active $NEWSCTL/active.old
+	cp $NEWSCTL/active.new $NEWSCTL/active
+	rm -f $NEWSCTL/active.new
+
+	case "$flag" in
+	m)	pfx="" ;;
+	*)	pfx=un ;;
+	esac
+	echo "newsgroup $1 was changed to ${pfx}moderated by $SENDER" |
+		mail $NEWSMASTER
+fi

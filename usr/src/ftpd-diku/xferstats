@@ -1,0 +1,330 @@
+#! /usr/bin/perl
+# Usage:
+#   xferstats [filename|-] [filename...]
+# If filename is not specified, use /usr/adm/xferlog for input
+# If filename is "-", use stdin
+# If filename is specified, use filename for input
+# Multiple filenames may be specified, they will be read sequentially
+
+$mydom1 = "wustl";
+$mydom2 = "edu";
+
+if ($#ARGV == -1) { $ARGV[0] = "/usr/adm/ftpd/xferlog"; }
+
+line: while (<>) {
+
+   @line = split;
+   if ($#line != 16) {
+      print "NF: skip $_\n";
+      next;
+   }
+
+   $daytime = substr($_, 0, 10) . substr($_, 19, 5);
+   @path = split(/\//, $line[8]);
+
+   while (length($path[1]) <= 1) {
+      shift @path;
+      next line if ($#path == -1);
+   }
+
+   if ($#path == 1)
+      { $pathkey = "Index/Informational Files"; }
+   elsif ($#path == 2)
+      { $pathkey = $path[1]; }
+   else
+      { $pathkey = $path[1] . "/" . $path[2]; }
+
+   $line[6] =~ tr/A-Z/a-z/;
+
+   $xferfiles++;                                # total files sent
+   $xferfiles{$daytime}++;                      # files per day
+   $groupfiles{$pathkey}++;                     # per-group accesses
+   $systemfiles{$line[6]}++;                    # files per host
+#  $accesscnt{$line[8]}++;                      # per-file accesses
+
+   $xfersecs{$daytime}    += $line[5];          # xmit seconds per day
+   $xferbytes{$daytime}   += $line[7];          # bytes per day
+   $systemsecs{$line[6]}  += $line[5];          # xmit seconds per host
+   $systembytes{$line[6]} += $line[7];          # bytes per host
+   $xferbytes             += $line[7];          # total bytes sent
+   $groupbytes{$pathkey}  += $line[7];          # per-group bytes sent
+
+}
+
+@syslist = keys(systemfiles);
+@dates = sort datecompare keys(xferbytes);
+
+print "TOTALS FOR SUMMARY PERIOD ", $dates[0], " TO ", $dates[$#dates], "\n\n";
+printf ("Files Transmitted During Summary Period  %12.0f\n", $xferfiles);
+printf ("Bytes Transmitted During Summary Period  %12.0f\n", $xferbytes); 
+printf ("Systems Using Archives                   %12.0f\n\n", $#syslist+1);
+
+printf ("Average Files Transmitted Daily          %12.0f\n", $xferfiles / ($#dates + 1));
+printf ("Average Bytes Transmitted Daily          %12.0f\n", $xferbytes / ($#dates + 1));
+
+format top1 =
+
+Daily Transmission Statistics
+
+                 Number Of    Number of    Average    Percent Of  Percent Of
+     Date        Files Sent  Bytes  Sent  Xmit  Rate  Files Sent  Bytes Sent
+---------------  ----------  -----------  ----------  ----------  ----------
+.
+
+format line1 =
+@<<<<<<<<<<<<<<  @>>>>>>>>>  @>>>>>>>>>>  @>>>>>>>>>  @>>>>>>>    @>>>>>>>  
+$date,           $nfiles,    $nbytes,     $avgrate,   $pctfiles,  $pctbytes
+.
+
+$^ = top1;
+$~ = line1;
+
+foreach $date ( sort datecompare keys(xferbytes) ) {
+
+   $nfiles   = $xferfiles{$date};
+   $nbytes   = $xferbytes{$date};
+   $avgrate  = sprintf("%5.1f KB/s", $xferbytes{$date}/$xfersecs{$date}/1000);
+   $pctfiles = sprintf("%8.2f", 100*$xferfiles{$date} / $xferfiles);
+   $pctbytes = sprintf("%8.2f", 100*$xferbytes{$date} / $xferbytes);
+   write;
+}
+
+format top2 =
+
+Total Transfers from each Archive Section
+
+                                                 ---- Percent  Of ---- Interest
+     Archive Section      Files Sent Bytes Sent  Files Sent Bytes Sent  Factor
+------------------------- ---------- ----------- ---------- ---------- --------
+.
+
+format line2 =
+@<<<<<<<<<<<<<<<<<<<<<<<< @>>>>>>>>> @>>>>>>>>>> @>>>>>>>   @>>>>>>>   @>>>>>>>
+$section,                 $files,    $bytes,     $pctfiles, $pctbytes, $fac
+.
+
+$| = 1;
+$- = 0;
+$^ = top2;
+$~ = line2;
+
+dbmopen(USAGE, "/usr/adm/usage_info", 0644);
+foreach $section ( sort keys(groupfiles) ) {
+
+   $files = $groupfiles{$section};
+   $bytes = $groupbytes{$section};
+   $pctbytes = sprintf("%8.2f", 100 * $groupbytes{$section} / $xferbytes);
+   $pctfiles = sprintf("%8.2f", 100 * $groupfiles{$section} / $xferfiles);
+   $key = "/" . $section . "\0";
+   if ($USAGE{$key} == 0) {
+      $fac = "n/a";
+   } else {
+      $fac = sprintf("%8.2f", $groupbytes{$section} / $USAGE{$key});
+   }
+   $fac{$section} = $fac;
+   write;
+
+}
+
+foreach $sys ( keys(systemfiles) ) {
+
+   @address = split(/\./, $sys);
+
+#   if (int($address[$#address]) > 0) {
+#      $domain = $address[0] . "." . $address[1];
+#   } else {
+#      $domain = $address[$#address-1] . "." . $address[$#address];
+#   }
+
+   $domain = $address[$#address];
+   if ($address[$#address-1] eq $mydom1 && $address[$#address] eq $mydom2)
+      { $domain = "wustl.edu"; }
+   if ( int($address[0]) > 0 || $#address < 2 )
+      { $domain = "unresolved"; }
+
+   $domainfiles{$domain} += $systemfiles{$sys};
+   $domainbytes{$domain} += $systembytes{$sys};
+   $domainsecs{$domain}  += $systemsecs{$sys};
+
+}
+
+if ( $xferfiles < 1 ) { $xferfiles = 1; }
+if ( $xferbytes < 1 ) { $xferbytes = 1; }
+
+format top3 =
+
+Total Transfer Amount By Domain
+
+             Number Of    Number of     Average    Percent Of  Percent Of
+Domain Name  Files Sent   Bytes Sent   Xmit  Rate  Files Sent  Bytes Sent
+-----------  ----------  ------------  ----------  ----------  ----------
+.
+
+format line3 =
+@<<<<<<<<<<  @>>>>>>>>>  @>>>>>>>>>>>  @>>>>>>>>>  @>>>>>>>    @>>>>>>>  
+$domain,     $files,     $bytes,       $avgrate,   $pctfiles,  $pctbytes
+.
+
+$- = 0;
+$^ = top3;
+$~ = line3;
+
+foreach $domain ( sort domnamcompare keys(domainfiles) ) {
+
+   if ( $domainsecs{$domain} < 1 ) { $domainsecs{$domain} = 1; }
+
+   $files = $domainfiles{$domain};
+   $bytes = $domainbytes{$domain};
+   $avgrate  = sprintf("%5.1f KB/s",
+                  $domainbytes{$domain}/$domainsecs{$domain}/1000);
+   $pctfiles = sprintf("%8.2f", 100 * $domainfiles{$domain} / $xferfiles);
+   $pctbytes = sprintf("%8.2f", 100 * $domainbytes{$domain} / $xferbytes);
+   write;
+
+}
+
+print "\n";
+print "These figures only reflect ANONYMOUS FTP transfers.  There are many\n";
+print "sites which mount the archives via NFS, and those transfers are not\n";
+print "logged and reported by this program.\n\n\n";
+
+format top4 =
+
+Top 15 Most Popular Archive Sections By Bytes Transferred
+
+                                                 ---- Percent  of ---- Interest
+     Archive Section      Files Sent Bytes  Sent Files Sent Bytes Sent  Factor
+------------------------- ---------- ----------- ---------- ---------- --------
+.
+
+format line4 =
+@<<<<<<<<<<<<<<<<<<<<<<<< @>>>>>>>>> @>>>>>>>>>> @>>>>>>>   @>>>>>>>   @>>>>>>>
+$section,                 $files,    $bytes,     $pctfiles, $pctbytes, $fac
+.
+
+$- = 0;
+$^ = top4;
+$~ = line4;
+
+@topgroups = sort bytecompare keys(groupfiles);
+
+foreach $section ( @topgroups[0..14] ) {
+
+   $files = $groupfiles{$section};
+   $bytes = $groupbytes{$section};
+   $pctfiles = sprintf("%8.2f", 100 * $groupfiles{$section} / $xferfiles);
+   $pctbytes = sprintf("%8.2f", 100 * $groupbytes{$section} / $xferbytes);
+   $fac = $fac{$section};
+   write;
+}
+
+print "
+
+Top 15 Most Popular Archive Sections By Interest Factor
+
+                                                 ---- Percent  of ---- Interest
+     Archive Section      Files Sent Bytes  Sent Files Sent Bytes Sent  Factor
+------------------------- ---------- ----------- ---------- ---------- --------
+";
+
+format line5 =
+@<<<<<<<<<<<<<<<<<<<<<<<< @>>>>>>>>> @>>>>>>>>>> @>>>>>>>   @>>>>>>>   @>>>>>>>
+$section,                 $files,    $bytes,     $pctfiles, $pctbytes, $fac
+.
+
+$^ = top5;
+$~ = line5;
+
+@topgroups = sort faccompare keys(groupfiles);
+
+foreach $section ( @topgroups[0..14] ) {
+
+   $files = $groupfiles{$section};
+   $bytes = $groupbytes{$section};
+   $pctfiles = sprintf("%8.2f", 100 * $groupfiles{$section} / $xferfiles);
+   $pctbytes = sprintf("%8.2f", 100 * $groupbytes{$section} / $xferbytes);
+   $fac = $fac{$section};
+   write;
+}
+
+print "
+
+Bottom 15 Least Popular Archive Sections By Interest Factor
+
+                                                 ---- Percent  of ---- Interest
+     Archive Section      Files Sent Bytes  Sent Files Sent Bytes Sent  Factor
+------------------------- ---------- ----------- ---------- ---------- --------
+";
+
+foreach $section ( @topgroups[$#topgroups-14..$#topgroups] ) {
+
+   $files = $groupfiles{$section};
+   $bytes = $groupbytes{$section};
+   $pctfiles = sprintf("%8.2f", 100 * $groupfiles{$section} / $xferfiles);
+   $pctbytes = sprintf("%8.2f", 100 * $groupbytes{$section} / $xferbytes);
+   $fac = $fac{$section};
+   write;
+}
+
+dbmclose(USAGE);
+
+# print "Total Transfer Amount By System\n\n";
+# print "                                  Number Of   Number of   Average\n";
+# print "     System Name or Address       Files Sent  Bytes Sent  Xmit Rate\n";
+# print "--------------------------------  ----------  ----------  ---------\n";
+# 
+# $lines = 58;
+# 
+# foreach $sys ( sort sysaddrcompare keys(systemfiles) ) {
+# 
+#  if ($systemsecs{$sys} == 0) { $systemsecs{$sys} = 1; }
+# 
+#  printf("%-32s  %10d  %10.0f  %5d cps\n", $sys, $systemfiles{$sys},
+#         $systembytes{$sys}, $systembytes{$sys} / $systemsecs{$sys});
+# 
+#  if ($lines-- == 0) {
+#     $lines = 58;
+#     print "\n";
+# 
+#     print "Total Transfer Amount By System\n\n";
+#     print "                                  Number Of   Number of   Average\n";
+#     print "     System Name or Address       Files Sent  Bytes Sent  Xmit Rate\n";
+#     print "--------------------------------  ----------  ----------  ---------\n";
+# 
+#  }
+# }
+
+exit(0);
+
+sub datecompare {
+
+   $date1  = substr($a, 11, 4) * 4800;
+   $date2  = substr($b, 11, 4) * 4800;
+   $date1 += index("JanFebMarAprMayJunJulAugSepOctNovDec",substr($a, 4, 3))*400;
+   $date2 += index("JanFebMarAprMayJunJulAugSepOctNovDec",substr($b, 4, 3))*400;
+   $date1 += substr($a, 8, 2);
+   $date2 += substr($b, 8, 2);
+   $date1 - $date2;
+
+}
+
+sub domnamcompare {
+
+   $sdiff = length($a) - length($b);
+   ($sdiff < 0) ? -1 : ($sdiff > 0) ? 1 : ($a lt $b) ? -1 : ($a gt $b) ? 1 : 0;
+
+}
+
+sub bytecompare {
+
+   $bdiff = $groupbytes{$b} - $groupbytes{$a};
+   ($bdiff < 0) ? -1 : ($bdiff > 0) ? 1 : ($a lt $b) ? -1 : ($a gt $b) ? 1 : 0;
+
+}
+
+sub faccompare {
+
+   $fdiff = $fac{$b} - $fac{$a};
+   ($fdiff < 0) ? -1 : ($fdiff > 0) ? 1 : ($a lt $b) ? -1 : ($a gt $b) ? 1 : 0;
+
+}

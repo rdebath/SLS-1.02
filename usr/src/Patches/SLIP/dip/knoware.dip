@@ -1,0 +1,43 @@
+#
+# Connection script for SLIP to knoware.nl.mugnet.org
+#
+
+  # Fetch the IP address of our target host.
+main:
+  hostname indy.knoware.nl.mugnet.org
+
+  # Set the desired serial port and speed.
+  port ttys0
+  speed 19200
+
+  # Reset the modem and terminal line.
+  reset
+
+  # Prepare for dialing.
+  send ATQ0V1E1X1S180=0\r
+  wait OK 2
+  if $errlvl != 0 goto error
+  dial 555-1234567
+  if $errlvl != 0 goto error
+  wait CONNECT 60
+  if $errlvl != 0 goto error
+
+  # We are connected.  Login to the system.
+login:
+  sleep 3
+  send \r\n\r\n
+  wait ogin: 10
+  if $errlvl != 0 goto error
+  send NO-WAY\n
+  wait ord: 5
+  if $errlvl != 0 goto error
+  send HA-HA\n
+  wait SLIP 30
+  if $errlvl != 0 goto error
+done:
+  print CONNECTED to $host with address $ip
+  mode SLIP
+  goto exit
+error:
+  print SLIP to $host failed.
+exit:

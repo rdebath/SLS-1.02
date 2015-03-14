@@ -1,0 +1,34 @@
+# .callhq
+# script to call and login to a Unix/Xenix system that
+# needs BREAK signals to switch bps rates
+
+	debug "on"		# turn on verbose script reporting
+	tty "on"		# echo received characters to screen
+	set bps 2400; 	# extraneous semicolons don't matter
+
+	# dial, if we haven't already from the dial directory
+	if ! linked		# note the space after the "!"
+	then
+		dial "2124200527"
+	endif
+
+	while ! waitfor "CONNECT" 40		# redial forever
+	do
+		redial
+	done
+
+	# try five times to get a login prompt
+	assign counter eq 5
+	while ! waitfor "login:" 10
+	do
+		decr counter; if counter lessthan 1; then quit; fi
+		xmitbrk				# send a BREAK signal
+	done
+
+	# now connected, at login prompt
+	beep					# just a personal touch
+	pause 3
+	transmit "username^M"
+	waitfor "word:" 5
+	transmit "password^M"
+	exit					# out to terminal mode

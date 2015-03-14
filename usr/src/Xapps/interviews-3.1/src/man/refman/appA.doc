@@ -1,0 +1,418 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[Alph] = 0
+%label{directory}{16.1}
+%label{file}{16.2}
+%label{list}{16.3}
+%label{table}{16.7}
+%label{math}{16.4}
+%label{memory}{16.5}
+%label{string}{16.6}
+
+\begin{document}
+%
+%
+\appendix{Operating System Interface}%
+%
+\float{figure}{A-\pagenumber{00}}%377.84 -645.68 -2
+\float{figure}{A-\pagenumber{00}}%377.84 -645.68 0
+This appendix describes the classes that abstract operating system
+services.  These classes do not yet cover the entire range of operating
+system operations, but they offer higher-level abstractions in some
+cases, relief from name space concerns in other cases, and greater
+application portability.
+
+\quad The classes are presented below in alphabetical order.  A {\font{Times-Italic}directory}
+is a list of files or other directories.  A file is a list of bytes.  Both
+directories and files are accessed by a string name.  A {\font{Times-Italic}list}
+is an ordered sequence of objects, parameterized by the element type.  The
+math class provides an interface to common mathematical operations
+on concrete types (e.g., ints and floats).  The memory class provides
+operations on variable-length arrays of bytes.  A {\font{Times-Italic}string}
+is a variable-length list of characters.  A {\font{Times-Italic}table}
+is an associative map from a key type to a data type.
+
+\quad List and table are generic classes, parameterized by other types.  Because
+few C++ implementations currently support a generic mechanism (though
+the language defines a template construct), it is necessary to define
+list and table classes using preprocessor macros and must be instantiated
+explicitly.%
+%
+\section{Directory}%
+%
+Figure%
+%
+\code{interface Directory \{\
+\quad static Directory* current();\
+\quad static Directory* open(const String\&);\
+\quad int count() const;\
+\quad const char* name(int i) const;\
+\quad int index(const char*) const;\
+\quad boolean is\_directory(int index) const;\
+\quad void close();\
+\quad static String* canonical(const String\&);\
+\quad static boolean match(const String\& name, const String\& pattern);\
+\};%
+%
+\figurecaption{Directory class interface\label{directory}.}%
+%
+%1.20001 -441.36 0
+}%
+%
+ \ref{directory} shows the directory class interface.  The static
+member functions Directory::current and Directory::open return a pointer
+to a Directory.  Directory::current looks in the default directory
+for the application context, Directory::open tries to find the directory
+with the given name.  If the name cannot be found or access is denied
+to the directory, Director::open returns nil.
+
+\quad Directory::count returns the number of entries (files and directories),
+including any special system entries such as \252.\272 and \252..\272
+on Unix.  Directory::name returns the name of the specified entry.  Directory::index
+returns the index of the entry that matches the given name or -1 if
+no match is found.  Directory::close discards the information associated
+with the directory.%
+%
+\section{File}%
+%
+Figure%
+%
+\code{interface File \{\
+\quad const char* name() const;\
+\quad long length() const;\
+\quad void close();\smallskip
+\quad void limit(unsigned int buffersize);\
+\};\smallskip
+interface InputFile : File \{\
+\quad static InputFile* open(const char* name);\
+\quad int read(const char*\& start);\
+\};%
+%
+\figurecaption{InputFile protocols\label{file}.}%
+%
+%2.16 -443.28 1
+}%
+%
+ \ref{file} shows the file class interface and subclasses for input
+handling.  The base class File is abstract and defines no data access
+functions.  Currently, only input files are implemented.  File::name
+returns the string name of the file.  File::length returns the number
+of bytes in the file.  File::close releases any information associated
+with the file.
+
+\quad File::limit sets an upper bound on the size of a buffer to allocate
+for file storage.  By default, a file attempts to allocate contiguous
+storage for its entire contents.  This approach can allow for simpler
+application code and can be implemented very efficiently on systems
+with memory-mapped files.
+
+\quad The contents of an input file can be accessed but not modified.  InputFile::open
+returns nil if the named file cannot be found or is not readable.  InputFile::read
+allocates a data area for the file contents, sets the start parameter
+to the beginning of the area, and returns the length of the area.  If
+no storage limit has been specified and the file is on disk (as opposed
+to a terminal or pipe), then read will return the entire file.%
+%
+\section{List}%
+%
+Figure%
+%
+\code{interface List(T) \{\
+\quad List(T)(long initial\_size = 0);\smallskip
+\quad long count() const;\
+\quad T item(long index) const;\
+\quad T\& item\_ref(long index) const;\
+\quad void prepend(const T\&);\
+\quad void append(const T\&);\
+\quad void insert(long index, const T\&);\
+\quad void remove(long index);\
+\quad void remove\_all();\
+\};\smallskip
+interface ListItr(ListType) \{\
+\quad ListItr(ListType))(const ListType\&);\smallskip
+\quad boolean more() const;\
+\quad T cur() const;\
+\quad T\& cur\_ref() const;\
+\quad void next();\
+\};\smallskip
+interface ListUpdater(ListType) \{\
+\quad ListUpdater(ListType)(ListType\&);\smallskip
+\quad boolean more() const;\
+\quad T cur() const;\
+\quad T\& cur\_ref() const;\
+\quad void remove\_cur();\
+\quad void next();\
+\};%
+%
+\figurecaption{List and iterator class interfaces\label{list}.}%
+%
+%1.20003 -36.2401 2
+}%
+%
+ \ref{list} shows the list generic class interfaces.  The implementation
+of lists uses a dynamic array with an insertion gap, meaning that
+large lists are very space-efficient.  The time efficiency depends
+on the distribution of insertions--if the insertion position moves
+frequently, the list will do excessive copying.
+
+\quad The list constructor takes an optional initial size for the
+dynamic array.  For lists that are known to be large, specifying an
+initial size avoids the cost of growing the array dynamically.  List::count
+returns the number of elements in the list (not the size of the array).  List::item
+returns the indexed item.
+
+\quad List::prepend adds an item at the beginning of the list, List::append
+at the end, and List::insert before an indexed item.  List::remove
+deletes the item specified by the given index.  List::remove\_all
+deletes all the items in the list.
+
+\quad ListItr is a class for iterating through the elements of a list,
+parameterized explicitly by the list type and implicitly by the element
+type.  The constructor is given the target list.  ListItr::more returns
+true if additional elements are available in the iteration.  ListItr::cur
+returns the current iteration's item.  ListItr::cur\_ref returns a
+reference to the item.  ListItr::remove\_cur deletes the current item
+from the list.  ListItr::next moves the iteration to the next item
+in the list.  No modifications should be made to the list during an
+iteration (except in the last step), as this may cause unexpected
+or erroneous results.
+
+\quad As an example, consider a list of pointers to glyphs.  We could
+declare such a list in a header or source file as follows:\smallskip
+\quad \quad declarePtrList(GlyphList,Glyph)\smallskip
+Only one source file may contain the expansion of the implementation:\smallskip
+\quad \quad implementPtrList(GlyphList,Glyph)\smallskip
+A loop to iterate over all the glyphs in a list could be written as
+follows:\smallskip
+\quad \quad for (ListItr(GlyphList) i(list); i.more(); i.next()) \{\
+\quad \quad \quad Glyph* g = i.cur();\
+\quad \quad \quad // do something with g\
+\quad \quad \}\smallskip
+\quad A list makes no assumptions about its element type.  In particular,
+destroying a list of pointers will not destroy the objects that are
+the targets of the pointers.%
+%
+\section{Math}%
+%
+Figure%
+%
+\code{interface Math \{\
+\quad static float min(float a, float b);\
+\quad static float max(float a, float b);\
+\quad static float min(float a, float b, float c, float d);\
+\quad static float max(float a, float b, float c, float d);\smallskip
+\quad static int abs(int);\
+\quad static long abs(long);\
+\quad static double abs(double);\
+\quad static int round(float);\
+\quad static int round(double);\
+\quad static boolean equal(float x, float y, float e);\
+\quad static boolean equal(double x, double y, double e);\
+\};%
+%
+\figurecaption{Math class interface\label{math}.}%
+%
+%0.239998 -0.71991 4
+}%
+%
+ \ref{math} shows the math class interface.  One cannot create a \252math
+object\272; all the member functions are static.  Math::min and Math::max
+return the minimum and maximum of two or four numbers, respectively.  For
+the sake of brevity only the floating point definitions are shown,
+but Math::min and Math::max are also defined for ints, longs, unsigned
+ints, unsigned longs, and doubles.
+
+\quad Math::abs returns the absolute value of a number.  Math::round
+returns the integer nearest to a floating point value.  Math::equal
+compares two floating point numbers and returns whether they are within
+a given epsilon (the third parameter) of each other.%
+%
+\section{Memory}%
+%
+Figure%
+%
+\code{interface Memory \{\
+\quad static void copy(const void*, void* to, unsigned int nbytes);\
+\quad static int compare(const void*, const void*, unsigned int nbytes);\
+\quad static void zero(void*, unsigned int nbytes);\
+\};%
+%
+\figurecaption{Memory class interface\label{memory}.}%
+%
+%0.23999 -522 4
+}%
+%
+ \ref{memory} shows the memory class interface.  Like the math class,
+the memory class consists solely of static member functions.  Memory::copy
+writes a specified number of bytes from one memory location to another.  Memory::compare
+determines if a specified number of bytes at one memory location is
+identical to those at another location.  If so, Memory::compare returns
+0.  Otherwise, it returns a non-zero value.  Memory::zero sets a specified
+number of bytes to zero starting at a given memory location.
+
+\quad In certain circumstances, memory operations are faster than
+a loop over a set of elements.  Memory::zero and Memory::copy are
+useful for implementing a dynamic array, quickly clearing or copying
+data when the array grows.%
+%
+\section{String}%
+%
+Figure%
+%
+\code{interface String \{\
+\quad String();\
+\quad String(const char*);\
+\quad String(const char*, int length);\smallskip
+\quad const char* string() const;\
+\quad int length() const;\
+\quad boolean null\_terminated() const;\
+\quad unsigned long hash() const;\smallskip
+\quad String\& operator =(const String\&);\
+\quad boolean operator ==(const String\&) const;\
+\quad boolean operator !=(const String\&) const;\
+\quad boolean operator >(const String\&) const;\
+\quad boolean operator >=(const String\&) const;\
+\quad boolean operator <(const String\&) const;\
+\quad boolean operator <=(const String\&) const;\
+\quad boolean case\_insensitive\_equal(const String\&) const;\smallskip
+\quad char operator[](int index) const;\
+\quad String substr(int start, int length) const;\
+\quad String left(int length) const;\
+\quad String right(int start) const;\
+\quad void set\_to\_substr(int start, int length);\
+\quad void set\_to\_left(int length);\
+\quad void set\_to\_right(int start);\smallskip
+\quad int search(int start, char) const;\
+\quad int index(char) const;\
+\quad int rindex(char) const;\smallskip
+\quad boolean convert(int\&) const;\
+\quad boolean convert(long\&) const;\
+\quad boolean convert(float\&) const;\
+\quad boolean convert(double\&) const;\
+\};%
+%
+\figurecaption{String class interface\label{string}.}%
+%
+%0.23999 -179.28 5
+}%
+%
+ \ref{string} shows the string class interface.  The purpose of the
+string class is to provide a convenient set of operations for manipulating
+variable-length character arrays, {\font{Times-Italic}not} to manage
+storage.  The base class does not allocate or free any storage associated
+with the characters.
+
+\quad Three string constructors are available.  The first, with no
+arguments, creates an uninitialized string that should be assigned
+to another string before use.  The second, with a character pointer,
+sets the string's data to the given pointer.  The string's length
+is computed from the pointer under the assumption that the data is
+null-terminated.  The third constructor takes a character pointer
+and explicit length.  It does not assume the data is null-terminated.
+
+\quad String::string returns a pointer to the character data, which
+may not be null-terminated.  String::length returns the number of
+characters in the string.  String::null\_terminated returns whether
+the string is already known to be null-terminated (it does not attempt
+to find a null).  String::hash returns a value for the string data
+suitable for indexing the strings into a hash table.
+
+\quad The string class provides operators for assignment and comparison.  The
+second operand for these operations can be a string or a character
+pointer.  In the latter case, the data is assumed to be null-terminated.  String::case\_insensitive\_equal
+tests for equality ignoring the case of the characters in the strings.
+
+\quad The subscript operator allows access to individual characters.  It
+is an error to pass a negative index or an index greater than or equal
+to the length of the string.  String::substr returns a new string
+representing the part of the original string begining at the {\font{Times-Italic}start}
+parameter and continuing for {\font{Times-Italic}length} characters.  If
+{\font{Times-Italic}start} is negative, the beginning position is
+the end of the string offset by {\font{Times-Italic}start}.  If {\font{Times-Italic}length}
+is --1, then the remainder of the string is included.  String::substr
+does not copy the data, it simply creates another string that points
+into the same data as the original string.  String::left and String::right
+are short-hand for accessing the beginning or end of a string.  String::set\_to\_substr,
+String::set\_to\_left, and String::set\_to\_right are convenience
+for changing a string to a particular substring instead of creating
+a new string.
+
+\quad String::search returns the index of the occurrence of the given
+character after the given starting position.  If the starting position
+is negative, it is treated as an offset from the end of the string
+and the search is made right-to-left.  String::index and String::rindex
+are short-hand for searching from the beginning and end of the string,
+respectively.
+
+\quad String::convert attempts to interpret the string as a number
+and sets its parameter to the value.  If the conversion is successful,
+String::convert returns true.
+
+\quad Three string subclasses of string are provided, all of which
+have the same constructors and operations as the base class.  CopyString
+is a subclass that copies the string data when constructed and frees
+the storage when deleted.  When the copy is made, a null is appended
+to ensure the data is null-terminated.  NullTerminatedString is a
+subclass that guarantees its data is null-terminated.  If constructed
+with a normal string, it will copy the data much like a copy-string.  However,
+if the given string is already a copy-string, then no copy is made.  NullTerminatedString
+is useful for passing string data to external C functions, such as
+printf.
+
+\quad The third string subclass is UniqueString, which uses a table
+to map identical strings to the same data.  Comparing unique strings
+for equality is fast because the implementation can compare pointers
+instead of the string data.  Unique strings are not null-terminated.%
+%
+\section{Table}%
+%
+Figure%
+%
+\code{unsigned long key\_to\_hash(Key);\smallskip
+interface Table(Key,Value) \{\
+\quad Table(Key,Value)(int hash\_table\_size);\smallskip
+\quad void insert(Key, Value);\
+\quad boolean find(Value\&, Key);\
+\quad void remove(Key);\
+\quad boolean find\_and\_remove(Value\&, Key);\
+\};\smallskip
+interface TableIterator(Table(Key,Value)) \{\
+\quad TableIterator(Table(Key,Value))(Table(Key,Value)\&);\smallskip
+\quad Key\& cur\_key();\
+\quad Value\& cur\_value();\
+\quad boolean more();\
+\quad boolean next();\
+\};%
+%
+\figurecaption{Table class interface\label{table}.}%
+%
+%-1.67995 -89.04 7
+}%
+%
+ \ref{table} shows the table class interface.  Table is a generic
+class that is parameterized by a key type and a value type.  The constructor
+is given a size for the hash table implementation.  For good access
+performance, the size should be roughly twice the expected number
+of keys.
+
+\quad Table::insert stores a <key,value> pair.  Table::find searches
+an entry with the given key.  If such an entry exists, Table::find
+sets {\font{Times-Italic}value} and returns true.  Otherwise, it leaves
+the parameter unmodified and returns false.  Table::remove deletes
+a <key,value> pair from the table if one exists.  Table::find\_and\_remove
+combines the find and remove operations in a single call.
+
+\quad If the same key is inserted more than once, Table::find will
+return the most recently inserted value.  Similarly, Table::remove
+will delete the most recently inserted pair.
+
+\quad TableIterator allows one to iterate over all the <key,value>
+pairs defined in a table.  TableIterator is parameterized explicitly
+by the table type, implicitly by the key and value types.  TableIterator::cur\_key
+and TableIterator::cur\_value return the current entry information.  TableIterator::more
+tests if additional entries are defined.  TableIterator::next moves
+to the next entry in the table.\pagebreak
+%
+\end{document}

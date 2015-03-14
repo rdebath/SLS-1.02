@@ -1,0 +1,103 @@
+		Ispell enhancements - 3/13/87
+
+(See three companion postings in net.sources.bugs).
+
+Here are the enhancements to ispell that I mentioned a couple of days ago.
+Because of the number of changes, several of the context diff's are bigger
+than the original files.  In addition, many people have gotten confused
+about versions, since enhancements/fixes have been made by six different
+people, counting myself (for the list, see the end of ispell.man).  I
+have integrated all of these fixes and enhancements in one place.
+
+For these reasons, I have decided to repost all of the sources for ispell,
+with one exception -- the dictionary.  (A couple of small files, such
+as ispell.el, are unchanged, but I decided to repost them any for
+completeness.  If you didn't have ispell before, you now need only the
+dictionary).
+
+The dictionary is a special case:  if you think about it, even ordinary
+diff's will always work with "patch" on that each-line-is-unique file.
+An out-of-place insertion can be corrected by sorting the dictionary
+after patching (something that is done anyway as a side effect of the
+new "munchlist" script).  Because of this, I have decided not to repost
+the sizable dictionary.  In the process of testing this code, it occurred
+to me to run dict.191 through UNIX "spell";  the results of that are
+given in three companion postings in net.sources.bugs, which seemed
+like a more appropriate place for the diffs.  (The postings are not
+divided because of their size;  see comments in the postings for my
+reasons).
+
+Now, here's what I've done:
+
+In ispell itself:
+
+	- The personal dictionary is now hashed, just like the main one, and
+	  supports suffixes just like the main one.  (It's not actually
+	  integrated with the main one, because expanding the main one
+	  is inefficient and poses a minor but troublesome technical
+	  problem).  A personal dictionary of 28000+ words can be read in
+	  within a few minutes (hey, nobody's perfect -- whatcha doing
+	  with such a big dictionary anyway? :-).
+	- New option "-c" is used by the new munchlist script to generate
+	  suggested root/suffix combinations.
+	- The -d option can now specify /dev/null, if you want to use
+	  only your personal dictionary (this also saves startup time
+	  with -c, and is used by the "munchlist" script, which is why
+	  I put it in).
+	- The -p option is now more flexible about its handling of pathnames.
+	  An absolute pathname is always interpreted literally.  A
+	  relative pathname from WORDLIST is looked up in $HOME first,
+	  then in the current directory.  The -p option behaves in the
+	  reverse fashion:  current directory first, then $HOME.  This
+	  behavior seems more intuitive to me;  I'd be interested in
+	  opinions of others if you don't find it intuitive.
+	- Perhaps most important, I have completely overhauled the logic
+	  in good.c, so that it (I think) matches what the README file
+	  says it should, no more, no less.  The code has been extensively
+	  tested, notably by interaction with the new expansion scripts;
+	  nevertheless because of the extent of the changes and the
+	  nature of the logic, I'd suggest a bit of suspicion for a while.
+	  A technique we've found useful here is to do your normal work
+	  with ispell, and then do a final check with UNIX spell or some
+	  other slow, inconvenient program to make sure ispell didn't
+	  screw up.
+
+New scripts:
+
+	- expand.awk:  an obsolete (but correct) awk script that does
+	  the same thing as expand[12].sed, except slower.  The awk
+	  script is also much easier to understand than the sed scripts.
+	  Superseded by the sed scripts, except for very short input.
+	- expand[12].sed:  the sed pipe
+
+	    "sed -f expand1.sed $file | sed -f expand2.sed"
+
+	  where "$file" is a raw dictionary file with suffixes
+	  (e.g., dict.191), generates a list of each root alone, plus
+	  the root expanded with each possible suffix (e.g.,
+	  "BOTH/R/Z" produces "BOTH", "BOTHER", and "BOTHERS").  The
+	  output should usually be sorted with the -u switch before
+	  further processing.  These scripts are used by 'munchlist';
+	  they are also useful for (a) checking an ispell dictionary
+	  with some other spell-checking program and (b) figuring
+	  out what a particular suffix does to a certain word without
+	  reading the README file.
+	- munchlist.sh:  a slow, but effective, shell script that takes
+	  lists of expanded or unexpanded words as input and reduces
+	  them to a (usually smaller) list of roots and suffixes.  The
+	  result is written to standard output.  I think the documentation
+	  forgot to mention the input must be one word per line.  I
+	  have successfully used this script to combine dict.191 with
+	  /usr/dict/words;  it's also useful (and a lot faster) on
+	  private dictionaries.  For private dictionaries. it will also
+	  remove any word that has since been added to the main dictionary.
+
+Oh yes, I almost forgot:  the original documentation didn't mention
+that ispell is a long-name program.  If your "File:" display on the
+top line actually contains the misspelled word, you have long-name problems.
+My fixes don't address long names, because I finally have a way to
+compile long-name programs, thanks to "hash8".
+
+	Geoff Kuenning
+	geoff@ITcorp.COM
+	...!trwrb!desint!geoff

@@ -1,0 +1,102 @@
+#! /bin/sh
+# postnews - post news article
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/inject:$NEWSBIN:$NEWSPATH	# but do not export it
+umask 077				# private
+
+tmp=/tmp/pn$$
+term="rm -f $tmp ; exit 0"
+trap "$term" 0 1 2
+
+if test " $VISUAL" != " "; then
+	edit="$VISUAL"
+elif test " $EDITOR" != " "; then
+	edit="$EDITOR"
+else
+	edit=/bin/ed
+fi
+
+case "$1" in
+'')	if test -r $NEWSCTL/postdefltgroup
+	then
+		defg="`cat $NEWSCTL/postdefltgroup`"
+		dprompt=" [$defg]"
+	else
+		defg=
+		dprompt=
+	fi
+	ans=
+	while test " $ans" = " "
+	do
+		echo "Newsgroup(s)$dprompt? " | tr -d '\012'
+		read ans
+		case "$ans" in
+		'')	if test " $defg" != " "
+			then
+				ans="$defg"
+			fi
+			;;
+		esac
+	done
+	echo "Newsgroups: $ans" >$tmp
+	;;
+
+-h)	cat $2 >$tmp
+	;;
+
+*)	echo "Newsgroups: $1" >$tmp
+	;;
+esac
+
+case "$1" in
+-h)	;;
+
+*)	subj=
+	while test " $subj" = " "
+	do
+		echo 'Subject: ' | tr -d '\012'
+		read subj
+	done
+	echo "Subject: $subj" >>$tmp
+	if test -r $NEWSCTL/postdefltdist
+	then
+		echo "Distribution: `cat $NEWSCTL/postdefltdist`" >>$tmp
+	fi
+	;;
+esac
+
+echo >>$tmp
+echo DELETE THIS LINE "(but DO NOT delete the blank line after the headers above)" >>$tmp
+if test -r $NEWSCTL/postdefltdist
+then
+	echo 'DELETE THIS LINE (You may want to change the "Distribution" header)' >>$tmp
+fi
+echo REPLACE THIS LINE WITH YOUR TEXT >>$tmp
+
+trap : 2
+$edit $tmp
+trap "$term" 2
+
+while egrep '^(DELETE|REPLACE) THIS LINE' $tmp >/dev/null
+do
+	echo 'This posting does not appear to have been edited properly.'
+	echo 'Abandon it [y] ? ' | tr -d '\012'
+	read ans
+	case "$ans" in
+	''|y*|Y*)
+		rm -f $tmp
+		exit 0
+		;;
+	esac
+
+	echo 'Editing again...  Please check it over carefully.'
+	trap : 2
+	$edit $tmp
+	trap "$term" 2
+done
+
+echo 'Posting...'
+inews -h <$tmp

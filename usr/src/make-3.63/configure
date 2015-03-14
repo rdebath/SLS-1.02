@@ -1,0 +1,1276 @@
+#!/bin/sh
+# Guess values for system-dependent variables and create Makefiles.
+# Generated automatically using autoconf.
+# Copyright (C) 1991, 1992, 1993 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+# Usage: configure [--srcdir=DIR] [--host=HOST] [--gas] [--nfp] [--no-create]
+#        [--prefix=PREFIX] [--exec-prefix=PREFIX] [--with-PACKAGE] [TARGET]
+# Ignores all args except --srcdir, --prefix, --exec-prefix, --no-create, and
+# --with-PACKAGE unless this script has special code to handle it.
+
+
+for arg
+do
+  # Handle --exec-prefix with a space before the argument.
+  if test x$next_exec_prefix = xyes; then exec_prefix=$arg; next_exec_prefix=
+  # Handle --host with a space before the argument.
+  elif test x$next_host = xyes; then next_host=
+  # Handle --prefix with a space before the argument.
+  elif test x$next_prefix = xyes; then prefix=$arg; next_prefix=
+  # Handle --srcdir with a space before the argument.
+  elif test x$next_srcdir = xyes; then srcdir=$arg; next_srcdir=
+  else
+    case $arg in
+     # For backward compatibility, also recognize exact --exec_prefix.
+     -exec-prefix=* | --exec_prefix=* | --exec-prefix=* | --exec-prefi=* | --exec-pref=* | --exec-pre=* | --exec-pr=* | --exec-p=* | --exec-=* | --exec=* | --exe=* | --ex=* | --e=*)
+	exec_prefix=`echo $arg | sed 's/[-a-z_]*=//'` ;;
+     -exec-prefix | --exec_prefix | --exec-prefix | --exec-prefi | --exec-pref | --exec-pre | --exec-pr | --exec-p | --exec- | --exec | --exe | --ex | --e)
+	next_exec_prefix=yes ;;
+
+     -gas | --gas | --ga | --g) ;;
+
+     -host=* | --host=* | --hos=* | --ho=* | --h=*) ;;
+     -host | --host | --hos | --ho | --h)
+	next_host=yes ;;
+
+     -nfp | --nfp | --nf) ;;
+
+     -no-create | --no-create | --no-creat | --no-crea | --no-cre | --no-cr | --no-c | --no- | --no)
+        no_create=1 ;;
+
+     -prefix=* | --prefix=* | --prefi=* | --pref=* | --pre=* | --pr=* | --p=*)
+	prefix=`echo $arg | sed 's/[-a-z_]*=//'` ;;
+     -prefix | --prefix | --prefi | --pref | --pre | --pr | --p)
+	next_prefix=yes ;;
+
+     -srcdir=* | --srcdir=* | --srcdi=* | --srcd=* | --src=* | --sr=* | --s=*)
+	srcdir=`echo $arg | sed 's/[-a-z_]*=//'` ;;
+     -srcdir | --srcdir | --srcdi | --srcd | --src | --sr | --s)
+	next_srcdir=yes ;;
+
+     -with-* | --with-*)
+       package=`echo $arg|sed 's/-*with-//'`
+       # Delete all the valid chars; see if any are left.
+       if test -n "`echo $package|sed 's/[-a-zA-Z0-9_]*//g'`"; then
+         echo "configure: $package: invalid package name" >&2; exit 1
+       fi
+       eval "with_`echo $package|sed s/-/_/g`=1" ;;
+
+     *) ;;
+    esac
+  fi
+done
+
+trap 'rm -f conftest* core; exit 1' 1 3 15
+
+rm -f conftest*
+compile='${CC-cc} $CFLAGS $DEFS conftest.c -o conftest $LIBS >/dev/null 2>&1'
+
+# A filename unique to this package, relative to the directory that
+# configure is in, which we can look for to find out if srcdir is correct.
+unique_file=vpath.c
+
+# Find the source files, if location was not specified.
+if test -z "$srcdir"; then
+  srcdirdefaulted=yes
+  # Try the directory containing this script, then `..'.
+  prog=$0
+  confdir=`echo $prog|sed 's%/[^/][^/]*$%%'`
+  test "X$confdir" = "X$prog" && confdir=.
+  srcdir=$confdir
+  if test ! -r $srcdir/$unique_file; then
+    srcdir=..
+  fi
+fi
+if test ! -r $srcdir/$unique_file; then
+  if test x$srcdirdefaulted = xyes; then
+    echo "configure: Can not find sources in \`${confdir}' or \`..'." 1>&2
+  else
+    echo "configure: Can not find sources in \`${srcdir}'." 1>&2
+  fi
+  exit 1
+fi
+# Preserve a srcdir of `.' to avoid automounter screwups with pwd.
+# But we can't avoid them for `..', to make subdirectories work.
+case $srcdir in
+  .|/*|~*) ;;
+  *) srcdir=`cd $srcdir; pwd` ;; # Make relative path absolute.
+esac
+		
+
+# We want these before the checks, so the checks can modify their values.
+test -z "$CFLAGS" && CFLAGS=-g 
+test -z "$LDFLAGS" && LDFLAGS=-g 
+
+if test -z "$CC"; then
+  echo checking for gcc
+  saveifs="$IFS"; IFS="${IFS}:"
+  for dir in $PATH; do
+    test -z "$dir" && dir=.
+    if test -f $dir/gcc; then
+      CC="gcc"
+      break
+    fi
+  done
+  IFS="$saveifs"
+fi
+test -z "$CC" && CC="cc"
+
+# Find out if we are using GNU C, under whatever name.
+cat > conftest.c <<EOF
+#ifdef __GNUC__
+  yes
+#endif
+EOF
+${CC-cc} -E conftest.c > conftest.out 2>&1
+if egrep yes conftest.out >/dev/null 2>&1; then
+  GCC=1 # For later tests.
+fi
+rm -f conftest*
+
+# Make sure to not get the incompatible SysV /etc/install and
+# /usr/sbin/install, which might be in PATH before a BSD-like install,
+# or the SunOS /usr/etc/install directory, or the AIX /bin/install,
+# or the AFS install, which mishandles nonexistent args.  (Sigh.)
+if test -z "$INSTALL"; then
+  echo checking for install
+  saveifs="$IFS"; IFS="${IFS}:"
+  for dir in $PATH; do
+    test -z "$dir" && dir=.
+    case $dir in
+    /etc|/usr/sbin|/usr/etc|/usr/afsws/bin) ;;
+    *)
+      if test -f $dir/install; then
+	if grep dspmsg $dir/install >/dev/null 2>&1; then
+	  : # AIX
+	else
+	  INSTALL="$dir/install -c"
+	  INSTALL_PROGRAM='$(INSTALL)'
+	  INSTALL_DATA='$(INSTALL) -m 644'
+	  break
+	fi
+      fi
+      ;;
+    esac
+  done
+  IFS="$saveifs"
+fi
+INSTALL=${INSTALL-cp}
+INSTALL_PROGRAM=${INSTALL_PROGRAM-'$(INSTALL)'}
+INSTALL_DATA=${INSTALL_DATA-'$(INSTALL)'}
+
+if test -z "$RANLIB"; then
+  echo checking for ranlib
+  saveifs="$IFS"; IFS="${IFS}:"
+  for dir in $PATH; do
+    test -z "$dir" && dir=.
+    if test -f $dir/ranlib; then
+      RANLIB="ranlib"
+      break
+    fi
+  done
+  IFS="$saveifs"
+fi
+test -z "$RANLIB" && RANLIB="@:"
+
+echo checking how to run the C preprocessor
+if test -z "$CPP"; then
+  CPP='${CC-cc} -E'
+  cat > conftest.c <<EOF
+#include <stdio.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  :
+else
+  CPP=/lib/cpp
+fi
+rm -f conftest*
+fi
+			echo checking for AIX
+cat > conftest.c <<EOF
+#ifdef _AIX
+  yes
+#endif
+
+EOF
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "yes" conftest.out >/dev/null 2>&1; then
+  DEFS="$DEFS -D_ALL_SOURCE=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}_ALL_SOURCE\${SEDdB}_ALL_SOURCE\${SEDdC}1\${SEDdD}
+\${SEDuA}_ALL_SOURCE\${SEDuB}_ALL_SOURCE\${SEDuC}1\${SEDuD}
+\${SEDeA}_ALL_SOURCE\${SEDeB}_ALL_SOURCE\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+
+echo checking for POSIXized ISC
+if test -d /etc/conf/kconfig.d &&
+  grep _POSIX_VERSION /usr/include/sys/unistd.h >/dev/null 2>&1
+then
+  ISC=1 # If later tests want to check for ISC.
+  DEFS="$DEFS -D_POSIX_SOURCE=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}_POSIX_SOURCE\${SEDdB}_POSIX_SOURCE\${SEDdC}1\${SEDdD}
+\${SEDuA}_POSIX_SOURCE\${SEDuB}_POSIX_SOURCE\${SEDuC}1\${SEDuD}
+\${SEDeA}_POSIX_SOURCE\${SEDeB}_POSIX_SOURCE\${SEDeC}1\${SEDeD}
+"
+  if test -n "$GCC"; then
+    CC="$CC -posix"
+  else
+    CC="$CC -Xp"
+  fi
+fi
+
+echo checking for minix/config.h
+cat > conftest.c <<EOF
+#include <minix/config.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  MINIX=1
+fi
+rm -f conftest*
+
+# The Minix shell can't assign to the same variable on the same line!
+if test -n "$MINIX"; then
+  DEFS="$DEFS -D_POSIX_SOURCE=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}_POSIX_SOURCE\${SEDdB}_POSIX_SOURCE\${SEDdC}1\${SEDdD}
+\${SEDuA}_POSIX_SOURCE\${SEDuB}_POSIX_SOURCE\${SEDuC}1\${SEDuD}
+\${SEDeA}_POSIX_SOURCE\${SEDeB}_POSIX_SOURCE\${SEDeC}1\${SEDeD}
+"
+  DEFS="$DEFS -D_POSIX_1_SOURCE=2"
+SEDDEFS="${SEDDEFS}\${SEDdA}_POSIX_1_SOURCE\${SEDdB}_POSIX_1_SOURCE\${SEDdC}2\${SEDdD}
+\${SEDuA}_POSIX_1_SOURCE\${SEDuB}_POSIX_1_SOURCE\${SEDuC}2\${SEDuD}
+\${SEDeA}_POSIX_1_SOURCE\${SEDeB}_POSIX_1_SOURCE\${SEDeC}2\${SEDeD}
+"
+  DEFS="$DEFS -D_MINIX=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}_MINIX\${SEDdB}_MINIX\${SEDdC}1\${SEDdD}
+\${SEDuA}_MINIX\${SEDuB}_MINIX\${SEDuC}1\${SEDuD}
+\${SEDeA}_MINIX\${SEDeB}_MINIX\${SEDeC}1\${SEDeD}
+"
+fi
+
+echo checking for ANSI C header files
+cat > conftest.c <<EOF
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <float.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  # SunOS string.h does not declare mem*, contrary to ANSI.
+echo '#include <string.h>' > conftest.c
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "memchr" conftest.out >/dev/null 2>&1; then
+  # SGI's /bin/cc from Irix-4.0.5 gets non-ANSI ctype macros unless using -ansi.
+cat > conftest.c <<EOF
+#include <ctype.h>
+#define ISLOWER(c) ('a' <= (c) && (c) <= 'z')
+#define TOUPPER(c) (ISLOWER(c) ? 'A' + ((c) - 'a') : (c))
+#define XOR(e,f) (((e) && !(f)) || (!(e) && (f)))
+int main () { int i; for (i = 0; i < 256; i++)
+if (XOR (islower (i), ISLOWER (i)) || toupper (i) != TOUPPER (i)) exit(2);
+exit (0); }
+
+EOF
+eval $compile
+if test -s conftest && (./conftest; exit) 2>/dev/null; then
+  DEFS="$DEFS -DSTDC_HEADERS=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}STDC_HEADERS\${SEDdB}STDC_HEADERS\${SEDdC}1\${SEDdD}
+\${SEDuA}STDC_HEADERS\${SEDuB}STDC_HEADERS\${SEDuC}1\${SEDuD}
+\${SEDeA}STDC_HEADERS\${SEDeB}STDC_HEADERS\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+fi
+rm -f conftest*
+
+fi
+rm -f conftest*
+
+echo checking whether string.h declares mem functions
+echo '#include <string.h>' > conftest.c
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "memchr" conftest.out >/dev/null 2>&1; then
+  :
+else 
+  echo checking for memory.h
+cat > conftest.c <<EOF
+#include <memory.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DNEED_MEMORY_H=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}NEED_MEMORY_H\${SEDdB}NEED_MEMORY_H\${SEDdC}1\${SEDdD}
+\${SEDuA}NEED_MEMORY_H\${SEDuB}NEED_MEMORY_H\${SEDuC}1\${SEDuD}
+\${SEDeA}NEED_MEMORY_H\${SEDeB}NEED_MEMORY_H\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+fi
+rm -f conftest*
+
+
+echo checking for unistd.h
+cat > conftest.c <<EOF
+#include <unistd.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DHAVE_UNISTD_H=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}HAVE_UNISTD_H\${SEDdB}HAVE_UNISTD_H\${SEDdC}1\${SEDdD}
+\${SEDuA}HAVE_UNISTD_H\${SEDuB}HAVE_UNISTD_H\${SEDuC}1\${SEDuD}
+\${SEDeA}HAVE_UNISTD_H\${SEDeB}HAVE_UNISTD_H\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+echo checking for directory library header
+echo checking for dirent.h
+cat > conftest.c <<EOF
+#include <dirent.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DDIRENT=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}DIRENT\${SEDdB}DIRENT\${SEDdC}1\${SEDdD}
+\${SEDuA}DIRENT\${SEDuB}DIRENT\${SEDuC}1\${SEDuD}
+\${SEDeA}DIRENT\${SEDeB}DIRENT\${SEDeC}1\${SEDeD}
+" dirheader=dirent.h
+fi
+rm -f conftest*
+
+if test -z "$dirheader"; then
+echo checking for sys/ndir.h
+cat > conftest.c <<EOF
+#include <sys/ndir.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DSYSNDIR=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}SYSNDIR\${SEDdB}SYSNDIR\${SEDdC}1\${SEDdD}
+\${SEDuA}SYSNDIR\${SEDuB}SYSNDIR\${SEDuC}1\${SEDuD}
+\${SEDeA}SYSNDIR\${SEDeB}SYSNDIR\${SEDeC}1\${SEDeD}
+" dirheader=sys/ndir.h
+fi
+rm -f conftest*
+
+fi
+if test -z "$dirheader"; then
+echo checking for sys/dir.h
+cat > conftest.c <<EOF
+#include <sys/dir.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DSYSDIR=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}SYSDIR\${SEDdB}SYSDIR\${SEDdC}1\${SEDdD}
+\${SEDuA}SYSDIR\${SEDuB}SYSDIR\${SEDuC}1\${SEDuD}
+\${SEDeA}SYSDIR\${SEDeB}SYSDIR\${SEDeC}1\${SEDeD}
+" dirheader=sys/dir.h
+fi
+rm -f conftest*
+
+fi
+if test -z "$dirheader"; then
+echo checking for ndir.h
+cat > conftest.c <<EOF
+#include <ndir.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DNDIR=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}NDIR\${SEDdB}NDIR\${SEDdC}1\${SEDdD}
+\${SEDuA}NDIR\${SEDuB}NDIR\${SEDuC}1\${SEDuD}
+\${SEDeA}NDIR\${SEDeB}NDIR\${SEDeC}1\${SEDeD}
+" dirheader=ndir.h
+fi
+rm -f conftest*
+
+fi
+
+echo checking for closedir return value
+cat > conftest.c <<EOF
+#include <sys/types.h>
+#include <$dirheader>
+int closedir(); main() { exit(0); }
+EOF
+eval $compile
+if test -s conftest && (./conftest; exit) 2>/dev/null; then
+  :
+else
+  DEFS="$DEFS -DVOID_CLOSEDIR=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}VOID_CLOSEDIR\${SEDdB}VOID_CLOSEDIR\${SEDdC}1\${SEDdD}
+\${SEDuA}VOID_CLOSEDIR\${SEDuB}VOID_CLOSEDIR\${SEDuC}1\${SEDuD}
+\${SEDeA}VOID_CLOSEDIR\${SEDeB}VOID_CLOSEDIR\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+echo checking for uid_t in sys/types.h
+echo '#include <sys/types.h>' > conftest.c
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "uid_t" conftest.out >/dev/null 2>&1; then
+  :
+else 
+  DEFS="$DEFS -Duid_t=int"
+SEDDEFS="${SEDDEFS}\${SEDdA}uid_t\${SEDdB}uid_t\${SEDdC}int\${SEDdD}
+\${SEDuA}uid_t\${SEDuB}uid_t\${SEDuC}int\${SEDuD}
+\${SEDeA}uid_t\${SEDeB}uid_t\${SEDeC}int\${SEDeD}
+" DEFS="$DEFS -Dgid_t=int"
+SEDDEFS="${SEDDEFS}\${SEDdA}gid_t\${SEDdB}gid_t\${SEDdC}int\${SEDdD}
+\${SEDuA}gid_t\${SEDuB}gid_t\${SEDuC}int\${SEDuD}
+\${SEDeA}gid_t\${SEDeB}gid_t\${SEDeC}int\${SEDeD}
+"
+fi
+rm -f conftest*
+			echo checking for pid_t in sys/types.h
+echo '#include <sys/types.h>' > conftest.c
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "pid_t" conftest.out >/dev/null 2>&1; then
+  :
+else 
+  DEFS="$DEFS -Dpid_t=int"
+SEDDEFS="${SEDDEFS}\${SEDdA}pid_t\${SEDdB}pid_t\${SEDdC}int\${SEDdD}
+\${SEDuA}pid_t\${SEDuB}pid_t\${SEDuC}int\${SEDuD}
+\${SEDeA}pid_t\${SEDeB}pid_t\${SEDeC}int\${SEDeD}
+"
+fi
+rm -f conftest*
+
+echo checking for return type of signal handlers
+cat > conftest.c <<EOF
+#include <sys/types.h>
+#include <signal.h>
+#ifdef signal
+#undef signal
+#endif
+extern void (*signal ()) ();
+main() { exit(0); } 
+t() { int i; }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -DRETSIGTYPE=void"
+SEDDEFS="${SEDDEFS}\${SEDdA}RETSIGTYPE\${SEDdB}RETSIGTYPE\${SEDdC}void\${SEDdD}
+\${SEDuA}RETSIGTYPE\${SEDuB}RETSIGTYPE\${SEDuC}void\${SEDuD}
+\${SEDeA}RETSIGTYPE\${SEDeB}RETSIGTYPE\${SEDeC}void\${SEDeD}
+"
+else
+  DEFS="$DEFS -DRETSIGTYPE=int"
+SEDDEFS="${SEDDEFS}\${SEDdA}RETSIGTYPE\${SEDdB}RETSIGTYPE\${SEDdC}int\${SEDdD}
+\${SEDuA}RETSIGTYPE\${SEDuB}RETSIGTYPE\${SEDuC}int\${SEDuD}
+\${SEDeA}RETSIGTYPE\${SEDeB}RETSIGTYPE\${SEDeC}int\${SEDeD}
+"
+fi
+rm -f conftest*
+
+
+for hdr in limits.h sys/param.h fcntl.h
+do
+trhdr=HAVE_`echo $hdr | tr '[a-z]./' '[A-Z]__'`
+echo checking for ${hdr}
+cat > conftest.c <<EOF
+#include <${hdr}>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -D${trhdr}=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}${trhdr}\${SEDdB}${trhdr}\${SEDdC}1\${SEDdD}
+\${SEDuA}${trhdr}\${SEDuB}${trhdr}\${SEDuC}1\${SEDuD}
+\${SEDeA}${trhdr}\${SEDeB}${trhdr}\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+done
+
+echo 'foo(){}' > conftest.c
+if ${CC-cc} -c conftest.c -o conftesto >/dev/null 2>&1 && test -f conftesto
+then
+  :
+else
+  DEFS="$DEFS -DNO_MINUS_C_MINUS_O=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}NO_MINUS_C_MINUS_O\${SEDdB}NO_MINUS_C_MINUS_O\${SEDdC}1\${SEDdD}
+\${SEDuA}NO_MINUS_C_MINUS_O\${SEDuB}NO_MINUS_C_MINUS_O\${SEDuC}1\${SEDuD}
+\${SEDeA}NO_MINUS_C_MINUS_O\${SEDeB}NO_MINUS_C_MINUS_O\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+prog='/* Ultrix mips cc rejects this.  */
+typedef int charset[2]; const charset x;
+/* SunOS 4.1.1 cc rejects this. */
+char const *const *p;
+char **p2;
+/* HPUX 7.0 cc rejects these. */
+++p;
+p2 = (char const* const*) p;'
+echo checking for working const
+cat > conftest.c <<EOF
+
+main() { exit(0); } 
+t() { $prog }
+EOF
+if eval $compile; then
+  :
+else
+  DEFS="$DEFS -Dconst="
+SEDDEFS="${SEDDEFS}\${SEDdA}const\${SEDdB}const\${SEDdC}\${SEDdD}
+\${SEDuA}const\${SEDuB}const\${SEDuC}\${SEDuD}
+\${SEDeA}const\${SEDeB}const\${SEDeC}\${SEDeD}
+"
+fi
+rm -f conftest*
+			echo checking for BSD string and memory functions
+cat > conftest.c <<EOF
+#include <strings.h>
+main() { exit(0); } 
+t() { rindex(0, 0); bzero(0, 0); }
+EOF
+if eval $compile; then
+  :
+else
+  DEFS="$DEFS -DUSG=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}USG\${SEDdB}USG\${SEDdC}1\${SEDdD}
+\${SEDuA}USG\${SEDuB}USG\${SEDuC}1\${SEDuD}
+\${SEDeA}USG\${SEDeB}USG\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+
+
+
+for func in getdtablesize sys_siglist _sys_siglist \
+	      dup2 getcwd sigsetmask getgroups setlinebuf \
+	      setreuid setregid
+do
+trfunc=HAVE_`echo $func | tr '[a-z]' '[A-Z]'`
+echo checking for ${func}
+cat > conftest.c <<EOF
+#include <stdio.h>
+main() { exit(0); } 
+t() { 
+#ifdef __stub_${func}
+choke me
+#else
+/* Override any gcc2 internal prototype to avoid an error.  */
+extern char ${func}(); ${func}();
+#endif
+ }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -D${trfunc}=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}${trfunc}\${SEDdB}${trfunc}\${SEDdC}1\${SEDdD}
+\${SEDuA}${trfunc}\${SEDuB}${trfunc}\${SEDuC}1\${SEDuD}
+\${SEDeA}${trfunc}\${SEDeB}${trfunc}\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+#endif
+done
+
+# The Ultrix 4.2 mips builtin alloca declared by alloca.h only works
+# for constant arguments.  Useless!
+echo checking for working alloca.h
+cat > conftest.c <<EOF
+#include <alloca.h>
+main() { exit(0); } 
+t() { char *p = alloca(2 * sizeof(int)); }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -DHAVE_ALLOCA_H=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}HAVE_ALLOCA_H\${SEDdB}HAVE_ALLOCA_H\${SEDdC}1\${SEDdD}
+\${SEDuA}HAVE_ALLOCA_H\${SEDuB}HAVE_ALLOCA_H\${SEDuC}1\${SEDuD}
+\${SEDeA}HAVE_ALLOCA_H\${SEDeB}HAVE_ALLOCA_H\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+decl="#ifdef __GNUC__
+#define alloca __builtin_alloca
+#else
+#if HAVE_ALLOCA_H
+#include <alloca.h>
+#else
+#ifdef _AIX
+ #pragma alloca
+#else
+char *alloca ();
+#endif
+#endif
+#endif
+"
+echo checking for alloca
+cat > conftest.c <<EOF
+$decl
+main() { exit(0); } 
+t() { char *p = (char *) alloca(1); }
+EOF
+if eval $compile; then
+  :
+else
+  alloca_missing=1
+fi
+rm -f conftest*
+
+if test -n "$alloca_missing"; then
+  # The SVR3 libPW and SVR4 libucb both contain incompatible functions
+  # that cause trouble.  Some versions do not even contain alloca or
+  # contain a buggy version.  If you still want to use their alloca,
+  # use ar to extract alloca.o from them instead of compiling alloca.c.
+  ALLOCA=alloca.o
+fi
+
+echo checking for vfork.h
+cat > conftest.c <<EOF
+#include <vfork.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DHAVE_VFORK_H=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}HAVE_VFORK_H\${SEDdB}HAVE_VFORK_H\${SEDdC}1\${SEDdD}
+\${SEDuA}HAVE_VFORK_H\${SEDuB}HAVE_VFORK_H\${SEDuC}1\${SEDuD}
+\${SEDeA}HAVE_VFORK_H\${SEDeB}HAVE_VFORK_H\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+echo checking for working vfork
+cat > conftest.c <<EOF
+/* Thanks to Paul Eggert for this test.  */
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_VFORK_H
+#include <vfork.h>
+#endif
+main() {
+  pid_t parent = getpid();
+  pid_t child = vfork();
+
+  if (child == 0) {
+    /* On sparc systems, changes by the child to local and incoming
+       argument registers are propagated back to the parent.
+       The compiler is told about this with #include <vfork.h>,
+       but some compilers (e.g. gcc -O) don't grok <vfork.h>.
+       Test for this by using lots of local variables, at least
+       as many local variables as main has allocated so far
+       including compiler temporaries.  4 locals are enough for
+       gcc 1.40.3 on a sparc, but we use 8 to be safe.
+       A buggy compiler should reuse the register of parent
+       for one of the local variables, since it will think that
+       parent can't possibly be used any more in this routine.
+       Assigning to the local variable will thus munge parent
+       in the parent process.  */
+    pid_t
+      p = getpid(), p1 = getpid(), p2 = getpid(), p3 = getpid(),
+      p4 = getpid(), p5 = getpid(), p6 = getpid(), p7 = getpid();
+    /* Convince the compiler that p..p7 are live; otherwise, it might
+       use the same hardware register for all 8 local variables.  */
+    if (p != p1 || p != p2 || p != p3 || p != p4
+	|| p != p5 || p != p6 || p != p7)
+      _exit(1);
+
+    /* On some systems (e.g. IRIX 3.3),
+       vfork doesn't separate parent from child file descriptors.
+       If the child closes a descriptor before it execs or exits,
+       this munges the parent's descriptor as well.
+       Test for this by closing stdout in the child.  */
+    _exit(close(fileno(stdout)) != 0);
+  } else {
+    int status;
+    struct stat st;
+
+    while (wait(&status) != child)
+      ;
+    exit(
+	 /* Was there some problem with vforking?  */
+	 child < 0
+
+	 /* Did the child fail?  (This shouldn't happen.)  */
+	 || status
+
+	 /* Did the vfork/compiler bug occur?  */
+	 || parent != getpid()
+
+	 /* Did the file descriptor bug occur?  */
+	 || fstat(fileno(stdout), &st) != 0
+	 );
+  }
+}
+EOF
+eval $compile
+if test -s conftest && (./conftest; exit) 2>/dev/null; then
+  :
+else
+  DEFS="$DEFS -Dvfork=fork"
+SEDDEFS="${SEDDEFS}\${SEDdA}vfork\${SEDdB}vfork\${SEDdC}fork\${SEDdD}
+\${SEDuA}vfork\${SEDuB}vfork\${SEDuC}fork\${SEDuD}
+\${SEDeA}vfork\${SEDeB}vfork\${SEDeC}fork\${SEDeD}
+"
+fi
+rm -f conftest*
+
+cat > conftest.c <<EOF
+#include <stdio.h>
+main () {
+  /* If setvbuf has the reversed format, exit 0. */
+  setvbuf(stdout, _IOLBF, (char *) 0, BUFSIZ); /* The reversed way.  */
+  putc('\r', stdout);
+  exit(0);			/* Non-reversed systems segv here.  */
+}
+EOF
+eval $compile
+if test -s conftest && (./conftest; exit) 2>/dev/null; then
+  DEFS="$DEFS -DSETVBUF_REVERSED=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}SETVBUF_REVERSED\${SEDdB}SETVBUF_REVERSED\${SEDdC}1\${SEDdD}
+\${SEDuA}SETVBUF_REVERSED\${SEDuB}SETVBUF_REVERSED\${SEDuC}1\${SEDuD}
+\${SEDeA}SETVBUF_REVERSED\${SEDeB}SETVBUF_REVERSED\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+rm -f core
+
+# Some definitions of getloadavg require that the program be installed setgid.
+NEED_SETGID=false
+
+# Check for the 4.4BSD definition of getloadavg.
+libname=`echo "utils" | sed 's/lib\([^\.]*\)\.a/\1/;s/-l//'`
+LIBS_save="${LIBS}"
+LIBS="${LIBS} -l${libname}"
+have_lib=""
+echo checking for -l${libname}
+cat > conftest.c <<EOF
+
+main() { exit(0); } 
+t() { main(); }
+EOF
+if eval $compile; then
+  have_lib="1"
+fi
+rm -f conftest*
+LIBS="${LIBS_save}"
+if test -n "${have_lib}"; then
+   :; LIBS="$LIBS -lutils"
+else
+   :; 
+fi
+
+
+# There is a commonly available library for RS/6000 AIX.  Is it installed?
+libname=`echo "getloadavg" | sed 's/lib\([^\.]*\)\.a/\1/;s/-l//'`
+LIBS_save="${LIBS}"
+LIBS="${LIBS} -l${libname}"
+have_lib=""
+echo checking for -l${libname}
+cat > conftest.c <<EOF
+
+main() { exit(0); } 
+t() { main(); }
+EOF
+if eval $compile; then
+  have_lib="1"
+fi
+rm -f conftest*
+LIBS="${LIBS_save}"
+if test -n "${have_lib}"; then
+   :; LIBS="$LIBS -lgetloadavg"
+else
+   :; # Since it is not a standard part of AIX, it might be installed locally.
+LIBS_save="$LIBS"
+LIBS="$LIBS /usr/local/lib/libgetloadavg.a"
+echo checking for local getloadavg library
+cat > conftest.c <<EOF
+
+main() { exit(0); } 
+t() { double load; int nelem = getloadavg (&load, 1); }
+EOF
+if eval $compile; then
+  getloadavg_missing=false
+else
+  getloadavg_missing=true
+fi
+rm -f conftest*
+if $getloadavg_missing; then
+  # It wasn't there.  Restore the old value of LIBS.
+  LIBS="$LIBS_save"
+else
+  # It was there.  If it is a shared library, we will need a -L switch to
+  # tell the program where to find it at run-time; just giving the full
+  # file name is not enough.
+  LDFLAGS="$LDFLAGS -L/usr/local/lib"
+fi
+fi
+
+for func in getloadavg
+do
+echo checking for ${func}
+cat > conftest.c <<EOF
+
+main() { exit(0); } 
+t() { 
+/* Override any gcc2 internal prototype to avoid an error.  */
+extern char ${func}(); ${func}(); }
+EOF
+if eval $compile; then
+  :
+else
+  LIBOBJS="$LIBOBJS ${func}.o"
+fi
+rm -f conftest*
+
+done
+
+
+case "$LIBOBJS" in
+*getloadavg*)
+echo checking for sys/dg_sys_info.h
+cat > conftest.c <<EOF
+#include <sys/dg_sys_info.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DDGUX=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}DGUX\${SEDdB}DGUX\${SEDdC}1\${SEDdD}
+\${SEDuA}DGUX\${SEDuB}DGUX\${SEDuC}1\${SEDuD}
+\${SEDeA}DGUX\${SEDeB}DGUX\${SEDeC}1\${SEDeD}
+" have_sym=1
+fi
+rm -f conftest*
+
+if test -z "$have_sym"; then
+echo checking for dwarf.h
+cat > conftest.c <<EOF
+#include <dwarf.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DSVR4=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}SVR4\${SEDdB}SVR4\${SEDdC}1\${SEDdD}
+\${SEDuA}SVR4\${SEDuB}SVR4\${SEDuC}1\${SEDuD}
+\${SEDeA}SVR4\${SEDeB}SVR4\${SEDeC}1\${SEDeD}
+" LIBS="$LIBS -lelf" have_sym=1
+fi
+rm -f conftest*
+
+fi
+if test -z "$have_sym"; then
+# Solaris 2 does not use dwarf, but it's still SVR4.
+echo checking for elf.h
+cat > conftest.c <<EOF
+#include <elf.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DSVR4=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}SVR4\${SEDdB}SVR4\${SEDdC}1\${SEDdD}
+\${SEDuA}SVR4\${SEDuB}SVR4\${SEDuC}1\${SEDuD}
+\${SEDeA}SVR4\${SEDeB}SVR4\${SEDeC}1\${SEDeD}
+" LIBS="$LIBS -lelf" have_sym=1
+  libname=`echo "kvm" | sed 's/lib\(^\.*\)\.a/\1/;s/-l//'`
+LIBS_save="${LIBS}"
+LIBS="${LIBS} -l${libname}"
+have_lib=""
+echo checking for -l${libname}
+cat > conftest.c <<EOF
+
+main() { exit(0); } 
+t() { main(); }
+EOF
+if eval $compile; then
+  have_lib="1"
+fi
+rm -f conftest*
+LIBS="${LIBS_save}"
+if test -n "${have_lib}"; then
+   :; LIBS="$LIBS -lkvm"
+else
+   :; 
+fi
+
+fi
+rm -f conftest*
+
+fi
+if test -z "$have_sym"; then
+echo checking for inq_stats/cpustats.h
+cat > conftest.c <<EOF
+#include <inq_stats/cpustats.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DUMAX4_3=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}UMAX4_3\${SEDdB}UMAX4_3\${SEDdC}1\${SEDdD}
+\${SEDuA}UMAX4_3\${SEDuB}UMAX4_3\${SEDuC}1\${SEDuD}
+\${SEDeA}UMAX4_3\${SEDeB}UMAX4_3\${SEDeC}1\${SEDeD}
+" DEFS="$DEFS -DUMAX=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}UMAX\${SEDdB}UMAX\${SEDdC}1\${SEDdD}
+\${SEDuA}UMAX\${SEDuB}UMAX\${SEDuC}1\${SEDuD}
+\${SEDeA}UMAX\${SEDeB}UMAX\${SEDeC}1\${SEDeD}
+" have_sym=1
+fi
+rm -f conftest*
+
+fi
+if test -z "$have_sym"; then
+echo checking for sys/cpustats.h
+cat > conftest.c <<EOF
+#include <sys/cpustats.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DUMAX=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}UMAX\${SEDdB}UMAX\${SEDdC}1\${SEDdD}
+\${SEDuA}UMAX\${SEDuB}UMAX\${SEDuC}1\${SEDuD}
+\${SEDeA}UMAX\${SEDeB}UMAX\${SEDeC}1\${SEDeD}
+" have_sym=1
+fi
+rm -f conftest*
+
+fi
+if test -z "$have_sym"; then
+echo checking for nlist.h
+cat > conftest.c <<EOF
+#include <nlist.h>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -DNLIST_STRUCT=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}NLIST_STRUCT\${SEDdB}NLIST_STRUCT\${SEDdC}1\${SEDdD}
+\${SEDuA}NLIST_STRUCT\${SEDuB}NLIST_STRUCT\${SEDuC}1\${SEDuD}
+\${SEDeA}NLIST_STRUCT\${SEDeB}NLIST_STRUCT\${SEDeC}1\${SEDeD}
+"
+echo checking for n_un in struct nlist
+cat > conftest.c <<EOF
+#include <nlist.h>
+main() { exit(0); } 
+t() { struct nlist n; n.n_un.n_name = 0; }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -DNLIST_NAME_UNION=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}NLIST_NAME_UNION\${SEDdB}NLIST_NAME_UNION\${SEDdC}1\${SEDdD}
+\${SEDuA}NLIST_NAME_UNION\${SEDuB}NLIST_NAME_UNION\${SEDuC}1\${SEDuD}
+\${SEDeA}NLIST_NAME_UNION\${SEDeB}NLIST_NAME_UNION\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+fi
+rm -f conftest*
+fi
+
+# Figure out whether we will need to install setgid.
+cat > conftest.c <<EOF
+dnl
+#include "${srcdir}/getloadavg.c"
+#ifdef LDAV_PRIVILEGED
+Yowza Am I SETGID yet
+#endif
+EOF
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "Yowza Am I SETGID yet" conftest.out >/dev/null 2>&1; then
+  DEFS="$DEFS -DGETLOADAVG_PRIVILEGED=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}GETLOADAVG_PRIVILEGED\${SEDdB}GETLOADAVG_PRIVILEGED\${SEDdC}1\${SEDdD}
+\${SEDuA}GETLOADAVG_PRIVILEGED\${SEDuB}GETLOADAVG_PRIVILEGED\${SEDuC}1\${SEDuD}
+\${SEDeA}GETLOADAVG_PRIVILEGED\${SEDeB}GETLOADAVG_PRIVILEGED\${SEDeC}1\${SEDeD}
+" NEED_SETGID=true
+fi
+rm -f conftest*
+;;
+esac
+
+echo checking for strcoll
+cat > conftest.c <<EOF
+#include <string.h>
+main() { exit(0); } 
+t() { strcoll ("abc", "abc"); }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -DHAVE_STRCOLL=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}HAVE_STRCOLL\${SEDdB}HAVE_STRCOLL\${SEDdC}1\${SEDdD}
+\${SEDuA}HAVE_STRCOLL\${SEDuB}HAVE_STRCOLL\${SEDuC}1\${SEDuD}
+\${SEDeA}HAVE_STRCOLL\${SEDeB}HAVE_STRCOLL\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+
+for hdr in sys/wait.h
+do
+trhdr=HAVE_`echo $hdr | tr '[a-z]./' '[A-Z]__'`
+echo checking for ${hdr}
+cat > conftest.c <<EOF
+#include <${hdr}>
+EOF
+err=`eval "$CPP $DEFS conftest.c 2>&1 >/dev/null"`
+if test -z "$err"; then
+  DEFS="$DEFS -D${trhdr}=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}${trhdr}\${SEDdB}${trhdr}\${SEDdC}1\${SEDdD}
+\${SEDuA}${trhdr}\${SEDuB}${trhdr}\${SEDuC}1\${SEDuD}
+\${SEDeA}${trhdr}\${SEDeB}${trhdr}\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+done
+ for func in waitpid wait3
+do
+trfunc=HAVE_`echo $func | tr '[a-z]' '[A-Z]'`
+echo checking for ${func}
+cat > conftest.c <<EOF
+#include <stdio.h>
+main() { exit(0); } 
+t() { 
+#ifdef __stub_${func}
+choke me
+#else
+/* Override any gcc2 internal prototype to avoid an error.  */
+extern char ${func}(); ${func}();
+#endif
+ }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -D${trfunc}=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}${trfunc}\${SEDdB}${trfunc}\${SEDdC}1\${SEDdD}
+\${SEDuA}${trfunc}\${SEDuB}${trfunc}\${SEDuC}1\${SEDuD}
+\${SEDeA}${trfunc}\${SEDeB}${trfunc}\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+#endif
+done
+
+echo checking for union wait
+cat > conftest.c <<EOF
+#include <sys/types.h>
+#include <sys/wait.h>
+main() { exit(0); } 
+t() { union wait status; return wait (&status); }
+EOF
+if eval $compile; then
+  DEFS="$DEFS -DHAVE_UNION_WAIT=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}HAVE_UNION_WAIT\${SEDdB}HAVE_UNION_WAIT\${SEDdC}1\${SEDdD}
+\${SEDuA}HAVE_UNION_WAIT\${SEDuB}HAVE_UNION_WAIT\${SEDuC}1\${SEDuD}
+\${SEDeA}HAVE_UNION_WAIT\${SEDeB}HAVE_UNION_WAIT\${SEDeC}1\${SEDeD}
+"
+fi
+rm -f conftest*
+
+
+# The presence of the following is not meant to imply
+# that make necessarily works on those systems.
+echo checking for DYNIX/ptx libseq
+cat > conftest.c <<EOF
+#if defined(_SEQUENT_)
+  yes
+#endif
+
+EOF
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "yes" conftest.out >/dev/null 2>&1; then
+  SEQUENT=1
+fi
+rm -f conftest*
+
+test -n "$SEQUENT" && test -f /usr/lib/libseq.a &&
+  LIBS="$LIBS -lseq"
+
+echo checking for Xenix
+cat > conftest.c <<EOF
+#if defined(M_XENIX) && !defined(M_UNIX)
+  yes
+#endif
+
+EOF
+eval "$CPP $DEFS conftest.c > conftest.out 2>&1"
+if egrep "yes" conftest.out >/dev/null 2>&1; then
+  XENIX=1
+fi
+rm -f conftest*
+
+if test -n "$XENIX"; then
+  DEFS="$DEFS -DVOID_CLOSEDIR=1"
+SEDDEFS="${SEDDEFS}\${SEDdA}VOID_CLOSEDIR\${SEDdB}VOID_CLOSEDIR\${SEDdC}1\${SEDdD}
+\${SEDuA}VOID_CLOSEDIR\${SEDuB}VOID_CLOSEDIR\${SEDuC}1\${SEDuD}
+\${SEDeA}VOID_CLOSEDIR\${SEDeB}VOID_CLOSEDIR\${SEDeC}1\${SEDeD}
+"
+  LIBS="$LIBS -lx"
+  case "$DEFS" in
+  *SYSNDIR*) ;;
+  *) LIBS="-ldir $LIBS" ;; # Make sure -ldir precedes any -lx.
+  esac
+fi
+
+
+if test -n "$prefix"; then
+  test -z "$exec_prefix" && exec_prefix='${prefix}'
+  prsub="s%^prefix\\([ 	]*\\)=\\([ 	]*\\).*$%prefix\\1=\\2$prefix%"
+fi
+if test -n "$exec_prefix"; then
+  prsub="$prsub
+s%^exec_prefix\\([ 	]*\\)=\\([ 	]*\\).*$%\
+exec_prefix\\1=\\2$exec_prefix%"
+fi
+
+trap 'rm -f config.status; exit 1' 1 3 15
+echo creating config.status
+rm -f config.status
+cat > config.status <<EOF
+#!/bin/sh
+# Generated automatically by configure.
+# Run this file to recreate the current configuration.
+# This directory was configured as follows,
+# on host `(hostname || uname -n) 2>/dev/null`:
+#
+# $0 $*
+
+for arg
+do
+  case "\$arg" in
+    -recheck | --recheck | --rechec | --reche | --rech | --rec | --re | --r)
+    exec /bin/sh $0 $* ;;
+    *) echo "Usage: config.status --recheck" 2>&1; exit 1 ;;
+  esac
+done
+
+trap 'rm -f Makefile build.sh glob/Makefile config.h conftest*; exit 1' 1 3 15
+CFLAGS='$CFLAGS'
+LDFLAGS='$LDFLAGS'
+CC='$CC'
+INSTALL='$INSTALL'
+INSTALL_PROGRAM='$INSTALL_PROGRAM'
+INSTALL_DATA='$INSTALL_DATA'
+RANLIB='$RANLIB'
+CPP='$CPP'
+LIBOBJS='$LIBOBJS'
+ALLOCA='$ALLOCA'
+NEED_SETGID='$NEED_SETGID'
+LIBS='$LIBS'
+srcdir='$srcdir'
+prefix='$prefix'
+exec_prefix='$exec_prefix'
+prsub='$prsub'
+EOF
+cat >> config.status <<\EOF
+
+top_srcdir=$srcdir
+for file in .. Makefile build.sh glob/Makefile; do if [ "x$file" != "x.." ]; then
+  srcdir=$top_srcdir
+  # Remove last slash and all that follows it.  Not all systems have dirname.
+  dir=`echo $file|sed 's%/[^/][^/]*$%%'`
+  if test "$dir" != "$file"; then
+    test "$top_srcdir" != . && srcdir=$top_srcdir/$dir
+    test ! -d $dir && mkdir $dir
+  fi
+  echo creating $file
+  rm -f $file
+  echo "# Generated automatically from `echo $file|sed 's|.*/||'`.in by configure." > $file
+  sed -e "
+$prsub
+s%@CFLAGS@%$CFLAGS%g
+s%@LDFLAGS@%$LDFLAGS%g
+s%@CC@%$CC%g
+s%@INSTALL@%$INSTALL%g
+s%@INSTALL_PROGRAM@%$INSTALL_PROGRAM%g
+s%@INSTALL_DATA@%$INSTALL_DATA%g
+s%@RANLIB@%$RANLIB%g
+s%@CPP@%$CPP%g
+s%@LIBOBJS@%$LIBOBJS%g
+s%@ALLOCA@%$ALLOCA%g
+s%@NEED_SETGID@%$NEED_SETGID%g
+s%@LIBS@%$LIBS%g
+s%@srcdir@%$srcdir%g
+s%@DEFS@%-DHAVE_CONFIG_H%" $top_srcdir/${file}.in >> $file
+fi; done
+echo creating config.h
+# These sed commands are put into SEDDEFS when defining a macro.
+# They are broken into pieces to make the sed script easier to manage.
+# They are passed to sed as "A NAME B NAME C VALUE D", where NAME
+# is the cpp macro being defined and VALUE is the value it is being given.
+# Each defining turns into a single global substitution command.
+#
+# SEDd sets the value in "#define NAME VALUE" lines.
+SEDdA='s@^\([ 	]*\)#\([ 	]*define[ 	][ 	]*\)'
+SEDdB='\([ 	][ 	]*\)[^ 	]*@\1#\2'
+SEDdC='\3'
+SEDdD='@g'
+# SEDu turns "#undef NAME" with trailing blanks into "#define NAME VALUE".
+SEDuA='s@^\([ 	]*\)#\([ 	]*\)undef\([ 	][ 	]*\)'
+SEDuB='\([ 	]\)@\1#\2define\3'
+SEDuC=' '
+SEDuD='\4@g'
+# SEDe turns "#undef NAME" without trailing blanks into "#define NAME VALUE".
+SEDeA='s@^\([ 	]*\)#\([ 	]*\)undef\([ 	][ 	]*\)'
+SEDeB='$@\1#\2define\3'
+SEDeC=' '
+SEDeD='@g'
+rm -f conftest.sed
+cat > conftest.sed <<CONFEOF
+EOF
+# Turn off quoting long enough to insert the sed commands.
+cat >> config.status <<EOF
+$SEDDEFS
+EOF
+cat >> config.status <<\EOF
+CONFEOF
+# This sed command replaces #undef's with comments.  This is necessary, for
+# example, in the case of _POSIX_SOURCE, which is predefined and required
+# on some systems where configure will not decide to define it in
+# config.h.
+cat >> conftest.sed <<\CONFEOF
+s,^[ 	]*#[ 	]*undef[ 	][ 	]*[a-zA-Z_][a-zA-Z_0-9]*,/* & */,
+CONFEOF
+rm -f conftest.h
+# Break up the sed commands because old seds have small limits.
+maxsedlines=20
+cp $top_srcdir/config.h.in conftest.h1
+while :
+do
+  lines=`grep -c . conftest.sed`
+  if test -z "$lines" || test "$lines" -eq 0; then break; fi
+  rm -f conftest.s1 conftest.s2 conftest.h2
+  sed ${maxsedlines}q conftest.sed > conftest.s1 # Like head -20.
+  sed 1,${maxsedlines}d conftest.sed > conftest.s2 # Like tail +21.
+  sed -f conftest.s1 < conftest.h1 > conftest.h2
+  rm -f conftest.s1 conftest.h1 conftest.sed
+  mv conftest.h2 conftest.h1
+  mv conftest.s2 conftest.sed
+done
+rm -f conftest.sed conftest.h
+echo "/* config.h.  Generated automatically by configure.  */" > conftest.h
+cat conftest.h1 >> conftest.h
+rm -f conftest.h1
+if cmp -s config.h conftest.h 2>/dev/null; then
+  # The file exists and we would not be changing it.
+  rm -f conftest.h
+else
+  rm -f config.h
+  mv conftest.h config.h
+fi
+
+
+exit 0
+EOF
+chmod +x config.status
+test -n "$no_create" || ./config.status
+
+

@@ -1,0 +1,146 @@
+*** ./kernel/blk_drv/blk.h~	Mon Feb 22 13:32:31 1993
+--- linux/kernel/blk_drv/blk.h	Mon Mar  8 23:28:45 1993
+***************
+*** 147,152 ****
+--- 147,161 ----
+  #define DEVICE_ON(device)
+  #define DEVICE_OFF(device)
+  
++ #elif (MAJOR_NR == 12)
++ /* mitsumi cd-rom */
++ #define DEVICE_NAME "Mitsumi CD-ROM"
++ /* #define DEVICE_INTR do_mcd */
++ #define DEVICE_REQUEST do_mcd_request
++ #define DEVICE_NR(device)	(MINOR(device))
++ #define DEVICE_ON(device)
++ #define DEVICE_OFF(device)
++ 
+  #else
+  /* unknown blk device */
+  #error "unknown blk device"
+*** ./kernel/blk_drv/Makefile~	Fri Dec 11 15:55:14 1992
+--- linux/kernel/blk_drv/Makefile	Mon Mar  8 23:28:45 1993
+***************
+*** 18,24 ****
+  
+  SUBDIRS	= scsi
+  
+! OBJS = xd.o hd.o ll_rw_blk.o floppy.o ramdisk.o genhd.o
+  
+  all: blk_drv.a scsisubdirs
+  
+--- 18,24 ----
+  
+  SUBDIRS	= scsi
+  
+! OBJS = xd.o hd.o ll_rw_blk.o floppy.o ramdisk.o genhd.o mcd.o
+  
+  all: blk_drv.a scsisubdirs
+  
+*** ./include/linux/timer.h~	Tue Nov 10 07:54:55 1992
+--- linux/include/linux/timer.h	Mon Mar  8 23:28:45 1993
+***************
+*** 22,27 ****
+--- 22,29 ----
+   * SCSI_TIMER		scsi.c timeout timer
+   *
+   * NET_TIMER		tcp/ip timeout timer
++  *
++  * MCD_TIMER		Mitsumi CD-Rom timer
+   *
+   * COPRO_TIMER		387 timeout for buggy hardware..
+   */
+***************
+*** 33,38 ****
+--- 35,41 ----
+  #define NET_TIMER	19
+  #define SOUND_TIMER	20
+  #define COPRO_TIMER	21
++ #define MCD_TIMER	22
+  
+  struct timer_struct {
+  	unsigned long expires;
+*** linux/init/main.c.orig	Sat Apr 10 10:32:18 1993
+--- linux/init/main.c	Sat Apr 10 10:42:12 1993
+***************
+*** 176,182 ****
+  static void parse_options(char *line)
+  {
+  	char *next;
+! 	int args, envs;
+  
+  	if (!*line)
+  		return;
+--- 176,184 ----
+  static void parse_options(char *line)
+  {
+  	char *next;
+!         char *devnames[] = { "hda", "hdb", "sda", "sdb", "sdc", "sdd", "sde", "fd0", "fd1", 0 };
+!         int devnums[]    = { 0x300, 0x340, 0x801, 0x810, 0x820, 0x830, 0x840, 0x200, 0x201, 0};
+! 	int args, envs, n;
+  
+  	if (!*line)
+  		return;
+***************
+*** 183,188 ****
+--- 185,191 ----
+  	args = 0;
+  	envs = 1;	/* TERM is set to 'console' by default */
+  	next = line;
++ 	n = 0;
+  	while ((line = next) != NULL) {
+  		if ((next = strchr(line,' ')) != NULL)
+  			*next++ = 0;
+***************
+*** 189,198 ****
+  		/*
+  		 * check for kernel options first..
+  		 */
+! 		if (!strncmp(line,"root=",5)) {
+! 			ROOT_DEV = simple_strtoul(line+5,NULL,16);
+! 			continue;
+! 		}
+  		if (!strcmp(line,"ro")) {
+  			root_mountflags |= MS_RDONLY;
+  			continue;
+--- 192,221 ----
+  		/*
+  		 * check for kernel options first..
+  		 */
+!                 if (!strncmp(line,"root=/dev/",10)) {
+!                         n = 0;
+!                         while (devnames[n])
+!                                 if (!strncmp(line+10,devnames[n],3))
+!                                 {       ROOT_DEV = devnums[n]+simple_strtoul(line+13,NULL,16);
+!                                         break;
+!                                 }
+!                                 else
+!                                         n++;
+!                 } else
+!                         if (!devnames[n] && !strncmp(line,"root=",5)) {
+!                                 ROOT_DEV = simple_strtoul(line+5,NULL,16);
+!                                 continue;
+!                         }
+!                 if (!strncmp(line,"mitsumi=",8)) {
+!                         int irq=5, port=0x300;
+!                         char *cp = strchr(line,',');
+!                         if (cp)
+!                         {       port = simple_strtoul(cp+1,NULL,16);
+!                                 *cp='\0';
+!                                 irq = simple_strtoul(line+8,NULL,10);
+!                         }
+!                         mcd_setup(irq,port);
+!                 }
+  		if (!strcmp(line,"ro")) {
+  			root_mountflags |= MS_RDONLY;
+  			continue;
+***************
+*** 284,289 ****
+--- 307,313 ----
+  	sock_init();
+  	loop_init();
+  	ipc_init();
++ 	mcd_init();
+  	sti();
+  	/*
+  	 * check if exception 16 works correctly.. This is truly evil

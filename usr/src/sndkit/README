@@ -1,0 +1,348 @@
+Sound Card support for Linux. Version 1.0
+=========================================
+
+This version supports the following sound cards:
+
+Adlib
+	- 2-operator FM synthesizer (YM3812)
+
+SoundBlaster (1.0, 1.5, 2.0)
+	- 2-operator FM synthesizer (YM3812)
+	- Digitized voice, playback up to 22 kHz and
+	  recording up to 11 kHz.
+	- Midi output
+
+ThunderBoard and Ati Stereo F/X
+	- See features of the SB.
+
+SoundBlaster Pro/Pro 2
+	- 2-operator FM synthesizer (YM3812)
+	- Digitized voice. Recording and playback up to
+	  44 kHz (mono) and 22 kHz (stereo).
+	- Midi output
+	- Mixer
+
+ProAudioSpectrum 16 and Fusion 16
+	- 2-operator FM synthesizer (YM3812)
+	- Digitized voice. Recording and playback up to
+	  44 kHz/stereo/16 bits (PAS16 only).
+	- Midi input and output
+	- Mixer
+
+The other models of ProAudioSpectrum are not supported.
+
+The ProAudioSpectrum part of this driver was implemented
+mostly by Craig Metz (cmetz@thor.tjhsst.edu).
+
+Installation
+============
+
+To install the utilities, run make at each subdirectory.
+There is also some additional Readme files. 
+
+The mixer.c in this directory can be compiled by running
+"make mixer"
+
+
+Utilities
+=========
+
+This package contains the following utilities:
+
+1)	A player for Amiga NoiseTracker modules (.MOD).
+	This is a program written by Liam Corner and Marc Espie for
+	Sun SPARCstations. I have made some minor modifications for
+	Linux. It is located in the subdirectory dsp. See dsp/Readme
+	for further instructions.
+
+	**** This version supports stereo. (If you have SB Pro). *****
+	**** And 16 bits also. (If you have PAS16) *******************
+	**** 44 kHz/stereo/16 bits requires 486/50 *******************
+
+	==============================================================
+	The latest version (Tracker 3.9) of this program is available
+	at least at nic.funet.fi (pub/unix/sound).
+	==============================================================
+
+2)	A library of FM instruments and a program which loads
+	them to the kernel tables. sbiset.c is the loader program
+	and the subdirectory sbi contains the instrument files.
+
+3)	Simple programs for playing standard MIDI files (.mid) and
+	Creative Music Files (.CMF). These programs are in the
+	midi subdirectory.
+
+4)	Three mixer programs:
+	"xmix" is X11 -based mixer. Borrowed from the SB driver for BSD.
+	"mixer" is a simple command line mixer.
+	"xvmixer" is a xview3 based mixer.
+
+
+Using the driver
+================
+
+NOTE! The rest of this text is not up to date. There is lot of features
+not discussed here.
+
+All programs using this driver should include "linux/soundcard.h".
+
+The soundcard driver implements four device files.
+
+	Minor 0	-	/dev/mixer	is a controlling port for soundcards. 
+					Used by the mixer programs.
+	Minor 1 -	/dev/sequencer	This is a device for controlling the FM 
+					chips and output to the MIDI -port.
+					Version 0.4 supports MIDI -input also.
+	Minor 2 -	/dev/midi	MIDI -input port. (Not used)
+	Minor 3 -	/dev/dsp	a device for recording and playing 
+					digitized voice.
+					This was earlier /dev/audio.
+	Minor 4 -	/dev/audio	Sparc -compatible /dev/audio.
+					[ Not implemented yet. ]
+
+
+The first time you install the package, you should create these
+devices by typing as root (assuming that you did not change the major
+device ID in the kernel driver):
+
+    mknod -m 666 /dev/mixer c 14 0
+    mknod -m 666 /dev/sequencer c 14 1
+    mknod -m 666 /dev/midi c 14 2
+    mknod -m 666 /dev/dsp c 14 3
+    mknod -m 666 /dev/audio c 14 4
+
+All devices are opened exclusively. When another program tries to open the driver
+returns EBUSY. More than one of the devices may be open at the same time.
+/dev/dsp and /dev/midin cannot be open at the same time since the SoundBlaster
+doesn't support it.
+
+Sequencer device (MIDI access and FM synth)
+============================================
+
+I have combined these two functions to a single device because
+they are both used by sequencer programs. 
+
+This device is event-driven. A program writes one or more events to the queue.
+The driver plays the queue with assistance of a timer. 
+An event is a 4 byte record which will be described below.
+In addition to the event queue there is an instrument bank inside the driver.
+It contains settings (patches) for 128+16 instruments supported by the
+driver. The instrument numbers 0 to 127 are reserved for permanent instruments
+and can be loaded using the program "sbiset". The idea is that these instruments
+are loaded with "General MIDI" instruments after boot. 
+The instrument numbers above 127 are "volatile"
+instruments for temporary use by programs. An ioctl(SNDCTL_FM_LOAD_INSTR) 
+may be used to define instruments from a program.
+
+The argument of the ioctl(SNDCTL_FM_LOAD_INSTR) is the following record.
+
+typedef unsigned char sbi_instr_data[16];
+struct sbi_instrument {
+		int 		channel;	
+		/*	Instrument# to be programmed 	*/
+
+		sbi_instr_data	operators;	
+		/*	Register settings for operator cells (.SBI format) */
+	};
+
+Events are 4 bytes long records. A program sends events to the driver using 
+write() -call.
+An integral number of events must be output with a write() call. 
+If the queue is full, the program will sleep until the timer routine
+empties the queue.
+
+Events supported by this version of the driver.
+
+Byte0		Byte1		Byte2		Byte3
+=================================================================
+SEQ_NOTEOFF	Voice#		---		---
+SEQ_NOTEON	Voice#		Note#		Velocity
+SEQ_WAIT	See		description	below
+SEQ_FMPGMCHANGE	Voice#		Instrument#	---
+SEQ_SYNCTIMER	---		---		---
+SEQ_MIDIPUTC	MidiByte
+
+Versions 0.4 (and later) supports MIDI input from the /dev/sequencer. The received bytes are
+returned to the program as SEQ_MIDIBUTC events. The driver returns a SEQ_WAIT event
+before each Midi status byte.
+
+NOTE!	The Midi input feature is supported only with ProAudioSpectrum
+	boards.
+
+You may record Midi events for example with command:
+dd if=/dev/sequencer bs=4 of=<file>
+and play with:
+cat <file> > /dev/sequencer
+
+
+Descriptions:
+
+SEQ_NOTEON	Triggers the voice defined by byte1. Byte2 defines the frequency
+		(refer to MIDI -specs). Byte3 is the key on velocity, 
+		which is used to control volume (64 is a good value).
+SEQ_NOTEOFF	Stops the voice defined at byte1.
+SEQ_WAIT	When this event is detected in the queue, the driver stops 
+		playing until the time specified at bytes 1 to 3. 
+		You may construct this event with expression
+		"(time << 8) | SEQ_WAIT". See "Timing" below
+SEQ_FMPGMCHANGE	Programs the FM voice defined in byte1 with parameters defined
+		for instrument given in byte2. See "Instruments and Voices" below.
+SEQ_SYNCTIMER	This event resets the timer used by sequencer device. 
+		See "Timing" below.
+SEQ_MIDIPUTC	writes byte1 to the MIDI -port.
+		If there is no MIDI port or it is busy, write will
+		return ENODEV or EBUSY and the output queue will be emptied.
+		It is recommended that programs test the availability of the
+		port ioctl(SNDCTL_SEQ_TESTMIDI).
+
+
+Instruments and voices:
+
+The FM chip of the AdLib/SoundBlaster card supports 9 voices 
+or 6 voices in the percussive mode (not supported yet).
+Each voice can be programmed to play a different instrument. 
+Voice numbering starts from 0. Instruments are 16 byte arrays
+containing values programmed to the voice registers when this instrument 
+is selected. Instruments are stored "permanently" in the kernel
+and have number between 0 and 143. For example 
+instrument #0 may be "Acoustic Grand Piano" and #32 may be "Acoustic Bass". 
+Instruments are loaded with program "sbiset" and the numbering may vary. 
+
+sbiset accepts up to 128 instrument names as arguments. For example
+
+sbiset piano.sbi banjo.sbi bass.sbi 
+
+will load "piano.sbi" to instrument 0, "banjo.sbi" to instrument 1 
+and "bass.sbi" to instrument 2.
+
+New!	There is a command setall in the directory ./fm. It loads 
+	General MIDI compliant instruments to the instrument bank. Edit
+	this file so that it makes cd to the directory containing
+	your instrument files (*.sbi). For example:
+
+cd /usr/local/lib/sbi ; sbiset -v `awk '{printf " ./" $2 }' fm_init.txt`
+
+Before a note is played, an instrument must be assigned for a voice. This can be
+performed by writing a SEQ_FMPGMCHANGE event to the device. For example
+event [SEQ_FMPGMCHANGE, 0, 32] reprograms the voice 0 to be instrument 32.
+
+Midi notes:
+
+          Table 2: Summary of MIDI Note Numbers for Different Octaves
+ (adapted from "MIDI by the Numbers" by D. Valenti - Electronic Musician 2/88)
+
+
+Octave||                     Note Numbers
+   #  ||
+      || C   | C#  | D   | D#  | E   | F   | F#  | G   | G#  | A   | A#  | B
+------------------------------------------------------------------------------
+   0  ||   0 |   1 |   2 |   3 |   4 |   5 |   6 |   7 |   8 |   9 |  10 |  11
+   1  ||  12 |  13 |  14 |  15 |  16 |  17 |  18 |  19 |  20 |  21 |  22 |  23
+   2  ||  24 |  25 |  26 |  27 |  28 |  29 |  30 |  31 |  32 |  33 |  34 |  35
+   3  ||  36 |  37 |  38 |  39 |  40 |  41 |  42 |  43 |  44 |  45 |  46 |  47
+   4  ||  48 |  49 |  50 |  51 |  52 |  53 |  54 |  55 |  56 |  57 |  58 |  59
+   5  ||  60 |  61 |  62 |  63 |  64 |  65 |  66 |  67 |  68 |  69 |  70 |  71
+   6  ||  72 |  73 |  74 |  75 |  76 |  77 |  78 |  79 |  80 |  81 |  82 |  83
+   7  ||  84 |  85 |  86 |  87 |  88 |  89 |  90 |  91 |  92 |  93 |  94 |  95
+   8  ||  96 |  97 |  98 |  99 | 100 | 101 | 102 | 103 | 104 | 105 | 106 | 107
+   9  || 108 | 109 | 110 | 111 | 112 | 113 | 114 | 115 | 116 | 117 | 118 | 119
+  10  || 120 | 121 | 122 | 123 | 124 | 125 | 126 | 127 | 
+
+
+Timing:
+
+The /dev/sequencer -devicefile has a builtin timer. The SEQ_WAIT event
+can be used to specify the time when the next event is played. An
+absolute timing scheme is used to provide accurate timing. When the
+/dev/sequencer -device is opened, the timer is reset to zero. The timer
+can also be reset with SEQ_SYNCTIMER event. The timer resolution is 10 ms
+(1/100 s). For example a parameter of 1000 specifies that the next event
+will be played 10 seconds after the open() or previous SEQ_SYNCTIMER.
+
+Encoding of the SEQ_TIMER -events is a little bit difficult. You
+have to assign "(time_value << 8) | SEQ_WAIT)" to a temporary variable
+(unsigned) and output it to the device.
+
+
+Audio input and output
+======================
+
+The /dev/dsp can be used in digitized voice applications. This device
+can be accessed with programs like cat or dd. The default speed is
+8000 Hz and can be changed by using SNDCTL_DSP_SPEED ioctl() -call.
+For example "ioctl(dev, SNDCTL_DSP_SPEED, 22000, 0)".
+This ioctl -call returns the actual speed which will be used.
+
+The SoundBlaster card supports playback frequencies between
+4000 Hz and 22050 Hz. Maximum recording speed is 11000 Hz.
+
+The SoundBlaster Pro supports speeds up to 44100 Hz
+(mono) or 22050 Hz (stereo). 
+The stereo mode can be turned on
+with ioctl(fd, SNDCTL_DSP_STEREO, 1) which returns 1 if the
+soundcard has stereo capability.
+
+If you use the stereo capability, SET THE STEREO MODE ON BEFORE
+SETTING THE SPEED.
+
+NOTE!	Since it is not guaranteed that the driver can support
+	the requested speed or stereo mode, the program should
+	check the values returned by ioctl. The returned speed
+	is hardly ever same than requested. The SB card
+	supports only 256 different speeds and the driver has
+	to select the nearest suitable value.
+	
+
+The device driver has 2 or 3 buffers for audio I/O. When a
+program makes a write to the device, all bytes will be copied
+to a buffer and a DMA transfer to the audio proessor is started.
+While the first buffer is being played, the process may write to
+the other buffers. If no buffers are free, process has to wait.
+
+For optimal performance, you should write full blocks
+to the device. Writing too short buffers cause lots of extra
+interrupts during output. Too long writes will cause
+unnecessary process switches.
+The size of a block can be obtained with a SNDCTL_DSP_GETBLKSIZE.
+For example: blksize = ioctl(fd, SNDCTL_DSP_GETBLKSIZE, 0).
+
+
+
+The easiest way to specify the recording time is to use command
+
+dd if=/dev/dsp of=<output> bs=8000 count=<seconds>
+
+With the SoundBlaster card it is not possible to record and
+play at the same time. The mode is selected when the program
+issues its first read or write call to this device. With
+this version of this driver it is not possible to change
+mode without closing the device. Future versions may
+support "half duplex" mode.
+
+Recording starts when the program calls read first
+time.
+
+Future features
+===============
+
+MIDI input capability for SB. (Works already with PAS16/+).
+
+Support for percussive FM instruments (drums).
+
+Better mixer.
+
+If you have any ideas, please contact me.
+
+Gravis Ultrasound support is under work. Not coming
+soon.
+
+
+I have no plans to
+support the CD-ROM interface of SB Pro
+or CM/S stereo chips of original SoundBlaster.
+
+Contact address
+
+Hannu Savolainen
+
+hsavolai@cs.helsinki.fi

@@ -1,0 +1,288 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: administration of data types
+ *
+ *	$Author: grosch $
+ *	$Date: 1991/11/21 16:57:59 $
+ *	$Revision: 1.2 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE Types;
+
+FROM Base	IMPORT
+  OptionIsSet	;
+
+FROM Tree	IMPORT
+  NotEqual	, Times		, Plus		, Minus		,
+  Divide	, Less		, LessEqual	, Equal		,
+  Greater	, GreaterEqual	, And		, Div		,
+  In		, Mod		, Not		, Or		;
+
+FROM Defs	IMPORT
+  tType		, tTypes	, NoType	,
+  ProcABS	, ProcCAP	, ProcCHR	, ProcFLOAT	,
+  ProcHIGH	, ProcMAX	, ProcMIN	, ProcODD	,
+  ProcORD	, ProcSIZE	, ProcTRUNC	, ProcVAL	,
+  ProcADR	, ProcTSIZE	,
+  TypeSHORTINT	, TypeLONGINT	, TypeSHORTCARD	, TypeLONGCARD	,
+  TypeREAL	, TypeLONGREAL	, TypeBOOLEAN	, TypeCHAR	,
+  TypeBITSET	, TypeADDRESS	, TypeIntCard	, TypeStringChar,
+  TypeVOID	,
+  ShortInt	, LongInt	, ShortCard	, LongCard	,
+  Real		, LongReal	, Bool		, Char		,
+  Bitset	, Proc		, Word		, Address	,
+  IntCard	, Nil		, StringChar	, OpaqueType1	,
+  Array1	, Enumeration1	, Pointer1	, ProcType1	,
+  Record1	, Subrange1	, Set1		,
+  GetIndexType	, GetLiteral	, Head		;
+
+FROM Values	IMPORT
+  tValue	, ErrorValue	, ZeroValue	, TrueValue	,
+  FalseValue	, MinCharVal	, MaxCharVal	, MinShortIntVal,
+  MaxShortIntVal, MinLongIntVal	, MaxLongIntVal	, MaxShortCardVal,
+  MaxLongCardVal, MinRealVal	, MaxRealVal	, MinLongRealVal,
+  MaxLongRealVal,
+  Enumeration	;
+
+FROM Code	IMPORT
+  cAssign	, cPassValue	, cPassAddress	;
+
+PROCEDURE ResultType	(Operator: SHORTCARD; t1, t2: tType): tType;
+(* return the type of the result of applying operator 'Operator' to	*)
+(* operands of types 't1' and 't2'					*)
+BEGIN
+  IF t1^.Kind = Subrange1 THEN
+    t1 := t1^.Subrange1.Type;
+  END; (* IF *)
+  IF t2^.Kind = Subrange1 THEN
+    t2 := t2^.Subrange1.Type;
+  END; (* IF *)
+
+  CASE Operator OF
+  | NotEqual	, Equal		, Less		, LessEqual	,
+    Greater	, GreaterEqual	, And		, Or		,
+    In		, Not		:
+	RETURN TypeBOOLEAN;
+
+  | Times	, Plus		, Minus		, Divide	,
+    Div		, Mod		:
+	IF Coercible (t2, t1) THEN
+	  RETURN t1;
+	ELSIF Coercible (t1, t2) THEN
+	  RETURN t2;
+	ELSE
+	  RETURN NoType;
+	END; (* IF *)
+  END; (* CASE *)
+END ResultType;
+
+PROCEDURE Coercible	(t1, t2: tType): BOOLEAN;
+(* check if an object of type 't1' can be coerced	*)
+(* to an object of type 't2' (within an arithmetic or	*)
+(* set expression)					*)
+BEGIN
+  IF t1 = t2 THEN
+    RETURN TRUE;
+  END; (* IF *)
+  CASE t1^.Kind OF
+  | IntCard	: RETURN (t2 = TypeSHORTCARD) OR
+			 (t2 = TypeLONGCARD ) OR
+			 (t2 = TypeSHORTINT ) OR
+			 (t2 = TypeLONGINT  );
+
+  | ShortInt	: RETURN (t2 = TypeLONGINT  );
+
+  | ShortCard	: RETURN (t2 = TypeLONGCARD ) OR
+			 (t2 = TypeADDRESS  );
+
+  | LongCard	: RETURN (t2 = TypeADDRESS  );
+
+  | Real	: RETURN (t2 = TypeLONGREAL );
+
+  | Nil		: RETURN (t2 = TypeADDRESS  );
+
+    (* the compiler uses the type BITSET for all named set constants!	*)
+  | Bitset	: RETURN (t2^.Kind = Set1   );
+
+  ELSE
+    RETURN FALSE;
+  END; (* CASE *)
+END Coercible;
+
+PROCEDURE StdResultType	(t: tType; a: tTypes): tType;
+(* PRECONDITION: Type^.Kind = StdProcType1				*)
+(* return the result type of the call of the standard procedure with	*)
+(* type 't' and the list of actual parameter types 'a'			*)
+VAR ArgType	: tType;
+    IsVAR	: BOOLEAN;
+BEGIN
+  CASE t^.StdProcType1.StdProc OF
+  | ProcMAX	, ProcMIN	, ProcVAL	:
+	Head (a, IsVAR, ArgType);	(* overloaded	*)
+	RETURN ArgType		;
+
+  | ProcABS	:
+	Head (a, IsVAR, ArgType);	(* overloaded	*)
+	IF ArgType^.Kind = Subrange1 THEN
+	  ArgType := ArgType^.Subrange1.Type;
+	END; (* IF *)
+	RETURN ArgType		;
+
+  | ProcCAP	, ProcCHR	:
+	 RETURN TypeCHAR	;
+
+  | ProcORD	, ProcTRUNC	:
+	 RETURN TypeLONGCARD	;
+
+  | ProcSIZE	, ProcTSIZE	:
+	 RETURN TypeIntCard	;
+
+  | ProcFLOAT	:
+	RETURN TypeREAL	;
+
+  | ProcHIGH	:
+	Head (a, IsVAR, ArgType);	(* overloaded	*)
+	RETURN GetIndexType (ArgType);
+
+  | ProcODD	:
+	RETURN TypeBOOLEAN	;
+
+  | ProcADR	:
+	RETURN TypeADDRESS	;
+  ELSE
+    RETURN TypeVOID;
+  END; (* CASE *)
+END StdResultType;
+
+PROCEDURE TypeSize	(t: tType): CARDINAL;
+(* return the number of bytes used for an object of type 't'	*)
+(* compiler restriction: TypeSize returns NoSize for record and	*)
+(* array types, because the size of these types depends on the	*)
+(* memory mapping of the C compiler				*)
+BEGIN
+  IF t^.Kind = Subrange1 THEN
+    t := t^.Subrange1.Type;
+  END; (* IF *)
+  CASE t^.Kind OF
+  | ShortInt	: RETURN SizeShort;
+  | LongInt	: RETURN SizeLong;
+  | ShortCard	: RETURN SizeUnsignedShort;
+  | LongCard	: RETURN SizeUnsignedLong;
+  | Real	: RETURN SizeFloat;
+  | LongReal	: RETURN SizeDouble;
+  | Bool	: RETURN SizeUnsignedChar;
+  | Char	: RETURN SizeUnsignedChar;
+  | Bitset	: RETURN SizeUnsignedLong;
+  | Proc	: RETURN PointerSize;
+  | Word	: RETURN SizeUnsignedChar;
+  | Address	: RETURN PointerSize;
+  | OpaqueType1	: RETURN PointerSize;
+  | Array1	: RETURN NoSize;
+  | Enumeration1: IF t^.Enumeration1.MaxValue <= ORD (MaxChar) THEN
+		    RETURN SizeUnsignedChar;
+		  ELSE
+		    RETURN SizeUnsignedShort;
+		  END; (* IF *)
+  | Pointer1	: RETURN PointerSize;
+  | ProcType1	: RETURN PointerSize;
+  | Record1	: RETURN NoSize;
+  | Set1	: RETURN SizeUnsignedLong;
+  ELSE
+    (* error: illegal type *)
+    RETURN NoSize;
+  END; (* CASE *)
+END TypeSize;
+
+PROCEDURE GetLwb	(t: tType; VAR Lwb: tValue);
+(* returns the lower bound of type 't' in parameter 'Lwb'	*)
+BEGIN
+  CASE t^.Kind OF
+  | ShortInt	: Lwb := MinShortIntVal	;
+  | LongInt	: Lwb := MinLongIntVal	;
+  | ShortCard	: Lwb := ZeroValue	;
+  | LongCard	: Lwb := ZeroValue	;
+  | Real	: Lwb := MinRealVal	;
+  | LongReal	: Lwb := MinLongRealVal	;
+  | Bool	: Lwb := FalseValue	;
+  | Char	: Lwb := MinCharVal	;
+  | Enumeration1: Lwb.Kind := Enumeration;
+		  Lwb.EnumValue := GetLiteral (t^.Enumeration1.Objects, 0);
+  | Subrange1	: Lwb := t^.Subrange1.Lwb;
+  ELSE
+    Lwb := ErrorValue;
+  END; (* CASE *)
+END GetLwb;
+
+PROCEDURE GetUpb	(t: tType; VAR Upb: tValue);
+(* returns the upper bound of type 't' in parameter 'Upb'	*)
+BEGIN
+  CASE t^.Kind OF
+  | ShortInt	: Upb := MaxShortIntVal	;
+  | LongInt	: Upb := MaxLongIntVal	;
+  | ShortCard	: Upb := MaxShortCardVal;
+  | LongCard	: Upb := MaxLongCardVal	;
+  | Real	: Upb := MaxRealVal	;
+  | LongReal	: Upb := MaxLongRealVal	;
+  | Bool	: Upb := TrueValue	;
+  | Char	: Upb := MaxCharVal	;
+  | Enumeration1: WITH t^.Enumeration1 DO
+ 		    Upb.Kind := Enumeration;
+		    Upb.EnumValue := GetLiteral (Objects, MaxValue);
+		  END; (* WITH *)
+  | Subrange1	: Upb := t^.Subrange1.Upb;
+  ELSE
+    Upb := ErrorValue;
+  END; (* CASE *)
+END GetUpb;
+
+PROCEDURE Cast		(Operator: SHORTCARD; t1, t2: tType): BOOLEAN;
+(* checks if the translator must emit a type cast if the	*)
+(* operator 'Operator' is applied to an operand of type 't2'	*)
+(* and the result should be of type 't1'			*)
+BEGIN
+  IF t1^.Kind = Subrange1 THEN
+    t1 := t1^.Subrange1.Type;
+  END; (* IF *)
+  IF t2^.Kind = Subrange1 THEN
+    t2 := t2^.Subrange1.Type;
+  END; (* IF *)
+
+  IF (t1^.Kind = OpaqueType1) AND (t1^.OpaqueType1.Type # NoType) AND
+     (t2^.Kind = OpaqueType1) AND (t2^.OpaqueType1.Type # NoType) THEN
+    t1 := t1^.OpaqueType1.Type;
+    t2 := t2^.OpaqueType1.Type;
+  END; (* IF *)
+
+  CASE Operator OF
+  | cAssign	:
+      RETURN (t1 = TypeADDRESS) AND (t2 # TypeADDRESS) OR
+	     (t2 = TypeADDRESS) AND (t1 # TypeADDRESS) OR
+	     (t1^.Kind = OpaqueType1) AND (t2^.Kind # OpaqueType1) OR
+	     (t2^.Kind = OpaqueType1) AND (t1^.Kind # OpaqueType1);
+
+  | cPassAddress:
+      RETURN (t1 # t2) AND OptionIsSet ('c');
+
+  | cPassValue	:
+      IF (t2 = TypeIntCard) AND ((t1 = TypeSHORTCARD) OR (t1 = TypeSHORTINT)) OR
+	 (t2 = TypeStringChar) AND (t1 = TypeCHAR) OR
+	 (t2 = TypeREAL) AND (t1 = TypeLONGREAL) THEN
+	RETURN FALSE;
+      ELSE
+	RETURN (t1 # t2) AND OptionIsSet ('c');
+      END; (* IF *)
+
+  ELSE
+    RETURN FALSE;
+  END; (* CASE *)
+END Cast;
+
+BEGIN
+  MinReal	:=  1.40129846432481707E-45;
+  MaxReal	:=  3.40282346638528860E+38;
+  MinLongReal	:=  4.94065645841246544E-324;
+  MaxLongReal	:=  1.79769313486231470E+308;
+END Types.

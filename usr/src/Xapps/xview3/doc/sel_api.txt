@@ -1,0 +1,763 @@
+XView Selection Package 
+/**/# @(#)sel_api.txt	1.1 10/5/91 SMI
+
+
+1.  Abstract
+
+   This document details the new selection service  specification.  It  
+   describes the new application programmer interface, and  provides some 
+   examples.  It assumes the reader is familiar with principles of  X11 
+   inter-client communication protocol.
+
+
+2.  Introduction
+
+   The Selection Service package provides for  flexible communication among 
+   window applications. It is concerned with the aspects of the selection[s] 
+   the user has made, and with the status of the user interface which may affect 
+   those selections. Selections communicate between an "owner" client and a 
+   "requestor" client. The "owner" has the data representing the selected value 
+   and the "requestor" wants that data.
+
+
+3.  XView Selection API
+
+   The new selection package is intended as a cleaner/simpler method for
+   XView inter-client communication.  Selections should be XView objects. 
+   One should be able to use xv_create to create the selection object, use 
+   xv_get and xv_set to manipulate the object.
+
+   3.1.  Class Hierarchy
+
+       The new package name for the selection will be "SELECTION". 
+       "SELECTION" is sub-classed from  the XView generic object. 
+       Sub-classed from the "SELECTION" object are, "SELECTION_OWNER" and 
+       "SELECTION_REQUESTOR".
+   	
+       "SELECTION_ITEM" is also sub-classed from the XView generic object. 
+
+       The "SELECTION" package is an example of a hidden class. It  cannot be
+       instantiated independently from the "SELECTION_OWNER" and 
+       "SELECTION_REQUESTOR".
+       "SELECTION" package will contain attributes that are common between the
+       "SELECTION_OWNER" and "SELECTION_REQUESTOR".
+
+				    ---------------
+				    |   GENERIC   |
+				    ---------------
+				      |	 	 |
+			    -- -- -- -- ---	--------------------
+			    |  SELECTION  |	|  SELECTION_ITEM  |
+			    -- -- -- -- ---	--------------------
+			       |	|
+		-------------------   -----------------------
+		| SELECTION_OWNER |   | SELECTION_REQUESTOR |
+		-------------------   -----------------------
+
+    3.2. Object Ownership
+
+				    ------
+				    WINDOW
+				    ------
+				     |   |
+			---------------  -------------------
+			SELECTION_OWNER  SELECTION_REQUESTOR
+			---------------  -------------------
+			       |
+			--------------
+			SELECTION_ITEM
+			--------------
+
+
+    3.3. SELECTION Object Attributes
+
+	Attribute           Type        Default           Procs     
+	--------------------------------------------------------------------
+	SEL_RANK            Atom       XA_PRIMARY         create/get/set
+
+	Specifies the selection atom. Pre-defined atoms are XA_PRIMARY, 
+	XA_SECONDARY and CLIPBOARD. The client should set the SEL_RANK to 
+	the atom representing the selection.
+
+
+	SEL_RANK_NAME      *char     "XA_PRIMARY"        create/get/set
+
+	Specifies the selection name. The package will intern the selection
+	atom using this name.
+
+
+	SEL_TIMEOUT_VALUE  unsigned int "Selection.Timeout" create/set/get
+
+	Selection timeout value. This value indicates the number of seconds 
+	that a requestor or a selection owner waits for a response.
+
+
+	SEL_TIME     struct timeval *  "Last event time"   create/set/get
+
+	Specifies the timestamp of the event triggering the acquisition or
+	the request attempt. 
+
+
+
+    3.4. Selection Owner
+
+     The "SELECTION_OWNER" package is sub-classed from the "SELECTION".
+     It will allow the clients to become the owners of a particular selection
+     rank.
+     It is the owner's responsibility to convert the data to the format 
+     required by the requestor and to transfer transfer the converted 
+     data to the requestor.
+
+     3.4.1. SELECTION_OWNER Attributes
+
+
+	Attribute           Type             Default             Procs     
+	--------------------------------------------------------------------
+
+	SEL_CONVERT_PROC  Pointer to a func  sel_convert_proc  create/set/get
+
+	Specifies the procedure that is to be called whenever a client requests 
+	the current value of the selection. For more info refer to 3.4.2.
+	
+
+	SEL_DONE_PROC      Pointer to a func     NULL          create/set/get
+	
+	Specifies the procedure that is  called after the requestor has 
+	received the selection or NULL if the owner is not interested in being 
+	called back. For more info refer to 3.4.3.
+
+
+	SEL_LOSE_PROC      Pointer to a func     NULL         create/set/get
+
+	Specifies the procedure that is to be called whenever the selection 
+	owner has lost selection or NULL if the owner is not interested in being 
+	called back. For more info refer to 3.4.4.
+
+
+	SEL_OWN               boolean            FALSE        create/set/get
+	
+	Setting SEL_OWN causes the selection to be acquired (True) or lost 
+	(False). Owning a selection without an external convert proc or any 
+	Selection Owner items will generate a NULL-data reply.
+
+
+	SEL_FIRST_ITEM       Selection_item     N/A           get
+
+	Returns a selection item.
+
+
+	SEL_NEXT_ITEM       Selection_item      N/A           get
+
+	Returns a selection item.
+
+
+	SEL_PROP_INFO	    Sel_prop_info *     N/A	      get
+
+	Returns the property data.
+	This attribute should be used from a convert_proc. It returns the
+	data that has been set on the SelectionNotify's property by the
+	requestor client.
+
+
+     3.4.2.  convert_proc
+
+	This user defined procedure is called by the SELECTION_OWNER package to 
+	convert	the value of a selection to a given type.
+	The return value should be set to "TRUE" if the owner has successfully 
+	converted the selection to the target type and "FALSE" otherwise.
+
+	The owner can choose to send the data in increments by constructing
+	an "INCR" message as follow:
+	
+		- "replyType" to INCR.
+		- "replyBuff" to an integer, representing a lower bound on the
+		  number of bytes of data in the selection.
+		- "length" to 1.
+		- "format" to 32.
+
+	It should then return "TRUE". The selection package will send the
+	"INCR" message to the requestor and calls the "convert_proc"
+	repeatedly until "length" is set to zero. This will indicate the
+	end of data transfer.
+
+	Clients are required by ICCCM to convert to "TARGETS" type. 
+	"convert_proc" should include the code necessary to convert to this 
+	atom type. 
+
+	This routine is designed for the advanced users. It could be used in
+	situations that needs special processing (e.g. sending large data in
+	increments).
+
+	"convert_proc" is called with "length" set to server's 
+	maximum_request_size. If the owner has chosen to send the selection
+	data in increments, the size of each increments should be less than
+	or equal to "length".
+
+
+	"convert_proc" is called with "format" set to "SEL_BEGIN_MULTIPLE" to 
+	indicate the beginning of a "MULTIPLE" request and to "SEL_END_MULTIPLE" 
+	to indicate the end of a "MULTIPLE" request.
+
+
+	int  (*convert_proc)( seln, &replyType, &replyBuff, &length, 
+						&format );
+
+	Argument   Type        Description
+	------------------------------------------------------------------------
+	seln Selection_owner  Selection object.
+
+	replyType  *Atom      Specifies the type of the selection that has been
+			      requested. It should be set to an atom which 
+			      describes the converted type of the selection 
+			      (For example TEXT might have the property type of 
+			      XA_STRING).  This routine is called with 
+
+	replyBuff *Xv_opaque  A pointer to a buffer address which contains the 
+			      converted data. 
+
+	length    *unsigned long  Specifies a pointer to the number of elements in 
+			      the  property. "sel_convert_proc" is called with 
+			      "length" set to the max allowed buffer size. 
+
+	format     *int      Specifies a pointer to the data format ( 8-bit, 
+			     16-bit or  32-bit).
+
+
+        3.4.2.1.  sel_convert_proc
+
+		"sel_convert_proc" is a public procedure. This procedure is the
+		package default convert proc.
+
+	            sel_convert_proc( seln, &replyBuff, &length, &format, &incr );
+
+
+     3.4.3.  done_proc
+
+
+	This user defined procedure is called by the SELECTION_OWNER package when 
+	a selection request has successfully been completed.  It is called once 
+	following each successful transfer of  data to the requestor. This 
+	procedure can be used to deallocate the selection data.
+	If an "alloc" error occurs during storing the selection data, the
+	done_proc will be called with "target" set to "SEL_FAILED".
+
+	void  (*done_proc)( seln, replyBuff, target );
+
+	Argument          Type        Description
+	-----------------------------------------------------------------------
+	seln         Selection_owner  Selection object.
+
+	replyBuff    Xv_opaque        Buffer which contains  the converted data.
+
+	target		 Atom             Specifies the requested data type.
+
+			    
+
+     3.4.4.  lose_proc
+
+	This user defined procedure is called by the SELECTION_OWNER package to 
+	inform the client that it has lost the ownership of  the given selection.
+	One example of "lose_proc" usage is unhighlighting (normal video)
+	the selected text in textsw.	
+
+
+	void  (*lose_proc)( seln );
+
+
+	Argument     Type              Description
+	--------------------------------------------------------------------
+	seln         Selection_owner   Selection object.
+
+
+    3.5. Selection Requestor
+
+     The "SELECTION_REQUESTOR" package is sub-classed from the "SELECTION".
+     It will allow the clients to obtain the value of a selection in a 
+     particular form.
+
+     3.5.1.  SELECTION_REQUESTOR Object Attributes
+
+	
+	Attribute            Type        Default        Procs     
+	--------------------------------------------------------------------
+
+	SEL_DATA             Xv_opaque    N/A            get
+
+	It will initiate a  blocking selection request. The arguments
+	to this attribute are, a pointer to a "long" which will be set
+	to the number of elements in the returned buffer and a pointer to 
+	an "integer" which will be set to the data format.
+	"xv_get" returns a pointer to the selection data. clients should 
+	free the returned buffer .
+
+	If the requestor client has not registered a  "reply_proc" with the
+	selection package and requesting for MULTIPLE or INCR, the call will
+	return with "length" set to "SEL_ERROR" and format set to zero.
+
+	If the requestor client has registered a  "reply_proc" with the
+	selection package and requesting for MULTIPLE or INCR, the package
+	will call the client's reply_proc with the converted data. "xv_get"
+	returns after the transaction has completed with "length" set to
+	XV_OK and format set to the returned data format. 
+
+	If the request fails the "xv_get" will return with "length" set to
+	"SEL_ERROR" and format set to zero.
+
+	data = (char *) xv_get(sel_requestor, SEL_DATA, &length, &format);
+
+
+	SEL_TYPE             Atoms        XA_STRING      create/set/get
+
+	Specifies an atom type that the client is requesting. 
+
+	SEL_TYPES          List of Atoms  "XA_STRING,0"   create/set/get
+
+	Specifies a NULL-terminated list of atom types that the client is
+	requesting. The effect will be as if a sequence of "SelectionRequest" 
+	events is delivered to the selection owner, one for each atom.
+	This attribute will initiate a multiple request. For more info refer 
+	to 4.2.2.
+
+	SEL_TYPE_NAME        *char         "STRING"       create/set/get
+
+	Same as SEL_TYPE except that the argument is the name of the 
+	requested selection type. The Package will intern the requested
+	atom type.
+
+
+	SEL_TYPE_NAMES     List of string   "STRING", 0    create/set/get
+
+	Specifies a NULL-terminated list of atom type names that the client 
+	is requesting. 
+
+
+	SEL_APPEND_TYPES     List of Atoms       N/A         create/set
+
+	Same as SEL_TYPES except that the new list is appended to the 
+	previously set type list.
+
+
+	SEL_APPEND_TYPE_NAMES  List of string  N/A           create/set
+
+	Same as SEL_TYPE_NAMES except that the new list is appended to the 
+	previously set type list.
+
+
+	SEL_REPLY_PROC      "Pointer to a func"  NULL     creat/set/get
+
+	Specifies the procedure that is to be called when the selection value 
+	has been obtained. See 3.5.2.
+
+
+	SEL_TYPE_INDEX	    int			N/A	  create/set
+
+	Specifies an index to the SEL_TYPES or SEL_TYPE list. This attr is
+	used in conjunction with the following five attributes to associate
+	data to a property used by the requestor.
+
+
+	Multiple:
+
+		xv_set( sel_req, SEL_TYPES, XA_STRING, INSERT_SELECTION, 0,
+					SEL_TYPE_INDEX, 1,
+						SEL_PROP_DATA, dataPointer,
+						SEL_PROP_LENGTH, 20,
+					0 );
+
+
+	Single Request:
+
+		xv_set( sel_req, SEL_TYPE, XA_STRING,
+					SEL_TYPE_INDEX, 0,
+						SEL_PROP_DATA, dataPointer,
+						SEL_PROP_LENGTH, 20,
+					0 );
+
+
+	SEL_PROP_DATA       Xv_opaque		NULL	  create/set
+
+	Specifies the data associated to a property.
+
+
+	SEL_PROP_LENGTH	   unsigned long	0	  create/set
+
+	Specifies the length of the data associated to a property.
+
+
+	SEL_PROP_FORMAT    int			8	  create/set
+
+	Specifies the format of the data associated to a property.
+
+
+	SEL_PROP_TYPE	   Atom			XA_STRING  create/set
+
+	Specifies the type of the data associated to a property.
+
+
+	SEL_PROP_TYPE_NAME *char  		"STRING"   create/set
+
+	Specifies the type name of the data associated to a property.
+
+
+    3.5.2. reply_proc
+
+	void  (*reply_proc)( sel_req, type, replyValue, length, format );
+
+	Argument               Type       Description
+	------------------------------------------------------------------------
+	Selection_requestor   sel_req     Selection requestor object.
+
+	target				  Atom        Specifies the requested data type.
+
+	type		      Atom        Specifies the converted data type.
+
+	replyValue            Xv_opaque   Specifies a pointer to the converted 
+					  data. 
+
+	length                unsigned long  Specifies the actual number of 8, 16,
+	  				  or 32-bit items return in replyValue.
+
+	format	     	      int         Specifies the actual data type of the 
+	  				  returned  data.
+
+
+	This routine is used as a communication mechanism between the selection
+	package and the selection client.
+
+	If the selection content is larger than the server's maximum_request_size
+	or if the selection owner has decided to transfer the selection data in
+	increments the selection package will send the data to the requestor in
+	chunks.
+	The package starts the data transfer by first calling this routine with
+	"type" set to "INCR" and "replyValue" set to a lower bound on the number
+	of bytes of data in the selection.
+	The "reply_proc" will then be called repeatedly until all the selection
+	data has been transferred.
+	The "reply_proc" is called once more with "length" set to zero and
+	"replyValue" set to NULL to indicate the end of incremental data
+	transfer.
+	If one of the MULTIPLE's target is being transferred incrementally,
+	"target" is set to "MULTIPLE".
+
+	If the selection conversion fails, this routine is called with 
+	"replyValue" set to an error code, "length" set to SEL_ERROR. 
+
+	The error codes are:
+
+	  SEL_TIMEDOUT -       Selection timedout.
+
+	  SEL_BAD_WIN_ID -     The SelectionNotify requestor ID does not  match 
+ 	    	   	       the  package requestor ID.
+
+	  SEL_BAD_TIME -       The SelectionNotify time does not match the 
+			       package  time value.
+
+	  SEL_BAD_CONVERSION - If the "property" field is None, the conversion 
+			       has been refused.  This can mean that there is 
+			       no owner for the selection, that the owner does 
+			       not support the conversion implied by "target",
+			       or that the  server did not have sufficient 
+			       space.
+
+
+     3.5.3. Non-blocking Selection Request
+
+	"sel_post_req" is a public procedure used to initiate a non-blocking 
+	request. Users "reply_proc" is called by the package to transfer the 
+	data to	the requestor client. It returns XV_OK or XV_ERROR.  If no reply 
+	procedure is defined, XV_ERROR is returned.
+
+	sel_post_req( sel_req )
+	  Selection_requestor    sel_req
+
+
+    3.6. Selection Items
+
+       3.6.1. SELECTION_ITEM Object Attributes
+
+
+	Attribute            Type        Default        Procs     
+	--------------------------------------------------------------------
+
+	SEL_COPY             Boolean     True           create/set/get
+
+	SEL_COPY indicates whether or not to copy the data.
+
+
+	SEL_DATA             Xv_opaque   NULL           create/set/get
+
+	Specifies  a pointer to the selection data.
+
+
+	SEL_FORMAT           Xv_opaque    8             create/set/get
+	  
+	Specifies the data format.
+
+
+	SEL_LENGTH           unsined long Type-dependent    create/set/get
+
+	Specifies the number of  8, 16, 32-bit elements. If the type is
+	either "STRING", "FILENAME" or "HOSTNAME", the default value
+	is set to "strlen(data)".
+
+
+	SEL_TYPE             Atom         XA_STRING     create/set/get
+
+	Specifies the type that the package will convert to.
+
+
+	SEL_TYPE_NAME        char *       "STRING"      create/set/get
+
+	Specifies the type name that the package will convert to.
+
+
+4.  Large Data Transfer
+   
+	Selections can get large, and this poses the following problems:
+	  - Transferring large amount of data to the server is expensive.
+	  - All servers have limits on the amount of data that can be stored in 
+	    the property.
+
+	The  SELECTION_OWNER  package will compare the size of the data 
+	describing the selection with the XMaxRequestSize. If the selection data
+	is larger than the XMaxRequestSize the selection owner will use the 
+	INCR property mechanism to  transfer the selection data.
+	The SELECTION_OWNER package will process "alloc" errors in property 
+	change requests by using the XView XIO error handler.
+	If an "alloc" error occurs during storing the selection data, all 
+	properties stored for this selection will be deleted and an error will
+	be sent back to the requestor by calling the requestor's "done_proc"
+	with the appropriate error code. For more information refer to 3.4.3.
+
+  
+5.  General features
+
+	5.1.  Giving up the selection ownership
+
+	     The SELECTION package provides a method for selection owners to 
+	     gracefully give up the selection ownership. 
+	     (see 3.4.1. SEL_OWN)
+
+	5.2.  Atom management
+
+	     The SELECTION package contains atom management routines. It reuses
+	     Atoms that are not currently being used.
+
+	5.3.  Incremental data transfer
+
+	     The SELECTION package will support incremental replies if it is 
+	     asked to do so. (see 3.4.2 "convert_proc")
+
+	5.4.  Inter-operation
+
+	     The clients using the new SELECTION package will be able to 
+	     communicate  with clients linked with the old package.
+	     The only type supported is "XA_STRING".
+
+	5.5.  Timeout value
+
+	     The SELECTION package uses the resources "Selection.Timeout" to  get 
+	     the default selection timeout value.  This value indicates the number 
+	     of seconds that a requestor or a selection owner waits for a response.
+
+	     If the requestor client times out while waiting for a response from
+	     the selection owner; the package calls the requestor 
+	     reply proc with an  error code of SEL_TIMEDOUT.
+
+	     If the selection owner client times out while waiting for a 
+	     response from the requestor; the package calls the selection owner 
+	     done proc, if it exists.
+
+	     The default is set for 3 sec.
+
+	5.6.  Local client
+
+	     It will include the ability to treat the clients that are both the
+	     owner of the selection and the requestor more efficiently.
+	     I am planning to utilize a shared memory scheme for local 
+	     connections in the next version of the selection package.
+
+
+
+
+
+6.  Examples
+
+    6.1.  Becoming The Primary Selection Owner 
+
+     	6.1.1.
+
+		char               *highlighted_selection;
+		Selection_owner     sel_owner;
+		Selection_item      sel_item;
+
+		main()
+		{
+		    :
+			sel_owner = xv_create(window, SELECTION_OWNER, 0);
+			sel_item = xv_create(sel_owner, SELECTION_ITEM, 0);
+			:
+                 }
+			 
+                 window_event_handler(..., event, ...)
+                 :
+                 Event          *event;
+                 :
+                 {
+                                  :
+                	 switch (event_action(event) {
+			   case ACTION_COPY:
+			   xv_set(sel_item, SEL_DATA, highlighted_selection, 0);
+			   xv_set(sel_owner, SEL_OWN, TRUE, 0);
+			   break;
+			:
+		}
+											
+        6.1.2.  Becoming the Primary Selection owner (using explicit convert
+		procedure).
+
+		Selection_owner  seln_owner;
+
+		main()
+		{
+			.............
+			.............
+			/* Create a selection object */
+			seln_owner = xv_create( window, SELECTION_OWNER, 
+						SEL_CONVERT_PROC, CvtProc, 
+						NULL );
+	
+			xv_main_loop( frame );
+		}
+
+		CvtProc( seln_owner,type,replyBuff,length, format )
+		Selection_owner        seln_owner;
+		Atom                   *type;
+		char                   **replyBuff;
+		unsigned long          *length;
+		int                    *format;
+		{
+		    int  len;
+	
+		    Atom   selection;
+		    char   str[50];
+
+		    selection = (Atom) xv_get( seln_owner, SEL_RANK );
+		
+
+	        strcpy( str,"Primary selection content!!\n");
+
+		    if ( type == TARGETS )  {
+				/* Support target conversion here. */
+				return( TRUE );
+		    }
+		    if ((selection == XA_PRIMARY ) && ( type == XA_STRING )) {
+				*format = 8;
+				*length = strlen( *str ) + 1 ;
+				*type = type;
+				*replyBuff = (char *) *str;
+				return(TRUE);
+		    }
+		    return(FALSE);
+		}
+
+
+
+    6.2.  Requesting The Primary Selection Value 
+    
+      6.2.1.  Blocking 
+
+	Selection_requestor sel_requestor;
+ 
+	main()
+	{
+		:
+		sel_requestor = xv_create(window, SELECTION_REQUESTOR, 0);
+		:
+	}
+	      
+	window_event_handler(..., event, ...)
+	:
+	Event          *event;
+	:
+	{
+		char           *data;
+		int             format;     /* size of data element: 8, 16 or 32
+						bits */
+		unsigned long  length;     /* nbr of data elements */
+		:
+		switch (event_action(event) {
+		  case ACTION_PASTE:
+		    /* Initiate a blocking request, and get the data */
+		    data = (char *) xv_get(sel_requestor, SEL_DATA, 
+						&length, &format);
+		:
+	}
+									 
+
+      6.2.2.  Non-blocking
+
+	long  *file_buffer;        /* contents of selected file */
+	long  file_buffer_size;   /* # of long's in file_buffer */
+	Selection_requestor sel_requestor;
+ 
+	void
+	reply_proc(sel_requestor, type, data, length, format)
+	Selection_requestor sel_requestor;
+	Atom           type;
+	long           *data;       /* buffer address */
+	unsigned long  length;     /* nbr of data elements */
+	int             format;     /* size of data element: 8, 16 or 32
+					bits */
+	{
+		int             i;
+		long           *lptr;
+	
+		if (length == SEL_ERROR) {
+			xv_error(sel_requestor,
+				ERROR_LAYER, ERROR_PROGRAM,
+				ERROR_SEL_ERROR, *data,
+				0);
+			return;
+		}   
+		if (format != sizeof(long)) {
+			xv_error(sel_requestor,
+				ERROR_LAYER, ERROR_PROGRAM,
+				ERROR_STRING, "Incorrect format returned",
+				0);
+			return;
+		}   
+		file_buffer = (long *) malloc(length * 4);
+		file_buffer_size = length;
+		lptr = file_buffer;
+		for (i = 1; i <= length; i++)
+			*lptr++ = *data++;
+	}
+	main()
+	{
+		:
+		sel_requestor = xv_create(window, SELECTION_REQUESTOR,
+				SEL_REPLY_PROC, reply_proc,
+				0);
+		:
+	}
+	 
+	window_event_handler(..., event, ...)
+	:
+	Event          *event;
+	:
+	{
+		:
+		switch (event_action(event) {
+		case ACTION_PASTE:
+		  sel_post_req(sel_requestor);  /* initiate non-blocking 
+							request */
+		:
+	}
+
+7. References
+
+	Inter-Client Communication Conventions Manual (Version 1.0)
+	   David S.H. Rosenthal 
+	   Sun Microsystems, Inc.
+

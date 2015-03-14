@@ -1,0 +1,188 @@
+.TL
+3. THE STANDARD NUMERIC SCORE
+.sp 4
+.PP
+A score is a data file that provides information to an orchestra
+about its performance.  Like an orchestra file, a score file is made up
+of statements in a known format.  The \fBCsound\fR orchestra expects
+to be handed a score comprised mainly of \fIascii numeric characters\fR.
+Although most users will prefer a higher level score language such as
+provided by \fBCscore, Scot\fR, or other score-generating programs, each
+resulting score must eventually appear in the format expected by the orchestra.
+A \fRStandard Numeric Score\fR can be created and edited directly by the
+beginner using standard text editors; indeed, some users continue to prefer it.
+The purpose of this section is to describe this format in detail.
+
+The basic format of a standard numeric score statement is:
+.i
+opcode p1 p2 p3 p4 ...		;comments
+.e
+The \fIopcode\fR is a single character, always alphabetic.
+Legal opcodes are \fBf, i, a, t, s\fR, and \fBe\fR,
+the meanings of which are described in the following pages.
+The opcode is normally the first character of a line;
+leading spaces or tabs will be ignored.
+Spaces or tabs between the opcode and
+.I p1
+are optional.
+
+\fIp1, p2, p3,\fR etc. are \fIparameter fields (pfields).\fR
+Each contains a floating point number comprised of an optional sign,
+digits, and an optional decimal point.
+Expressions are not permitted in Standard Score files.
+.I pfields
+are separated from each other by one or more spaces or tabs,
+all but one space of which will be ignored.
+
+Continuation lines are permitted.  If the first printing character
+of a new scoreline is not an opcode, that line will be regarded as a
+continuation of the pfields from the previous scoreline.
+
+Comments are optional and are for the purpose of permitting the user to
+document his score file.  Comments always begin with a semicolon (;)
+and extend to the end of the line.  Comments will not affect the
+pfield continuation feature.
+
+Blank lines or comment-only lines are legal (and will be ignored).
+.SH
+Preprocessing of Standard Scores
+.PP
+A Score (a collection of score statements) is divided into time-ordered
+.I sections
+by the
+.B s
+statement.  Before being read by the orchestra, a score is
+.I preprocessed
+one section at a time.
+Each section is normally processed by 3 routines: Carry, Tempo, and Sort.
+
+\fB1. Carry\fR - within a group of consecutive
+.B i
+statements whose p1 whole numbers correspond, any pfield left empty
+will take its value from the same pfield of the preceding statement.
+An empty pfield can be denoted by a single point (.) delimited by spaces.
+No point is required after the last non-empty pfield.
+The output of Carry preprocessing will show the carried values explicitly.
+The Carry Feature is not affected by intervening comments or blank lines;
+it is turned off only by a \fInon-i\fR statement or by an
+.B i
+statement with unlike p1 whole number.
+
+An additional feature is available for p2 alone.  The symbol + in p2
+will be given the value of p2+p3 from the preceding
+.B i
+statement.  This enables note action times to be automatically determined
+from the sum of preceding durations.  The + symbol can itself be carried.
+The + symbol is legal only in p2.  E.g.,
+.i
+the statements	i1  0  .5  100		will result in	i1  0  .5  100
+		i.  +					i1 .5  .5  100
+		i					i1  1  .5  100
+.e
+The Carry feature should be used liberally.  Its use, especially in large
+scores, can greatly reduce input typing and will simplify later changes.
+
+\fB2. Tempo\fR - this operation time warps a score section according to the
+information in a
+.B t
+statement.  The tempo operation converts p2 (and, for
+.B i
+statements, p3) from original beats into real seconds,
+since those are the units required by the orchestra.
+After time warping, score files will be seen to have orchestra-readable
+format demonstrated by the following:
+.i
+\fBi\fR p1 p2beats p2seconds p3beats p3seconds p4 p5 ....
+.e
+\fB3. Sort\fR - this routine sorts all action-time statements into chronological
+order by p2 value.  It also sorts coincident events into precedence order.
+Whenever an
+.B f
+statement and an
+.B i
+statement have the same p2 value, the
+.B f
+statement will precede.  Whenever two or more
+.B i
+statements have the same p2 value,
+they will be sorted into ascending p1 value order.
+If they also have the same p1 value, they will be sorted into ascending
+p3 value order.  Score sorting is done section by section (see
+.B s
+statement).  Automatic sorting implies that score statements may appear
+in any order within a section.
+
+.B N.B.
+The operations Carry, Tempo and Sort are combined in a 3-phase single pass
+over a score file, to produce a new file in orchestra-readable format (see the
+Tempo example).
+Processing can be invoked either explicity by the \fBscsort\fR command, or
+implicity by \fBcsound\fR which processes the score before calling the orchestra.
+Source-format files and orchestra-readable files are both in ascii-character
+form, and may be either perused or further modified by standard text editors.
+User-written routines can be used to modify score files before or after the above
+processes, provided the final orchestra-readable statement format is not violated.
+Sections of different formats can be sequentially batched;  and sections of like
+format can be merged for automatic sorting.
+.SH
+Next-P and Previous-P Symbols
+.PP
+At the close of any of the above operation, three additional score features
+are interpreted during file writeout:  next-p, previous-p, and ramping.
+
+.B i
+statement pfields containing the symbols \fBnp\fIx\fR or \fBpp\fIx\fR
+(where x is some integer) will be replaced by the appropriate pfield value
+found on the next
+.B i
+statement (or previous
+.B i
+statement) that has the same p1.
+For example, the symbol np7 will be replaced by the value found in
+p7 of the next note that is to be played by this instrument.
+np and pp symbols are recursive and can reference other np and pp symbols
+which can reference others, etc.  References must eventually terminate
+in a real number or a ramp symbol (see below).  Closed loop references
+should be avoided.  np and pp symbols are illegal in p1,p2 and p3
+(although they may reference these).  np and pp symbols may be Carried.
+np and pp references cannot cross a Section boundary;
+any forward or backward reference to a non-existent note-statement
+will be given the value zero.  For example,
+.i
+the statements	i1  0  1  10  np4  pp5	will result in	i1  0  1  10  20   0
+		i1  1  1  20				i1  1  1  20  30  20
+		i1  2  1  30				i1  2  1  30   0  30
+.e
+np and pp symbols can provide an instrument with contextual knowledge
+of the score, enabling it to glissando or crescendo, for instance,
+toward the pitch or dynamic of some future event (which may or may not
+be immediately adjacent).  Note that while the Carry feature will
+propagate np and pp through unsorted statements, the operation that
+interprets these symbols is acting on a time-warped and fully sorted
+version of the score.
+.SH
+Ramping
+.PP
+.B i
+statement pfields containing the symbol < will be replaced by values
+derived from linear interpolation of a time-based ramp.  Ramps are
+anchored at each end by the first real number found in the same pfield
+of a preceding and following note played by the same instrument.
+For example,
+.i
+the statements	i1  0  1  100	 	will result in	i1  0  1  100
+		i1  1  1   <				i1  1  1  200
+		i1  2  1   <				i1  2  1  300
+		i1  3  1  400				i1  3  1  400
+		i1  4  1   <				i1  4  1  200
+		i1  5  1   0				i1  5  1    0
+.e
+Ramps cannot cross a Section boundary.  Ramps cannot be anchored by an
+np or pp symbol (although they may be referenced by these).  Ramp symbols
+are illegal in p1,p2 and p3.  Ramp symbols may be Carried.
+Note, however, that while the Carry feature will propagate ramp symbols
+through unsorted statements, the operation that interprets these
+symbols is acting on a time-warped and fully sorted version of the score.
+In fact, time-based linear interpolation is based on warped score-time,
+so that a ramp which spans a group of accelerating notes will remain linear
+with respect to strict chronological time.

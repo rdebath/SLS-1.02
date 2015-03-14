@@ -1,0 +1,100 @@
+.TH EXPORTS 5 "Jan 23, 1993"
+.UC 5
+.SH NAME
+exports \- NFS file systems being exported
+.SH SYNOPSIS
+.B /etc/exports
+.SH DESCRIPTION
+The file
+.I /etc/exports
+serves as the access control list for file systems which may be
+exported to NFS clients.  It it used by both the NFS mount daemon,
+.IR mountd (8)
+and the NFS file server daemon
+.IR nfsd (8).
+.PP
+The file format is similar to the SunOS
+.I exports
+file, except that netgroup names are not permitted, and several
+additional options are permitted.  Each line contains a mount point
+and a list of machine names allowed to mount the file system at that
+point.  An optional parenthesized list of mount parameters may follow
+each machine name.  Blank lines are ignored, and a # introduces a
+comment to the end of the line.
+.PP
+These are the parameters that are currently recognized.
+.ds d " *
+.ds n " +
+.TP 20
+insecure
+Permit non-authenticated access from this machine.
+.TP 20
+unix-rpc\*d
+Require UNIX-domain RPC authentication from this machine.  This simply
+requires that requests originate on an internet port \(<
+IPPORT_RESERVED. 
+.TP 20
+secure-rpc\*n
+Require secure RPC authentication from this machine.  See the Sun
+documentation on Secure RPC.
+.TP 20
+kerberos\*n
+Require Kerberos authentication on accesses from this machine.  See
+the MIT documentation on the Kerberos third-party authentication system.
+.TP 20
+root_squash
+Map requests from uid 0 on the client to uid NOBODY_UID (a
+compile-time option) on the server.
+.TP 20
+no_root_squash\*d
+Don't map requests from uid 0.
+.TP 20
+ro\*d
+Mount file hierarchy read-only.
+.TP 20
+rw
+Mount file hierarchy read-write.
+.TP 20
+link_relative\*d
+Convert absolute symbolic links (where the link contents start with a
+slash) into relative links by prepending the necessary number of ../'s
+to get from the directory containing the link to the root on the
+server.  This has subtle, perhaps questionable, semantics when the file
+hierarchy is not mounted at its root.
+.TP 20
+link_absolute
+Leave all symbolic link as they are (the normal behavior for
+Sun-supplied NFS servers).
+.TP 20
+map_identity\*d
+Assume the client and server share the same uid/gid space.
+.TP 20
+map_daemon
+Map local and remote names and numeric ids using a lname/uid map
+daemon on the client from which the NFS
+request originated, to map between the client and server uid spaces
+(see ugidd(8)).  This only works if nfsd(8) is compiled with Mark
+Shand's ugidd code.
+.PP
+(\*d indicates defaults)
+(\*n indicates not implemented)
+.SH EXAMPLE
+.PP
+.nf
+.ta +3i
+# sample /etc/exports file
+/	master(rw) trusty(rw)
+/projects	proj*.local.domain(rw)
+/usr	*.local.domain(ro)
+/pub	(ro,insecure,root_quash)
+.fi
+.SH FILES
+/etc/exports
+.SH DIAGNOSTICS
+An error parsing the file is reported using syslogd(8) as level NOTICE from
+a DAEMON whenever nfsd(8) or mountd(8) is started up.  Any unknown
+host is reported at that time, but often not all hosts are not yet known
+to named(8) at boot time, thus as hosts are found they are reported
+with the same syslogd(8) parameters.
+.SH SEE ALSO
+mountd(8), nfsd(8)

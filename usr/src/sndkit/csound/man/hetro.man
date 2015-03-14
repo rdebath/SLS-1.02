@@ -1,0 +1,128 @@
+.TH HETRO 1Csound "7 Feb 1991"
+.SH NAME
+hetro \- hetrodyne filter analysis for Csound adsyn module
+.SH SYNOPSIS
+.B hetro 
+[flags] [fundamental] [filename]
+.SH DESCRIPTION
+.PP
+.I hetro
+takes as input a file containing amplitude samples of some
+sound over time (it is assumed that the samples are evenly spaced
+in time) and decomposes that sound into a set of harmonically
+related sine waves with time varying amplitude and phase.
+.br
+.sp
+.RS .5i
+NOTE:  it is necessary to provide hetro with an estimate
+of the fundamental frequency of the sound being
+analyzed.  
+.RE
+.sp
+.PP
+Below are listed the flags and their meanings.
+All flags must be followed by a value with no intervening
+space between the flag and its value.  
+.sp
+.nf
+.RS .25i
+-b:  Beginning time of the sound to be analyzed.(in seconds)
+
+-e:  Specifies the "adsyn.m" file to write the output.
+
+-f:  Allows user to use a 3rd order Butterworth LPF to
+     filter the analysis terms instead of the averaging
+     (comb) filter used by default. (cutoff freq. in cps)
+
+-h:  The number of harmonics to be analyzed and contained
+     in the output sound. (integer less than 50)
+
+-i:  The duration time of the sound analyzed by hetro.
+     (in seconds) Default of 0 means entire length of smpl file
+
+-m:  The maximum output magnitude of the output sound.
+
+-n:  The number of output points in the envelopes.
+
+-s:  The sampling rate of the input file. (in cps)
+
+
+Default values for the flags are as follows:
+     -b0 -e1 -f1 -i0 -h50 -m1000 -n256 -s20000
+.RE
+.fi		
+.SH EXAMPLE
+.PP
+The following is an example call to hetro:
+.br
+.ce
+hetro -i2.5 -e4 -h10 -m3000 -b.5 -s25000 440 infile
+.sp
+This will analyze 2.5 seconds worth of samples in infile,
+which was created with a sample rate of 25kHz, beginning 
+0.5 seconds into the sample file.  Hetro will analyze the first
+10 harmonics of the sound, and output 256 points for each of
+the time-varying amplitude and frequency pairs into the file
+adsyn.4 with a maximum amplitude of 3000.  The LPF is disabled.
+.SH DIAGNOSTICS
+.PP
+Due to the large amount of calculation required to do the
+analysis, hetro runs fairly slowly.  Think carefully about how 
+many harmonics and how long a sample file is necessary to analyze.
+.SH FILES
+adysn.\fIm\fR	hetrodyne analysis data file
+.SH FILE FORMAT
+The file adsyn.m specifies the amplitude envelope and frequency path of
+each partial that makes up an additive complex tone.  The 
+information is in the form of breakpoints (time, value, time,
+value, .....) using 16-bit integers.  Time is given in milliseconds,
+amplitude values are given in the range of [0, +32767], and the
+frequency is given in cps (Hertz).  Breakpoint data is exclusively
+non-negative;  the value -1 in the control file marks the beginning
+of an amplitude envelope and a -2 in the control file marks the
+beginning of a frequency set.  A time value of 32767 followed by
+a replication of the last desired amplitude or frequency value
+is always included at the end of each envelope or set.
+.PP
+A partial is defined by a pair of sets: an envelope set
+and a frequency set.  The sets may appear in any order but there
+must be an equal number of amplitude and frequency sets in the
+file.  For example, you may alternate amplitude and frequency sets,
+list all amplitude sets first then all frequency sets, or do a few 
+of one kind then a few of the other, but in the end there must be
+the same total amount of each.  
+.PP
+There can be any number of breakpoints in each set but
+.I adsyn
+associates the first found amplitude set with the first
+found frequency set, second with second, and so on.
+.PP
+The format of the adsyn.m is as follows:
+.sp
+.nf
+.RS -.5i
+-1 time1 value1 ......timeN valueN 32767 valueN  ; amplitude partial 1
+                                                 ; breakpoints
+-2 time1 value1 ......timeM valueM 32767 valueM  ; frequency partial 1
+                                                 ; breakpoints
+
+.............                                    ;any number of partials
+                                                 ;in any ordering of
+-1 time1 value1 ......                           ;amplitude and frequency
+-2 time1 value1 ......                           ;but ordering of amplitude
+-2 time1 value1 ......                           ;partials must be the same
+-1 time1 value1 ......                           ;as ordering of frequency
+                                                 ;partials.
+
+.RE
+.fi        
+.PP
+The Hetro program outputs to an adsyn.m file in this format but
+alternates amplitude and frequency sets in increasing partial
+order.
+.SH "SEE ALSO"
+Csound(1Csound),
+.I "The Csound Reference Manual"
+.SH BUGS
+Currently reads only 16-bit integer format soundfiles (no header).
+

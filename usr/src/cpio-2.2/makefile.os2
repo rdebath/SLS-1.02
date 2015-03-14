@@ -1,0 +1,62 @@
+# OS/2 makefile for GNU cpio.
+# Copyright (C) 1991, 1992 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+# no more optimizations for MS C 6.00 than -Olt
+# otherwise it produces bad code!
+
+DEFS = -D__MSDOS__ -DSTDC_HEADERS -DHAVE_VPRINTF -DHAVE_STRERROR -DNO_REMOTE
+
+# use this for MS C 6.00 (16-bit)
+#CC = cl -nologo -AS -Ot
+#CFLAGS = -Za -I. $(DEFS)
+#LDFLAGS = -Lp -Fb -F 4000 -link /noe
+#LIBS = d:\ms\lib\setargv.obj
+#DEF = cpio.def
+#O = .obj
+
+# and this for emx/gcc (32-bit)
+CC = gcc -O
+CFLAGS = -ansi -I. $(DEFS)
+LDFLAGS = -s
+LIBS = 
+DEF =
+O = .o
+
+OBJS = copyin$(O) copyout$(O) copypass$(O) dstring$(O) fnmatch$(O) \
+global$(O) main$(O) tar$(O) util$(O) error$(O) getopt$(O) getopt1$(O) \
+filemode$(O) version$(O) xmalloc$(O) xstrdup$(O) makepath$(O) bcopy$(O) \
+dirname$(O) stripslash$(O) # tcexparg$(O)
+
+all:	cpio.exe
+
+cpio.exe:	$(OBJS) $(DEF)
+	$(CC) -o $@ $(DEF) $(OBJS) $(LIBS) $(LDFLAGS)
+
+.c$(O):
+	$(CC) -c $(CFLAGS) $<
+
+copyin$(O): cpio.h cpiohdr.h dstring.h extern.h filetypes.h fnmatch.h rmt.h system.h
+copyout$(O): cpio.h cpiohdr.h dstring.h extern.h filetypes.h rmt.h system.h
+copypass$(O): cpio.h cpiohdr.h dstring.h extern.h filetypes.h system.h
+dstring$(O): dstring.h
+global$(O): cpio.h cpiohdr.h dstring.h extern.h system.h
+main$(O): cpio.h cpiohdr.h dstring.h extern.h filetypes.h rmt.h
+tar$(O): filetypes.h cpio.h cpiohdr.h dstring.h extern.h rmt.h tar.h tarhdr.h system.h
+util$(O): extern.h rmt.h system.h
+
+clean:
+	rm cpio.exe *$(O)

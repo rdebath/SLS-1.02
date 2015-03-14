@@ -1,0 +1,105 @@
+XCOMM $XConsortium: Imakefile,v 1.56 92/03/11 17:35:22 gildea Exp $
+XCOMM
+XCOMM                         Attention xterm porters
+XCOMM
+XCOMM
+XCOMM Xterm assumes that bcopy can handle overlapping arguments.  If your
+XCOMM bcopy (or memcpy) cannot, write a routine called bcopy and link it in
+XCOMM or add -Dbcopy=mybcopy to the DEFINES list below.
+XCOMM
+
+/*
+ * add -DWTMP and -DLASTLOG if you want them; make sure that bcopy can
+ * handle overlapping copies before using it.
+ */
+#ifdef SetTtyGroup			/* turn on in config/machine.cf */
+   TTYGROUPDEF = -DUSE_TTY_GROUP
+#endif
+#ifdef UsePUCCPtyd			/* turn on in config/site.def */
+    PUCCPTYDDEF = -DPUCC_PTYD		/* does not need to be setuid */
+         PTYLIB = -lpucc
+#endif
+
+ OSMAJORVERSION = OSMajorVersion
+ OSMINORVERSION = OSMinorVersion
+
+   MAIN_DEFINES = -DUTMP $(TTYGROUPDEF) $(PUCCPTYDDEF) \
+		  -DOSMAJORVERSION=$(OSMAJORVERSION) \
+		  -DOSMINORVERSION=$(OSMINORVERSION)
+   MISC_DEFINES = /* -DALLOWLOGFILEEXEC */
+
+          SRCS1 = button.c charproc.c cursor.c data.c input.c \
+		  main.c menu.c misc.c screen.c scrollbar.c tabs.c \
+		  TekPrsTbl.c Tekproc.c util.c VTPrsTbl.c
+          OBJS1 = main.o input.o charproc.o cursor.o util.o tabs.o \
+		  screen.o scrollbar.o button.o Tekproc.o misc.o \
+		  VTPrsTbl.o TekPrsTbl.o data.o menu.o
+          SRCS2 = resize.c
+          OBJS2 = resize.o
+           SRCS = $(SRCS1) $(SRCS2)
+           OBJS = $(OBJS1) $(OBJS2)
+       PROGRAMS = resize xterm
+       DEPLIBS1 = XawClientDepLibs
+       DEPLIBS2 = 
+       PROGRAMS = xterm resize
+
+#ifndef TermcapLibrary
+#if SystemV && !defined(MacIIArchitecture)
+#if defined(CrayArchitecture) || defined(HPArchitecture) || defined(RsArchitecture)
+#define TermcapLibrary -lcurses		/* special cases of System V */
+#else
+#define TermcapLibrary -ltermlib	/* usually in here */
+#endif
+#else
+#define TermcapLibrary -ltermcap	/* bsd puts it here */
+#endif
+#endif
+
+     TERMCAPLIB = TermcapLibrary
+
+AllTarget($(PROGRAMS))
+
+SpecialObjectRule(main.o,NullParameter,$(MAIN_DEFINES))
+SpecialObjectRule(misc.o,NullParameter,$(MISC_DEFINES))
+SpecialObjectRule(charproc.o,NullParameter,$(MISC_DEFINES))
+
+#if InstallXtermSetUID
+SetUIDProgramTarget(xterm,$(OBJS1),$(DEPLIBS1),XawClientLibs,$(TERMCAPLIB) $(PTYLIB))
+#else
+NormalProgramTarget(xterm,$(OBJS1),$(DEPLIBS1),XawClientLibs,$(TERMCAPLIB) $(PTYLIB))
+#endif
+
+#if InstallXtermSetUID && defined(SunArchitecture) && HasSharedLibraries
+#if AlternateUsrLibDir
+#if OSMajorVersion > 4 || (OSMajorVersion == 4 && OSMinorVersion >= 1)
+LDOVERRIDE = -L$(DESTDIR)$(USRLIBDIR)
+#else
+#if HasGcc
+LDOVERRIDE = -static -L$(DESTDIR)$(USRLIBDIR)
+#else
+LDOVERRIDE = -Bstatic -L$(DESTDIR)$(USRLIBDIR)
+LDRESUME = -Bdynamic
+#endif
+#endif
+#endif
+install:: xterm
+	MakeDir($(DESTDIR)$(BINDIR))
+	$(RM) xterm.inst
+	$(CC) -o xterm.inst $(OBJS1) $(LDOPTIONS) $(LDOVERRIDE) -lXaw -lXmu -lXt -lXext -lX11 $(LDRESUME) $(LDLIBS) $(TERMCAPLIB) $(PTYLIB) $(EXTRA_LOAD_FLAGS)
+	$(INSTALL) -c $(INSTPGMFLAGS) $(INSTUIDFLAGS) xterm.inst $(DESTDIR)$(BINDIR)/xterm
+	$(RM) xterm.inst
+#else
+#if InstallXtermSetUID
+InstallProgramWithFlags(xterm,$(BINDIR),$(INSTUIDFLAGS))
+#else
+InstallProgramWithFlags(xterm,$(BINDIR),NullParameter)
+#endif
+#endif
+
+NormalProgramTarget(resize,$(OBJS2),$(DEPLIBS2),NullParameter,$(TERMCAPLIB))
+InstallProgramWithFlags(resize,$(BINDIR),NullParameter)
+
+InstallAppDefaults(XTerm)
+InstallManPage(xterm,$(MANDIR))
+InstallManPage(resize,$(MANDIR))
+DependTarget()

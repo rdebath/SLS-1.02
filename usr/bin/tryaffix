@@ -1,0 +1,116 @@
+: Use /bin/sh
+#
+# $Id: tryaffix.X,v 1.4 89/04/28 01:17:54 geoff Exp $
+#
+# Copyright 1987, 1988, 1989, by Geoff Kuenning, Manhattan Beach, CA
+# Permission for non-profit use is hereby granted.
+# All other rights reserved.
+# See "version.h" for a more complete copyright notice.
+#
+# $Log:	tryaffix.X,v $
+# Revision 1.4  89/04/28  01:17:54  geoff
+# Change Header to Id;  nobody cares about my pathnames.
+# 
+# Revision 1.3  88/12/26  02:34:42  geoff
+# Add a copyright notice.
+# 
+# Revision 1.2  88/02/29  01:22:35  geoff
+# Remove a couple of obsolete commented-out lines that assumed an
+# unsorted input dictionary.
+# 
+# Revision 1.1  88/02/28  23:12:16  geoff
+# Initial revision
+# 
+#
+# Try out affixes to see if they produce valid roots
+#
+# Usage:
+#
+#	tryaffix [-p | -s] [-c] dict-file affix[+addition] ...
+#
+#	The -p and -s flags specify whether prefixes or suffixes
+#	are being tried;  if neither is specified, suffixes are assumed.
+#
+#	If the -c flag is given, statistics on the various affixes are given:
+#	a count of words it potentially applies to, and an estimate of the
+#	number of dictionary bytes the flag would save.  The estimate will
+#	be high if the flag generates words that are currently generated
+#	by other flags.
+#
+#	The dictionary file, dict-file, must already be expanded and sorted,
+#	and things will work best if uppercase has been folded to lower with
+#	'tr'.
+#
+#	The "affixes" are things to be stripped from the dictionary
+#	file to produce trial roots:  for English, "con" and "ing"
+#	are examples.  The "additions" are letters that would have
+#	been stripped off the root before adding the affix.  For
+#	example, the affix "ing" strips "e" for words ending in "e"
+#	(as in "like --> liking") so we might run:
+#
+#	    tryaffix ing ing+e
+#
+#	to cover both cases.
+#
+SORTTMP=
+USAGE='tryaffix [-p | -s] [-c] dict-file affix[+addition] ...'
+counts=no
+pre=
+suf='$'
+while :
+do
+    case "$1" in
+	-p)
+	    pre='^'
+	    suf=
+	    ;;
+	-s)
+	    pre=
+	    suf='$'
+	    ;;
+	-c)
+	    counts=yes
+	    ;;
+	-*)
+	    echo "$USAGE" 1>&2
+	    exit 1
+	    ;;
+	*)
+	    break
+	    ;;
+    esac
+    shift
+done
+dict="$1"
+shift
+if [ ! -r "$dict" ]
+then
+    echo "Can't read $dict" 1>&2
+    echo "$USAGE" 1>&2
+    exit 1
+elif [ $# -eq 0 ]
+then
+    echo "$USAGE" 1>&2
+    exit 1
+fi
+while [ $# -ne 0 ]
+do
+    case "$1" in
+	*+*)
+	    affix=`expr "$1" : '\(.*\)+'`
+	    addition=`expr "$1" : '.*+\(.*\)'`
+	    sedscript="s/$pre$affix$suf/$addition/p"
+	    ;;
+	*)
+	    sedscript="s/$pre$1$suf//p"
+	    ;;
+    esac
+    if [ "$counts" = no ]
+    then
+	echo ===== "$1" =====
+	sed -n "$sedscript" "$dict" | comm -12 - "$dict"
+    else
+	echo "$1" `sed -n "$sedscript" "$dict" | comm -12 - "$dict" | wc -lc`
+    fi
+    shift
+done

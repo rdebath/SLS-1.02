@@ -1,0 +1,291 @@
+               GNU GO - the game of Go (Wei-Chi)
+               Version 1.1   last revised 3-1-89
+         Copyright (C) Free Software Foundation, Inc.
+                    written by Man L. Li
+                    modified by Wayne Iba
+                   documented by Bob Webber
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation - version 1.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License in file COPYING for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+Please report any bug/fix, modification, suggestion to
+
+mail address:   Man L. Li
+                Dept. of Computer Science
+                University of Houston
+                4800 Calhoun Road
+                Houston, TX 77004
+
+e-mail address: manli@cs.uh.edu         (Internet)
+                coscgbn@uhvax1.bitnet   (BITNET)
+                70070,404               (CompuServe)
+
+
+value 0 always used to mark empty square
+value 1 always used to indicate white
+value 2 always used to indicate black
+
+main()
+    Shows instructions.
+
+    If old game then read in information otherwise
+    Initializes the board stored in the board array p to zero.
+
+    Requests handicap (stored in local variable i.)
+
+    Displays board.
+
+    Asks which side you want to play (stored in local variable ans)
+    mymove and umove indicate color played by computer and user, respectively.
+    
+    if user black in handicap game or white in even game, computer goes first.
+
+    making a move means updating the board with the numeric value for color
+    of player.  genmove takes board indices i & j as reference parameters
+    and returns the ones that correspond to a new move for the computer,
+    it does not update the board.  the routine examboard then clears
+    of dead pieces (of the color passed as its parameter).  after the board 
+    has been updated, showboard displays board.
+
+    routine getmove convert the string the user types in into a valid
+    move i,j pair.
+
+    getmove manipulates global variable stop to indicate when game is
+    done.
+
+    the game stop after both pass, the user want to quit and save game
+    or the user stop the game
+
+    at the end of game, if the user types y to ``count score'' prompt,
+    then endgame is invoked, otherwise the program exits.
+
+
+showboard()
+    displays go board with algebraic notation on borders.  special logic
+    to make sure handicap markers are displayed appropriately done by
+    brute force.
+
+
+getmove(move, i, j)
+    if move = "stop" then global variable play changed to 0 exiting loop
+
+    if move = "save" then write game information to file and exit by
+    setting global variable to -1
+
+    if move = "pass" then increment global variable pass
+    otherwise, clear pass flag getij is invoked to convert move into i and j
+    coordinates.
+    if the board position is not empty, the last piece captured by
+    computer, or suicide predicate is true, then the move is flagged as 
+    illegal and getmove recurses.
+
+
+getij(move, i, j)
+    move string converted to board coordinates.
+
+
+genmove(i, j)
+    generates computers move and returns it in pointers i & j.
+    invoke eval(umove) to re-evaluate liberty of opponent pieces
+
+    findwinner looks for pieces of user that only have 3 or less liberties.
+    findsaver looks for pieces of computer that only have 3 or less liberties.
+    findpat looks for a pattern in stored database that can be used here.
+
+    STRATEGY:
+       choose move with maximum value from the followings:
+
+       find opponent piece to capture or attack with less than four liberties
+       save any piece if threaten with less than four liberties
+       try to match local play pattern for new move
+
+       no urgent move then do random move
+          when generating random move, bias row and column x
+          by rejecting the first x that satisfies
+	      ((x < 2) || (x > 16) || ((x > 5) && (x < 13)))
+          and on second try, reject an x that satisfies
+	      ((x < 2) || (x > 16))
+          on third try, take what you get.  done independently for
+          i and j.
+          invoke countlib to count liberties, if spot already taken
+            or liberties (taken off global lib) 0 or 1 or fill in own eye then
+            reject.
+
+          if number of try equals to MAXTRY then pass
+
+    after following STRATEGY to determine move, print it.
+
+
+seed(i) 
+   sets up a seed.  two versions depending on whether Sun (which uses
+   gettimeofday to set seed) or IBM PC (which uses interrupt 21 to get system
+   time).
+
+
+random(i)
+  simple conguence random number generator.  only used for making ``random''
+  moves, either in genmove() or in opening().
+
+
+eval(color)
+  evaluate liberties of pieces of a particular color using countlib.
+  result stored in global array l.
+
+
+examboard(color)
+  invokes eval(color)
+  remove pieces with zero liberties, updating count of pieces captured
+  in variables mk and uk for computer and user respectively.
+
+
+suicide(i, j)
+  check to see if new move is suicide via countlib().  if it is, check to 
+  see if it kills computer's pieces via eval() or if Ko takes place
+  returns 0 if move is good.
+
+
+countlib(m, n, color)
+    initializes global array ml to 1's and then uses routine count() to
+    count liberties at each square.
+
+
+count(i, j, color)
+    count liberties at given square. zero out value of that square.
+    if neighbor is still unmarked and its value on the board is still zero,
+     then it is marked as zero and lib count is updated, 
+    if neighbor is same color and unmarked, then count is recursively called.
+    this is done for all four neighbors, then the routine returns.
+
+    essentially this does a connected component search on region connected
+     to location i & j.
+
+
+findnextmove(m, n, i, j, val, minlib)
+   used by findsaver() to find next move for defense.
+   find new move i, j from group containing m, n
+   uses global array ma to keep track of where it has been.
+   for each neighbor, checks to see if it is empty.  If so, then it
+       calculate the new liberty and the relative value of the move.
+       Otherwise recurses on that neighbor.  After new move is found compare
+       it with other move and use the one with higher value.
+   returns 0 if couldn't find move.
+
+
+findwinner(i, j, val)
+   looks for an opponents piece to capture or attack with 1 to 3 liberties.
+   for each cell, check to see if its liberties are minlib and if so
+     invoke initmark.  evaluate move via findopen.  if findopen returns
+     1, then assign value to possible move.
+   select new move with highest value and return 1.
+   returns 0 if findopen never succeeded.
+
+
+initmark()
+   initialize ma array to zero.
+
+
+findopen(m, n, i, j, color, minlib, ct)
+   called by findwinner to find all open spaces for opponent's piece.
+   marks m,n entry in ma array.
+   for each neighbor, if neighbor is empty spot and not last place captured,
+     then count till all spaces are found and return 1 and move in i and j.
+     else if spot is color and not marked, then recurse returning 1 if
+             any subinvocation returns 1.
+
+
+findsaver(i, j, val)
+   find move if any pieces of 1 to 3 liberties is threatened
+   count how many pieces have minlib liberties.
+   if none, return 0.
+   else, for each cell, if one of computer's pieces and liberty is minlib,
+             then initmark(), and look for move via findnextmove.  if succeeds
+             then assign value for possible move.  decrement count of pieces
+                  threatened and select next move with maximum value and return
+                  1.
+  If no new move can be found then return zero and exit.
+
+findpatn(i, j)
+       if previous invocation of findpatn marked, then invoke opening
+           in that corner.  if opening can find a move on a vacant square, 
+           then mark this invocation and return value.  if not, then
+           clear mark and investigate corners.
+       for each marked corner (all corners initially marked), look to see if
+           opening can find a move by calling opening() twice.  if it can, 
+           mark invocation and return that move.
+       for each side, look to see if a particular large empty region exists,
+           if it does, make a particular move into that region.
+       use mathpat on each board location looking for pattern-moves to make
+       and select move with maximum value.
+       if none of these find something, return 0.
+
+
+matchpat(m, n, i, j, val)
+      for each given pattern, try all ways of placing them down with a corner
+      at m,n.  return recommended i,j and value if match found.  pattern
+      notation specifies cells that should be empty, where pieces of both sides
+      should be, whether must be on edge, and recommended move.  patterns
+      consist of at most 16 specified locations.  Try all patterns for each
+      piece and select the one with highest value.  Adjust value for patterns
+      to expand territories in favor of move at third and fourth line. Reduce
+      value for move at first and second line. Return 1 if pattern found else
+      return zero.
+
+
+openregion(i1, j1, i2, j2)
+       checks to see if rectangular region is all empty.
+
+
+opening(i, j, cnd, type)
+     type keeps track of which corner, move is reflected thru corner and
+       chosen without actually looking at board.
+     cnd indicates which move to make this time.  a move consists of a
+       location relative to a corner and a count of how many useful
+       different followup moves there all.  the useful followups are listed
+       by index into the same structure -- the one recommended for next
+       move is chosen randomly among possible moves.
+     first time in, location -1,-1 is returned. this value is always ignored.
+
+
+sethand(i)
+   setup handicap stones by brute force analysis.
+
+
+endgame()
+   keeps count of captures removed by user cleaning up board, keeps track
+   of dame placed by user cleaning up board, and uses findcolor to classify
+   territories.  final count presented with updated board showing how 
+   everything was classified.
+
+
+findcolor(i, j)
+      determines what color to label empty squares when counting up score
+      at end of game.  algorithm is to check both north and south neighbors
+      until run into occupied square or end of board.  if both are vacant
+      then east and west neighbors checked same way.  if both are vacant
+      return zero.  if one neighbor zero and other nonzero, return color
+      of nonzero neighbor.  if both neighbors nonzero and same, then return
+      that color. if both neighbors nonzero but differ, then return zero.
+
+
+showinst()
+     shows program header and a list of instructions to user.
+
+
+fioe(i, j)
+     check if new move (i, j) will fill in own eye at center and edge.  Only
+     single hole eye is checked.
+
+
+fval(newlib, minlib)
+     used in findnextmove in findnext.c.  Calculate relative value for new
+     move having newlib liberties with old pieces having minlib liberties.  

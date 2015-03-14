@@ -1,0 +1,227 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: get all definition modules on which the current compilation
+ *		 unit depends and construct an abstract tree for them
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/08/07 15:50:06 $
+ *	$Revision: 1.5 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE DefMods;
+
+FROM SYSTEM	IMPORT
+  ADR		;
+
+FROM Memory	IMPORT
+  Alloc		;
+
+FROM Idents	IMPORT
+  tIdent	;
+
+FROM Base	IMPORT
+  CheckDefFile	;
+
+FROM Scanner	IMPORT
+  BeginFile	;
+
+FROM Parser	IMPORT
+  Parser	, ParsAttribute;
+
+FROM Errors	IMPORT
+  ErrorMessageP	, ErrorMessagePI, Fatal		, 
+  Error		, Ident		, CyclicDefMods	, ModNotFound	;
+
+FROM Positions	IMPORT
+  tPosition	;
+
+FROM Tree	IMPORT
+  tTree		, mROOT		, mCompUnits0	, Implementation,
+  ProgMod	, DefMod	, ImpIds0	, Import0	,
+  From		, ReverseTree	;
+
+FROM Defs	IMPORT
+  IdentSYSTEM	;
+
+FROM AssocTab	IMPORT
+  BeginAssocTab	, PutAssoc	, GetAssoc	, CloseAssocTab	;
+
+TYPE
+  tMarkClass	= (eNotAnalyzed, eAnalyzed, eError);
+  tMarkPtr	= POINTER TO tMarkClass;
+
+(* The association table is used to keep track of each definition	*)
+(* module, whether it has been read in and whether it's import		*)
+(* statements have been completely analyzed:				*)
+(*									*)
+(*	GetAssoc (ModuleName, Mark);					*)
+(*									*)
+(*	IF Mark = NIL THEN						*)
+(*	  definition module 'ModuleName' not read in			*)
+(*	ELSIF Mark^ = eNotAnalyzed THEN					*)
+(*	  definition module 'ModuleName' read in, but it's import	*)
+(*	  statements are not completely analyzed			*)
+(*	ELSIF Mark^ = eAnalyzed THEN					*)
+(*	  definition module 'ModuleName' read in and it's import	*)
+(*	  statements have been completely analyzed			*)
+(*	ELSIF Mark^ = eError THEN					*)
+(*	  definition module 'ModuleName' not found or			*)
+(*	  definition module 'ModuleName' contains syntactic errors or	*)
+(*	  module 'ModuleName' is not a definition modules		*)
+(*	END;								*)
+
+VAR
+  Tree		: tTree;
+
+(*------- MakeMark -----------------------------------------------------------*)
+
+PROCEDURE MakeMark (Class: tMarkClass): tMarkPtr;
+VAR
+  PtrToMark	: tMarkPtr;
+BEGIN
+  PtrToMark	:= Alloc (SIZE (tMarkClass));
+  PtrToMark^	:= Class;
+  RETURN PtrToMark;
+END MakeMark;
+
+(*------- GetDefinitionModules -----------------------------------------------*)
+
+PROCEDURE GetDefinitionModules	(CompUnit: tTree; VAR Root: tTree);
+(* IN:		The current compilation unit 'CompUnit'.		*)
+(*		PRECONDITION: Tree^.Kind IN {DefMod, ProgMod}		*)
+(* OUT:		'Root' is a tree (module list) that consists of the	*)
+(*		current compilation unit 'CompUnit' and of all defini-	*)
+(*		tion modules on which the current compilation unit	*)
+(*		depends. The tree is ordered such that each module (	*)
+(*		compilation unit) depends only on modules (compilation	*)
+(*		units) preceding it in the module list. The current	*)
+(*		compilation unit is always the last element on the list.*)
+(*		POSTCONDITION: Tree^.Kind = ROOT			*)
+BEGIN
+  Tree	:= mCompUnits0 ();
+  BeginAssocTab;
+  (* mark pseudo module SYSTEM as read in and analyzed		*)
+  PutAssoc (IdentSYSTEM, MakeMark (eAnalyzed));
+
+  IF CompUnit^.Kind = ProgMod THEN
+    IF CompUnit^.ProgMod.Kind = Implementation THEN
+      (* get corresponding definition module	*)
+      GetDefinitionModule (CompUnit^.ProgMod.Ident, CompUnit^.ProgMod.Pos);
+    END;
+    (* analyze import statements of current compilation unit	*)
+    TraverseImports (CompUnit);
+  ELSE
+    (* mark definition module as read in and analyze it's	*)
+    (* import statements					*)
+    PutAssoc (CompUnit^.DefMod.Ident, MakeMark (eNotAnalyzed));
+    TraverseImports (CompUnit);
+  END;
+
+  CloseAssocTab;
+  Root := mROOT (ReverseTree (Tree));
+END GetDefinitionModules;
+
+(*------- TraverseImports ----------------------------------------------------*)
+
+PROCEDURE TraverseImports (Module: tTree);
+(* Analyze import statements of module 'Module'. TraverseImports	*)
+(* performs a depth first search (called in GetDefinitionModule again).	*)
+VAR
+  Import	,
+  Ids		: tTree;
+  PtrToMark	: tMarkPtr; 
+BEGIN
+  CASE Module^.Kind OF
+  | DefMod	: Import := Module^.DefMod.Import;
+  | ProgMod	: Import := Module^.ProgMod.Import;
+  END;
+
+  WHILE Import^.Kind # Import0 DO
+
+    IF Import^.Kind = From THEN	(* FROM mod IMPORT ids;	*)
+
+      GetAssoc (Import^.From.Ident, PtrToMark);
+
+      IF PtrToMark = NIL THEN			(* module not read in	*)
+	GetDefinitionModule (Import^.From.Ident, Import^.From.Pos);
+      ELSIF PtrToMark^ = eNotAnalyzed THEN	(* cyclic dependence	*)
+	ErrorMessageP (CyclicDefMods, Fatal, Import^.From.Pos);
+      END;
+
+    ELSE			(* IMPORT ids;		*)
+
+      Ids := Import^.Objects.ImpIds;
+
+      WHILE Ids^.Kind # ImpIds0 DO
+
+	GetAssoc (Ids^.ImpIds1.Ident, PtrToMark);
+
+	IF PtrToMark = NIL THEN			(* module not read in	*)
+	  GetDefinitionModule (Ids^.ImpIds1.Ident, Ids^.ImpIds1.Pos);
+	ELSIF PtrToMark^ = eNotAnalyzed THEN	(* cyclic dependence	*)
+	  ErrorMessageP (CyclicDefMods, Fatal, Ids^.ImpIds1.Pos);
+	END;
+
+	Ids := Ids^.ImpIds1.Next;
+      END; (* WHILE *)
+    END; (*IF *)
+
+    Import := Import^.Import1.Next;
+  END; (* WHILE *)
+
+  IF Module^.Kind # ProgMod THEN
+    (* note that the import statements of definition module	*)
+    (* 'ModuleName' have been completely analyzed		*)
+    GetAssoc (Module^.DefMod.Ident, PtrToMark);
+    PtrToMark^	:= eAnalyzed;
+    PutAssoc (Module^.DefMod.Ident, PtrToMark);
+  END;
+
+  Module^.CompUnit.Next := Tree;
+  Tree := Module;
+END TraverseImports;
+
+(*------- GetDefinitionModule ------------------------------------------------*)
+
+PROCEDURE GetDefinitionModule (ModuleName: tIdent; Pos: tPosition);
+(* read definition module 'ModuleName' and call TraverseImports to	*)
+(* analyze it's import statements.					*)
+VAR
+  Success	: BOOLEAN;
+  FileName	: ARRAY [0..255] OF CHAR;
+  ParseErrors	: CARDINAL;
+BEGIN
+  CheckDefFile (ModuleName, FileName, Success);
+
+  IF NOT Success THEN			(* module not found	*)
+    PutAssoc (ModuleName, MakeMark (eError));
+    ErrorMessagePI (ModNotFound, Error, Pos, Ident, ADR (ModuleName));
+  ELSE
+
+    BeginFile (FileName);
+    ParseErrors := Parser ();
+
+    IF ParseErrors = 0 THEN
+
+      IF ParsAttribute.Tree^.Kind = ProgMod THEN
+	(* not a definition module	*)
+        PutAssoc (ModuleName, MakeMark (eError));
+        ErrorMessagePI (ModNotFound, Error, Pos, Ident, ADR (ModuleName));
+      ELSE
+	(* mark definition module as read in and analyze it's	*)
+	(* import statements					*)
+        PutAssoc (ModuleName, MakeMark (eNotAnalyzed));
+        TraverseImports (ParsAttribute.Tree);
+      END; (* IF *)
+
+    ELSE				(* syntactic errors	*)
+       PutAssoc (ModuleName, MakeMark (eError));
+    END; (* IF *)
+
+  END; (* IF *)
+END GetDefinitionModule;
+
+END DefMods.

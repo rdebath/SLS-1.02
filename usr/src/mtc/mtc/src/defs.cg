@@ -1,0 +1,1103 @@
+/*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: definition table
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/02/05 09:09:54 $
+ *	$Revision: 1.6 $
+ *
+ ***/
+
+TREE Defs
+
+IMPORT {
+FROM SYSTEM	IMPORT ADDRESS;
+FROM IO		IMPORT tFile;
+FROM Idents	IMPORT tIdent;
+FROM Values	IMPORT tValue;
+}
+
+EXPORT {
+TYPE tEnv	= tDefs;	(* type to represent environments	*)
+TYPE tObject	= tDefs;	(* type for object descriptions		*)
+TYPE tObjects	= tDefs;	(* type to repr. lists of object descr.	*)
+TYPE tCObjects	= tDefs;	(* type to repr. lists of object descr.	*)
+TYPE tType	= tDefs;	(* representation of data types		*)
+TYPE tTypes	= tDefs;	(* type to repr. formal parameter lists	*)
+TYPE tSelectors	= tDefs;	(* type to repr. record field selectors	*)
+TYPE tStrings	= tDefs;	(* type to repr. lists of string params.*)
+
+TYPE tVoid	= (cVoid);
+
+CONST NoEnv		= NoDefs;	(* empty environment		*)
+CONST NoObjects		= NoDefs;	(* empty list of object descr.	*)
+CONST NoCObjects	= NoDefs;	(* empty list of object descr.	*)
+CONST NoTypes		= NoDefs;	(* empty formal parameter list	*)
+CONST NoSelectors	= NoDefs;	(* empty list of record field	*)
+CONST NoStrings		= NoDefs;	(* empty list of string params.	*)
+
+CONST
+   ProcABS		=  1;		(* standard procedures		*)
+   ProcCAP		=  2;
+   ProcCHR		=  3;
+   ProcDEC		=  4;
+   ProcEXCL		=  5;
+   ProcFLOAT		=  6;
+   ProcHALT		=  7;
+   ProcHIGH		=  8;
+   ProcINC		=  9;
+   ProcINCL		= 10;
+   ProcMAX		= 11;
+   ProcMIN		= 12;
+   ProcODD		= 13;
+   ProcORD		= 14;
+   ProcSIZE		= 15;
+   ProcTRUNC		= 16;
+   ProcVAL		= 17;
+   ProcADR		= 18;
+   ProcTSIZE		= 19;
+   ProcNEWPROCESS	= 20;
+   ProcTRANSFER		= 21;
+   ProcIOTRANSFER	= 22;
+   ProcNEW		= 23;
+   ProcDISPOSE		= 24;
+
+VAR NoObject	: tObject;		(* default, error, or no object	*)
+VAR NoType	: tType;		(* default, error, or no type	*)
+
+VAR Predefs	: tObjects;		(* predefined objects		*)
+
+VAR
+   ModuleSYSTEM	: tObject;		(* module SYSTEM		*)
+
+VAR
+   IdentALLOC	,			(* identifier ALLOCATE		*)
+   IdentDEALLOC	,			(* identifier DEALLOCATE	*)
+   IdentSYSTEM	,			(* identifier of module SYSTEM	*)
+   IdentLONGCARD: tIdent;		(* identifier of type LONGCARD	*)
+
+VAR
+  TypeSHORTINT	,			(* predefined types	*)
+  TypeLONGINT	,
+  TypeSHORTCARD	,
+  TypeLONGCARD	,
+  TypeREAL	,
+  TypeLONGREAL	,
+  TypeBOOLEAN	,
+  TypeCHAR	,
+  TypeBITSET	,
+  TypePROC	,
+  TypeWORD	,
+  TypeADDRESS	,
+  TypeIntCard	,
+  TypeNIL	,
+  TypeSTRING	,
+  TypeStringChar,
+  TypeVOID	: tType;
+
+
+PROCEDURE UNION		(Objects1, Objects2: tObjects): tObjects;
+			(* performs a union of two object lists		*)
+			(* (mUnion) with an optimization of some very	*)
+			(* frequent special cases to speed up later	*)
+			(* identification				*)
+
+(*
+ *	procedures to extend object and type descriptions
+ *)
+
+PROCEDURE mConst2	(Object: tObject; Value: tValue): tObject;
+PROCEDURE mModule2	(Object: tObject; Objects: tObjects): tObject;
+PROCEDURE mModule3	(Object: tObject; Locals: tObjects): tObject;
+PROCEDURE mTypeDecl2	(Object: tObject; Type: tType): tObject;
+PROCEDURE mTypeDecl3	(Object: tObject; Type: tType): tObject;
+PROCEDURE mOpaque2	(Object: tObject; Type: tType): tObject;
+PROCEDURE mOpaque3	(Object: tObject; Type: tType): tObject;
+PROCEDURE mProc2	(Object: tObject; Locals: tObjects; IsExported: BOOLEAN): tObject;
+
+PROCEDURE mOpaqueType2	(Type: tType; FullType: tType): tType;
+PROCEDURE mArray2	(Type: tType; IsOpen: BOOLEAN; IndexType, ElemType: tType): tType;
+PROCEDURE mEnumeration2	(Type: tType; EnumLiterals: tObjects; MaxValue: SHORTCARD): tType;
+PROCEDURE mPointer2	(Type: tType; TargetType: tType): tType;
+PROCEDURE mProcType2	(Type: tType; FormalTypes: tTypes; ResultType: tType): tType;
+PROCEDURE mRecord2	(Type: tType; Fields: tObjects): tType;
+PROCEDURE mSet2		(Type: tType; BaseType: tType): tType;
+PROCEDURE mSubrange2	(Type: tType; BaseType: tType): tType;
+PROCEDURE mSubrange3	(Type: tType; Lwb, Upb: tValue): tType;
+
+PROCEDURE DefineCIdent	(Object: tObject; CIdent: tIdent): tIdent;
+PROCEDURE NestedUse	(Object: tObject; Level: SHORTCARD): BOOLEAN;
+
+PROCEDURE mVoid1	(Object: tObject; Void: tVoid): tVoid;
+PROCEDURE mVoid2	(Void1, Void2: tVoid): tVoid;
+
+(*
+ *	procedures for identification
+ *)
+
+PROCEDURE GroundType	(Type: tType): tType;
+PROCEDURE Identify	(Ident: tIdent; Env: tEnv): tObject;
+PROCEDURE Identify2	(Ident: tIdent; Objects: tObjects): tObject;
+PROCEDURE IsDeclared	(Ident: tIdent; Objects: tObjects): BOOLEAN;
+PROCEDURE LookUp	(M2Object: tObject; Objects: tCObjects): tIdent;
+
+(*
+ *	procedures to collect object descriptions
+ *)
+
+PROCEDURE Filter	(Objects: tObjects): tObjects;
+PROCEDURE Pointers	(GlobalPtrs: BOOLEAN; Objects: tObjects): tCObjects;
+PROCEDURE OpenArrays	(Objects: tObjects; VAR pValueOpens, pVAROpens: tCObjects);
+
+(*
+ *	procedures for 'safe' access to object and type descriptions
+ *)
+
+PROCEDURE GetSelectors	(Object: tObject): tSelectors;
+PROCEDURE GetExport1	(Object: tObject): tObjects;
+PROCEDURE GetExport2	(Object: tObject): tObjects;
+PROCEDURE GetObjects	(Object: tObject): tObjects;
+PROCEDURE GetType	(Object: tObject): tType;
+
+PROCEDURE GetIndexType	(Type: tType): tType;
+PROCEDURE GetElemType	(Type: tType): tType;
+PROCEDURE GetTargetType	(Type: tType): tType;
+PROCEDURE GetFormals	(Type: tType): tTypes;
+PROCEDURE GetResultType	(Type: tType): tType;
+PROCEDURE GetFields	(Type: tType): tObjects;
+
+PROCEDURE Head		(Types: tTypes; VAR IsVAR: BOOLEAN; VAR Type: tType);
+PROCEDURE Tail		(Types: tTypes): tTypes;
+
+PROCEDURE GetLiteral	(Objects: tObjects; Index: SHORTCARD): tObject;
+
+(*
+ *	predicates on objects and types
+ *)
+
+PROCEDURE IsExported	(Object: tObject): BOOLEAN;
+PROCEDURE IsOpenArray	(Object: tObject): BOOLEAN;
+PROCEDURE IsVAR		(Object: tObject): BOOLEAN;
+PROCEDURE IsProcedure	(Object: tObject): BOOLEAN;
+PROCEDURE IsOfType	(Object: tObject): BOOLEAN;
+
+PROCEDURE IsForward	(PosPointerTo: SHORTCARD; TypeObj: tObject): BOOLEAN;
+
+PROCEDURE IsIntType	(Type: tType): BOOLEAN;
+PROCEDURE IsOpen	(Type: tType): BOOLEAN;
+
+(*
+ *	procedures for test output
+ *)
+
+PROCEDURE WriteEnv	(f: tFile; Env: tEnv);
+PROCEDURE WriteObjects	(f: tFile; Objects: tObjects);
+}
+
+GLOBAL {
+FROM SYSTEM	IMPORT
+   ADDRESS	;
+
+FROM IO		IMPORT
+   tFile	, StdOutput	, WriteS	, WriteNl	;
+
+FROM Strings	IMPORT
+   tString	, ArrayToString	;
+
+FROM Idents	IMPORT
+   tIdent	, NoIdent	, MakeIdent	, WriteIdent	;
+
+FROM Values	IMPORT
+   tValue	, TrueValue	, FalseValue	, NilValue	,
+   ErrorValue	, TypeOfValue	, ValueToInt	;
+
+IMPORT Values;
+
+#undef begintIdent
+#define begintIdent(a)		a := NoIdent;
+#undef begintValue
+#define begintValue(a)		a := ErrorValue;
+#undef beginBOOLEAN
+#define beginBOOLEAN(a)		a := FALSE;
+#undef beginSHORTCARD
+#define beginSHORTCARD(a)	a := 0;
+
+VAR Str		: tString;
+
+PROCEDURE UNION		(Objects1, Objects2: tObjects): tObjects;
+(* Performs a union of two object lists (mUnion) with an optimization	*)
+(* of some very frequent special cases to speed up later identification.*)
+   BEGIN
+      IF Objects1 = NoObjects THEN
+	 RETURN Objects2;
+      ELSIF Objects2 = NoObjects THEN
+	 RETURN Objects1;
+      ELSE
+         RETURN mUnion (Objects1, Objects2);
+      END;
+   END UNION;
+
+(*
+ *	procedures to extend object and type descriptions
+ *)
+
+PROCEDURE mConst2	(Object: tObject; Value: tValue): tObject;
+   BEGIN
+      Object^.Const1.Value := Value;
+      RETURN Object;
+   END mConst2;
+
+PROCEDURE mModule2	(Object: tObject; Objects: tObjects): tObject;
+   BEGIN
+      Object^.Module1.Objects := Objects;
+      RETURN Object;
+   END mModule2;
+
+PROCEDURE mModule3	(Object: tObject; Locals: tObjects): tObject;
+   BEGIN
+      Object^.Module1.Locals := Locals;
+      RETURN Object;
+   END mModule3;
+
+PROCEDURE mTypeDecl2	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.TypeDecl1.Type := Type;
+      RETURN Object;
+   END mTypeDecl2;
+
+PROCEDURE mTypeDecl3	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.TypeDecl1.Type := Type;
+      RETURN Object;
+   END mTypeDecl3;
+
+PROCEDURE mOpaque2	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.Opaque1.Type := Type;
+      RETURN Object;
+   END mOpaque2;
+
+PROCEDURE mOpaque3	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.Opaque1.Type := Type;
+      RETURN Object;
+   END mOpaque3;
+
+PROCEDURE mProc2	(Object: tObject; Locals: tObjects; IsExported: BOOLEAN): tObject;
+   BEGIN
+      Object^.Proc1.Locals     := Locals;
+      Object^.Proc1.IsExported := IsExported;
+      RETURN Object;
+   END mProc2;
+
+PROCEDURE mOpaqueType2	(Type: tType; FullType: tType): tType;
+   BEGIN
+      Type^.OpaqueType1.Type := FullType;
+      RETURN Type;
+   END mOpaqueType2;
+
+PROCEDURE mArray2	(Type: tType; pIsOpen: BOOLEAN; pIndexType, pElemType: tType): tType;
+   BEGIN
+      WITH Type^.Array1 DO
+	 IsOpen    := pIsOpen;
+	 IndexType := pIndexType;
+	 ElemType  := pElemType;
+      END;
+      RETURN Type;
+   END mArray2;
+
+PROCEDURE mEnumeration2	(Type: tType; EnumLiterals: tObjects; MaxValue: SHORTCARD): tType;
+   BEGIN
+      Type^.Enumeration1.Objects  := EnumLiterals;
+      Type^.Enumeration1.MaxValue := MaxValue;
+      RETURN Type;
+   END mEnumeration2;
+
+PROCEDURE mPointer2	(Type: tType; TargetType: tType): tType;
+   BEGIN
+      Type^.Pointer1.Type := TargetType;
+      RETURN Type;
+   END mPointer2;
+
+PROCEDURE mProcType2	(Type: tType; FormalTypes: tTypes; ResultType: tType): tType;
+   BEGIN
+      WITH Type^.ProcType1 DO
+	 Types := FormalTypes;
+	 Type  := ResultType;
+      END;
+      RETURN Type;
+   END mProcType2;
+
+PROCEDURE mRecord2	(Type: tType; Fields: tObjects): tType;
+   BEGIN
+      Type^.Record1.Objects := Fields;
+      RETURN Type;
+   END mRecord2;
+
+PROCEDURE mSet2		(Type: tType; BaseType: tType): tType;
+   BEGIN
+      Type^.Set1.Type := BaseType;
+      RETURN Type;
+   END mSet2;
+
+PROCEDURE mSubrange2	(Type: tType; BaseType: tType): tType;
+   BEGIN
+      Type^.Subrange1.Type := BaseType;
+      RETURN Type;
+   END mSubrange2;
+
+PROCEDURE mSubrange3	(Type: tType; Lwb, Upb: tValue): tType;
+   BEGIN
+      IF Type^.Subrange1.Type = TypeVOID THEN
+	 CASE Lwb.Kind OF
+	 | Values.Integer	: IF ValueToInt (Lwb) < 0 THEN
+				     Type^.Subrange1.Type := TypeLONGINT;
+				  ELSE
+				     Type^.Subrange1.Type := TypeLONGCARD;
+				  END;
+	 | Values.Boolean	: Type^.Subrange1.Type := TypeBOOLEAN;
+	 | Values.Char	,
+	   Values.StringChar	: Type^.Subrange1.Type := TypeCHAR;
+	 | Values.Enumeration	: Type^.Subrange1.Type := GetType (Lwb.EnumValue);
+	 ELSE ;
+	 END;
+      END;
+      RETURN Type;
+   END mSubrange3;
+
+PROCEDURE DefineCIdent	(Object: tObject; CIdent: tIdent): tIdent;
+   BEGIN
+      Object^.Object.CIdent := CIdent;
+      RETURN CIdent;
+   END DefineCIdent;
+
+PROCEDURE NestedUse	(Object: tObject; Level: SHORTCARD): BOOLEAN;
+   BEGIN
+      IF (Object^.Kind       # Var1 ) OR	(* no variable		*)
+         (Object^.Var1.Level = 0    ) OR	(* global variable	*)
+	 (Object^.Var1.Level = Level)		(* local variable	*)
+      THEN
+	 RETURN FALSE;
+      ELSE
+	 (* variable is neither local nor global	*)
+	 Object^.Var1.NestedUse := TRUE;
+	 RETURN TRUE;
+      END;
+   END NestedUse;
+
+PROCEDURE mVoid1	(Object: tObject; Void: tVoid): tVoid;
+   BEGIN
+      RETURN cVoid;
+   END mVoid1;
+
+PROCEDURE mVoid2	(Void1, Void2: tVoid): tVoid;
+   BEGIN
+      RETURN cVoid;
+   END mVoid2;
+
+(*
+ *	procedures for identification
+ *)
+
+PROCEDURE GroundType	(Type: tType): tType;
+
+   VAR Cycle	: BOOLEAN;
+
+   PROCEDURE CheckCycle1 (Type: tType; VAR Cycle: BOOLEAN);
+   BEGIN
+      IF Type^.Kind = Qualident1 THEN
+	 IF Type^.yyHead.yyMark # 0 THEN
+	    Cycle := TRUE;
+	 ELSE
+	   Type^.yyHead.yyMark := 1;
+	   CheckCycle2 (Type^.Qualident1.Object, Cycle);
+	   Type^.yyHead.yyMark := 0;
+	 END;
+      ELSE
+	 Cycle := FALSE;
+      END;
+   END CheckCycle1;
+
+   PROCEDURE CheckCycle2 (Object: tObject; VAR Cycle: BOOLEAN);
+   BEGIN
+      IF Object^.Kind = TypeDecl1 THEN
+	 CheckCycle1 (Object^.TypeDecl1.Type, Cycle);
+      ELSE
+	 Cycle := FALSE;
+      END;
+   END CheckCycle2;
+
+   BEGIN
+      (* test for cycles like: TYPE t1 = t2; t2 = t1; *)
+      CheckCycle1 (Type, Cycle);
+      IF Cycle THEN
+         RETURN NoType;
+      ELSE
+	 RETURN GroundType1 (Type);
+      END;
+   END GroundType;
+
+PROCEDURE GroundType1	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Qualident1 THEN
+	 RETURN GroundType2 (Type^.Qualident1.Object);
+      END;
+      RETURN Type;
+   END GroundType1;
+
+PROCEDURE GroundType2	(Object: tObject): tType;
+   BEGIN
+      IF Object^.Kind = TypeDecl1 THEN
+	 RETURN GroundType (Object^.TypeDecl1.Type);
+      ELSIF Object^.Kind = Opaque1 THEN
+	 RETURN Object^.Opaque1.Type;
+      END;
+      RETURN NoType;
+   END GroundType2;
+
+PROCEDURE Identify	(Ident: tIdent; Env: tEnv): tObject;
+   VAR Object	: tDefs;
+   BEGIN
+      WHILE Env # NoEnv DO
+	 Object := Identify2 (Ident, Env^.Env.Objects);
+	 IF Object # NoObject THEN RETURN Object; END;
+	 Env := Env^.Env.HiddenEnv;
+      END;
+      RETURN NoObject;
+   END Identify;
+
+PROCEDURE Identify2	(Ident: tIdent; Objects: tObjects): tObject;
+   VAR Object	: tDefs;
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    IF Objects^.Elmt.Ident = Ident THEN
+	       RETURN Objects^.Elmt.Object;
+	    END;
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    Object := Identify2 (Ident, Objects^.Union.Objects1);
+	    IF Object # NoObject THEN RETURN Object; END;
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+      RETURN NoObject;
+   END Identify2;
+
+PROCEDURE IsDeclared	(Ident: tIdent; Objects: tObjects): BOOLEAN;
+   BEGIN
+      RETURN Identify2 (Ident, Objects) # NoObject;
+   END IsDeclared;
+
+PROCEDURE LookUp	(M2Object: tObject; Objects: tCObjects): tIdent;
+   BEGIN
+      WHILE Objects # NoCObjects DO
+	 IF Objects^.CObjects.M2Object = M2Object THEN
+	    RETURN Objects^.CObjects.CObject;
+	 END;
+	 Objects := Objects^.CObjects.Next;
+      END;
+      RETURN NoIdent;
+   END LookUp;
+
+(*
+ *	procedures to collect object descriptions
+ *)
+
+VAR Result	: tObjects;
+
+PROCEDURE Filter	(Objects: tObjects): tObjects;
+   BEGIN
+      Result := NoObjects;
+      Filter2 (Objects);
+      RETURN Result;
+   END Filter;
+
+PROCEDURE Filter2	(Objects: tObjects);
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    WITH Objects^.Elmt DO
+	       CASE Object^.Kind OF
+	       | Const1		,
+		 EnumLiteral1	,
+		 TypeDecl1	,
+		 Var1		: Result := mElmt (Ident, FALSE, Object, Result);
+	       ELSE
+	       END; (* CASE *)
+	    END; (* WITH *)
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    Filter2 (Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+   END Filter2;
+
+VAR Result1	: tCObjects;
+
+PROCEDURE Pointers	(GlobalPtrs: BOOLEAN; Objects: tObjects): tCObjects;
+   BEGIN
+      Result1 := NoCObjects;
+      Pointers2 (GlobalPtrs, Objects);
+      RETURN Result1;
+   END Pointers;
+
+PROCEDURE Pointers2	(GlobalPtrs: BOOLEAN; Objects: tObjects);
+   VAR Object	: tObject;
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind = Elmt THEN
+	    IF NOT Objects^.Elmt.IsPseudoObj THEN
+	       Object := Objects^.Elmt.Object;
+	       CASE Object^.Kind OF
+	       | Var1		:
+		  IF Object^.Var1.NestedUse THEN
+		     Result1 := mCObjects (Object, Result1);
+		  END;
+
+	       | Proc1		:
+		  IF GlobalPtrs THEN
+		     Pointers2 (GlobalPtrs, Object^.Proc1.Locals);
+		  END;
+
+	       | Module1	:
+		  Pointers2 (GlobalPtrs, Object^.Module1.Locals);
+	       ELSE
+	       END;
+	    END;
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    Pointers2 (GlobalPtrs, Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+   END Pointers2;
+
+VAR ValueOpens	,
+    VAROpens	: tCObjects;
+
+PROCEDURE OpenArrays	(Objects: tObjects; VAR pValueOpens, pVAROpens: tCObjects);
+   BEGIN
+      ValueOpens  := NoCObjects;
+      VAROpens    := NoCObjects;
+      OpenArrays2 (Objects);
+      pValueOpens := ValueOpens;
+      pVAROpens   := VAROpens;
+   END OpenArrays;
+
+PROCEDURE OpenArrays2	(Objects: tObjects);
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    WITH Objects^.Elmt DO
+	       IF IsOpenArray (Object) THEN
+		  IF IsVAR (Object) THEN
+		     VAROpens   := mCObjects (Object, VAROpens);
+		  ELSE
+		     ValueOpens := mCObjects (Object, ValueOpens);
+		  END; (* IF *)
+	       END; (* IF *)
+	    END; (* WITH *)
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    OpenArrays2 (Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END; (* IF *)
+      END; (* WHILE *)
+   END OpenArrays2;
+
+(*
+ *	procedures for 'safe' access to object and type descriptions
+ *)
+
+PROCEDURE GetSelectors	(Object: tObject): tSelectors;
+   BEGIN
+      IF Object^.Kind = Field1 THEN
+	 RETURN Object^.Field1.Selectors;
+      ELSE
+	 RETURN NoSelectors;
+      END; (* IF *)
+   END GetSelectors;
+
+PROCEDURE GetExport1	(Object: tObject): tObjects;
+   BEGIN
+      IF Object^.Kind = Module1 THEN
+	 RETURN Object^.Module1.ExportList;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetExport1;
+
+PROCEDURE GetExport2	(Object: tObject): tObjects;
+   BEGIN
+      IF Object^.Kind = Module1 THEN
+	 RETURN Object^.Module1.Objects;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetExport2;
+
+PROCEDURE GetObjects	(Object: tObject): tObjects;
+   BEGIN
+      IF (Object^.Kind = Var1) AND (Object^.Var1.Type^.Kind = Record1) THEN
+	 RETURN Object^.Var1.Type^.Record1.Objects;
+      ELSIF (Object^.Kind = Field1) AND (Object^.Field1.Type^.Kind = Record1) THEN
+	 RETURN Object^.Field1.Type^.Record1.Objects;
+      ELSIF Object^.Kind = Module1 THEN
+	 RETURN Object^.Module1.Objects;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetObjects;
+
+PROCEDURE GetType	(Object: tObject): tType;
+   BEGIN
+      CASE Object^.Kind OF
+
+	(* The type of a constant is guessed from its value. This works	*)
+	(* well for all constants with the exception of set constants.	*)
+	(* Therefore all named set constants receive the type BITSET.	*)
+      | Const1		: RETURN TypeOfValue (Object^.Const1.Value);
+
+      | EnumLiteral1	: RETURN Object^.EnumLiteral1.Type;
+      | Field1		: RETURN Object^.Field1.Type;
+      | Module1		: RETURN TypeVOID;
+      | Proc1		: RETURN Object^.Proc1.Type;
+      | ProcHead1	: RETURN Object^.ProcHead1.Type;
+      | TypeDecl1	: RETURN Object^.TypeDecl1.Type;
+      | Opaque1		: RETURN Object^.Opaque1.Type;
+      | Var1		: RETURN Object^.Var1.Type;
+      | StdProc1	: RETURN Object^.StdProc1.Type;
+      ELSE
+	RETURN NoType;
+      END; (* CASE *)
+   END GetType;
+
+PROCEDURE GetIndexType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Array1 THEN
+	 RETURN Type^.Array1.IndexType;
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetIndexType;
+
+PROCEDURE GetElemType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Array1 THEN
+	 RETURN Type^.Array1.ElemType;
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetElemType;
+
+PROCEDURE GetTargetType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Pointer1 THEN
+	 RETURN Type^.Pointer1.Type;
+      ELSIF Type^.Kind = OpaqueType1 THEN
+	 RETURN GetTargetType (Type^.OpaqueType1.Type);
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetTargetType;
+
+PROCEDURE GetFormals	(Type: tType): tTypes;
+   BEGIN
+      IF Type^.Kind = ProcType1 THEN
+	 RETURN Type^.ProcType1.Types;
+      ELSIF Type^.Kind = StdProcType1 THEN
+	 (* formal types of standard procedures are not	*)
+	 (* handled within the AG			*)
+	 RETURN NoTypes;
+      ELSE
+	 RETURN NoTypes;
+      END; (* IF *)
+   END GetFormals;
+
+PROCEDURE GetResultType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = ProcType1 THEN
+	 RETURN Type^.ProcType1.Type;
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetResultType;
+
+PROCEDURE GetFields	(Type: tType): tObjects;
+   BEGIN
+      IF Type^.Kind = Record1 THEN
+	 RETURN Type^.Record1.Objects;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetFields;
+
+PROCEDURE Head		(Types: tTypes; VAR IsVAR: BOOLEAN; VAR Type: tType);
+   BEGIN
+      IF Types # NoTypes THEN
+	 IsVAR := Types^.Types.IsVAR;
+	 Type  := Types^.Types.Type;
+      ELSE
+	 IsVAR := FALSE;
+	 Type  := NoType;
+      END; (* IF *)
+   END Head;
+
+PROCEDURE Tail		(Types: tTypes): tTypes;
+   BEGIN
+      IF Types # NoTypes THEN
+	 RETURN Types^.Types.Next;
+      ELSE
+	 RETURN NoTypes;
+      END; (* IF *)
+   END Tail;
+
+PROCEDURE GetLiteral	(Objects: tObjects; Index: SHORTCARD): tObject;
+   VAR Object: tObject;
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 Object := Objects^.Elmt.Object;
+	 IF Object^.EnumLiteral1.Index = Index THEN
+	    RETURN Object;
+	 END; (* IF *)
+	 Objects := Objects^.Elmt.Next;
+      END; (* WHILE *)
+      RETURN NoObject;
+   END GetLiteral;
+
+(*
+ *	predicates on objects and types
+ *)
+
+PROCEDURE IsExported	(Object: tObject): BOOLEAN;
+BEGIN
+  RETURN (Object^.Kind = Proc1) AND Object^.Proc1.IsExported;
+END IsExported;
+
+PROCEDURE IsOpenArray	(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = Var1) AND IsOpen (Object^.Var1.Type);
+END IsOpenArray;
+
+PROCEDURE IsVAR		(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = Var1) AND Object^.Var1.IsVAR;
+END IsVAR;
+
+PROCEDURE IsProcedure	(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = Proc1) OR (Object^.Kind = ProcHead1);
+END IsProcedure;
+
+PROCEDURE IsOfType	(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = TypeDecl1) OR (Object^.Kind = Opaque1);
+END IsOfType;
+
+PROCEDURE IsForward	(PosPointerTo: SHORTCARD; TypeObj: tObject): BOOLEAN;
+BEGIN
+   IF TypeObj^.Kind = TypeDecl1 THEN
+      RETURN TypeObj^.TypeDecl1.TypePos > PosPointerTo;
+   ELSIF TypeObj^.Kind = Opaque1 THEN
+      RETURN TypeObj^.Opaque1.TypePos > PosPointerTo;
+   ELSE
+      RETURN FALSE;
+   END;
+END IsForward;
+
+PROCEDURE IsIntType	(Type: tType): BOOLEAN;
+BEGIN
+   CASE Type^.Kind OF
+   | Subrange1	: RETURN IsIntType (Type^.Subrange1.Type);
+   | ShortCard	,
+     LongCard	,
+     ShortInt	,
+     LongInt	: RETURN TRUE;
+   ELSE
+      RETURN FALSE;
+   END;
+END IsIntType;
+
+PROCEDURE IsOpen	(Type: tType): BOOLEAN;
+BEGIN
+   RETURN (Type^.Kind = Array1) AND Type^.Array1.IsOpen;
+END IsOpen;
+
+(*
+ *	procedures for test output
+ *)
+
+PROCEDURE WriteEnv	(f: tFile; Env: tEnv);
+   BEGIN
+      WHILE Env # NoEnv DO
+	 WriteObjects (f, Env^.Env.Objects);
+	 WriteS (f, "/");
+	 Env := Env^.Env.HiddenEnv;
+      END;
+      WriteNl (f);
+   END WriteEnv;
+
+PROCEDURE WriteObjects	(f: tFile; Objects: tObjects);
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    WriteS (f, " ");
+	    WriteIdent (f, Objects^.Elmt.Ident);
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    WriteObjects (f, Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+   END WriteObjects;
+
+(*
+ *	procedure to construct object descriptions for predefined objects
+ *)
+
+PROCEDURE Predef (): tObjects;
+   VAR Objects	: tObjects;
+   VAR String	: tString;
+   VAR Ident	: tIdent;
+   VAR Object	: tObject;
+
+   PROCEDURE BasicType (Name: ARRAY OF CHAR; Type: tType);
+      BEGIN
+	 ArrayToString (Name, String);
+	 Ident := MakeIdent (String);
+	 Object := mTypeDecl2 (mTypeDecl1 (Ident, 0), Type);
+	 Object^.TypeDecl1.CIdent := Ident;
+	 Objects := mElmt (Ident, FALSE, Object, Objects);
+      END BasicType;
+
+   PROCEDURE StdConst (Name: ARRAY OF CHAR; Value: tValue);
+      BEGIN
+	 ArrayToString (Name, String);
+	 Ident := MakeIdent (String);
+         Object := mConst2 (mConst1 (Ident), Value);
+         Object^.Const1.CIdent := Ident;
+         Objects := mElmt (Ident, FALSE, Object, Objects);
+      END StdConst;
+
+   PROCEDURE StdProcedure (Name: ARRAY OF CHAR; StdProc: SHORTCARD);
+      BEGIN
+	 ArrayToString (Name, String);
+	 Ident := MakeIdent (String);
+	 Object := mStdProc1 (Ident, StdProc, mStdProcType1 (StdProc));
+	 Object^.Proc1.CIdent := Ident;
+	 Objects := mElmt (Ident, FALSE, Object, Objects);
+      END StdProcedure;
+
+   BEGIN
+      Objects := NoObjects;
+
+      BasicType ("ADDRESS"	, TypeADDRESS	);
+      BasicType ("WORD"		, TypeWORD	);
+      BasicType ("BYTE"		, TypeWORD	);
+
+      StdProcedure ("ADR"	, ProcADR	);
+      StdProcedure ("TSIZE"	, ProcTSIZE	);
+      StdProcedure ("NEWPROCESS", ProcNEWPROCESS);
+      StdProcedure ("TRANSFER"	, ProcTRANSFER	);
+      StdProcedure ("IOTRANSFER", ProcIOTRANSFER);
+
+      ModuleSYSTEM := mModule2 (mModule1 (IdentSYSTEM, Objects), Objects);
+      ModuleSYSTEM^.Module1.CIdent := IdentSYSTEM;
+
+      Objects := NoObjects;
+
+      BasicType ("INTEGER"	, TypeLONGINT	);
+      BasicType ("SHORTINT"	, TypeSHORTINT	);
+      BasicType ("LONGINT"	, TypeLONGINT	);
+      BasicType ("CARDINAL"	, TypeLONGCARD	);
+      BasicType ("SHORTCARD"	, TypeSHORTCARD	);
+      BasicType ("LONGCARD"	, TypeLONGCARD	);
+      BasicType ("REAL"		, TypeREAL	);
+      BasicType ("LONGREAL"	, TypeLONGREAL	);
+      BasicType ("BOOLEAN"	, TypeBOOLEAN	);
+      BasicType ("CHAR"		, TypeCHAR	);
+      BasicType ("BITSET"	, TypeBITSET	);
+      BasicType ("PROC"		, TypePROC	);
+
+      (* ---------------------------------------------- *)
+      (* unfortunately there are circular references	*)
+      (* among Defs and Values and hence their order of	*)
+      (* initialization is not defined			*)
+      NilValue.Kind		:= Values.NilType;
+      TrueValue.Kind		:= Values.Boolean;
+      TrueValue.BoolValue	:= TRUE;
+      FalseValue.Kind		:= Values.Boolean;
+      FalseValue.BoolValue	:= FALSE;
+      (* ---------------------------------------------- *)
+
+      StdConst ("NIL"		, NilValue	);
+      StdConst ("TRUE"		, TrueValue	);
+      StdConst ("FALSE"		, FalseValue	);
+
+      StdProcedure ("ABS"	, ProcABS	);
+      StdProcedure ("CAP"	, ProcCAP	);
+      StdProcedure ("CHR"	, ProcCHR	);
+      StdProcedure ("DEC"	, ProcDEC	);
+      StdProcedure ("EXCL"	, ProcEXCL	);
+      StdProcedure ("FLOAT"	, ProcFLOAT	);
+      StdProcedure ("HALT"	, ProcHALT	);
+      StdProcedure ("HIGH"	, ProcHIGH	);
+      StdProcedure ("INC"	, ProcINC	);
+      StdProcedure ("INCL"	, ProcINCL	);
+      StdProcedure ("MAX"	, ProcMAX	);
+      StdProcedure ("MIN"	, ProcMIN	);
+      StdProcedure ("ODD"	, ProcODD	);
+      StdProcedure ("ORD"	, ProcORD	);
+      StdProcedure ("SIZE"	, ProcSIZE	);
+      StdProcedure ("TRUNC"	, ProcTRUNC	);
+      StdProcedure ("VAL"	, ProcVAL	);
+      StdProcedure ("NEW"	, ProcNEW	);
+      StdProcedure ("DISPOSE"	, ProcDISPOSE	);
+
+      RETURN Objects;
+   END Predef;
+}
+
+BEGIN {
+   NoObject		:= mObject0 (NoIdent);
+   NoObject^.Object0.CIdent := NoIdent;
+
+   NoType		:= mType0 ();
+
+   ArrayToString ("SYSTEM", Str);
+   IdentSYSTEM		:= MakeIdent (Str);
+   ArrayToString ("LONGCARD", Str);
+   IdentLONGCARD	:= MakeIdent (Str);
+   ArrayToString ("ALLOCATE", Str);
+   IdentALLOC		:= MakeIdent (Str);
+   ArrayToString ("DEALLOCATE", Str);
+   IdentDEALLOC		:= MakeIdent (Str);
+
+   TypeSHORTINT		:= mShortInt	();
+   TypeLONGINT		:= mLongInt	();
+   TypeSHORTCARD	:= mShortCard	();
+   TypeLONGCARD		:= mLongCard	();
+   TypeREAL		:= mReal	();
+   TypeLONGREAL		:= mLongReal	();
+   TypeBOOLEAN		:= mBool	();
+   TypeCHAR		:= mChar	();
+   TypeBITSET		:= mBitset	();
+   TypePROC		:= mProc	();
+   TypeWORD		:= mWord	();
+   TypeADDRESS		:= mAddress	();
+   TypeIntCard		:= mIntCard	();
+   TypeNIL		:= mNil		();
+   TypeSTRING		:= mString	();
+   TypeStringChar	:= mStringChar	();
+   TypeVOID		:= mVoid	();
+
+   Predefs		:= Predef ();
+}
+
+RULE
+
+Object		= [Ident: tIdent] -> [CIdent: tIdent] <
+				/* object descriptions			*/
+
+   Object0	= .		/* no object				*/
+
+   Const1	= -> [Value: tValue] .
+   EnumLiteral1	= Type [Index: SHORTCARD] .
+   Field1	= Type Selectors .
+   Module1	= ExportList: Objects -> Objects Locals: Objects .
+   Proc1	= Type -> [IsExported: BOOLEAN] Locals: Objects .
+   ProcHead1	= Type .
+   TypeDecl1	= [TypePos: SHORTCARD] -> Type .
+   Opaque1	= [TypePos: SHORTCARD] -> Type .
+   Var1		= Type [IsVAR: BOOLEAN] [Level: SHORTCARD] [NestedUse: BOOLEAN] [TypeTree: ADDRESS] .
+   StdProc1	= [StdProc: SHORTCARD] Type .
+
+>.
+
+Type		= <		/* representation of data types		*/
+
+   Type0	= .		/* no type				*/
+   
+   ShortInt	= .		/* basic types				*/
+   LongInt	= .
+   ShortCard	= .
+   LongCard	= .
+   Real		= .
+   LongReal	= .
+   Bool		= .
+   Char		= .
+   Bitset	= .		/* standard types			*/
+   Proc		= .
+   Word		= .		/* types from pseudo module SYSTEM	*/
+   Address	= .
+
+
+				/* internal types			*/
+
+   IntCard	= .	/* ShortInt, LongInt, ShortCard, or LongCard	*/
+   Nil		= .
+   String	= .
+   StringChar	= .	/* String or Char i.e. string of length 1	*/
+   Void		= .
+
+   StdProcType1	= [StdProc: SHORTCARD] .	/* type for standard	*/
+						/* procedures		*/
+
+   Qualident1	= Object .	/* preliminary type used during		*/
+				/* identification			*/
+
+   Constructor	= TypeObj: Object <	/* type constructors		*/
+
+   OpaqueType1 	= -> Type .
+
+   Array1	= [StructId: tIdent] -> IndexType: Type ElemType: Type [IsOpen: BOOLEAN] .
+   Enumeration1	= -> [MaxValue: SHORTCARD] Objects .
+   Pointer1	= -> Type .
+   ProcType1	= -> Types Type .
+   Record1	= [StructId: tIdent] -> Objects .
+   Set1		= -> Type .
+   Subrange1	= [LwbExpr: ADDRESS] [UpbExpr: ADDRESS] -> Type [Lwb: tValue] [Upb: tValue] .
+
+   >.
+
+>.
+
+Objects		= <			/* lists of object descriptions	*/
+   Elmt		= [Ident: tIdent] [IsPseudoObj: BOOLEAN] Object Next: Objects .
+   Union	= Objects1: Objects Objects2: Objects .
+>.
+
+		/* lists of object descriptions	*/
+CObjects	= [M2Object: tObject] Next: CObjects -> [CObject: tIdent] .
+
+		/* formal parameter lists	*/
+Types		= [IsVAR: BOOLEAN] Type Next: Types .
+
+		/* environments			*/
+Env		= Objects HiddenEnv: Env .
+
+		/* record field selector lists	*/
+Selectors	= [Selector: tIdent] Next: Selectors .
+
+		/* lists of string parameters	*/
+StringPar	= [CString: tIdent] FormalType: Type [M2String: ADDRESS] Next: StringPar .
+
+/* The following attributes are pure code generation attributes:	*/
+/*									*/
+/* CIdent	: object identifier used in the generated C programs	*/
+/* Selectors	: additional record field selectors, which are		*/
+/*		  necessary to translate variant records from Modula-2	*/
+/*		  to C							*/
+/* NestedUse	: NestedUse is TRUE if the variable is a local variable	*/
+/*		  or a parameter of a procedure p and is used within a	*/
+/*		  procedure q declared local to p			*/
+/* TypeTree	: pointer to the tree for the type of the variable	*/
+/* StructId	: struct name used in the C declaration of the array or	*/
+/*		  record type						*/
+/* LwbExpr	,							*/
+/* UpbExpr	: pointer to the tree for the lower and upper bound	*/
+/*		  expression of the subrange type			*/

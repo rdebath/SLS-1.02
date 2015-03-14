@@ -1,0 +1,65 @@
+*** 1.1	1993/01/10 20:30:26
+--- get_load.c	1993/01/10 20:52:41
+***************
+*** 36,41 ****
+--- 36,42 ----
+  #define LOADSTUB
+  #endif
+  
++ #ifndef linux
+  #ifndef macII
+  #ifndef apollo
+  #ifndef LOADSTUB
+***************
+*** 43,48 ****
+--- 44,50 ----
+  #endif /* LOADSTUB */
+  #endif /* apollo */
+  #endif /* macII */
++ #endif /* linux */
+  
+  #if defined(MOTOROLA) && defined(SYSV)
+  #include <sys/sysinfo.h>
+***************
+*** 330,336 ****
+--- 332,361 ----
+  }
+  
+  #else /* not LOADSTUB */
++ #ifdef linux
+  
++ void InitLoadPoint()
++ {
++ }
++ 
++ /* ARGSUSED */
++ void GetLoadPoint( w, closure, call_data )
++      Widget	w;		/* unused */
++      caddr_t	closure;	/* unused */
++      caddr_t	call_data;	/* pointer to (double) return value */
++ {
++ 	FILE *f;
++ 	double value;
++ 	if (!(f = fopen ("/proc/loadavg", "r"))) {
++ 		perror("xload : cannot open /proc/loadavg ");
++ 		exit(1);
++ 	}
++ 
++ 	fscanf(f, "%lf", (double *) call_data);
++ 	fclose(f);
++ }
++ #else
++ 
+  #ifndef KMEM_FILE
+  #define KMEM_FILE "/dev/kmem"
+  #endif
+***************
+*** 709,714 ****
+--- 734,740 ----
+  #endif /* sun else */
+  	return;
+  }
++ #endif /* linux else */
+  #endif /* LOADSTUB else */
+  #endif /* KVM_ROUTINES else */
+  #endif /* SYSV && SYSV386 else */

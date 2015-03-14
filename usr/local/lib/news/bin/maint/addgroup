@@ -1,0 +1,57 @@
+#! /bin/sh
+# addgroup - add a newsgroup, locally only
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/maint:$NEWSBIN/relay:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+usage="Usage: $0 groupname {y|n|m|x|=realgroup}"
+
+case $# in
+2)	;;
+*)	echo "$usage" >&2 ; exit 2	;;
+esac
+
+case "$1" in
+*/*)	echo "$usage" >&2 ; exit 2	;;
+esac
+
+case "$2" in
+[ynmx])	;;
+=*/*)	echo "$usage" >&2 ; exit 2	;;
+=*)	;;
+*)	echo "$usage" >&2 ; exit 2	;;
+esac
+
+already="`sed 's/[ 	].*//' $NEWSCTL/active | fgrep -x \"$1\"`"
+if test " $already" != " "
+then
+	echo "$0: $1 appears to exist already: \`$already'" >&2
+	exit 1
+fi
+
+lock="$NEWSCTL/LOCK"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+while true
+do
+	if newslock $ltemp $lock
+	then
+		trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+		break
+	fi
+	echo 'news system locked, waiting...'
+	sleep 5
+done
+
+echo "$1 0000000000 00001 $2" >>$NEWSCTL/active
+case "$2" in
+[x=]*)	;;
+*)	mkpdir $NEWSARTS/`echo $1 | tr . /`	;;
+esac
+
+SENDER=${LOGNAME-${USER-unknown}}@`hostname`
+echo "$1 `getdate now` $SENDER" >>$NEWSCTL/active.times  # rn hook

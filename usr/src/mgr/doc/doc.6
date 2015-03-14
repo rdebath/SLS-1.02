@@ -1,0 +1,445 @@
+'\"                        Copyright (c) 1988 Bellcore
+'\"                            All Rights Reserved
+'\"       Permission is granted to copy or use this program, EXCEPT that it
+'\"       may not be sold for profit, the copyright notice must be reproduced
+'\"       on copies, and credit should be given to Bellcore where it is due.
+'\"       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+'\"
+'\"	$Header: doc.6,v 4.1 88/06/29 17:05:09 bianchi Exp $
+'\"	$Source: /tmp/mgrsrc/doc/usrman/RCS/doc.6,v $
+.Sh page Using the Library
+Clients using 
+.I
+The C Interface Library
+.R
+should specify:
+.DS
+.ft \*(Ff
+#include "term.h"
+.ft R
+.DE
+which also includes 
+.DS
+.ft \*(Ff
+<stdio.h>
+.ft R
+.DE
+if it has not already been included.
+Programs are compiled either with
+.DS
+.ft \*(Ff
+cc -o foo -I$(inc) foo.c libmgr.a
+.ft R
+.DE
+where $(inc) is the \*M include directory
+or simply
+.DS
+.ft \*(Ff
+cc -o foo foo.c -lmgr
+.ft R
+.DE
+if the library is installed in a standard location.
+The file
+.I libmgr.a
+contains the functions listed in the last section.
+Several compile time options are available to the client program using
+the library.
+Normally, the library setup routine,
+.Fr m_setup
+attempts to open
+.I /dev/tty
+to communicate with \*M.
+Client programs may define the C preprocessor symbols
+.SM
+.I M_DEVICEIN
+.LG
+or
+.SM
+.I M_DEVICEOUT
+.LG
+to override the selection of
+.I /dev/tty
+for input or output respectively.
+After each macro call,
+the flush flag
+.SM
+.I M_FLUSH
+.LG
+is tested to see if output should be flushed to \*M.
+If the C preprocessor symbol
+.SM
+.I M_NOFLUSH
+.LG
+is defined, before the client program includes
+.I term.h ,
+The flush flag is never tested, and it becomes the responsibility of the
+client program to insure output is flushed at the appropriate times.
+.LP
+Several external variables maintained by the library are accessible to
+client programs.
+The
+.I stdio
+.SM
+.I FILE
+.LG
+pointers
+.I m_termin
+and
+.I m_termout
+are used for directing output to, and receiving input from \*M.
+These file pointers are initialized in
+.Fr m_setup
+\&, and may be changed by client programs after
+.Fr m_setup
+ is called.
+The integer
+.I m_flags
+contains the current library mode settings, as returned by
+.Fr m_setup
+\&.
+The 
+.SM
+.I M_MODEOK
+.LG
+and
+.SM
+.I M_FLUSH
+.LG
+bits of 
+.I m_flags
+may also be changed at any time after 
+.Fr m_setup 
+ is called.
+The integer
+.I m_envcount
+contains the current window context depth, and is used by
+.Fr m_popall
+to pop the appropriate number of contexts.
+.I M_envcount
+should not be changed by client programs.
+Finally, the character
+.I m_menuchar
+defines the menu separator character used by
+.Fr menu_load
+\&.
+This character, set to '\e005' by the library package,
+can be changed to any character that will not appear as part of
+a menu item or action.
+.Sh page Glossary
+.IP "\fBabsolute coordinates\fP" 0.5i
+.br
+.I "Absolute coordinates"
+is a coordinate system used in
+.I windows
+measured in units of pixels.
+.IP "\fBactive window\fP" 0.5i
+.br
+The
+.I active
+window is the window logically in the front of the display, which is
+receiving keyboard and mouse input.
+.IP "\fBalternate window\fP" 0.5i
+.br
+An
+.I "alternate window"
+is an additional window created by a client program that shares the
+communication channel with the main window.
+.IP \fBbitmap\fP 0.5i
+.br
+A
+.I bitmap
+is a rectangular array of bits, or pixels if the bitmap is
+currently on the display.
+.IP \fBchannel\fP 0.5i
+.br
+The
+.I channel
+is the bidirectional byte stream connecting \*M with
+the client program.
+The 
+.I channel
+is usually the program's standard input and output.
+.IP "\fBcharacter coordinates\fP" 0.5i
+.br
+.I "Character coordinates"
+is the 
+coordinate system used in windows for counting characters in
+.I columns
+and
+.I rows .
+.IP "\fBcharacter cursor\fP" 0.5i
+.br
+The
+.I "character cursor"
+is the location in the window where the next character will be placed.
+The cursor location is always highlighted on the active window.
+.IP "\fBchild menu\fP" 0.5i
+.br
+A
+.I "child menu"
+is the
+menu that will pop up when the user slides off to the right
+of a popped up 
+.I "parent menu" .
+.IP "\fBclient program\fP" 0.5i
+.br
+A
+.I "client program"
+is any Unix command that is running in an \*M window.
+Client programs may be existing programs, as might be found in
+.I /bin
+or new applications written specifically to take advantage of the
+windowing environment.
+.IP \fBclient-host\fP 0.5i
+.br
+The
+.I "client-host"
+is the computer that the client program is running on.
+It is often the same as the
+.I \*M-host
+machine, but it does not need to be.
+.IP "\fBdisplay coordinates\fP" 0.5i
+.I "Display coordinates"
+is a coordinate system used to measure pixels on the display.
+The top left corner of the display is at (0,0), with
+.I x
+increasing to the right, and
+.I y
+increasing down.
+.br
+.IP \fBexposed\fP 0.5i
+.br
+A window is
+.I exposed
+if it is entirely visible.
+.IP "\fBgraphics point\fP" 0.5i
+.br
+The
+.I "graphics point"
+is a location on the window, measured in the prevailing window
+coordinate system, that may serve as a reference location 
+or origin for many of the graphics operations.
+.IP \fBlistener\fP 0.5i
+.br
+A 
+.I listener
+is a window that has turned on the
+.SM
+.Fi ACCEPT
+.LG
+event and is willing to receive messages from other client programs.
+.IP "\fBmain window\fP" 0.5i
+.br
+A client program's
+.I "main window"
+is the window the program was started in.
+The client program may create and destroy alternate windows,
+but not its
+.I "main window" .
+If the user destroys a client program's
+.I " main window" ,
+the connection
+to \*M is severed, and the client program receives a
+.I hangup
+signal.
+.IP \fB\*M-host\fP 0.5i
+.br
+The
+\*M-host is the computer that \*M is running on. 
+.IP "\fBmouse cursor\fP" 0.5i
+.br
+The
+.I "mouse cursor"
+is a small bitmap or
+.I icon
+that tracks the movement of the mouse on the display.
+Normally the
+.I "mouse cursor"
+is a small arrow pointing north west.
+.IP \fBobscured\fP 0.5i
+.br
+A window is
+.I obscured
+when it is partially or totally covered by another
+window.
+.IP "\fBparent menu\fP" 0.5i
+.br
+A  menu is called a
+.I "parent menu"
+when sliding off to the right of a selected item causes
+another menu or
+.I "child menu"
+to pop up.
+.IP "\fBrelative coordinates\fP" 0.5i
+.br
+.I "Relative coordinates"
+is a coordinate system for windows where a single unit represents one
+thousandth of the way across (or down) the window.
+.IP "\fBscratchpad bitmap\fP" 0.5i
+.br
+A 
+.I "scratchpad bitmap"
+is a chunk of memory, allocated by \*M for use by a client program,
+that may hold a bitmap image that is not on the display.
+.IP "\fBsnarf buffer\fP" 0.5i
+.br
+The
+.I "snarf buffer"
+is a buffer maintained by \*M of arbitrary size that is accessible by all
+client programs.
+.IP "\fBtarget window\fP" 0.5i
+.br
+A
+.I "target window"
+is a window that is to receive a message from another window.
+.IP "\fBtext region\fP" 0.5i
+.br
+A 
+.I "text region"
+is the part of the window in which character text and the 
+functions that operate on characters work.
+The
+.I "text region"
+may be the entire window (the default)
+or a rectangular subregion within the window.
+.IP "\fBwindow border\fP" 0.5i
+.br
+The
+.I "window border"
+is a thin black border around every window that separates the
+window from the rest of the display.
+.IP "\fBwindow context\fP" 0.5i
+.br
+A
+.I "window context"
+contains the values for one or more aspects of the window's
+state.
+.I "Window context"
+a may be saved on a stack, and then restored at some later time.
+.IP "\fBwindow id\fP" 0.5i
+.br
+A
+.I "window id"
+is a unique number assigned to every window that may be used
+as an identifier when sending a message to the window.
+.I "Window id" s
+have two parts,
+the first part is the process number of the client program that
+was started when the window was created,
+the second part is the windows
+.I alternate
+window number, or
+zero for a main window.
+.Sh page Sample Client Program
+.LP
+This program, called
+.I close ,
+closes, or iconifies a window.  
+Its not a terribly useful application in its own right, but it does
+exercise several of the library calls.
+When 
+.I close
+starts up, it makes the window smaller,
+moves it toward the top of the display,
+then writes the word "closed" in it.
+If the window is covered by another window,
+it changes the word "closed" to "hidden", then flashes its window every
+15 seconds as long as the window is covered.
+If the window is then uncovered, the word "hidden" gets changed back
+to "closed".
+Activating the window causes
+.I close
+to restore the window's original shape and contents, then exit.
+.LP
+.SS
+/* iconify a MGR window */
+
+#include <signal.h>
+#include "term.h"
+
+#define TIME    15                /* time interval for reminder */
+#define CONTEXT P_POSITION | P_WINDOW | P_FLAGS | P_EVENT | P_CURSOR
+
+static char line[80];             /* event input buffer */
+
+int main()
+    {
+    int clean(), timer();         /* interrupt routines */
+    int x,y;                      /* window position on display */
+    char *msg = "closed";         /* closed window "icon" */
+
+    /* setup the window environment */
+
+    m_setup(M_FLUSH);             /* setup i/o, turn on flushing */
+    m_push(CONTEXT);              /* save current window context */
+    m_setmode(M_NOWRAP);          /* don't auto-wrap at right margin */
+    m_ttyset();                   /* set up tty modes */
+
+    /* catch the appropriate signals */
+
+    signal(SIGTERM,clean);        /* in case we get terminated */
+    signal(SIGALRM,timer);        /* for the reminder service */
+
+    /* iconify the window */
+
+    get_size(&x,&y,0,0);          /* fetch window coordinates */
+    m_sizeall(x,10,strlen(msg),1);/* move and resize window */
+    m_clear();                    /* clear the window */
+    m_printstr(msg);              /* print message in the window */
+
+    /* catch events */
+
+    m_setevent(ACTIVATE, "A\er"); /* window is now the active window */
+    m_setevent(COVERED,  "C\er"); /* covered by another window */
+    m_setevent(UNCOVERED,"U\er"); /* completely visible */
+    m_setevent(REDRAW,   "R\er"); /* redraw requested */
+
+    m_clearmode(M_ACTIVATE);      /* bury the window */
+
+    /* wait for an event */
+
+    while(m_gets(line) != NULL)   /* read a line from MGR */
+        switch (*line) {
+        case 'A':                 /* window is activated */
+            clean();              /* clean up and exit */
+            break;
+        case 'C':                 /* window is covered */
+            m_clear();
+            m_printstr("hidden");
+            alarm(TIME);          /* turn on reminder */
+            break;
+        case 'R':                 /* system 'redraw' */
+        case 'U':                 /* window is uncovered */
+            m_clear();
+            m_printstr(msg);
+            alarm(0);             /* turn off reminder */
+            break;
+        case 'T':                 /* send reminder */
+            m_setmode(M_WOB);     /* highlight window */
+            m_bell();             /* ring the bell */
+            sleep(1);
+            alarm(TIME);          /* reset reminder timer */
+            m_clearmode(M_WOB);   /* reset window highlighting */
+            break;
+        }
+    }
+
+clean()                           /* clean up and exit */
+    {
+    m_ttyreset();                 /* reset tty modes */
+    m_popall();                   /* restore window context */
+    exit(0);
+    }
+
+timer()                           /* called at reminder timeout */
+    {
+    m_sendme("T\er");             /* send timeout message */
+    }
+.SE
+.Sh page Macros and Functions by Category
+.LP
+.FS *
+The routines marked with a dagger (\(dg) are functions,
+the other routines are macros.  The page number on which the macro or
+function is defined is printed in bold face after the name.
+.FE

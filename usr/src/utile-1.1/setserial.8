@@ -1,0 +1,178 @@
+.\" Copyright 1992, 1993 Rickard E. Faith (faith@cs.unc.edu)
+.\" May be distributed under the GNU General Public License
+.TH SETSERIAL 8 "16 January 1993" "Linux 0.99" "Linux Programmer's Manual"
+.SH NAME
+setserial \- get/set Linux serial port information
+.SH SYNOPSIS
+.B /etc/setserial
+.B "[ \-g ]"
+serial-device
+.BR "[ " opt1 " [ " arg " ] ] [ " opt2 " [ " arg " ] ] ..."
+.SH DESCRIPTION
+Without any options,
+.B setserial
+will print out the port type (i.e., 8250, 16450, 16550, 16550A), the
+hardware I/O port, the hardware IRQ line, the "baud base," and the "flags."
+The
+.I device
+parameter will usually have the following form:
+.BR /dev/ttys[0-3] .
+
+The "standard MS-DOS" port associations are given below:
+
+.nf
+.RS
+/dev/ttys0 (COM1), port 0x3f8, irq 4
+/dev/ttys1 (COM2), port 0x2f8, irq 3
+/dev/ttys2 (COM3), port 0x3e8, irq 4
+/dev/ttys3 (COM4), port 0x2e8, irq 3
+.RE
+.fi
+
+Note, however, that Linux is not able to have a single IRQ line shared
+between multiple devices (special serial port hardware, such as the AST
+FourPort, can be used to overcome this limitation).  Alternatively, some
+serial port cards (such as the Accent Async and the Twincom ACI/550) allow
+the selection of alternative I/O port addresses and IRQ lines.  For
+example, the Linux 0.99.1 kernel is set up to check the following
+configurations if the
+.I CONFIG_ACCENT_ASYNC
+option is selected when building the kernel
+.RI ( "/dev/ttys4" " through " "/dev/ttys11"
+are reserved for the AST FourPort):
+
+.nf
+.RS
+/dev/ttys12, port 0x330, irq 4
+/dev/ttys13, port 0x338, irq 4
+.RE
+.fi
+
+If the kernel's auto-detection of I/O port addresses and/or IRQ lines does
+not work reliably on your system, the
+.B setserial
+program can be called from your
+.I /etc/rc.local
+to adjust the configuration at boot time.  The selection of an alternative
+IRQ line is difficult, since most of them are already used.  The following
+table lists the "standard MS-DOS" assignments of available IRQ lines:
+
+.nf
+.RS
+IRQ 3: COM2
+IRQ 4: COM1
+IRQ 5: LPT2
+IRQ 7: LPT1
+.RE
+.fi
+
+Most people find that IRQ 5 is a good choice, assuming that there is only
+one parallel port active in the computer.  The only other available IRQ
+lines are 3, 4, and 7, and these are probably used by the other serial and
+parallel ports.  (If your serial card has a 16bit card edge connector, and
+supports higher interrupt numbers, then IRQ 10, 11, 12, and 15 are also
+available.)
+
+On AT class machines, IRQ 2 is seen as IRQ 9, and Linux will interpret it
+in this manner.
+
+IRQ's other than 2 (9), 3, 4, 5, 7, 10, 11, 12, and 15, should
+.I not
+be used, since they are assigned to other hardware and cannot, in general,
+be changed.  Here are the "standard" assignments:
+
+.nf
+.RS
+IRQ  0      Timer channel 0
+IRQ  1      Keyboard
+IRQ  2      Cascade for controller 2
+IRQ  3      Serial port 2
+IRQ  4      Serial port 1
+IRQ  5      Parallel port 2 (Reserved in PS/2)
+IRQ  6      Floppy diskette
+IRQ  7      Parallel port 1
+IRQ  8      Real-time clock
+IRQ  9      Redirected to IRQ2
+IRQ 10      Reserved
+IRQ 11      Reserved
+IRQ 12      Reserved (Auxillary device in PS/2)
+IRQ 13      Math coprocessor
+IRQ 14      Hard disk controller
+IRQ 15      Reserved
+.RE
+.fi
+
+.SH OPTIONS
+All argument values are assumed to be in decimal unless preceeded by "0x".
+
+If the
+.B \-g
+option is given, a list of devices can be specified, and the
+characteristics of those devices will be printed.  Without the
+.B \-g
+option, the characteristics of single device can be printed, a list is not
+allowed.
+
+.TP
+.BR port " port_number"
+The
+.B port
+option sets the I/O port, as described above.
+.TP
+.BR irq " irq_number"
+The
+.B irq
+option sets the hardware IRQ, as described above.
+.TP
+.BR uart " uart_type"
+This option is used to set the UART type.  The permitted types are none,
+8250, 16450, 16550, and 16550A.  The "A" on the 16550A indicates that the
+advanced options of the 16550 have been activated.
+.TP
+.BR baud_base " baud_base"
+This option sets the base baud rate, which is the clock frequency divided
+by 16.
+.TP
+.BR divisor " divisor"
+This option sets the custom divison.  This divisor will be used then the
+.B spd_cust
+option is selected and the serial port is set to 38.4kb by the application.
+.TP
+.B sak
+Set the break key at the Secure Attention Key
+.TP
+.B -sak
+disable the Secure Attention Key
+.TP
+.B
+spd_hi
+Use 57.6kb when the application requests 38.4kb.
+.TP
+.B spd_vhi
+Use 115kb when the application requests 38.4kb.
+.TP
+.B spd_cust
+Use the custom divisor to set the speed when the application requests
+38.4kb.  In this case, the baud rate is the
+.B baud_base
+divided by the
+.BR divisor .
+.TP
+.B spd_normal
+Use 38.4kb when the application requests 38.4kb.
+.SH CAUTION
+CAUTION: Using an invalid port can lock up your machine.
+.SH BUGS
+The "flags" information which
+.B setserial
+prints seems to be incorrect on some systems.
+.SH FILES
+.I /etc/rc.local
+.SH "SEE ALSO"
+.BR tty (4),
+.BR ttys (4),
+kernel/chr_drv/serial.c
+.SH AUTHOR
+Rick Sladkey (jrs@world.std.com)
+.br
+High speed modifications by: Michael K. Johnson (johnsonm@stolaf.edu)

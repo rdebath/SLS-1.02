@@ -1,0 +1,152 @@
+XCOMM $Header: /home/x_cvs/mit/server/os/Imakefile,v 1.5 1992/09/01 12:24:18 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.49 91/08/22 14:23:54 rws Exp $
+#include <Server.tmpl>
+
+#if (SystemV || SystemV4) && !HasSockets && !X386Server
+#undef ConnectionFlags
+#define ConnectionFlags -DTCPCONN -DUNIXCONN
+#endif
+
+/*
+ * If you have any extra files to be put into the library, define them here.
+ */
+
+#ifdef HPArchitecture
+#define OtherSources hpsocket.c 
+#define OtherObjects hpsocket.o dbm.o 
+#endif
+
+#ifdef R4FontStructtures
+FONTSRCS = osfonts.c fonttype.c decompress.c
+FONTOBJS = osfonts.o fonttype.o decompress.o
+FONT_DEFINES = FontDefines FontFilters
+#endif
+
+/*
+ * do not modify the following two definitions
+ */
+
+#ifndef OtherSources
+#define OtherSources
+#endif
+
+#ifndef OtherObjects
+#define OtherObjects
+#endif
+
+#if HasXdmAuth
+XDMAUTHDEFS = -DHASXDMAUTH
+XDMAUTHOBJS = xdmauth.o
+XDMAUTHSRCS = xdmauth.c
+#else
+XDMAUTHDEFS = 
+XDMAUTHOBJS =
+XDMAUTHSCRS =
+#endif
+
+#if HasSecureRPC
+RPCDEFS = -DSECURE_RPC
+RPCOBJS = rpcauth.o
+RPCSRCS = rpcauth.c
+#else
+RPCDEFS =
+RPCOBJS =
+RPCSRCS =
+#endif
+
+BOOTSTRAPCFLAGS = 
+           SRCS = WaitFor.c access.c connection.c io.c oscolor.c \
+                  osinit.c utils.c auth.c mitauth.c $(FONTSRCS) $(XDMAUTHSRCS) \
+ 		  $(RPCSRCS) xdmcp.c OtherSources
+           OBJS = WaitFor.o access.o connection.o io.o oscolor.o \
+                  osinit.o utils.o auth.o mitauth.o $(FONTOBJS) $(XDMAUTHOBJS) \
+ 		  $(RPCOBJS) xdmcp.o OtherObjects
+#if SpecialMalloc
+     OS_DEFINES = -DSPECIAL_MALLOC
+#else
+     OS_DEFINES =
+#endif /* SpecialMalloc */
+    DBM_DEFINES = NdbmDefines
+    ADM_DEFINES = -DADMPATH=\"$(ADMDIR)/X\%smsgs\"
+        DEFINES = ConnectionFlags $(OS_DEFINES) $(XDMAUTHDEFS) $(RPCDEFS) $(SIGNAL_DEFINES)
+       INCLUDES = -I.  -I../include -I$(INCLUDESRC) -I$(TOP)/lib/Xau
+    EXT_DEFINES = ExtensionDefines
+       LINTLIBS = ../dix/llib-ldix.ln
+
+#ifdef HPArchitecture
+         DBMLIB = /usr/lib/libdbm.a
+    XLIBSYSVDIR = $(TOP)/lib/X/sysV
+#endif /* HPArchitecture */
+
+#ifdef NEED_ALLOCA_FROM_LIBPW
+          PWLIB = /lib/libPW.a
+#endif /* NEED_ALLOCA_FROM_LIBPW */
+
+NormalLibraryObjectRule()
+NormalLibraryTarget(os,$(OBJS))
+LintLibraryTarget(os,$(SRCS))
+NormalLintTarget($(SRCS))
+
+InstallLinkKitLibrary(os,$(LINKKITDIR)/lib)
+
+XCOMM these depend on ConnectionFlags
+access.o: $(ICONFIGFILES)
+connection.o: $(ICONFIGFILES)
+
+XCOMM these depend on HASXDMAUTH
+auth.o xdmcp.o: $(ICONFIGFILES)
+
+#ifdef HPArchitecture
+XCOMM
+XCOMM The following kludge is necessary because dbm already has a global 
+XCOMM routine named "bcopy" that is implemented in a silly way.  So, we have to 
+XCOMM extract the objects from the library, force the bcopy routine to be 
+XCOMM local to the one file, put the result into a temporary file, rename the 
+XCOMM temporary file to its proper name, and link it together with
+XCOMM everything else to form the object file that we link into the server.
+XCOMM
+#ifdef hp9000s300
+dbm.o:  $(DBMLIB)
+	rm -f dbm.o
+	if [ ! -d dbm ]; then $(RM) -r dbm; mkdir dbm; else /bin/true; fi
+	(cd dbm; rm -f *.o; ar -x $(DBMLIB); \
+	ld -r -o a.out.o -h _bcopy ndbm.o; \
+	mv a.out.o ndbm.o; ld -r -o ../dbm.o *.o)
+#else
+dbm.o:  $(DBMLIB)
+	rm -f dbm.o
+	if [ ! -d dbm ]; then $(RM) -r dbm; mkdir dbm; else /bin/true; fi
+	(cd dbm; rm -f *.o; ar -x $(DBMLIB); \
+	ld -r -o a.out.o -h bcopy ndbm.o; \
+	mv a.out.o ndbm.o; ld -r -o ../dbm.o *.o)
+#endif /* hp9000s300 */
+#endif /* HPArchitecture */
+
+#ifdef NEED_ALLOCA_FROM_LIBPW
+XCOMM
+XCOMM And this one is to get the version of alloca that lives in /lib/libPW.a
+XCOMM without getting all of the rest of the stuff in there.
+XCOMM
+alloca.o:  $(PWLIB)
+	rm -f alloca.o
+	ar x $(PWLIB) alloca.o
+#endif /* NEED_ALLOCA_FROM_LIBPW */
+
+SpecialObjectRule(osinit.o,$(ICONFIGFILES),$(ADM_DEFINES))
+SpecialObjectRule(WaitFor.o,$(ICONFIGFILES),$(EXT_DEFINES))
+SpecialObjectRule(fonttype.o,$(ICONFIGFILES),$(FONT_DEFINES))
+#if defined(SparcArchitecture) && HasGcc
+oscolor.o: $(ICONFIGFILES)
+	$(RM) $@
+	cc -c $(DBM_DEFINES) $(CDEBUGFLAGS) $(ALLDEFINES) $*.c
+#else
+SpecialObjectRule(oscolor.o,$(ICONFIGFILES),$(DBM_DEFINES))
+#endif
+
+#if HasSaberC
+saber_src:
+	XCOMM load $(CFLAGS) -DADMPATH=\"$(ADMDIR)/X\%smsgs\" $(EXT_DEFINES) \
+		$(FONT_DEFINES) $(SRCS)
+#endif
+
+DependTarget()

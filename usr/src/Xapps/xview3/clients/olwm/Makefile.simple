@@ -1,0 +1,64 @@
+# @(#)Makefile.simple	1.14 91/09/14
+# Simple Makefile for building under non-4.1 Suns.
+
+SOURCES			= Debug.c Error.c Notice.c Select.c WinInfo.c atom.c \
+			  client.c cmdstream.c defaults.c environ.c evbind.c \
+			  events.c group.c helpsend.c kbdfuncs.c \
+			  list.c mem.c menu.c moveresize.c olwm.c properties.c\
+			  resources.c screen.c services.c slave.c slots.c \
+			  st.c states.c usermenu.c usleep.c win.c winbusy.c \
+			  winbutton.c wincolor.c winframe.c wingframe.c \
+			  winicon.c winipane.c winmenu.c winnofoc.c \
+			  winpane.c winpinmenu.c winpush.c winresize.c \
+			  winroot.c
+
+OBJECTS                 = ${SOURCES:.c=.o}
+
+HEADERS                 = cmdstream.h defaults.h environ.h events.h \
+			  globals.h group.h helpcmd.h i18n.h \
+			  kbdfuncs.h list.h mem.h menu.h notice.h olcursor.h \
+			  ollocale.h olwm.h resources.h properties.h \
+			  screen.h slots.h st.h win.h \
+			  ${BITMAPS}
+BITMAPS			= iconimage.h iconmask.h
+MISC			= .olwmmenu Readme
+
+# To disable menu shadows (for servers that do not support SaveUnder)
+# remove the -DSHADOW option from DEFINES.
+DEFINES			= # -DSHADOW
+DEFINES			= # -DALLPLANES
+DEFINES			= # -DOW_I18N_L3
+
+# olwm.o RubberWin.o := DEFINES += -DALLPLANES
+# slave.o := DEFINES += -Dpid_t=int -DRLIMIT_NOFILE=-1
+
+LIBRARIES               = -lolgx -lX11
+OPT			= -O2
+CFLAGS		       += ${OPT} -I${OPENWINHOME}/include ${DEFINES}
+LDFLAGS		       += -L${OPENWINHOME}/lib
+
+olwm: ${HEADERS} ${OBJECTS}
+	cc -o olwm ${OBJECTS} ${LDFLAGS} ${LIBRARIES}
+
+# Malloc-debugging version.  Compile a debugging version, but also add
+# the debugging version of malloc and turn 
+mdebug: debug
+mdebug := OTHEROBJECTS	=   /usr/lib/debug/malloc.o
+mdebug := DEFINES	+= -DMALLOCDEBUG=2
+
+debug: olwm
+debug := OPT=-g
+debug := DEFINES += -DDEBUG
+
+gprof: olwm
+gprof := OPT += -pg
+gprof := DEFINES += -DGPROF_HOOKS
+gprof := LDFLAGS += -pg -Bstatic
+
+tags: ${SOURCES} ${HEADERS}
+	ctags -tw ${SOURCES} ${HEADERS}
+
+clean:
+	rm -f ${OBJECTS} olwm olwm-debug core *~
+
+.KEEP_STATE:

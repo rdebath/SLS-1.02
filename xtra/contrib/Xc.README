@@ -1,0 +1,1100 @@
+README:								7/09/92
+
+
+/*************************************************************************
+				COPYRIGHT NOTICE:
+
+			Control Panel Widget Set (Xc), v. 1.3
+
+			copyright (c) 1992 by Paul D. Johnston 
+
+   All rights reserved.  You may freely use and distribute the Control
+Panel Widget Set (Xc), but you may not use it, or any widget in the set,
+in your commercial or freely distributable applications without giving the 
+author due recognition.
+Example:
+
+  "This software product makes use of the Control Panel Widget Set (Xc),
+v. 1.3, copyright 1992 by Paul D. Johnston."
+
+**************************************************************************/
+
+
+TABLE OF CONTENTS:
+
+	1. General Info
+		1.1 Release Notes
+		1.2 Acknowledgements
+		1.3 Archive Contents
+	2. Installation
+		2.1 Installed System List
+ 	3. Xc Widgets
+		3.1 Getting Started
+			3.1.1 Tips for Using Xc Widgets
+			3.1.2 The 3D Effect and Xc Color Resources
+		3.2 Control Widget
+		3.3 Value Widget
+		3.4 SimpleButton Widget
+		3.5 ValueButton Widget
+		3.6 Slider Widget
+		3.7 LCD Widget
+		3.8 ToggleButton Widget
+		3.9 LedButton Widget
+		3.10 BarGraph Widget
+	4. Bug Reports/Suggestions
+
+
+1. GENERAL INFO 
+
+   The Control Panel Widget Set, identified as Xc, is an Xt Intrinsics-based
+widget set that provides a library of widgets for "control panel" style 
+interfaces.  Currently it consists of 9 widgets: a Control widget, a Value 
+widget, a SimpleButton widget, a ValueButton widget, a ToggleButton widget, 
+a Slider widget, an Lcd widget, an LedButton widget, and a BarGraph widget.  
+The Control widget is a subclass of the Intrinsics Core widget class and it 
+basically stores resources used by all Xc widget subclasses.  The Value widget 
+is a subclass of Control and is also used for subclassing other widgets that 
+manipulate integer/floating point values.  The SimpleButton, LedButton, and 
+ToggleButton widgets are subclasses of Control; and the ValueButton, Slider, 
+Lcd, and BarGraph widgets are subclasses of the Value widget.  See section 3 
+of this document for a detailed description and programming info for each 
+widget.
+   One shortcoming with this release of the Xc widget set is that
+there are no man(1) pages for the widgets yet.  I will try to provide
+these in a future release.  Shared libraries are not supported in this 
+release.  An additional shortcoming is that the code is not ANSI-C.  I
+will convert to ANSI-C probably by the next version (if we get the ANSI
+compiler by then).  I'll put the affected parts within #ifdef __STDC__
+sandwiches in order to maintain compatibility with those who are still
+working with K&R 'C'.  Also, when we get X11R5 from the company that 
+produces the operating system we're working with, I'll add R5 support.
+   I plan on adding a number of 'control panel' style widgets to this
+widget set in the future, including a Guage widget (similar to the aircraft
+cockpit guage), a SelectorSwitch (similar in functionality to Motif's
+RadioBox, but emulates a hardware multi-selection switch), a BarChart widget
+(many BarGraph widgets connected together with the same value range), and
+whatever other widgets I decide on.  If you have any ideas, let me know.  
+
+
+1.1 RELEASE NOTES
+
+Version		Changes
+---------	--------------------------------------------------
+
+1.3		1. Changed the method for producing the 3D effect:
+		   a white/black dashed line is used to produce 'dithered'
+		   top & bottom shade colors, thereby using less server
+		   resources and increasing the range of background colors
+		   to choose from.  The old method for the 3D effect is
+		   still available for those who choose by specifying a
+		   '-DNICE_SHADES' compiler option.
+		2. ValueButton widget:
+		   a.	You can now use the keypad '+' and '-' keys or the
+			up and down arrow keys to increment/decrement the 
+			value.  The Return/Enter keys active the Accept
+			Button also.
+		   b.	You can rapidly increment/decrement the value by
+			holding the pointer button down within the Up/Down
+			arrows.
+		3. Slider widget:
+		   a.	Added a Zoom feature to allow for fine tuning of
+			the Slider's value, implemented with Up/Down Zoom
+			Buttons.
+		   b.	Added an optional Accept Button.  The application's
+			callback function won't be called until the user
+			presses the Accept button (allowing the user to 
+			achieve the desired value first).
+		   c.	Fixed the Nob's movement range to be the center of
+			the Nob.
+		4. LCD widget:
+		   a.	Made the border around the LCD Display to be the
+			same proportional size all around.
+		   b.	Changed the individual LCD segments to have angled
+			ends like a real 7-segment display.
+		5. Added an "ledVisible" resource to the LedButton widget
+		   to allow the application to use it to indicate a state/
+		   status string without a corresponding LED indicator.
+		6. Changed the SimpleButton widget's minimum size to be the
+		   smallest rectangle enclosing the widget's Label.
+		7. Added a "valueJustify" resource to the Value widget (and
+		   subclasses) to allow for left, right, or center 
+		   justification of the value displayed within the Value Box.
+
+1.2		1. Changed Xc widget class names so that they are preceded
+		   by 'xc' in order to prevent possible name collisions
+		   with other widget sets.
+
+1.1		1. Fixed Xctest.c so that the argc parameter to XtInitialize
+		   is passed by reference (address) instead of by value (oops!).
+		2. Fixed the xctest shell script so that the #!/bin/sh line
+		   is the first line in the file.
+		3. Added range checking to the Lcd and BarGraph widgets so 
+		   that the application cannot set a value outside of the
+		   XcNupperBound/XcNlowerBound range via the convenience
+		   functions or callback functions.
+		4. Fixed Control.c so that it uses " " instead of "NO LABEL"
+		   as the default label if one is not supplied.
+
+1.0		1. Initial release.
+
+
+1.2 ACKNOWLEDGEMENTS
+
+   Special thanX goes to the following people for their help in the propagation
+of this widget set:
+
+	Jay Chiang		chiang@spc5.jpl.nasa.gov
+	Robert Withrow		witr@rwwa.COM
+	Markku Savela		savela@tel.vtt.fi
+	Przemek Klosowski	przemek@rrdstrad.nist.gov
+	Richard Hesketh		rlh2@ukc.ac.uk
+	Kevin Sweet		sweet@horizon.com
+
+
+1.3 ARCHIVE CONTENTS
+   Enclosed in the Xc.tar file is the following source code/documentation:
+
+FILE			DESCRIPTION
+----------		---------------------------------------------
+
+README			Documentation for the Control Panel Widget Set (Xc)
+			from both the user and application stand-point.
+
+Control.h		The public header files included by the application
+Value.h			that uses a particular widget.
+SimpleB.h
+VButton.h
+ToggleB.h
+Slider.h
+Led.h
+BarGraf.h
+Lcd.h
+Xc.h
+
+ControlP.h		The private header files used by the each 
+ValueP.h		widget's code and by its subclasses.
+SimpleBP.h
+VButtonP.h
+ToggleBP.h
+SliderP.h
+LedP.h
+BarGrafP.h
+LcdP.h
+
+Control.c		The actual widget code that contains widget methods,
+Value.c			action functions, and definitions.
+SimpleB.c
+VButton.c
+ToggleB.c
+Slider.c
+Led.c
+BarGraf.c
+Lcd.c
+
+Imakefile		An imake file for making an X makefile to build
+			the Xc widget set and test program (use xmkmf on 
+			your system to make the Makefile).
+
+Xc.mak			A simple make file that builds the Xc widgets
+			into an archive library (libXc.a) to be linked
+			with your applications, and also makes the Xctest
+			program as an example Xc application.  Use it if
+			you don't have xmkmf (everyone should have it).
+			You will probably have to edit it first.
+
+Xctest.c		A simple program that creates two of each widget
+			in the Xc widget set and demonstrates widget
+			applications.
+
+Xctest.ad		An application defaults resource file for the Xctest
+			application (demonstrates Xc widget resource settings). 
+
+xctest			Simple shell script that enables you to try out the
+			Xctest demo program without moving the Xctest.ad
+			file to your app-defaults directory.
+
+copyright.doc		Copyright Notice for the Xc widget set and source,
+			to be included in any commercial/shareware
+			applications that you use any of these widgets in.
+
+
+2. INSTALLATION 
+
+   1) Uncompress and extract the contents of the tar file (Xc-1.3.tar.Z) in 
+      the directory of your choice:
+
+	cat Xc-1.3.tar.Z | uncompress | tar -xfvo -
+  
+   2) run 'xmkmf' in the directory you extracted into.  This will 
+      make a Makefile for your system from the Imakefile provided.
+  
+   3) Then just enter 'make World' to build the Xc library (libXc.a)
+      and the test/demonstration program Xctest. 
+ 
+   4) After you have successfully built the Xc library and the demo
+      program, run the 'xctest' script to try the Xctest program with the
+      application defaults file 'Xctest.ad' without having to copy the file
+      to your app-defaults or home directory.
+ 
+   5) Enter `make install' to copy the library and the header files to
+      the installation directories.  You may need to be root to do this
+      depending on your setup.
+ 
+   6) To use the library, simply link with it when you build your
+      applications (use the -lXc link option).  To include the
+      necessary header files, use (for example) this path specification:
+      #include <X11/Xc/Control.h> 
+ 
+
+2.1 INSTALLED SYSTEM LIST 
+
+   The Xc widget set has been successfully built and run on the following
+systems:
+
+  MACHINE		OPERATING SYSTEM		X11 VERSION
+  --------------	------------------------	------------------
+
+  Modcomp 9735 (68030)	REAL/IX (SVR4 Unix)		R3/R4  
+  Intel 386 (clone)	Interactive SVR4.0.3.0	 	R5 Patch 8
+  Sun 3/60		SunOS 4.1.1			R4
+  Sparc			SunOS 4.1.1			R5 Patch 11
+  SunIPX		SunOS 4.1.2			R5
+  HP 9000/750		HPUX 8.07			R5
+  DEC VAX		VMS 5.4-3 			R4/DECWINDOWS
+
+
+3. XC WIDGETS
+
+3.1 Getting Started
+
+3.1.1 Tips for Using Xc Widgets
+
+   To create widgets in the Xc widget set, just use the XtCreateWidget
+or XtCreateManagedWidget functions and specify the appropriate widget
+class name (specified in the detailed widget description that follows).  
+Use XtSetArg and XtSetValues if you need to hard code resources in your 
+application.  See the Xctest.ad file for an example of setting Xc resources
+within resource files.
+   Be conscious of each widget's geometry (width & height) because the
+sizes of each graphical element of a widget are scaled according to
+the Core widget width & height resource settings.  If you find that
+a widget's label or value string gets clipped by other widget elements,
+either resize the widget or choose a smaller font.  
+
+3.1.2 The 3D Effect and Xc Color Resources
+
+   As of version 1.3, the method used to produce the 3D effect is a 
+'dithered' approach using a white and black dashed line against the 
+background to produce the top and bottom shade colors.  No colors are 
+allocated in the DefaultColormap, making the widgets more server-
+resource-efficient.  The resulting effect is similar to Motif's, and
+allows for a much larger range of background colors possible.  However,
+the 3D effect is not as nice (in my opinion) as that produced with the
+old method.  Therefore, the old method of producing the 3D effect is still
+available by specifying a '-DNICE_SHADES' switch to the compiler (add this
+to the CCOPTIONS variable in the Makefile) for those who want the better
+shading.
+   If the '-DNICE_SHADES' option is defined, the Control background color 
+resource setting is used to generate the colors used to make the 3D effect.  
+Basically, the Control widget takes the Control background color
+setting and calculates a lighter shade of the color for the top & left
+corners of Xc objects, and calculates a darker shade of the background
+color for the bottom & right corners of the objects.  I found that
+on our X server (a 256 color Tektronix X Terminal), certain background
+color settings work better in producing the 3D effect than others.  
+Generally, any "pure" RGB colors (i.e., red, yellow, blue, black, white,
+green, etc.) do not produce as good a 3D effect.  But, I do know that soft 
+colors, pastels, and otherwise bland background colors do work fine to 
+produce the 3D shading effect.  Obviously, the lighter a background color 
+is, the less pronounced the lighter shade color will be; and the darker a 
+background is, the less pronounced the darker shade color will be.  Also, 
+keep in mind that if you specify this method for producing the 3D effect,
+the Control widget allocates the shade colors in the DefaultColormap.  
+So if you get the "unable to alloc shade 1/shade 2 color" warning, you
+will have to kill whatever client is using up alot of colors in the
+DefaultColormap (a prime culprit of this is if you use xloadimage to
+load a GIF or other image with alot of colors on the root window).
+I chose to use the DefaultColormap for allocating the shade colors
+because of the possibility that false colors will be displayed whenever
+the pointer is not within an Xc widget's window.  If your display can
+handle alot of colors (like 16 million or something), or you're not
+using other clients that use up alot of colors, then you shouldn't have 
+to worry about it.
+
+
+3.2 CONTROL WIDGET
+
+   xcControlWidgetClass
+
+USER INFO -
+
+   The Control widget serves as the superclass for all of the Xc widgets.
+It simply stores resources that are common to all of the Xc widget classes
+(i.e., label, font, colors, etc.).  It also calculates the shade colors
+used in producing the 3D effect.  Resources are as follows:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNbackground		Pixel		gray		Background color, 
+							(used in producing 
+							the 3D effect if the
+							-DNICE_SHADES switch
+							is specified).
+XcNlabel		String 		""		The widget's label.
+XcNlabelColor		Pixel 		black		The label's color.
+XtNfont			XtFontStruct	DefaultFont	Font used for widget's
+							strings.
+XcNshadeDepth		int		3  		Depth of the 3D
+							shadow effect in
+							Pixels. (1 - 5)
+
+These resources apply to each of the Xc widget classes.
+
+PROGRAMMER'S INFO -
+
+Be sure to properly set color or font resources if you hard-code these
+by using XtSetValues in your application.  
+
+
+3.3 VALUE WIDGET
+
+   xcValueWidgetClass
+
+USER INFO -
+
+   The Value widget is used only for subclassing widgets that manipulate
+long integer/floating point values, and it does nothing other than store
+resource settings common to this widget class.  As contained in the Xc
+widget set header file (Xc.h), the XcDType is defined as an enumerated
+type containing XcLval, XcHval, and XcFval ("lval", "hval", and "fval" in
+resource files), and it is used to specify the value's datatype (long, hex,
+or float).  The XcVType is defined as a union containing a long integer
+(lval) member and a float member (fval), and is used in specifying a
+Value widget's value, upper and lower bound, and increment resources.
+The XcNvalueForeground and XcNvalueBackground resources are used to 
+specify the foreground/background color of the widget's displayed value.
+The XcNvalueJustify resource is a string that identifies how the value
+should be displayed in the subclass's Value Box (i.e. left, right, or center 
+justification).
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNdataType		XcDType		lval		The value's data type,
+							either long, hex, or
+							float ("lval", "hval",
+							or "fval").
+XcNdecimals		int 		2		Number of decimal
+							places for float
+							type ("fval") values
+							(1 - 6 places).
+XcNincrement		XcVType 	1		Value to increment/
+							decrement by.
+XcNupperBound		XcVType		100		Maximum value range.
+XcNlowerBound		XcVType		0		Minimum value range.
+XcNvalue		XcVType		XcNlowerBound 	Initial or new value
+							for this widget.
+XcNvalueForeground	Pixel		black  		Foreground Color of 
+							the value string
+							in the Value Box.
+XcNvalueBackground	Pixel		white  		Background Color of 
+							the Value Box.
+XcNvalueCallback	Pointer		NULL		Callback function to
+							call when the value 
+							has changed by the
+							user.
+XcNvalueJustify		XcValueJustify	justifyCenter	Specifies how to 
+							place the value within
+							the Value Box 
+							("justifyLeft",
+							"justifyRight", or
+							"justifyCenter")
+
+Currently, the valid XcNdecimals settings are 1 - 6.  Obviously, the
+XcNincrement setting must be greater than 0, and the XcNupperBound and
+XcNlowerBound settings must not conflict with each other.  The XcNvalue
+setting must be within the range specified by XcNupperBound/XcNlowerBound.
+Look at the example application defaults resource file (Xctest.ad) for
+setting Xc resources in a resource file.
+
+PROGRAMMER'S INFO -
+
+   The accompanying application source file, Xctest.c, demonstrates
+how to use Xc widgets in application code.  The program creates ValueButtons,
+Sliders, Lcds, and BarGraph widgets. This test program also demonstrates 
+the setting of resource values from application code using XtSetValues().  
+When specifying floating point values for resource settings (i.e., 
+XcNincrement, XcNupperBound, XcNlowerBound, and XcNvalue) be sure to follow 
+the example in Xctest.c or the settings won't work.  Create variables of 
+type XcVType (a union with a long member and a float member), assign your 
+floating point setting to the float member of this union, BUT reference the 
+long member when setting the resource with XtSetArg.  Example:
+
+{
+Widget vbutton;
+Arg args;
+int i;
+XcVtype up_bound, lo_bound, increment;
+
+/* First, create the ValueButton widget obviously */
+
+/* Set your float type values in the XcVType variables */
+   increment.fval = 0.01;
+   up_bound.fval = 1.00;
+   lo_bound.fval = 0.00;
+   
+/* BUT, reference the lval member when using the XtSetArg macro. */
+   i = 0;
+   XtSetArg(args[i], XcNincrement, increment.lval);  i++;
+   XtSetArg(args[i], XcNupperBound, up_bound.lval);  i++;
+   XtSetArg(args[i], XcNlowerBound, lo_bound.lval);  i++;
+   XtSetValues(vbutton, args, i);  /* NOTE:  ^ the long member is referenced
+				    *          even though the value is a float.
+				    */
+}
+
+This seems kludgy, but it's the best way to get by the Xt limitation
+of the XtArgVal type cast (happens to be a long).  Asente & Swick get
+the credit for this solution.
+   Look at the sample callback function in Xctest.c for using the 
+XcCallData structure in your callback functions.  The application
+should use the XcData pointer type for the call_data parameter in your
+callbacks for the Value class widgets.  For those subclasses that allow
+the user to manipulate the value, the Value widget calls the XcNvalueCallback
+whenever the value is changed.  The call_data parameter points to a
+structure containing the widget's datatype, number of decimals, and the
+new value.  See Xctest.c for examples. 
+
+
+3.4 SIMPLE BUTTON WIDGET
+
+   xcSimpleButtonWidgetClass
+
+USER INFO -
+
+   The SimpleButton widget is similar to Motif's XmPushButton widget.  It's
+provided in the Xc widget set for those who aren't fortunate to have Motif
+and still want to have cool looking buttons.  It is a 3D rectangle button
+that looks like it's depressed when the user clicks on it.  If the user
+moves the pointer out of the SimpleButton while it is depressed, the 
+SimpleButton will pop back up again (become 'raised').  The SimpleButton
+is only activated when the user releases the pointer button while the 
+pointer is over the SimpleButton.  This feature allows the user to 'change
+their mind' after pressing the pointer button over the SimpleButton.  Once
+the SimpleButton is activated, the application's registered XcNactivateCallback
+function is called.  Specific resources include:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNactivateCallback	Pointer		NULL  		Application callback
+							function to be called
+							when the user activates
+							the SimpleButton.
+
+PROGRAMMER'S INFO-
+
+   Include the SimpleB.h header in application code. 
+
+KNOWN PROBLEMS -
+
+   None, (yet).
+
+FUTURE ENHANCEMENTS -
+
+   I may add the ability to specify a bitmap/Pixmap in place of the Label.
+
+
+3.5 VALUE BUTTON WIDGET
+
+   xcValueButtonWidgetClass
+
+USER INFO -
+
+  The ValueButton widget was created to provide a user-interface element 
+that would allow a user to increment/decrement an integer, long integer, 
+or floating point value by clicking on an Up or Down arrow, and allow an 
+application to access the incremented/decremented value when the user clicks 
+on an Accept button.  One of the many possible uses of such a widget would 
+be to provide an interface element enabling the user to quickly change 
+application 'settings' by using the mouse pointer instead of typing values 
+from the keyboard, thus providing a more logical approach to a user-interface 
+(i.e., its more logical to press an up/down arrow to increment/decrement 
+a value instead of typing its new value in some kind of text widget).
+   The Valuebutton widget has five graphical elements: an Up Arrow, a Down
+Arrow, an Accept Button, a Value Box, and the widget's Label string.  The
+user clicks (once) on the Up Arrow to increment the value in the Value Box
+by whatever value is specified in the XcNincrement resource setting (default
+is 1).  Likewise, the user clicks on the Down Arrow to decrement the value.
+The value isn't actually changed until the user releases the pointer button
+while over the Up/Down Arrow, enabling the user to change his/her mind.
+The user can click the Up/Down Arrows as many times as he/she likes until
+the upper range or lower range value is reached (specified by the XcNupper-
+Bound and XcNlowerBound resource settings); this way the user is prevented
+from incrementing/decrementing the value beyond specified limits.  The Value
+Box indicates the ValueButton's current numeric value.  When the user has 
+set the value to the desired value, he/she can then click on the Accept 
+Button to make the value 'current', which causes the application program's 
+XcNvalueCallback function to be called in order to do something with the 
+current value.  The Accept Button does not have a label on it, it is simply 
+the raised 3D button between the Up and Down Arrows.
+   There are keyboard equivalents for the Up/Down Arrows and Accept Button:
+hit the keypad '+' or '-', or the up/down arrow keys to increment/decrement
+the value when the pointer is in the ValueButton widget.  Similarly, the
+Return/Enter keys activate the Accept Button.  An additional feature of the
+ValueButton widget is that the user can rapidly increment/decrement the
+value by pressing the pointer button and holding it down over the Up/Down
+Arrow.  The value will start incrementing/decrementing automatically about
+1 second later and will continue to do so until the user releases the 
+pointer button, moves the pointer out of the Up/Down Arrow, or the upper/
+lower bound is reached.  Additionally, if the user holds down the above
+mentioned keyboard equivalents, the value will also rapidly increment/
+decrement.
+   The following identifies the ValueButton's resources:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+(None yet)
+
+PROGRAMMER'S INFO -
+
+   Include the VButton.h header in application code.  See PROGRAMMER'S INFO 
+on the Value widget for a description of using the ValueButton in application 
+code.
+
+KNOWN PROBLEMS -
+
+   None, (yet).
+
+FUTURE ENHANCEMENTS -
+
+I will add a resource that allows for horizontal or vertical orientation of
+the ValueButton.  I plan on creating a Multi-Value Button widget that 
+operates like the ValueButton but it would allow you to manipulate many 
+values of the same datatype within the same widget (taking up less window 
+real-estate).
+
+
+3.6 SLIDER WIDGET
+
+   xcSliderWidgetClass
+
+USER INFO -
+
+   The Slider widget is a subclass of the Value widget and it is similar in
+behavior/functionality to Motif's XmScale widget in that it allows you to
+manipulate a numeric value over a given range.  The Xc Slider widget differs
+from the Motif XmScale in that it allows manipulation of real floating point
+values (not just an integer that is displayed like a float).  Additionally,
+the Slider widget allows manipulation of values over a broader range (i.e.,
+the range of 'C' long integer and float types).  
+   The Slider widget has 6 graphical elements: the widget's Label, a Nob for 
+changing the widget's value, a Channel that the Nob slides in, a Value Box
+that displays the widget's current value, an optional Accept Button, and an
+optional Zoom control (with Zoom Buttons and displayed Zoom Factor) for fine
+tuning of the Slider's value.  If the XcNenableAccept resource is set to 
+True, the Accept Button will appear as the raised button to the left of the 
+Channel with a vertical Slider orientation, or will appear to the left of
+the Value Box with a horizontal orientation.  If the XcNmaxZoomFactor 
+resource is set to a value greater than 0, then the Zoom control will appear
+to the right of the Channel with a vertical Slider, or will appear to the
+right of the Value Box with a horizontal orientation.  
+   The user can manipulate the widget's value in three ways: click on the Nob
+and drag it up and down the Channel to increase/decrease the value; click in
+any place in the Channel, the Nob will move to that place and the value will
+be changed to the corresponding value; or press the up and down arrows on the
+keyboard to increment/decrement the value according to its precision (i.e., 
+if the value has 3 decimal places, the value will be incremented/decremented
+by .001; if the value is integer/hexadecimal, the value will be incremented/
+decremented by 1).  The Slider also has an optional fine-tune feature that
+lets the user manipulate values that have large ranges.  If the 
+XcNmaxZoomFactor resource is set to an integer number greater than 0, the 
+Zoom controls will be available to allow the user to adjust the 'Zoom Window'
+over which the Slider Nob can be moved.  The Up/Down Zoom Arrows are used
+to increment/decrement the Zoom Factor (displayed between the Arrows) 
+enabling you to 'zoom' in on the Slider's current value.  Basically, the
+value's range is divided by 2 to the power of the Zoom Factor to determine
+the 'Zoom Window'.  If the Zoom Factor is 0, then there is no zooming (2 to
+the power of 0 equals 1).  The larger the Zoom Factor, the greater the 
+precision for fine tuning the value.  You'll have to experiment with the
+XcNmaxZoomFactor resource to determine the best possible Zoom Factor for
+fine tuning a value over a given range.
+   The Slider widget can have vertical or horizontal orientation based on 
+the XcNorient resource setting ("vertical" or "horizontal" in resource files,
+XcVert or XcHoriz in application code).  With the vertical orientation, the 
+value is increased as the Nob is moved from bottom to top; and with the 
+horizontal orientation, the value is increased as the Nob is moved from left
+to right.  Application callback functions for the Slider widget will be 
+called under 2 circumstances.  If the XcNenableAccept resource is set to 
+False (default), the callback is called whenever the value is changed 
+(i.e., the user clicks on the Nob, drags it, and then releases the pointer 
+button; the user clicks in the Channel to set the Nob; or the user presses 
+the up or down arrow keys on the keyboard).  If XcNenableAccept is set to 
+True, the callback is only called when the user presses the Accept Button,
+thereby allowing the user to achieve the desired value (fine tune, etc.) 
+before any action is taken on that new value.
+   As with all subclasses of the Value widget, the Slider's value (and Nob 
+position) can be set initially or at any time after the widget is created 
+by setting the XcNvalue resource.  Specific Slider widget resources are:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNorient		XcROrient	XcVert		Slider's orientation:
+							("vertical" or 
+							"horizontal" in 
+							resource files, XcVert
+							or XcHoriz in 
+							application code.
+XcNnobColor		Pixel		black  		Color of the Slider's
+							Nob.
+XcNenableAccept		Boolean		False		Enable/disable the
+							Accept Button.
+XcNmaxZoomFactor	Int		0		Sets the max Zoom
+							Factor.
+
+PROGRAMMER'S NOTES -
+   
+   Include the Slider.h header in application code.  See the Value widget's 
+PROGRAMMER'S NOTES for a description of using the Slider widget in 
+application code.  Note that the XcNincrement resource of the Value widget
+has no effect on the Slider widget.
+
+KNOWN PROBLEMS -
+
+   The Nob seems to move a little slow when dragging it in the Channel (it
+sometimes lags behind the mouse pointer movement).  This is because the
+widget receives and processes all PointerMotion events.  I haven't figured
+out yet how to make the server send only PointerMotionHints to a widget
+(I tried using XSelectInput, but that didn't work).  If anyone has a
+solution to this problem, please let me know.  
+
+FUTURE ENHANCEMENTS -
+
+   I may add scale segments along the Channel.
+
+
+3.7 LCD WIDGET
+
+   xcLcdWidgetClass
+
+(ThanX to Robert Withrow for the idea and requirements specification)
+
+USER INFO -
+
+   The LCD widget is also a subclass of the Value widget and it emulates
+the traditional 7-segment LCD display.  It simply takes an application-
+specified long integer/floating point/hexadecimal value and displays 
+each character of the value in 7-segment LCD fashion.
+   The LCD widget has 2 graphical elements: the widget's Label, and the 
+LCD Display in the center of the widget.  The widget basically takes
+the application-specified value, does a sprintf on it based on the 
+XcNdataType setting, and displays each character in 7-segment fashion
+(right-justified, starting with the most significant digit) in the LCD 
+Display.  The XcNvalueLength resource setting is important.  Choose the 
+max length that the value can obtain, otherwise, the displayed value may have 
+its least significant digits clipped.  The XcNvalueLength setting is also
+used in determining the geometry (size, line width, etc.) of each character
+in the LCD Display; so if the characters get displayed weird, adjust
+the XcNvalueLength or resize the widget (preferably the latter).
+   Since this widget is used as an indicator, there is currently no user
+interaction with the Lcd widget.  But, there is nothing stopping you
+from adding your own action functions in your application (e.g., you could
+popup a 'help' dialog whenever the user clicks the right pointer button in 
+the LCD, etc.).
+   There are two ways the application can update the value in the LCD
+Display: by specifically setting the XcNvalue resource to the desired
+value (i.e., using XtSetArg/XtSetValues, or the XcLcdUpdateValue convenience
+function), or by enabling the widget to notify the application to update
+the value at timed intervals (via the XcNinterval and XcNupdateCallback 
+resources).  See the PROGRAMMER'S NOTES section for more detail.  Specific 
+LCD widget resources are:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNvalueLength		short		10  		Length (in characters)
+							of the widget's value.
+XcNinterval		int		0		Time Interval (in
+							milliseconds) between
+							invoking the 
+							XcNupdateCallback
+							procedure.
+XcNupdateCallback	Pointer		NULL		Callback function
+							invoked at XcNinterval
+							milliseconds used to
+							notify the application
+							to update the displayed
+							value.
+
+The Value widget's XcNincrement and XcNvalueCallback are not used by this 
+widget.  Use the XcNvalueForeground and XcNvalueBackground resources to specify
+the LCD Display's colors.  Realistic colors are red on black, gray on yellow, 
+etc.
+
+PROGRAMMER'S NOTES -
+   
+   Include the Lcd.h header in application code.  To set the LCD's displayed
+value, you can use XtSetArgs/XtSetValues as defined in the PROGRAMMER'S NOTES
+section for the Value widget, or you can use the following convenience
+function provided with this widget:
+
+void XcLcdUpdateValue(LcdWidget w, XcVType *value);
+
+/* Example usage */
+Widget lcd;
+XcVType new_value;
+
+   /* Create the widget first (obviously)... */
+
+   new_value.fval = 5.002;
+
+   /* Update the LCD with the latest value. */
+   XcLcdUpdateValue(lcd, &new_value);
+
+
+Applications can also specify a callback function to be invoked at specified
+time intervals in order to update the value displayed in the LCD.  In order
+to do this, set the XcNinterval to the desired time interval in milliseconds, 
+and add an XcNupdateCallback function for the specific LCD widget.  The 
+following example defines a callback function to set the LCD widget's 
+displayed value:
+
+/* Voltage update interval: 500 msecs. */
+#define VOLTAGE_INTERVAL	500	
+
+/* Declaration of callback function. */
+void Update_value(Widget w, caddr_t client_data, XcData call_data);
+
+/* Globals */
+Widget Lcd;
+float Current_voltage;
+
+{ /* probably function main()... */
+int i;
+Arg args[10];
+
+   /* Create all the necessary widgets... */
+
+   /* Set resources to enable update value notification at timed intervals. */
+   i = 0;
+   XtSetArg(args[i], XcNinterval, VOLTAGE_INTERVAL);  i++;
+   XtSetValues(Lcd, args, i);
+
+   /* Specify the callback to be invoked by the LCD widget. */
+   XtAddCallback(Lcd, XcNupdateCallback, Update_value, NULL);
+
+}
+
+
+/* Callback function to update the LCD's displayed value with the voltage. */
+void Update_value(w, client_data, call_data)
+Widget w;
+caddr_t client_data;
+XcData call_data;	/* Important: must be XcData type. */
+{
+   /* Set the LCD's displayed value to be the current measured voltage. */
+   call_data->value.fval = Current_voltage;
+
+}
+
+The call_data parameter of the XcNupdateCallback will be a pointer to an
+XcNCallData structure containing the widget's current value, its datatype,
+and number of decimal places if applicable.  The XcNupdateCallback function
+must set the value member of the structure pointed to by call_data to the
+new value before it returns.  See Xctest.c for an example XcNupdateCallback 
+function.  See Value widget's PROGRAMMER'S NOTES for a description of setting 
+Value widget resources in application code.
+
+KNOWN PROBLEMS -
+
+   None (yet).
+
+FUTURE ENHANCEMENTS -
+
+   None planned.
+
+
+3.8 TOGGLE BUTTON WIDGET	(ThanX to Robert Withrow for the idea!)
+
+   xcToggleButtonWidgetClass
+
+USER INFO -
+
+   This widget behaves in much the same way as the SimpleButton widget, 
+except that it toggles between an 'on' and 'off' state.  It is made up of
+two graphical elements: the widget's Label, and an LED indicator.  
+   To toggle between 'on' and 'off', the user simply presses and releases the
+pointer button while the pointer is in the ToggleButton.  When the ToggleButton
+is toggled like this, the LED indicator will display the color specified by
+the XcNonColor or XcNoffColor resource setting, depending upon which state has
+been toggled to.  In this way, the user receives a positive indication of
+the ToggleButton's state, which is represented by the widget as an enumerated
+type: either of XcOn or XcOff ("on" or "off" in resource files).
+   When the user presses the pointer button over the ToggleButton, it will 
+appear to be 'depressed', and when the user releases the pointer button over
+the ToggleButton, it will become 'raised' again with the LED indicator changed
+to the toggled state's color.  As with the SimpleButton widget, the user has
+the option of changing his/her mind when the pointer button has been pressed
+over the ToggleButton by simply moving the pointer out of the ToggleButton's
+window.  The ToggleButton will raise again but there will be no state change.
+   Specific ToggleButton resources are:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNonColor		Pixel		"green"		Color used for 
+							indicating the 'on'
+							state.		
+XcNoffColor		Pixel		"black"		Color used for 
+							indicating the 'off'
+							state.		
+XcNstate		XcToggleState	XcOff		ToggleButton's current
+							state: XcOn or XcOff
+							("on" or "off" in
+							resource files).
+XcNactivateCallback	Pointer		NULL		Callback function
+							called when the 
+							ToggleButton has
+							changed states.
+
+PROGRAMMER'S NOTES -
+
+   Include the ToggleB.h header in application code.  The application's
+XcNactivateCallback function will be called whenever the user 'toggles'
+the ToggleButton's state from off to on and vice-versa.  If you need to, 
+you can use the following two convenience functions for setting and 
+retrieving the ToggleButton's current state:
+
+  void XcToggleSet(ToggleButtonWidget w, XcToggleState state);
+
+  void XcToggleGet(ToggleButtonWidget w, XcToggleState *state);
+
+where XcToggleState is an enumeration, one of XcOn or XcOff.  Note that the 
+XcToggleGet function's state parameter is a pointer.
+
+KNOWN PROBLEMS -
+
+   None (yet).
+
+FUTURE ENHANCEMENTS -
+
+   None planned.
+
+
+3.9 LED BUTTON WIDGET
+
+   xcLedButtonWidgetClass
+
+USER INFO -
+
+   This widget is a subclass of the Control widget and it is used as an
+indicator to display an application-specified status to the user.  It
+consists of three graphical elements: the Label, an LED indicator, and
+an optional State Box that displays an application specified string
+corresponding to the current LedButton state.
+   Since this widget is used as an indicator, there is currently no user
+interaction with the LedButton widget.  But, there is nothing stopping you
+from adding your own action functions in your application (e.g., you could
+popup a 'help' dialog whenever the user clicks the right pointer button in 
+the LedButton, etc.).  Both the LED and the State Box are optional, but you
+need one or the other because without either, the widget would be useless.
+If XcNledVisible resource is set to True, then the LED indicator will be 
+shown.  If the XcNstateVisible resource is True, then the State Box will be 
+shown.  This allows for three possible configurations for this indicator
+widget: an LED by itself, a State Box (state string) by itself, or both
+an LED and a State Box.  With a State Box by itself, the application can
+indicate application states/status with just a string.
+   Specific LedButton resources are:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNledColor		Pixel		"white"		Current color of the
+							LED indicator.
+XcNstate		String		NULL		String corresponding
+							to the current state.
+XcNledVisible		Boolean		True		Enable/disable display
+							of the LED indicator.
+XcNstateVisible		Boolean		False		Enable/disable display
+							of the State Box.
+XcNstateForeground	Pixel		"black"		Foreground color of
+							the string displayed
+							in the State Box.
+XcNstateBackground	Pixel		"white"		Background color of
+							the string displayed
+							in the State Box.
+XcNinterval		int		0		Time Interval (in
+							milliseconds) between
+							invoking the 
+							XcNupdateCallback
+							procedure.
+XcNupdateCallback	Pointer		NULL		Callback function
+							invoked at XcNinterval
+							milliseconds used to
+							notify the application
+							to update the LedButton
+							color and state string. 
+
+PROGRAMMER'S NOTES -
+
+  To set the current LED color and optionally the state string, you can use
+XtSetArg/XtSetValues (inconvenient), or you can use the XcLedSetState 
+convenience function:
+
+   void XcLedSetState(LedButtonWidget w, char *color, char *state_string);
+
+where color is a valid color name on your server and the state_string 
+indicates what corresponding string to display in the State Box.  If the 
+XcNledVisible resource is set to False, then pass NULL as the color parameter;
+or if XcNstateVisible is False, then pass NULL as the state_string parameter.
+   You can also have the widget notify your application at XcNinterval time
+intervals so that your application can update the LED's color and string.
+See the PROGRAMMER'S NOTES section of the LCD Widget for a description on
+using the XcNinterval and XcNupdateCallback resources.  The LedButton passes
+a pointer to an XcLedInfoRec structure as the call_data to your registered
+XcNupdateCallback function.  It expects you to copy the new LED color name
+and state string to the appropriate members of the XcLedInfoRec before your
+function returns.  See the Xctest.c demo program source for an example of this.
+The XcLedInfoRec is defined as follows in Led.h:
+
+typedef struct _LedInfoRec
+{
+  char color[MAX_COLOR_LEN];		/* New LED color name. */
+  char str[MAX_STR_LEN];		/* Corresponding state string. */
+} XcLedInfoRec, *XcLedCallData;
+
+Just assign NULL to the color or str member if the corresponding indicator
+(XcNledVisible or XcNstateVisible) is disabled.
+
+KNOWN PROBLEMS -
+
+   None (yet).
+
+FUTURE ENHANCEMENTS -
+
+   None anticipated.
+
+
+3.10 BARGRAPH WIDGET
+
+   xcBarGraphWidgetClass
+
+USER INFO -
+
+   The BarGraph widget is used as a horizontal or vertical bar graph 
+indication of a specified value.  It is a subclass of the Value widget so it 
+can display long integer/hexadecimal/floating point values.  This BarGraph
+widget is not to be confused with a bar chart widget (i.e., it only displays
+one value, not many values side-by-side).  It looks like a digital
+'thermometer', or a traditional graphic equalizer band.  It is used to 
+visually indicate a current value in relation to a specified range.
+   The BarGraph widget is composed of 4 graphical elements: the Label, a Bar
+indicator, Scale Segments indicating the range of values and where the 
+current value fits in that range, and optionally a Value Box that displays
+the current value numerically.
+   Since this widget is used as an indicator, there is currently no user
+interaction with the BarGraph widget.  But, there is nothing stopping you
+from adding your own action functions in your application (e.g., you could
+popup a 'help' dialog whenever the user clicks the right pointer button in 
+the BarGraph, etc.).
+   In addition to the Value widget resources, specific BarGraph resources 
+include:
+
+Resource		Rep.
+Name			Type		Default Value	Description
+---------		----------	-------------	----------------------
+
+XcNorient		XcROrient	XcVert		BarGraph's orientation:
+							("vertical" or 
+							"horizontal" in 
+							resource files, XcVert
+							or XcHoriz in 
+							application code.
+XcNbarForeground	Pixel		"black"		Foreground of the bar
+							in the Bar indicator.
+XcNbarBackground	Pixel		"white"		Background of the Bar
+							indicator.
+XcNscaleColor		Pixel		"black"		Color of the Scale
+							Segments.
+XcNscaleSegments	int		7		Number of segments
+							on the Scale.
+XcNvalueVisible		Boolean		True		Enable/disable the
+							displaying of the 
+							Value Box.
+XcNinterval		int		0		Time Interval (in
+							milliseconds) between
+							invoking the 
+							XcNupdateCallback
+							procedure.
+XcNupdateCallback	Pointer		NULL		Callback function
+							invoked at XcNinterval
+							milliseconds used to
+							notify the application
+							to update the BarGraph's
+							color and state string. 
+
+An odd number for the XcNscaleSegments appears to be best, with the max number
+of segments allowed is 20 and the minimum is 0.
+
+PROGRAMMER'S NOTES -
+
+   Include the BarGraf.h header file in application code.  To change the 
+BarGraph's indicated value you can use XtSetArg/XtSetValues (inconvenient)
+to set the value resource, or you can use the XcBGUpdateValue convenience
+function:
+
+   void XcBGUpdateValue(BarGraphWidget w, XcVType *value);
+
+where the value parameter is a pointer to an XcVType union (see Xc.h for the
+definition of the XcVType union).  See the Xctest.c demo code for an example.
+   You can also have the widget notify your application at XcNinterval time
+intervals so that your application can update the BarGraph's indicated value.
+See the PROGRAMMER'S NOTES section of the LCD Widget for a description on
+using the XcNinterval and XcNupdateCallback resources.  The BarGraph passes
+a pointer to an XcCallData structure as the call_data to your registered
+XcNupdateCallback function.  It expects you to copy the new value into the
+value member before your function returns.  
+
+KNOWN PROBLEMS -
+
+   None (yet).
+
+FUTURE ENHANCEMENTS -
+
+   I'll probably create a BarChart widget out of this one in a future
+version.  It will display multiple application-specified values in BarGraph
+fashion.
+
+
+4. BUG REPORTS/SUGGESTIONS
+
+If you note any problems (compiling, running, etc.) please send email to:
+
+   xcbugs@spc5.jpl.nasa.gov  
+
+I'd like to find out if this widget set is usable by the X community.  If you
+have any suggestions for new widgets that could be added to the Xc widget 
+set, or suggestions for improving existing widgets, please send email to:
+
+   xcuser@spc5.jpl.nasa.gov
+
+I'll try to address each problem/suggestion as soon as is feasible.
+
+
+			Enjoy!
+
+			Paul D. Johnston
+			johnston@spc5.jpl.nasa.gov
+
+

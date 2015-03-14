@@ -1,0 +1,86 @@
+#!/bin/csh -f
+
+set TREEROOT=/tmp/message-parts-`whoami`
+if ($#argv < 3 || $#argv > 4) then
+    echo "Usage:  showpartial file id partnum totalnum"
+    exit -1
+endif
+set file=$1
+# This next line is because message-id can contain weird chars
+set id=`echo $2 | tr -d  \!\$\&\*\(\)\|\'\"\;\/\<\>\\` 
+@ partnum = $3
+if ($#argv == 3 || $4 == "") then
+    set totalnum=-1
+else
+    @ totalnum = $4
+endif
+
+if (! -d  $TREEROOT)  then
+    mkdir $TREEROOT
+    if ($status) then 
+        echo mkdir $TREEROOT failed
+        exit -1
+    endif
+endif
+if (! -d ${TREEROOT}/$id) then 
+    mkdir ${TREEROOT}/$id
+    if ($status) then 
+        echo mkdir ${TREEROOT}/$id failed
+        exit -1
+    endif
+endif
+cp $file ${TREEROOT}/$id/$partnum
+if ($status) then 
+    echo cp $file ${TREEROOT}/$id/$partnum failed
+    exit -1
+endif
+if ($totalnum == -1) then
+    if (-e ${TREEROOT}/$id/CT) then
+	set totalnum=`cat ${TREEROOT}/$id/CT`
+    else
+    	set totalnum=-1  #GROSS HACK
+    endif
+else
+    echo $totalnum >! ${TREEROOT}/$id/CT
+endif
+# Slightly bogus here -- the shell messes up the newlines in the headers
+# If you put $MM_HEADERS in quotes, it doesn't help.
+# if ($partnum == 1) then
+#     echo $MM_HEADERS > ${TREEROOT}/$id/HDRS
+# endif
+set found=0
+set ix=1
+set list=""
+set limit=$totalnum
+if ($limit == -1) set limit=25
+while ($ix <= $limit)
+    if (-e ${TREEROOT}/$id/$ix) then
+	set list="$list $ix"
+	@ found ++
+    endif
+    @ ix ++
+end
+if ($found == $totalnum) then
+    cd ${TREEROOT}/$id
+    cat $list > ${TREEROOT}/$id/FULL
+#    cat ${TREEROOT}/$id/HDRS $list > ${TREEROOT}/$id/FULL
+    rm $list
+    echo All parts of this ${totalnum}-part message have now been read.
+    metamail -d  ${TREEROOT}/$id/FULL
+    echo WARNING:  To save space, the full file is now being deleted.  
+    echo You will have to read all $totalnum parts again to see the full message again.
+    rm ${TREEROOT}/$id/FULL
+    rm ${TREEROOT}/$id/CT
+#    rm ${TREEROOT}/$id/HDRS
+    cd
+    rmdir ${TREEROOT}/$id
+    rmdir ${TREEROOT} >& /dev/null
+else
+    if (${totalnum} == -1) then
+        echo So far you have only read $found of the several parts of this message.
+    else
+        echo So far you have only read $found of the $totalnum parts of this message.
+    endif
+    echo When you have read them all, then you will see the message in full.
+endif
+    

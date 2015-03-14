@@ -1,0 +1,173 @@
+		README file for the new extended file system
+
+			      Release alpha 0.1b
+				 93/01/17
+
+			         Remy Card
+			     (card@masi.ibp.fr)
+
+	This file documents the third test release (alpha 0.1a) of the new
+extended file system.
+
+	THIS IS A TEST RELEASE: DON'T TRUST IT TOO MUCH, IT MAY CAUSE DATA
+LOSS AND ITS INTERNAL STRUCTURE IS SUBJECT TO CHANGE SO THE NEXT RELEASE MAY
+BE INCOMPATIBLE WITH THIS ONE.
+
+The new ext file system
+=======================
+
+	The new ext file system is an extension of the ext file system to get
+more functionalities and better performances.
+
+	The functionalities of this file system are :
+	- file names from 1 to 255 characters (as in the ext fs but the
+	  directory structure has changed and the routines have been rewritten)
+	- the maximum size of a file system is 4 TB (but the implementation
+	  currently restricts it to 2 GB - still enough I hope)
+	- the maximum size of a file is 16 GB
+	- separate atime/ctime/mtime are supported
+	- dtime (deletion time) is supported to allow an undelete program (not
+	  written yet) to work
+	- inode version is supported (may be used one day by a NFS server)
+	- Access Control List for files (not supported yet)
+	- blocks bigger than 1KB and fragments (not supported yet)
+	- st_blocks/st_blksize support
+	- blocks reserved for the super user (10% by default)
+	- a directory cache used to speed up directory lookups
+	- new free blocks/inodes management (the bitmaps are back)
+	- 12 direct data blocks in the inode allowing more files to be coded
+	  without indirection
+	- a valid flag avoiding checks when the fsis clean
+
+How to integrate the new ext file system
+========================================
+
+	The new ext fs is available FOR TESTING ONLY on ftp-masi.ibp.fr in
+the directory /pub/linux/private/newext.  The file to take are :
+	- README : this file,
+	- 0.99.2.diffs.Z : a patch to the 0.99.2 linux kernel allowing the
+	  integration of the new ext fs,
+	- 0.99.3.diffs.Z : diffs to integrate the new ext fs in a 0.99.3
+	  linux kernel,
+	- newextfs-0.1b.tar.Z : the new ext fs code,
+	- nesfprogs-0.1b.tar.Z : the new ext fs programs.
+
+	To integrate the new ext fs in the linux kernel, put these files in a
+directory (say /xxx for example) and execute the following commands :
+
+	$ mv /etc/psdatabase /etc/psdata99.2 # to save the ps data base
+	$ cd /usr/src
+	$ zcat /xxx/0.99.2.diffs.Z | patch -p -s
+or (if you use linux 0.99.3) :
+	$ zcat /xxx/0.99.3.diffs.Z | patch -p -s
+	$ tar xvfz /xxx/newextfs-0.1b.tar.Z
+	$ tar xvfz /xxx/nefsprogs-0.1b.tar.Z
+	$ cd nefsprogs-0.1b
+	$ make dep
+	$ make
+	$ cd ..
+	$ cd linux
+	$ make config
+	$ make dep
+	$ make clean
+	$ make
+
+	Then you can boot on the new kernel image.
+
+Using the new ext fs
+====================
+
+	The new ext fs programs are :
+	- mknefs : creation of a new extended file system
+	- nefsck : check of a new ext fs
+	- dirdump : dump of directories in a new extended file system
+
+	Man pages for mknefs and nefsck are included with the programs.
+
+	A new ext fs can be mounted by :
+		mount -t newext /dev/hdXX /dir
+
+New ext fs internals
+====================
+
+	The new extended file system now uses bitmaps for free blocks/inodes
+management.  A file system is divided in groups.  Each group currently
+contains 8192 blocks (in the future, I will add an option to mknefs allowing
+a different group size).  Each group contains a bitmap block for blocks, a
+bitmap block for inodes, some blocks for a part of the inode table and some
+data blocks.
+
+	The file system has the following structure :
+
+	-------------------------------------------------------------
+	|Boot |Super|Groups     | Group 0 | Group 1 | ... | Group N |
+	|block|block|descriptors|         |         |     |         |
+	-------------------------------------------------------------
+
+Status of the new ext fs and its limitations
+============================================
+
+	THIS IS A TEST RELEASE: DON'T TRUST IT TOO MUCH, IT MAY CAUSE DATA
+LOSS AND ITS INTERNAL STRUCTURE IS SUBJECT TO CHANGE SO THE NEXT RELEASE MAY
+BE INCOMPATIBLE WITH THIS ONE.
+
+	I am still working on the new ext fs.  I release this test version to
+get some feedback.
+
+	The known bugs or limitations of the new ext fs are :
+	- mknefs is not very clever, sometimes it may refuse to create a file
+	  system if the last group is too small.  If this happens, try creating
+	  a smaller or bigger file system.
+	- the new ext fs has not been extensively tested.  THIS MEANS THAT LOTS
+	  OF BUGS MAY BE PRESENT AND CAN DESTROY DATA.
+	- there is no conversion program from the ext fs to the new ext fs yet.
+	  I also have an old version of it (written by Wayne Davison) which
+	  has to be adapted (BTW, even if this conversion program worked, I
+	  would not release it until the new ext fs is stable).
+
+Future plans for the new ext fs
+===============================
+
+	I am still working on the new ext fs to improve it :
+	- optimize the allocation routines,
+	- implement Access Control List (other people have shown interest in
+	  that),
+	- implement bigger blocks and fragments management (not really easy
+	  since the Linux kernel only supports reads and writes of 1KB blocks),
+	- write an undelete program (other people have shown interest in that),
+	- fix bugs,
+	- ...
+
+In case of bugs
+===============
+
+	If you find a bug in the new ext fs, please send a mail to me to report
+it.
+
+Credits
+=======
+
+	Lots of people have helped me during my work on this file system.
+
+	The new ext fs is based on the ext fs which is itself based on the
+minix file system routines written by Linus Torvalds.  Linus also gave me some
+very good advices and suggestions during the design and the implementation of
+this file system (and he also corrected bugs in some of my patches ...).
+
+	Other people have influenced the design of this file system :
+	- Roger Binns)suggested the valid flag,
+	- Werner Almesberger and Theodore Ts'o suggested ACL,
+	- Werner Almesberger wanted an undelete feature,
+	- William Davidsen and Theodore Ts'o made me understand that bitmaps
+	  are better than free lists to obtain good performances,
+	- Adam Richter has enhanced mkefs (the changes have been adapted in
+	  mknefs) to figure out the size of a file system,
+	- Arnt Gulbrandsen suggested the dtime to be used in an undelete
+	  programs.
+
+	I'd also like to thank the testers of the (old) ext fs.  Their reports
+have helped me to improve it and to implement the new ext fs.
+
+	And finally, all my thanks go to Wayne Davison who has helped me so 
+much during the implementation of the new ext fs.  Wayne, I have really enjoyed
+working with you, it was a great pleasure.  Thanks a lot !!

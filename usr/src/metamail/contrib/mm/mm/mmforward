@@ -1,0 +1,110 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+
+
+
+# usage: | /usr/local/lib/mm/mmforward | deliver 
+# usage: | /usr/local/lib/mm/mmforward | filter 
+#
+# mmforward
+#
+#    mmforward will take the email message on stdin and check if
+#    it contains a MIME message with the message/partial content type.
+#
+#    It is intended for use in in a .forward file.
+#
+#    If it finds a partial message it will call metamail so that
+#    mmsavepart can be called. A short message is sent to stdout
+#    saying what we have done.
+#
+#    Otherwise the original message is simply sent intact to stdout
+#    for normal delivery.
+#    
+#
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+
+RC=1
+MESG=/tmp/mmforward$$
+clean() {
+    rm $MESG
+    if [ $RC != 0 ] ; then
+	echo
+	echo "Caught TRAP"
+	echo "Message may have been lost"
+	echo
+    fi
+    exit $RC
+}
+trap "clean" 0 1 2 15
+
+
+cat > $MESG
+
+#
+# grab headers, look for content type, case insensitive
+#
+
+CTYPE=`sed "/^$/q" < $MESG | grep -i  "^content-type:"`
+
+#
+# look for message/partial
+#
+case $CTYPE in
+    *message/partial*)
+
+ 	# Our original message will be processed by metamail using
+	# a customized mailcap that specifies mmsavepart as the
+	# program to run for message/partial messages.
+	#
+	# A new message will be produced on stdout to be appended
+	# (by filter or deliver) to the users mailbox saying what
+	# we have done.
+
+	# grab some of the header lines
+	# we do not want the MIME ones
+	#
+	sed -n "/^Received:/p;/^Message-Id:/p;/^Date:/p;/^From:/p;/^To:/p;s/^Subject: /Subject: Saved:/p;/^$/q" < $MESG
+	echo
+	#
+	# echo all headers with "> " prepended
+	#
+	sed "/^$/q;s/^/> /" < $MESG
+
+	#
+	# finally call metamail
+	#
+	MAILCAPS="/usr/local/lib/mm/fwd.mailcap"
+	export MAILCAPS
+	metamail < $MESG  
+
+	;;
+    *)
+	#
+	# Not a message/partial message.
+	# We simply send it to stdout intact for normal delivery.
+	#
+	cat $MESG
+	;;
+esac
+
+#
+# set exit code and trap to clean
+
+RC=0
+exit
+

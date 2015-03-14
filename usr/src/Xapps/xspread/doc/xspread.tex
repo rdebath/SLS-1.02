@@ -1,0 +1,2076 @@
+\documentstyle [11pt,titlepage]{article}
+\topmargin 0in
+\headheight 0in
+\headsep 0in
+\textheight 9in
+\textwidth 6.375in
+\oddsidemargin 0in
+\evensidemargin 0in
+\columnsep 0.125in
+\columnseprule 0.5pt
+
+\title{\bf Xspread Reference Manual}
+\author{James Cornelius\\ Michael Frey\\ Dan Gruber\\ Fang Wang}
+\date{December 12, 1991}
+
+%namelist generates a list with an item width of
+% your choice; form: \begin{namelist}{widestitem}
+\newcommand{\namelistlabel}[1]{\mbox{#1}\hfil}
+\newenvironment{namelist}[1]{%
+\begin{list}{}
+  {
+   \let\makelabel\namelistlabel
+   \settowidth{\labelwidth}{#1}
+   \setlength{\leftmargin}{1.1\labelwidth}
+  }
+}{%
+\end{list}}
+
+\newcommand{\twiddle}{$\tilde{ }$}  % tilde character, verbatim
+\newcommand{\ctrl}{\^{ }}
+
+\begin{document}
+\maketitle
+\newpage
+
+\pagenumbering{roman}
+\tableofcontents
+
+\newpage
+
+\section*{Introduction}
+\pagenumbering{arabic}
+\addcontentsline{toc}{section}{Introduction}
+
+    Xspread is an electronic spreadsheet which runs under X Windows.
+You must be using an X Windows terminal to be able to use this program.
+
+    Xspread supports many standard spreadsheet features.  Among these are:
+\begin{itemize}
+\item{Cell entry and editing.}
+\item{ Worksheet size:  200 rows by 40 columns.}
+\item{File reading and writing.}
+\item{File encryption.}
+\item{Absolute and relative cell references.}
+\item{Numeric and label (i.e.character string) data in cells.}
+\item{Left or right justification for labels.}
+\item{Row and column insertion and deletion.}
+\item{Hiding and unhiding of rows and columns.}
+\item{Range names.}
+\item{Manual or automatic recalculation.}
+\item{Numeric operators ($+, -, *, /,$ \^{ }(exponentiation), \%(remaindering))}
+\item{Relational operators ($<$, $<=$, $>$, $>=$, $=$, $!=$ (not equal))}
+\item{Logical (or, Boolean) operators (\&(and), $|$ (or), \twiddle (not))}
+\item{Function references.}
+\item{References to external programs. These are called external functions.}
+\item{Use of the mouse in pointing, and menu selecting.}
+\end{itemize}
+
+    The structure and operation of the spreadsheet is similar to but not 
+identical with popular spreadsheets such as Lotus 1-2-3 and its clones.  Like 
+other spreadsheets, the workspace is arranged into rows and columns of cells.  
+Each cell can contain a number, a label (i.e. character string), or a formula 
+which evaluates to a number or label.
+
+    You can start the program with or without specifying a file to be read in.  
+This file must be a saved worksheet.  If a file is specified on the command 
+line, xspread attempts to locate and read in the file.  If it is successful, 
+xspread starts with the file's contents in the workspace.  If it is 
+unsuccessful or no file is specified on the command line, xspread starts with 
+the workspace empty.
+
+    For a tutorial of the spreadsheet program, type:
+
+\verb| xspread /usr/X11/lib/xspread/tutorial.xspread|
+
+This directory also contains other spreadsheet templates which you may be 
+interested in.
+
+    To start xspread, type the program name, xspread, followed by any command 
+qualifiers you want to use and then by the optional file name.  The full form 
+of the command line is:
+
+{\tt   xspread [-c] [-m] [-n] [-r] [-x] [filename]}
+
+Here, -c, -m, -n, -r, and -x represent the command line qualifiers and 
+filename represents the file name of the optional worksheet file that you can 
+start up with.
+
+    Xspread accepts several qualifiers on the command line.  Here is a list of
+the qualifiers and what each of them does:
+\begin{description}
+\item[-c]{ Recalculation is done in column order.  When xspread recalculates, it will
+start at the top of the leftmost column, and recalculate the all the cells 
+from top to bottom.  Then, it will recalculate the next column in the same 
+order.  It will continue in this fashion until it has recalculated the 
+rightmost column.\\
+Xspread does NOT support natural order recalculation.\\
+Default:  Row order recalculation.}
+
+\item[-m]{  Start with manual recalculation.  With this option, the spreadsheet will
+recalculate values only when the ``@'' command is used.  With automatic
+recalculation, the spreadsheet recalculates values whenever a cell's 
+contents change.\\
+Default:  Automatic recalculation.}
+
+\item[-n]{  Standard Data entry mode.  In this mode the user must specify if
+the data entry item is numeric or a label.  To single Xspread that the item is
+a number, the first character must be a "=".  To specify that the data is a
+label, the first character is a quote (").}
+  \begin{itemize}
+  \item{If the first character is a numeral, a ``+'' sign, or a ``-'' sign, the cell
+  contains a number.}
+  \item{If the first character is a greater than sign ($>$), less than 
+     sign ($<$),
+     or double quote ("), the cell contains a label.}
+  \item{If it is anything else, the character is a command to xspread.}
+  \end{itemize}
+With standard entry mode, you must use the first character to tell xspread
+whether the cell is a number or a label.
+  \begin{itemize}
+  \item{If the cell is to be a number, the first character must be an ``=''
+        sign.}
+  \item{If the cell is to be a label, the first character must be a double
+        quote ("), less than sign ($<$), or greater than sign ($>$).}
+  \end{itemize}
+Default:  Quick numeric entry mode.}
+ 
+\item[-r]{Recalculation is done in row order.  When xspread recalculates, it will
+start at the left of the topmost row, and recalculate all the cells from 
+left to right.  Then, it will recalculate the next row in the same order.  
+It will continue in this fashion until it has recalculated the bottommost 
+row.\\
+Xspread does NOT support natural order recalculation.\\
+Default:  Row order recalculation.}
+
+\item[-x]{  Use encryption when reading and writing files.\\
+    Default:  Do not use encryption.}
+\end{description}
+
+\section*{Using the Worksheet}
+\addcontentsline{toc}{section}{Using the Worksheet}
+
+\subsection*{Worksheet Structure}
+\addcontentsline{toc}{subsection}{Worksheet Structure}
+
+    Xspread divides the spreadsheet window into four regions.  Xspread uses 
+the top line for displaying the cell address the cursor is on, displaying cell 
+values, and entering commands.  The second line displays messages from xspread 
+or options for the slash (/) commands.  A third region is immediately under 
+the second line and along the left edge of the window.  This region shows the 
+column addresses and row addresses.  The fourth region is the worksheet work 
+space which is currently displayed.
+
+    Unlike other spreadsheets, xspread does not have a status line showing 
+such information as the current time, operating mode, or amount of workspace 
+left.
+
+    The xspread electronic worksheet is organized in two dimensions:  vertical 
+columns and horizontal rows.  The worksheet has 40 columns labeled alphabet
+ically A through AN (A through Z and AA through AN).  There are 201 rows, 
+numbered 0 through 200.
+
+    Where a row meets a column, the intersection is called a cell.  Cells have 
+addresses which consist of their column letter(s) and row number.  Examples of 
+cell addresses are A1, E56, and AH187.  The upper left corner has cell address 
+``A0''.  The cell address occupied by the cursor is shown on the top line.
+
+    If a cell's numeric value is wider than the column width, the cell is 
+filled with asterisks.  If the cell's label string is wider than the column 
+width, the display of the label is truncated at the start of the next 
+non-blank cell in the same row.
+
+    The xspread worksheet window has two cursors.  The cell cursor highlights 
+the current cell.  Xspread also displays a ``$<$'' sign at the right edge of the
+current cell.  The character cursor shows up when you type a command on the 
+top line.  Otherwise, it is obscured by the cell cursor.
+
+    The user gives commands to xspread through the use of function keys and 
+slash (/) commands.  Unlike other spreadsheets, xspread does NOT assume the 
+existence of dedicated function keys on the terminal keyboard.  Therefore, you 
+have to enter all xspread commands using either printable ASCII characters or 
+control key combinations.  All commands entered using printable characters are 
+case sensitive.
+
+    This manual indicates control key combinations by showing a caret (\ctrl ) 
+immediately prior to the control key's letter.  For example, control A is 
+shown as \ctrl A.
+
+\subsection*{Navigating the Worksheet}
+\addcontentsline{toc}{subsection}{Navigating the Worksheet}
+
+\subsubsection*{Moving the Cursor One Cell at a Time}
+
+    Move the cursor around the worksheet by pressing these control keys.  The 
+control key commands always are available even if the character cursor is on 
+the top line.
+\begin{quote}
+    \ctrl B (back) and \ctrl F (forward) move the cursor left and right, respectively.\\
+    \ctrl P (previous) and \ctrl N (next) move the cursor up and down, 
+      respectively.\\
+
+    The arrow keys also work.\\
+    Left and right arrow keys move the cursor left and right.\\
+    Up and down arrow keys move the cursor up and down.\\
+    The mouse can also be used for navagation.  Pick the cell in the worksheet you
+    would like to place the cursor and "click" with the left or center button.  The
+    mouse cursor will go to that cell.  Please note that if you press the third
+    button, you will enter the menu.\\
+\end{quote}
+
+    There are some additional cursor control commands available if the 
+character cursor is not on the top line of the window.  These commands are 
+intended to make xspread compatible with the vi editor commands.
+\begin{quote}
+    h (back) and l (forward) move the cursor left and right.\\
+    k (up) and j (down) move the cursor up and down.\\
+    \ctrl H and the spacebar move the cursor back and forward, respectively.\\
+\end{quote}
+
+\subsubsection*{Larger Cursor Moves}
+\begin{description}
+\item[ \^{ } (top) and \# (bottom)]{ move the cursor to the top row and bottom row of
+the current column, respectively.}
+
+    \item[0 (zero) (left edge) and \$ (right edge)]{ move the cursor to the left edge
+(column A) and the right edge (the last column) of the worksheet, 
+respectively.}
+
+    \item[b]{ scans the cursor backwards (i.e. to the left and up) to the previous 
+valid (non-blank) cell.}
+
+    \item[w]{ scans the cursor forwards (i.e. to the right and down) to the next valid 
+(non-blank) cell.}
+
+    \item[\ctrl Ed]{ goes to the next non-blank cell in the indicated direction.  The 
+character d must be replaced by one of the valid cursor direction indicators 
+(i.e., \ctrl B, \ctrl F, \ctrl P, or \ctrl N).  When you execute this 
+  command, if the cursor is on 
+a blank cell, it goes in the indicated direction until it reaches the first 
+non-blank cell.}
+\end{description}
+
+\subsubsection*{Moving to Specific Locations}
+
+    g goes to a specific cell.  Xspread prompts for a cell address, range 
+name, a string expression surrounded by quotes, of a number.  If you specify a 
+cell address or a range name, xspread goes directly to that cell, or the 
+starting (upper left) cell of the range.  If you specify a string expression 
+surrounded by quotes, xspread will search for a cell containing that 
+expression.  If you specify a number, xspread will search for a cell 
+containing that number.
+
+    Searches for either strings or numbers go forward from the current cell.  
+When the search reaches the end of the worksheet, xspread starts the search at 
+cell A0 and searches from there forward to the current cell.
+
+\subsubsection*{Moving to Specific Locations via the mouse}
+
+    The mouse can also be used for navagation.  Pick the cell in the worksheet you
+would like to place the cursor and "click" with the left or center button.  The
+mouse cursor will go to that cell.  Please note that if you press the third
+button, you will enter the menu.
+
+\subsection*{Cell Entry and Editing}
+\addcontentsline{toc}{subsection}{Cell Entry and Editing}
+
+    Cells can contain either numeric or string expressions or constants.
+
+\subsubsection*{Label Entry}
+
+    To enter a label, first enter one of these characters: >, <, or " (double
+quote).  Entering a letter first does NOT start a label, since it is necessary 
+to use letters to give commands to xspread.
+\begin{quote}
+    $<$ indicates that the label will be entered into the current cell flush 
+left.\\
+    $>$ and " indicate that the label will be entered into the current cell 
+flush right.
+\end{quote}
+
+\subsubsection*{Numeric Entry}
+
+    To enter a number, you have to know whether or not you are in quick 
+numeric entry mode.\\
+    If you are in standard mode, first use an = sign.  Xspread prompts you for 
+the expression on the top line.  Enter the number or numeric expression.\\
+    If you are in quick numeric entry mode, start the numeric expression with 
+a digit (0-9), + sign, or - sign.  Then, finish entering the number or numeric 
+expression.
+
+\subsubsection*{Cell Editing}
+
+\begin{description}
+\item[E]{ edits the label that already exists in the current cell.  Xspread will 
+display the current label on the top line with the character cursor at the end 
+of the label.  You can then edit the label.}
+
+\item[e]{ edits the numeric value associated with the current cell.  Xspread will 
+display the current numeric expression on the top line with the character 
+cursor at the end of the numeric expression.  You can then edit the numeric 
+expression.}
+
+\item[c]{ copies that last marked cell to the current cell.}
+
+\item[m]{ marks a cell for later use by the copy command.}
+
+\item[x]{ clears (erases) the current cell.  You can use any of the pull commands 
+to retrieve cell contents that were previously deleted.}
+
+\item[+]{ in standard mode, adds the value of its argument to the value of the 
+current cell and stores the result in the current cell.  In quick numeric 
+mode, + introduces a numeric expression or value.}
+
+\item[-]{ in standard mode, subtracts the value of its argument from the value of 
+the current cell and stores the result in the current cell.  In quick numeric 
+mode, - introduces a numeric expression or value.}
+\end{description}
+
+\subsection*{Formulas, Cell Expressions, and Functions}
+\addcontentsline{toc}{subsection}{Formulas, Cell Expressions, and Functions}
+
+\subsubsection*{Formulas}
+
+    Without formulas, an electronic spreadsheet would not be any better than 
+its paper counterpart.  It is the ability to enter and recalculate formulas 
+that gives an electronic spreadsheet its real power.  Formulas can link result 
+cells to other cells in the spreadsheet.  These other cells can, in turn, 
+reference still other cells so that a recalculation of the entire spreadsheet 
+can have a cascade effect.  Through formulas, a single cell can affect cells 
+throughout the entire worksheet.
+
+    Formulas can reference cells either through the cell's address (e.g. K20) 
+or through defined range names.  Both cell addresses and range names can be 
+either relative, absolute, or a combination of the two.  Relative cell 
+addresses and range names change when the cell's formula is copied to another 
+position in the worksheet.  Absolute cell addresses and range names do not 
+change when the cell's formula is copied to another position in the worksheet.
+
+\subsubsection*{Cell References}
+
+    The method of specifying absolute cell addresses follows the convention of 
+Lotus 1-2-3.  Absolute references are preceded by a dollar sign (\$).  The
+dollar sign can precede either the column reference, row reference, or both.  
+Here are some examples:
+\begin{namelist}{\$K\$20xx}
+\item[K20]{This references cell K20.  Both the column and row references
+change when the cell is copied.}
+
+\item[\$K\$20]{This references cell K20.  Both the column reference and row
+reference remain fixed when the cell is copied.}
+
+\item[\$K20]{This references cell K20.  The column reference remains fixed but
+the row reference changes when the cell is copied.}
+
+\item[K\$20]{This references cell K20.  The column reference changes but the
+row reference remains fixed when the cell is copied.}
+\end{namelist}
+
+    These conventions also hold on defined ranges.  Range references vary when 
+formulas containing them are copied.  If the range is defined with fixed 
+variable references, the references do not change.
+
+\subsubsection*{Operators}
+
+    Xspread supports a number of operators for use in formulas.  The numeric 
+operators for formulas include:
+\begin{tabbing}
+XXX\=XXX\=\kill
+ \> +   \> 	Addition\\
+ \> -   \> 	Subtraction\\
+ \> $*$ \> 	Multiplication\\
+ \> /   \> 	Division\\
+ \> \^{ } \>   	Exponentiation (raise to a power)\\
+ \> \%   \> 	Modulus, or, Remaindering\\
+ \> ()  \> 	Parentheses can be used to change the order of operations
+\end{tabbing}
+
+    You can use relational operators to compare two numeric expressions to see 
+if they satisfy the specified relation.  The result is a logical value, either 
+true or false.  The relational operators are:
+\begin{tabbing}
+XXX\=XXX\=\kill
+\>    $=$   \> Equal to\\
+\>   $!=$  \> Not equal to\\
+\>     $>$   \> Greater than\\
+\>    $>=$  \> Greater than or equal to\\
+\>    $<$   \> Less than\\
+\>    $<=$  \> Less than or equal to
+\end{tabbing}
+
+    You can use logical operators to affect compound logical expressions.  The 
+logical operators are:
+\begin{tabbing}
+XXX\=XXX\=\kill
+ \>   \twiddle \>  Logical NOT\\
+ \>   \& \>  Logical AND\\
+ \>   $|$  \> Logical OR\\
+\end{tabbing}
+
+    You can use the conditional operator to test for a condition and take 
+action depending on whether that condition is true or false (i.e., perform an 
+IF test).  This operator takes the place of the @IF function found in most 
+other spreadsheets.  Xspread does not support an @IF function.  The 
+conditional operator is:
+\begin{description}
+\item[e1?e2:e3]{Conditional operator.  If expression e1 is true, return the
+value of expression e2, otherwise return the value of 
+expression e3.}
+\end{description}
+
+\subsubsection*{Function References}
+
+    Xspread supports a number of functions that make it easy to perform 
+calculations of a specific nature.  Formulas can reference any of the 
+functions defined in the Function Reference section.  You can use these 
+function references just as you would any cell or range reference.  All 
+functions begin with the ``@'' character.  CAUTION:  Since the ``@'' character by
+itself is used as a command character (to recalculate the spreadsheet), you 
+MUST precede the ``@'' character in a function reference with a ``+'' sign or ``-''
+sign if a function reference is the first item in a formula.
+
+
+\subsection*{Toggle Commands}
+\addcontentsline{toc}{subsection}{Toggle Commands}
+
+    Xspread has several optional settings which operate like toggle switches.  
+Each switch has two settings.  The toggle commands change the settings of the 
+selected switch to its opposite setting without forcing you to go through the 
+slash (/) command tree to set or reset them.
+
+    All of the toggle commands are of the form \ctrl To, where ``o'' 
+represents a
+letter that stands for the option that you want to toggle.  The settings of 
+all toggle options are saved with the worksheet when it is written into a 
+worksheet file.  The toggle options are:
+
+\begin{description}
+\item[{\bf a   Automatic / Manual Recalculation.}]{If automatic recalculation is set,
+every change to the spreadsheet will cause the spreadsheet to be 
+recalculated.  If manual recalculation is set, xspread does not 
+recalculate the spreadsheet unless you explicitly issue a recalculation command
+(@).}
+
+\item[{\bf c   Current Cell Highlighting.}]{  If set, the current cell is highlighted.
+If not set, the current cell looks just like any other cell in the 
+worksheet.}
+
+\item[{\bf e   External Function Execution.}]{If external functions are enabled,
+xspread calls them whenever the screen is updated.  If external 
+functions are disabled, any external functions that are referenced are 
+not called during screen updates.  If external functions are 
+referenced in the worksheet and they are disabled, xspread prints a 
+warning each time that the screen is updated.  The result from @ext() 
+is the value from the previous call, if any, or else a null string.}
+
+\item[{\bf n   Quick Numeric Entry.}]{  If set, you can start numeric entry with any
+digit, a plus sign, or a minus sign.  If not set, you must start 
+numeric entry with an equals sign.}
+
+\item[{\bf t   Top Line Display.}]{  If set, the top line of the worksheet window
+displays the name and value of the current cell.  If not set, the top 
+line is blank.}
+
+\item[{\bf  x   Encryption.}]{  If set, worksheet files are encrypted when xspread saves
+them using the /File Put command and xspread assumes that worksheets 
+that it reads using the /File Get command are encrypted.  If not set, 
+xspread does not encrypt files with /File Put nor does it decrypt 
+files with /File Get.}
+
+\item[{\bf \$   Dollar Prescale.}]{  If set, numeric amounts are automatically scaled by
+.01 when you enter them into cells.  This allows users to avoid typing 
+the decimal points in monetary amounts.  If not set, numeric amounts 
+are not scaled.}
+\end{description}
+
+\subsection*{Miscellaneous Commands}
+\addcontentsline{toc}{subsection}{Miscellaneous Commands}
+
+    Xspread supports several miscellaneous commands.  These do such things as 
+support various options, allow you to bail out of a command that you do not 
+want to execute, and offer on-line help.  Here is the list:
+\begin{description}
+\item[{\bf \ctrl C  Exit xspread.}]{  All three of these commands exit the user from
+       xspread.}
+
+\item[{\bf  ESC, \ctrl G  Abort Command.}]{  Hitting the ESC (escape) key
+    or \ctrl G are the bail out
+    commands.  Either one of these will abort the current command and 
+    return you to Ready mode.}
+
+\item[{\bf ?   Help.}]{  This will bring up an index to on-line help.  The index will
+display a list of topics together with the letter that allows you to 
+select a particular topic.  The help facility is NOT context 
+sensitive.}
+
+\item[{\bf TAB Point Command.}]{  When the character cursor is on the top line, you can
+use TAB to define a range by pointing, instead of by specifying cell 
+addresses.  When you press TAB the first time, xspread enters Point 
+mode.  You can then specify the range to be selected by using the 
+cursor control keys.  The cell that you were in when you pressed TAB 
+is one corner of the specified range.  During the point operation, the 
+specified range at any time is highlighted.  Pressing TAB the second 
+time exits point mode and makes the range selection final.}
+\end{description}
+
+Three commands redraw the screen:
+\begin{description}
+\item[{\bf \ctrl L  Simple Screen Redraw.}]{  This command redraws the screen, 
+displaying the
+values of expressions.}
+
+\item[{\bf \ctrl R  Redraw Screen with Values Highlight.}]{  This redraw 
+command
+highlights any cells which are referenced by formulas or expressions 
+but which do not contain formulas or expressions.  This screen redraw 
+command is useful for showing those values which you need to provide 
+or update.  With this command, xspread highlights all cells which 
+contain constant numeric values.} 
+
+\item[{\bf \ctrl X  Redraw Screen with Expressions Highlighted.}]{  This screen 
+redraw
+command highlights those cells which contain expressions.  Xspread 
+shows all expressions as formulas, not their current values.  All 
+expressions are displayed as left-justified text.  This command makes 
+it easier to check expressions.}
+\end{description}
+
+Three commands display current cell information in the command line:
+\begin{description}
+\item[{\bf \ctrl A  Numeric Value.}]{  This command displays the numeric value of the current
+cell in the command line.}
+
+\item[{\bf \ctrl V  Cell Name.}]{  This command displays the name of the current cell in the
+command line.}
+
+\item[{\bf \ctrl W  Cell Expression.}]{  This command displays the expression attached to the
+current cell, if any.  If there is no expression, this command returns 
+``?''.}
+\end{description}
+\newpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section*{Alphabetical Command Reference}
+\addcontentsline{toc}{section}{Alphabetical Command Reference}
+
+\subsection*{/C \ \  Column/Row}
+\addcontentsline{toc}{subsection}{Column/Row Commands}
+        
+\subsubsection*{What the /Column/Row commands do}
+These commands perform various operations on entire columns or rows in 
+the worksheet.
+
+The Column/Row command provides the following options:
+\begin{description}
+\item[{\bf Insert}]{  Inserts a new row or column into the worksheet.
+        Append  Insert a new row or column immediately following the source 
+row or column with a copy of the contents of the source row or 
+column.}
+\item[{\bf Delete}]{  Deletes a row or column from the worksheet.}
+\item[{\bf Pull}]{Reinsert (pull) deleted rows or columns back into the
+worksheet.}
+\item[{\bf Remove}]{  Remove expressions from the affected rows or columns, leaving
+only the values of the expressions in the affected cells.}
+\item[{\bf  Hide}]{ Hides a row or column on the worksheet.}
+\item[{\bf Show }]{Unhides a row or column on the worksheet.}
+\item[{\bf Format}]{  Specifies the numeric display format for a column.}
+\end{description}
+
+\subsubsection*{How to use the /Column/Row commands}
+\begin{enumerate}
+  \item{Place the cursor on a cell in the row or column you want to use
+        the command on.}
+  \item{Type /C.}
+  \item{Choose one of the Column/Row commands.}
+  \item{Choose whether to apply the command to a row or column.}
+\end{enumerate}
+
+
+\subsection*{/CA \ \  Column/Row Append}
+
+\subsubsection*{What the command does}
+This command inserts a new row or column which immediately follows the 
+cursor position and copies the contents of the current row or column 
+into the new inserted row or column.
+
+\subsubsection*{How to use it}
+\begin{enumerate}
+\item{ Move the cursor to the cell in a row or column where you want the
+new row or column to be inserted.  Rows are inserted below and 
+columns to the right.}
+\item{Type /CA.}
+\item{Type R for Row or C for Column.}
+\item{ Xspread inserts the row or column immediately below or to the
+right of the cursor position.  It then copies the values of the 
+cells in the current row or column into the newly inserted row or 
+column.}
+\end{enumerate}
+
+
+\subsection*{ /CD \ \ Column/Row Delete}
+        
+\subsubsection*{What the command does}
+This command deletes a row or column from the worksheet.  The 
+remaining rows or columns are renumbered to close the space.  A new 
+row or column is added at the bottom or right edge of the worksheet.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Move the cursor to the row or column you want to delete.}
+\item{Type /CD.}
+\item{Type R for row or C for column.}
+\item{Press Enter.  The row or column at the current cursor position is
+deleted.}
+\end{enumerate}
+
+
+\subsection*{/CF \ \ Column/Row Format}
+        
+\subsubsection*{What this command does}
+This command sets column width and the numeric display format for a 
+column.  There is no command to format a row.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Move the cursor to the column you want to format.}
+\item{Type /CF.}
+\item{Enter the column width.}
+\item{Enter the number of digits to follow the decimal place.  Values
+are rounded off to the least significant digit displayed.}
+\end{enumerate}
+
+\subsection*{/CH \ \  Column/Row Hide}
+
+\subsubsection*{What this command does}
+This command hides the current row or column.  This keeps it from 
+being displayed.  However, it still remains in the worksheet.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Move the cursor to the row or column you want to format.}
+\item{Type /CH.}
+\item{Type R for row or C for column.}
+\item{Press Enter.  The row or column at the current cursor position is
+hidden.}
+\end{enumerate}
+
+\subsection*{/CI \ \ Column/Row Insert}
+
+\subsubsection*{What this command does}
+This command inserts a row or column into the worksheet at the current 
+cursor position.  The new row appears immediately below the cursor and 
+new columns immediately to the right.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Move the cursor to a cell in the row or column where you want the
+new row or column to be inserted.  Rows are inserted below and 
+columns to the right.}
+\item{Type /CI.}
+\item{Type R for Row or C for Column.}
+\item{Xspread inserts the row or column immediately below or to the
+right of the cursor position.}
+\end{enumerate}
+
+
+\subsection*{/CP \ \     Column/Row Pull}
+
+\subsubsection*{What this command does}
+This command reinserts (pulls) deleted information back into the 
+worksheet at the current cursor location.  /CPR inserts enough rows to 
+hold the last deleted set of cells.  /CPC inserts enough columns to 
+hold the last deleted set of cells.  /CPM (Merge) does not insert rows 
+or columns; it overwrites the cells beginning at the current cursor 
+location.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Move the cursor to the position where you want the deleted
+information to appear.}
+\item{Type /CP.}
+\item{Type R for row, C for column, or M for merge.}
+\item{Press Enter.  Xspread inserts the deleted information in the
+manner specified.}
+\end{enumerate}
+
+
+\subsection*{/CR \ \     Column/Row Remove}
+
+\subsubsection*{What this command does}
+This command removes formulas in the affected rows or columns and 
+converts them to the values which were in the cells before the command 
+was executed.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Move the cursor to a cell in the row or column you want to convert
+	from formulas to formula values.}
+\item{Type /CR.}
+\item{Type R for row or C for column.}
+\item{Press Enter.  Xspread converts the formulas to their values in the
+	selected row or column.}
+\end{enumerate}
+
+
+\subsection*{/CS \ \     Column/Row Show}
+
+\subsubsection*{What this command does}
+This command shows (unhides) hidden rows or columns.  It is the 
+reverse of the /CH (Column/Row Hide) command.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Type /CS.}
+\item{Type R for row or C for column.}
+\item{Enter a range of rows or columns to be revealed.  The default
+action is the first range of rows or columns currently hidden.}
+\item{Press Enter.  Xspread reveals the selected rows or columns.}
+\end{enumerate}
+
+\subsection*{/F  \ \     File}
+\addcontentsline{toc}{subsection}{File Commands}
+        
+\subsubsection*{What the /File commands do}
+These commands transfer information between the current worksheet and 
+files on disk.  The /FP (Put), /FT (Table), and /FW (Write) commands 
+can pipe their output to a program.  In order to use this feature, 
+type ``$|$ progname'' to the prompt asking for a filename.
+
+The File command provides the following options:
+\begin{description}
+\item[{\bf Get}]{Retrieves the specified files from the disk.}
+\item[{\bf Put}]{Saves the current worksheet or a specified range to the disk
+                in worksheet format.}
+\item[{\bf Write}]{Prints the current worksheet or a specified range to a file in
+                the format in which it is displayed on the screen.}
+\item[{\bf Table}]{Prints the worksheet or a specified range in a format called
+                table format so that table processors such as tbl, \LaTeX, or
+                \TeX\  can use the data.}
+\item[{\bf Merge}]{  Read in data from the named worksheet file and overwrite
+                corresponding cells.}
+\item[{\bf Combine}]{ Run macros or combine the data in the designated file into the
+                current worksheet.}
+\item[{\bf Directory}]{ Sets the current default directory for file
+                operations.}
+\end{description}
+
+\subsubsection*{        How to use the /File commands}
+\begin{enumerate}
+\item{Type /F.}
+\item{Choose one of the File commands.}
+\item{Select the file you want to use.  The action you specify is
+carried out on the selected file.}
+\end{enumerate}
+        
+\subsection*{/FC \ \     File Combine}
+
+\subsubsection*{What this command does}
+This command imports the specified file.  If the file contains macros, 
+it executes the macros in the file.  If the file contains numeric or 
+character spreadsheet data, it overwrites the data in the current 
+worksheet.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FC.}
+\item{Xspread displays this prompt:\\
+\verb|>> merge [ "merge_file" ] "dir1/.../dirn/|   \\
+        where /dir1.../dirn represent the directory path set using the
+        File Directory command.  If no directory has been set, xspread
+        displays this prompt:   \\
+\verb|>> merge [ "merge_file" ] "(null)/| }
+
+\item{Type in the name of the file that you want to combine into the
+        worksheet.  If the directory is not the one that you want to use,
+        or (null) is in the directory path, delete out the unwanted parts
+        of the directory path and replace it with the path that you want.
+        If you do not specify the path, xspread will use the current
+        directory.}
+\item{Xspread then reads the designated file into the worksheet.  If it
+        is a macro file, xspread runs the macros.  If the file contains
+        numeric or character data, this data overwrites all corresponding
+        cells in the current worksheet.}
+\end{enumerate}
+
+
+\subsection*{/FD \ \     File Directory}
+
+\subsubsection*{What this command does}
+This command sets the default directory to use for the File Combine 
+and File Merge commands.  It has no effect on any of the other /File 
+commands.  Note to Lotus Users:  This is different from the behavior 
+of Lotus 1-2-3 or its clones.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FD.}
+\item{Xspread displays this prompt:\\
+          \verb|>> mdir [ "macro_directory" ] "| } 
+\item{Enter the Unix pathname enclosed in double quotes.  Xspread
+        automatically supplies the opening quote.  The pathname must be a
+        valid Unix directory path expression.  After entering the path,
+        press RETURN.}
+\end{enumerate}
+        
+\subsection*{/FG \ \     File Get}
+
+\subsubsection*{What this command does}
+This command retrieves a worksheet file from the disk.  There are no 
+restrictions on the file name; it can be any valid Unix file name.  
+Xspread uses the current directory if no directory path is included in 
+the file name.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FG.}
+\item{Xspread displays this prompt:\\
+        \verb| >> get [ "source" ] "| }
+\item{Enter the file name enclosed in double quotes.  Xspread
+        automatically supplies the opening quote.  After specifying the
+        file name, press RETURN.}
+\end{enumerate}
+        
+\subsection*{/FM \ \     File Merge}
+
+\subsubsection*{What this command does}
+This command merges the specified file with the current worksheet.  
+The specified file overwrites the data in the current worksheet.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FM.}
+\item{Xspread displays this prompt:\\
+        \verb|>> merge [ "merge_file" ] "dir1/.../dirn/|\\
+        where /dir1\ldots /dirn represent the directory path set using the
+        File Directory command.  If no directory has been set, xspread
+        displays this prompt:\\
+        \verb|>> merge [ "merge_file" ] "(null)/| }
+\item{Type in the name of the file that you want to merge into the
+        worksheet.  If the directory is not the one that you want to use,
+        or (null) is in the directory path, delete out the unwanted parts
+        of the directory path and replace these parts with the path that
+        you want.  If you do not specify the path, xspread will use the
+        current directory. }
+\item{Xspread then reads the designated file into the worksheet.  Data
+        from the merged file overwrites all corresponding cells in the
+        current worksheet.}
+\end{enumerate}
+        
+\subsection*{/FP \ \     File Put}
+
+\subsubsection*{What this command does}
+This command saves the current worksheet or a specified range to the 
+disk.  There are no restrictions on the file name; it can be any valid 
+Unix file name.  Xspread uses the current directory if no directory 
+path is included in the file name.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FP.}
+\item{Xspread displays this prompt:\\
+        {\tt >> put [ "dest" range ] "} }
+\item{Enter the name of the file enclosed in double quotes.  Xspread
+        automatically supplies the opening quote.  Optionally, you can add
+        a range specification after the closing quote.  After specifying
+        the file name, press RETURN.  If you specify a range, xspread
+        saves only the indicated range in the named file instead of the
+        whole worksheet.}
+\end{enumerate}
+        
+\subsection*{/FT \ \     File Table}
+
+\subsubsection*{What this command does}
+This command writes out the worksheet or a specified range into a file 
+with delimiters suitable for processing by the tbl, \LaTeX, or
+\TeX\  table processors.  The tblstyle option controls the delimiters used.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FT.}
+\item{Xspread displays this prompt:\\
+        {\tt >> tbl [ "dest" range ] "} }
+\item{Enter the name of the file enclosed in double quotes.  Xspread
+        automatically supplies the opening quote.  Optionally, you can add
+        a range specification after the closing quote.  After specifying
+        the file name, press RETURN.  If you specify a range, xspread
+        saves only the indicated range in the named file instead of the
+        whole worksheet.}
+\end{enumerate}
+        
+\subsection*{/FW \ \     File Write}
+
+\subsubsection*{What this command does}
+This command prints the worksheet or a specified range out to a file 
+in the format that it appears on the screen.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /FW.}
+\item{Xspread displays this prompt:\\
+	{\tt >> write [ "dest" range ] "} }
+\item{Enter the name of the file enclosed in double quotes.  Xspread
+automatically supplies the opening quote.  Optionally, you can add 
+a range specification after the closing quote.  After specifying 
+the file name, press RETURN.  If you specify a range, xspread 
+saves only the indicated range in the named file instead of the 
+whole worksheet.}
+\end{enumerate}
+
+
+\subsection*{G  \ \     Graph}
+\addcontentsline{toc}{subsection}{Graph Commands}
+
+\subsubsection*{        What the /Graph commands do}
+        These commands create different kinds of graphs from worksheet data.
+        The Graph command provides the following options:
+\begin{description}
+\item[{\bf Type}]{    Selects the type of graph to create (i.e. line, bar, stacked
+                bar, XY, or pie). }
+\item[{\bf X}]{      Selects X axis data range.}
+\item[{\bf A, B, C, D, E, F}]{Set up to six data ranges for the Y axis
+                of a line, bar, stacked bar, or XY graph or for each slice of a pie
+                graph.}
+\item[{\bf Reset}]{   Clears (resets) all of the parameters for graphs.}
+\item[{\bf View}]{    Displays the current graph on the screen.}
+\item[{Options}]{ Allows you to specify legends, formats, titles, scales, and
+                other special format options.}
+\end{description}
+
+\subsubsection*{How to use the /Graph commands}
+\begin{enumerate}
+\item{Type /G}
+\item{Type T and select what type of graph you want to make.}
+\item{Type X and specify the data range for the X axis.}
+\item{Type A through F to specify up to 6 data ranges for the Y axis.}
+\item{Type V to view the graph.}
+\item{Type Q to exit the Graph menu and return to ready mode.}
+\end{enumerate}
+
+\subsection*{/G A-F  Graph A-F (Data Ranges)}
+
+\subsubsection*{What this command does}
+This allows you to designate up to 6 data ranges for plotting on the Y 
+axis.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type a letter from A through F from the Graph menu.}
+\item{Xspread will give you this prompt (where x represents one of the
+        ranges A-F):\\
+        {\tt Input column label for range x -- 2 character max.:} \\
+        Respond with the column address of the range for the Y axis.}
+\item{Xspread will give you this prompt (where x represents one of the
+        ranges A-F):\\
+        {\tt Input starting row number, 200 max., for range x:} \\
+        Respond with the row number for the start of the range for the Y
+        axis.}
+\item{Xspread will give you this prompt (where x represents one of the
+        ranges A-F):\\
+        {\tt Input the ending row number >= nn for the range x:} \\
+        Here, nn is the row number that you just specified in response to
+        the previous prompt.\\
+        Respond with the row number for the end of the range for the Y
+        axis.}
+\item{If you want to specify more ranges, use this command again with a
+        different letter for the next range.}
+\end{enumerate}
+
+\subsection*{/GO \ \     Graph Options}
+
+\subsubsection*{What these commands do}
+These commands allow you to add enhancements to your graph.  The 
+options remain in effect until you change them, exit the program, or 
+load a different worksheet.
+
+\begin{description}
+\item[{\bf Legend  }]{Adds text describing each Y axis data range.}
+\item[{\bf Format  }]{Defines how graph information will be presented.}
+\item[{\bf Titles  }]{Adds titles at the top of the graph and
+        along the X and Y axes.}
+\item[{\bf Grid}]{    Adds horizontal and/or vertical lines to
+        your graph.}
+\item[{\bf Scale   }]{Sets the upper and lower limits for the graph and
+        the number of X axis data points to skip.}
+\end{description}
+        
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type O from the Graph Option menu.}
+\item{Select a graph option from the menu.}
+\end{enumerate}
+        
+\subsection*{/GOF\ \     Graph Options Format}
+
+\subsubsection*{What these commands do}
+These commands control the use of symbols and lines in a line or XY 
+graph.  The default setting is for both symbols and lines.
+\begin{description}
+\item[{\bf Line    }]{Connects data points with a line.}
+\item[{\bf Symbol  }]{Assigns a symbol for each data point in a range
+        with a different symbol for each range (A-F).}
+\item[{\bf Both    }]{Uses both lines and symbols.}
+\item[{\bf Neither }]{Uses neither lines nor symbols but displays data
+        labels if they are defined.}
+\end{description}
+        
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type F from the Graph Options menu.}
+\item{Select a single data range or the entire graph.  These are your
+        choices:\\
+        {\tt Graph \ \ A\ \  B\ \  C\ \  D\ \  E\ \  F}  }
+\item{Choose a format for the specified range.  The choices are:\\
+        {\tt Lines\ \  Symbols\ \  Both\ \  Neither} }
+\item{Continue choosing ranges or formats as desired.}
+\item{To exit the Graph Format menu, press the ESC key.}
+\end{enumerate}
+
+\subsection*{/GOG\ \     Graph Options Grid}
+
+\subsubsection*{What this command does}
+This command adds or clears grid lines from all graphs except the pie 
+graph.  You can choose:
+
+\begin{description}
+\item[{\bf Horizontal  }]{Draw horizontal grid lines only.}
+\item[{\bf Vertical    }]{Draw vertical grid lines only.}
+\item[{\bf Both        }]{Draw both horizontal and vertical grid lines.}
+\item[{\bf Clear       }]{Do not draw any grid lines.}
+\end{description}
+
+The default setting is no grid lines (clear).
+
+\subsubsection*{How to use the commands}
+\begin{enumerate}
+\item{Type G from the Graph Options menu.}
+\item{Set the grid option you want.}
+\item{Xspread returns you to the Graph Options menu.}
+\end{enumerate}
+
+When you display the graph, it will have the grid lines that you specified.
+
+\subsection*{/GOL\ \     Graph Options Legend}
+
+\subsubsection*{What this command does}
+This command displays descriptive text as a legend for each Y axis 
+data range.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Type L from the Graph Options menu.}
+\item{Specify the data range (A-F) to be identified with a legend.  This
+prompt is displayed:\\
+{\tt Enter the legend for x :}\\
+where x is one of ``A'', ``B'', ``C'', ``D'', ``E'', or ``F''.}
+\item{Type the legend you want to identify the range with and then press
+RETURN.  You can use up to 39 characters.}
+\item{Xspread then returns you to the Graph Options Legend menu.  To
+exit the Graph Options Legend menu, press the ESC key.\\
+        If you want to create more than one legend, select another menu item.
+When you display the graph, it will have the legend that you 
+specified.\\
+CAUTION:  When you select a legend data range, xspread does NOT retain 
+any previously defined legend for that data range.  Instead, xspread 
+erases any previously defined legend.}
+\end{enumerate}
+
+\subsection*{/GOS\ \     Graph Options Scale}
+
+\subsubsection*{What these commands do}
+These commands automatically set the scales on the X and Y axes, or 
+let you set them manually.  (Scaling does not apply to pie graphs.)  
+They also let you set the ``skip factor'' for the X axis labels.
+
+If you select automatic scaling, the graph is adjusted to include all 
+points in each data range.  If you select manual scaling, you specify 
+the upper and lower limits for the axis.
+
+You can also set the skip factor for the X axis labels.  The skip 
+factor directs xspread to use only every nth value in the X data range 
+as labels on the X axis.
+
+\begin{description}
+\item[{\bf X Axis}]{  Selects the options for scaling data along the X axis.}
+\item[{\bf Y Axis}]{  Selects the options for scaling data along the Y axis.}
+\item[{\bf Skip}]  {Select the skip interval for data labels on the X axis.}
+\end{description}
+
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type S from the Graph Options menu.}
+\item{Select the desired scaling option.}
+\item{To exit from this menu or any submenu, hit the ESC key.}
+\end{enumerate}
+
+\subsection*{/GOSS\ \    Graph Options Scale Skip}
+
+\subsubsection*{What this command does}
+This command lets you set the skip factor for displaying X range 
+labels or values along the X axis of the graph.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type S from the Graph Options Scale menu.}
+\item{Type the desired skip factor and press RETURN.}
+\end{enumerate}
+
+\subsection*{/GOSX\ \    Graph Options Scale X-axis}
+\subsection*{/GOSY\ \    Graph Options Scale Y-axis}
+
+\subsubsection*{What these commands do}
+These commands scale the X and Y axes.  You can specify whether the 
+ranges which are displayed are automatic (i.e. controlled by xspread) 
+or manual (i.e. you decide the low and high limits for the axis 
+displays).  If you select manual scaling, you can also specify the 
+lower and upper limits that you can display along the X axis (in XY 
+graphs) and along the Y axis (in all graphs except pie graphs).
+
+These commands are independent of each other.  You can have automatic 
+scaling on one axis and manual scaling on the other if you so choose.
+
+Here are the options:
+\begin{description}
+\item[{\bf Automatic}]{Specifies that scaling will be automatically
+        controlled by xspread.  This is the default option.}
+\item[{\bf Manual}]{Specifies that scaling will be controlled by the
+        user.}
+\item[{\bf Lower }]{Specifies the lower limit for manual scaling.}
+\item[{\bf Upper }]{Specifies the upper limit for manual scaling.}
+\end{description}
+
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type X or Y from the Graph Options Scale menu.}
+\item{Select and complete the entries for an item.}
+\end{enumerate}
+
+\subsection*{/GOSXA\ \   Graph Options Scale X-axis Automatic}
+\subsection*{/GOSYA\ \   Graph Options Scale Y-axis Automatic}
+
+\subsubsection*{What these commands do}
+These options specify that xspread controls the scaling along the 
+respective axis.  Automatic scaling is the default.
+
+\subsubsection*{How to use these commands}
+Type A from the /GOSX or /GOSY menus.
+
+\subsection*{/GOSXL\ \   Graph Options Scale X-axis Lower}
+\subsection*{/GOSYL\ \   Graph Options Scale Y-axis Lower}
+
+\subsubsection*{What these commands do}
+These commands set the lower limit along the X axis or Y axis when 
+manual scaling is in use.
+
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type L from the /GOSX or /GOSY menus.}
+\item{Type the lower limit and press RETURN.}
+\end{enumerate}
+ 
+\subsection*{/GOSXM\ \   Graph Options Scale X-axis Manual}
+\subsection*{/GOSYM\ \   Graph Options Scale Y-axis Manual}
+
+\subsubsection*{What these commands do}
+These options specify that you control the scaling along the 
+respective axis.  Xspread will use the values in the Lower and Upper 
+limit settings.
+
+\subsubsection*{How to use these commands}
+Type M from the /GOSX or /GOSY menus.
+
+\subsection*{/GOSXU\ \   Graph Options Scale X-axis Upper}
+\subsection*{/GOSYU\ \   Graph Options Scale Y-axis Upper}
+
+\subsubsection*{What these commands do}
+These commands set the upper limit along the X axis or Y axis when 
+manual scaling is in use.
+
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type U from the /GOSX or /GOSY menus.}
+\item{Type the upper limit and press RETURN.}
+\end{enumerate}
+ 
+\subsection*{/GOT\ \     Graph Options Titles}
+
+\subsubsection*{What this command does}
+This command lets you define titles for the X and Y axes and for the 
+top of the graph.
+\begin{description}
+\item[{\bf First   }]{Places a centered title at the top of the graph.}
+\item[{\bf Second  }]{Places a centered title under the first title line.}
+\item[{\bf X       }]{Places a label below the horizontal (X) axis.}
+\item[{\bf Y       }]{Puts a label beside the vertical (Y) axis.}
+\end{description}
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type T from the Graph Options menu.}
+\item{Specify the position of the title.  This prompt is displayed:\\
+        {\tt Enter xxxxx title :}\\
+        where xxxxx is one of ``First'', ``Second'', ``X'', or ``Y''.}
+\item{Type the title you want to use and then press RETURN.  You can use
+        up to 39 characters.}
+\item{Xspread returns you to the Graph Options Titles menu.  To exit the
+        Graph Options Titles menu, press the ESC key.\\
+        If you want to create more than one title, select another menu item.
+        When you display the graph, it will have the titles that you
+        specified.\\
+        CAUTION:  When you select a title position, xspread does NOT retain
+        any previously defined title for that position.  Instead, xspread
+        erases any previously defined title.}
+\end{enumerate}
+            
+\subsection*{/GR \ \     Graph Reset}
+
+\subsubsection*{What this command does}
+This command resets (clears) graph parameters.
+
+\subsubsection*{How to use the command}
+\begin{enumerate}
+\item{Type R from the Graph menu.  Xspread displays this submenu: \\
+  {\tt Graph\ \   X \ \  A \ \  B \ \  C\ \   D\ \   E\ \   F} \\
+  \begin{description}
+  \item[Graph]{Resets all graph parameters.}
+  \item[X-F]{Resets parameters for a specified range of values.}
+  \end{description} }
+\item{Select an option from the submenu. Xspread removes the parameters
+        without confirmation.}
+\item{To exit the Graph Reset menu, press the ESC key.}
+\end{enumerate}
+        
+\subsection*{/GT \ \     Graph Type}
+
+\subsubsection*{What this command does}
+This command selects the type of graph to be created.
+\begin{description}
+\item[{\bf Line}]{Shows the data for each range as coordinates connected
+        by lines.  Usually this type of graph plots changes over
+        time.}
+\item[{\bf Bar}]{Shows the value of the data as vertical bars.
+        Usually this type of graph compares relationships of different values.}
+\item[{\bf XY  }]{Displays the Y values plotted versus a series of X
+        values. It is usually used to plot the results of an equation.}
+\item[{\bf Stacked-Bar}]{ Shows the values of data as stacked vertical bars.}
+\item[{\bf Pie}]{Displays each data value as a segment of a circle. Only one
+        data range can be displayed per pie graph.}
+\end{description}
+        
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type T from the Graph menu.  Xspread displays this submenu:\\
+        {\tt Line \ \   Bar \ \    XY \ \     Stacked-bar \ \    Pie}}
+\item{Select the graph type you want to use.}
+\end{enumerate}
+        
+\subsection*{/GV \ \     Graph View}
+
+\subsubsection*{What this command does}
+This command displays the current graph.
+
+\subsubsection*{How to use this command}
+Type V from the Graph menu.  Xspread displays the graph in a separate window on
+the X Windows terminal.  Press any key or mouse button (with the mouse pointer
+in the graph window) to return to the Graph menu.
+
+\subsection*{/GX\ \      Graph X}
+
+\subsubsection*{What this command does}
+This command sets the range of cell labels for the horizontal axis for 
+line, bar, and stacked bar graphs, or for each slice of a pie graph.  
+Numbers and formulas can also be used as labels.
+
+For XY graphs, it sets the data range.  Ranges comprising blocks of 
+several rows and columns are plotted columnwise.
+
+\subsubsection*{How to use it}
+\begin{enumerate}
+\item{Type X from the Graph menu.}
+\item{Xspread will give you this prompt:\\
+        {\tt Input column label for range X -- 2 character max.:} \\
+        Respond with the column address of the range for the X axis.}
+\item{Xspread will give you this prompt:\\
+        {\tt Input starting row number, 200 max., for range X:} \\
+        Respond with the row number for the start of the range for the X
+        axis.}
+\item{Xspread will give you this prompt:\\
+        {\tt Input the ending row number >= nn for the range X:}\\
+        Here, nn is the row number that you just specified in response to
+        the previous prompt.\\
+        Respond with the row number for the end of the range for the X
+        axis.}
+\end{enumerate}
+
+\subsection*{/M \ \      Matrix}
+\addcontentsline{toc}{subsection}{Matrix Commands}
+
+\subsubsection*{What the /Matrix commands do}
+Each command does a particular function with a matrix.
+
+\begin{description}
+\item[{\bf Transpose}]{Transposition of a Matrix.}
+\item[{\bf Addition}]{Addition of two Matrixs.}
+\item[{\bf Subtraction}]{Subtraction of two Matrixs.}
+\item[{\bf Multiplication}]{Multiplication of two Matrixs.}
+\item[{\bf Inversion}]{Inversion of a Matrix.}
+\end{description}
+
+\subsubsection*{How to use the /Matrix commands}
+\begin{enumerate}
+\item{Type /M.}
+\item{Choose the desired option.}
+\item{Set the option to the desired function.}
+\item{Xspread performs the function and pops out of the menu.}
+\end{enumerate}
+
+\subsection*{/MT \      Matrix Transpose}
+
+\subsubsection*{What this command does}
+This function performs the Transposition of a matrix.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /MT.}
+\item{Xspread asks the user for a specified cell range to transpose.  Enter in
+      the distination range followed by a space and the source range.}
+\end{enumerate}
+
+\subsection*{/MA \      Matrix Addition}
+
+\subsubsection*{What this command does}
+This function performs the Addition of two matrixs.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /MA.}
+\item{Xspread asks the user to specify the range of the first matrix.  Press <return>
+      and then enter in the second matrix.  Xspread then asks for a destination range
+      to place the result.}
+\end{enumerate}
+
+\subsection*{/MS \      Matrix Subtraction}
+
+\subsubsection*{What this command does}
+This function performs the Subtraction of two matrixs.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /MS.}
+\item{Xspread asks the user to specify the range of the first matrix.  Press <return>
+      and then enter in the second matrix.  Xspread then asks for a destination range
+      to place the result.}
+\end{enumerate}
+
+\subsection*{/MM \      Matrix Multiplication}
+
+\subsubsection*{What this command does}
+This function performs the Multiplication of two matrixs.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /MM.}
+\item{Xspread asks the user to specify the range of the first matrix.  Press <return>
+      and then enter in the second matrix.  Xspread then asks for a destination range
+      to place the result.}
+\end{enumerate}
+
+\subsection*{/MI \      Matrix Inversion}
+
+\subsubsection*{What this command does}
+This function performs the Inversion of a matrix.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Xspread asks the user for a specified cell range to invert.  Enter in
+      the distination range followed by a space and the source range.}
+\item{Xspread asks 
+\end{enumerate}
+
+\subsection*{/O \ \      Option}
+\addcontentsline{toc}{subsection}{Option Commands}
+        
+\subsubsection*{What the /Option commands do}
+These commands set various worksheet options.
+
+\begin{description}
+\item[{\bf Auto}]{Sets the recalculation mode to automatic or manual
+        recalculation.}
+\item[{\bf Numeric }]{Sets the cell entry mode to quick or standard numeric
+input.}
+\item[{\bf Top     }]{Shows or hides the top line display on the screen.}
+\item[{\bf Cell    }]{Shows or hides the highlighting of the current cell.}
+\item[{\bf Encrypt }]{Selects whether the writing of worksheet files and list
+        files  should be encrypted.}
+\item[{\bf PreScale }]{Selects whether numeric entries should be automatically
+         scaled by .01 when entered.}
+\item[{\bf Ext     }]{Selects whether external functions are enabled.}
+\item[{\bf Set     }]{Allows the setting of other options, i.e. recalculation
+        order,  the number of recalculation iterations, and the table format for the
+        /FileTable command.}
+\end{description}
+
+\subsubsection*{How to use the /Option commands}
+\begin{enumerate}
+\item{Type /O.}
+\item{Choose the desired option.}
+\item{Set the option to the desired setting.}
+\item{Xspread sets the option to the desired setting and returns to}
+        ready mode.
+\end{enumerate}
+        
+\subsection*{/OA\ \      Option Auto}
+
+\subsubsection*{What this command does}
+This command sets the recalculation mode to automatic or manual 
+recalculation.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /OA.}
+\item{Xspread toggles the recalculation mode.  If the recalculation mode
+        was previously automatic recalculation, it is set to manual
+        recalculation.  If the recalculation mode was previously manual
+        recalculation, it is set to automatic recalculation.}
+\end{enumerate}
+
+        
+\subsection*{/OC\ \      Option Cell}
+
+\subsubsection*{What this command does}
+This command shows or hides the highlighting of the current cell.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /OC.}
+\item{Xspread toggles the cell highlight mode.  If the cell highlight
+        mode was previously enabled, it is disabled.  If the cell
+        highlight mode was previously disabled, it is enabled.}
+\end{enumerate}
+        
+\subsection*{/OE \ \     Option Encrypt}
+
+\subsubsection*{What this command does}
+This command selects whether the reading and writing of worksheet 
+files should be encrypted.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /OE.}
+\item{Xspread toggles the encryption mode.  If encryption was previously
+        enabled, it is disabled.  If encryption was previously disabled,
+        it is enabled.}
+\end{enumerate}
+        
+\subsection*{/O \ \      Option Ext-func}
+
+\subsubsection*{What this command does}
+This command selects whether external functions are enabled or 
+disabled.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /O.  Do NOT type the E.}
+\item{Use the cursor control keys to move the cursor over to the
+        Ext-func command.  Then press RETURN.}
+\item{Xspread toggles the external function mode.  If external functions
+        were previously enabled, they are disabled.  If external functions
+        were previously disabled, they are enabled.}
+\end{enumerate}
+        
+\subsection*{/ON\ \      Option Numeric}
+
+\subsubsection*{What this command does}
+This command sets the cell entry mode to either quick or standard 
+numeric input.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /ON.}
+\item{Xspread toggles the cell entry numeric entry mode.  If the cell
+        entry mode was previously quick numeric entry, it is set to
+        standard numeric entry.  If the cell entry mode was previously
+        standard numeric entry, it is set to quick numeric entry.}
+\end{enumerate}
+        
+\subsection*{/OP \ \     Option PreScale}
+
+\subsubsection*{What this command does}
+This command selects whether numeric entries should be automatically 
+scaled by .01 when entered.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /OP.}
+\item{Xspread toggles the numeric prescale mode.  If the numeric
+        prescale mode was previously standard, it is set to .01 prescale.
+        If the numeric prescale mode was previously .01 prescale, it is
+        set to standard.}
+\end{enumerate}
+        
+\subsection*{/OS\ \      Option Set}
+
+\subsubsection*{What these commands do}
+These commands allow the user to set other options:  the  recalc
+ulation order, the number of recalculation iterations, and the table 
+format for the /FileTable command.
+
+Xspread does not support natural order recalculation.
+
+The Options Set command provides the following options:
+\begin{description}
+\item[{\bf byrows}]{Recalculate formulas first by row and then by column.}
+\item[{\bf bycols  }]{Recalculate formulas first by column and then by row.}
+\item[{\bf iterations=n}]{Set the number of times the worksheet recalculates.}
+\item[{\bf tblstyle=xxx}]{Determine the type of delimiter used when the
+        worksheet exports to table format.  Valid values for
+        tblstyle are:
+  \begin{namelist}{latex--}
+  \item[{\bf 0 }]{Colons (:) are used to separate fields, with no tbl control
+    lines.}
+  \item[{\bf tbl }]{Colons (:) are used to separate fields, with
+    tbl control lines.}
+  \item[{\bf latex }]{Tables are formatted to meet \LaTeX\ 
+    requirements.}
+  \item[{\bf tex }]{Tables are formatted to meet \TeX\  requirements.}
+  \end{namelist} }
+\end{description}
+
+\subsubsection*{How to use these commands}
+\begin{enumerate}
+\item{Type /OS.}
+\item{Xspread displays the following prompt on the top two rows of the
+        screen:\\
+        \begin{verbatim}
+        >> set 
+        Options:  byrows, bycols, iterations=n, tblstyle=(0|tbl|latex|tex)
+        \end{verbatim} }
+\item{Enter the option that you want to set, then press RETURN.  Xspread
+        sets the option to the specified condition.  Note that with the
+        iterations and tblstyle options, there can be no intervening
+        spaces.}
+\end{enumerate}
+        
+\subsection*{/OT\ \      Option Top}
+
+\subsubsection*{What this command does}
+This command shows or hides the top line display on the screen.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /OT.}
+\item{Xspread toggles the top line display mode.  If the top line
+        display was previously off, it is turned on.  If the top line
+        display was previously on, it is turned off.}
+\end{enumerate}
+        
+\subsection*{/Q\ \       Quit}
+
+\subsubsection*{What the /Quit command does}
+The Quit command ends the current worksheet session and returns to 
+Unix.  If changes have been made since the last time the worksheet was 
+saved, xspread will ask the user whether the most recent changes 
+should be saved prior to exiting.
+
+\subsubsection*{How to use the /Quit command}
+\begin{enumerate}
+\item{Type /Q.}
+\item{If the worksheet has been changed, xspread displays the prompt:\\
+        {\tt File "filename" is modified, save before exiting?}\\
+        If you type ``Y,'' xspread displays the message:\\
+        {\tt  File "filename" written}\\
+            If you type ``N'', xspread displays nothing.\\
+            If the worksheet has not been changed, xspread displays nothing.}
+\item{If the worksheet has not been changed, or you answered N in the previous
+        step, xspread returns to Unix.  The command interpreter (shell) prompt
+        appears at the bottom of the screen.}
+\end{enumerate}
+
+\subsection*{R \ \      Range}
+\addcontentsline{toc}{subsection}{Range Commands}
+        
+\subsubsection*{What the /Range commands do}
+The Range commands affect a single cell or rectangular group of 
+adjacent cells.
+\begin{description}
+\item[{\bf Erase   }]{Erases cell contents.}
+\item[{\bf Value   }]{Convert the values of expressions to their result.}
+\item[{\bf Copy    }]{Copies the contents of the source range into the
+        destination range.}
+\item[{\bf Fill    }]{Fills all cells in a range with a certain value.}
+\item[{\bf Define  }]{Assign and use a name for a group of cells.}
+\item[{\bf Show    }]{List the currently defined range names.}
+\item[{\bf Undefine }]{Delete a previously defined range name from the list of
+        defined range names.}
+\end{description}
+
+\subsubsection*{How to use the /Range commands}
+\begin{enumerate}
+\item{Type /R.}
+\item{Specify the command you want to use.}
+\item{Specify the range.  You must type the cell addresses of two
+        opposite corners, separated by a colon(:).}
+\end{enumerate}
+        
+\subsection*{/RC\ \      Range Copy}
+
+\subsubsection*{What this command does}
+This command the values and formulas in the source range into the 
+destination range.  Relative cell references are adjusted for the new 
+position.  Absolute cell references are not.
+
+CAUTION:  The Range Copy command overwrites the contents of the 
+destination cells.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RC.}
+\item{Xspread displays this prompt:\\
+        \verb|>> copy [dest_range src_range]|  }
+\item{Specify the destination range first and the source range second.
+        Note that this is the opposite order from Lotus 1-2-3 and other
+        commercial spreadsheets.}
+\end{enumerate}
+        
+\subsection*{/RD\ \      Range Define}
+
+\subsubsection*{What this command does}
+This command allows you to specify a name for a cell or range of 
+cells.  Later, you can use this name instead of cell references in 
+formulas.
+
+Range names are case sensitive.  For example, Original and ORIGINAL 
+are two different range names and can refer to two different ranges.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RD.}
+\item{Xspread displays this prompt:\\
+        {\tt >> define [string range] "}   }
+\item{Enter the range name enclosed in double quotes.  Follow this with
+        the specification of the range that you want to name.}
+\end{enumerate}
+        
+\subsection*{/RE\ \      Range Erase}
+
+\subsubsection*{What this command does}
+This command erases the contents of cells in a specified range.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RE.}
+\item{Xspread displays this prompt:\\
+        {\tt  >> erase [range]}  }
+\item{Specify the range.  Xspread erases the cells in the range.}
+\end{enumerate}
+
+\subsection*{/RF \ \     Range Fill}
+
+\subsubsection*{What this command does}
+This command fills a specified range of cells with a designated value.  
+All of the cells can have the same value or each succeeding cell can 
+differ from the previous one by a stated increment.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RF.}
+\item{Xspread displays this prompt:\\
+        {\tt >> fill [range start inc]}  }
+\item{Specify, in order, the range to be filled, the value to use in the
+        first cell, and the amount by which the next cell should differ
+        from the previous cell.  If all cells are to have the same value,
+        the increment should be zero (0).}
+\end{enumerate}
+        
+\subsection*{/RS\ \      Range Show}
+
+\subsubsection*{What this command does}
+This command shows the user all of the named ranges.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RS.}
+\item{Xspread displays a list of the currently defined range names and
+        the ranges that are assigned to those names.  This display appears
+        at the bottom of the screen.  After all of the range names are
+        displayed, xspread displays this prompt: \\
+        {\tt Press RETURN to continue} }
+\item{When you are done looking at the list of range names, press
+        RETURN.  Xspread will repaint the current worksheet display.}
+\end{enumerate}
+        
+\subsection*{/RU\ \      Range Undefine}
+
+\subsubsection*{What this command does}
+This command deletes a range name.  It does not delete the cells in 
+the range; it only removes the name of the range.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RU.}
+\item{Specify the name of the range to be deleted.  Xspread deletes the
+        range name.}
+\end{enumerate}
+        
+\subsection*{/RV\ \      Range Values}
+
+\subsubsection*{What this command does}
+This command converts the results of formulas to the values that they 
+produce at the time that the command is executed.
+
+\subsubsection*{How to use this command}
+\begin{enumerate}
+\item{Type /RV.}
+\item{Xspread displays this prompt:\\
+        {\tt >> value [range]} }
+        \item{Specify the range.  Xspread then substitutes the values of the
+        formulas for the formulas.  There will be no apparent change in
+        the screen display.}
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section*{Function Reference}
+\addcontentsline{toc}{section}{Function Reference}
+
+    Functions are built-in formulas which can be used by themselves or as part 
+of formulas in xspread.  They begin with an @ symbol which is followed by the 
+function name.  Any necessary arguments are enclosed in parentheses, 
+immediately following the function name.  The general form of a function 
+reference is:\\
+@FUNCTION(argument1,argument2,\ldots ,argumentN)
+
+\subsection*{Argument types}
+\addcontentsline{toc}{subsection}{Argument types}
+
+\begin{namelist}{positionxx}
+\item[{\bf date}]{Unix style serial day number.  This is the number of
+                  seconds since midnight on January 1, 1970.}
+\item[{\bf format}]{A character string containing a valid C language
+                   format specification for converting character
+                   expressions to numeric and vice versa.}
+\item[{\bf i}]{The interest rate per period on a loan or investment,
+                expressed as a decimal fraction.}
+\item[{\bf n }]{Any integer.}
+\item[{\bf pmt }]{The payment made at the end of each term of a loan or
+                investment.}
+\item[{\bf position }]{An integer value specifying the position inside a
+                        character string.}
+\item[{\bf pv  }]{The present value of a series of payments.  The original
+                amount of a loan or investment.}
+\item[{\bf range }]{A range name or cell address.}
+\item[{\bf term }]{The number of payment period over the life of a loan or
+                investment.}
+\item[{\bf string  }]{A character string enclosed in quotes or the cell address
+                of a label.}
+\item[{\bf x,y}]{Double precision floating point numbers or cells containing
+such numbers.}
+\end{namelist}
+
+\subsection*{Functions by type}
+\addcontentsline{toc}{subsection}{Functions by type}
+
+\begin{tabbing}
+XXXXXXXXXXXXXXX\=XXXXXXXXXXXX\=XXXXXXXXXXXXX\= \kill
+Date and Time Functions\\
+@DATE             \>@HOUR             \>@MONTH            \>@SECOND\\
+@DAY              \>@MINUTE           \>@NOW              \>@YEAR\\
+\vspace{0.1in}
+Financial Functions\\
+@FV              \>@PMT              \>@PV\\
+\vspace{0.1in}
+
+Lookup Functions\\
+  @INDEX          \>@LOOKUP           \>@STINDEX\\
+
+\vspace{0.1in}
+Mathematical Functions\\
+  @CEIL           \>@HYPOT            \>@MIN              \>@RND\\
+  @EXP            \>@LN              \> @NVAL             \>@SQRT\\
+  @FABS           \>@LOG             \> @PI\\
+  @FLOOR          \>@MAX             \> @POW\\
+
+\vspace{0.1in}
+Special Functions\\
+ @EXT\\
+
+\vspace{0.1in}
+Statistical Functions\\
+  @AVG           \> @MAX             \> @PROD             \>@SUM\\
+  @COUNT         \> @MIN             \> @STDDEV\\
+
+\vspace{0.1in}
+String Functions\\
+  @EQS            \>@STON             \>@SUBSTR\\
+  @FMT            \>@SVAL\\
+
+\vspace{0.1in}
+Trigonometric Functions\\
+  @ACOS           \>@ATAN2            \>@RTD\\
+  @ASIN           \>@COS              \>@SIN\\
+  @ATAN           \>@DTR              \>@TAN\\
+\end{tabbing}
+
+\subsection*{Alphabetical Function Reference}
+\addcontentsline{toc}{subsection}{Alphabetical Function Reference}
+
+{\bf @ACOS(x)}\\
+    This function returns the arc cosine, i.e. the angle in radians whose 
+cosine is $x$.  The argument $x$ must be in the range -1 to 1.  
+The angle is in the range from 
+0 to $\pi$.
+
+{\bf @ASIN(x)}\\
+    This function returns the arc sine, i.e. the angle in radians whose since 
+is $x$.  The argument $x$ must be in the range -1 to 1.  The angle is in the range from 
+$-\pi/2$ to $\pi/2$.
+
+{\bf @ATAN(x)}\\
+    This function returns the arc tangent, i.e. the angle in radians whose 
+tangent is $x$.  The angle is in the range $-\pi/2$ to $\pi/2$.
+
+{\bf @ATAN2(x,y)}\\
+This function returns the arc tangent, i.e. the angle in radians whose
+tangent is $y/x$.  The angle is in the range $-\pi$ to $\pi$.  This function
+distinguishes between angles that lie in the first and third quadrants and
+those that are in the second and fourth.
+
+{\bf @AVG(range)}\\
+    This function returns the average of the values in the given range.  If 
+the range contains blank cells, they are ignored.
+
+{\bf @CEIL(x)}\\
+    This function returns the smallest integer which is not less than $x$.
+
+{\bf @COS(x)}\\
+    This function returns the cosine of $x$.  The argument $x$ must 
+    be in radians.
+
+{\bf @COUNT(range)}\\
+    This function returns the number of cells in the range which are not 
+empty.
+
+{\bf @DATE(date)}\\
+    This function converts the Unix style date and time serial number to a 
+character string representing the date and time.  The character string is in 
+the form:\\
+    Nnn Mmm dd hh:mm:ss yyyy
+\begin{description}
+\item[where]{Nnn is the name of the day of the week\\
+        Mmm is name of the month of the year\\
+        dd is the day of the month\\
+        hh:mm:ss is the 24-hour time giving hours, minutes, and seconds\\
+        yyyy is the year}
+\end{description}
+
+{\bf @DAY(date)}\\
+    This function converts the date serial number to the day of the month.
+
+{\bf @DTR(x)}\\
+    This function converts the angle measurement $x$ in degrees to radians.
+
+{\bf @EQS(string1,string2)}\\
+    This function compares the values of two string expressions.  If string1 
+has the same value as string 2, then it returns 1.  Otherwise, it returns 0.
+
+{\bf @EXP(x)}\\
+    This function returns the value of $e$ (2.718281828...) raised to the power 
+of $x$.  @EXP is the inverse function of @LN.
+
+{\bf @EXT(string,x)}\\
+    This function allows the user to call external functions from inside a 
+spreadsheet.  The external function must be a valid program that Unix can run 
+when the function is called.
+
+    String contains the program command line that is passed to the Unix 
+command interpreter.  $x$ is a numeric value which is passed to the function 
+named in string.  the value of $x$ is converted to character format and 
+concatenated to the end of string before the command interpreter is called.
+
+    The result of @EXT is a character string which contains the first line 
+which the external program prints to standard output.  Any additional output 
+to standard output or any output at all to standard error will mess up the 
+screen.  @EXT will return a null string if external functions are disabled, 
+string is null, or the attempt to run the command fails.
+
+{\bf @FABS(x)}\\
+    This function returns the absolute value of the number specified by the 
+argument.  The absolute value is either zero or the positive value of the 
+number.
+
+{\bf @FLOOR(x)}\\
+    This function returns the largest integer which is less than or equal to 
+the value of the argument.
+
+{\bf @FMT(format,x)}\\
+    This function converts the argument $x$ to a character string using the 
+format specification given in format.  The argument format must be a character 
+string containing a valid C language style format specification.  Valid format 
+specifications are: \\
+    \%ew.d  \ \     \%Ew.d   \ \    \%fw.d  \ \     \%gw.d  \ \     \%Gw.d\\
+In each of these, w gives the total width of the field in characters and d 
+gives the number of characters to the right of the decimal point.
+
+{\bf @FV(pmt,i,term)}\\
+    This function returns the future value of an ordinary annuity with the 
+payment made at the end of each term, at a fixed interest rate.  The arguments 
+are the periodic payment amount, the interest rate per term, and the number of 
+terms.  The period for expressing the interest rate and number of terms must 
+be the same.  For example, if the interest rate is monthly, the number of 
+terms is the number of months.
+
+{\bf @HOUR(date)}\\
+    This function returns the hour from a date serial number.  The hours are 
+the number of hours since midnight.  Thus, 0 represents midnight and 23 
+represents 11 p.m.
+
+{\bf @HYPOT(x,y)}\\
+    This function returns the length of the hypotenuse of a right triangle, 
+i.e. $\sqrt{x^2 + y^2}$.
+
+{\bf @INDEX(n,range)}\\
+    This function returns the numeric contents of a cell specified by the 
+index number n and the range.  range is any single row or column in the 
+worksheet.  The range cells are numbered from 1 to n, starting with the 
+leftmost cell in the row or the topmost cell in the column.
+ 
+{\bf @LN(x)}\\
+    This function returns the natural logarithm (base $e$) of $x$.  
+    $x$ must be a 
+value greater than 0.
+
+{\bf @LOG(x)}\\
+    This function returns the common logarithm (base 10) of $x$.  $x$ must be a 
+value greater than 0.
+
+{\bf @LOOKUP(x,range)}
+
+{\bf @LOOKUP(string,range)}\\
+    These functions return the contents of a cell from a table.  The table can 
+be either two rows or two columns.
+
+    The numeric function compares the value of $x$ to the table located in the 
+row or column range.  The function searches the row or column for the last 
+value less than or equal to $x$.  If range is a row, the function returns the 
+value in the next row and the same column.  If range is a column, the function 
+returns the value in the same row and the next column.
+
+    The string function compares the value of string to the table located in 
+the row or column range.  The function searches the row or column for and 
+exact string match.  If range is a row, the function returns the value in the 
+next row and the same column.  If range is a column, the function returns the 
+value in the same row and the next column.
+
+{\bf @MAX(range)}
+
+{\bf @MAX(x1,x2,...)}\\
+    These functions return the largest value specified by the arguments.  The 
+arguments can be either a single range or a list of numeric expressions 
+separated by commas.
+
+{\bf @MIN(range)}
+
+{\bf @MIN(x1,x2,...)}\\
+    These functions return the smallest value specified by the arguments.  The 
+arguments can be either a single range or a list of numeric expressions 
+separated by commas.
+
+{\bf @MINUTE(date)}\\
+    This function returns the number of minutes since the last whole hour from 
+a date serial number.  The minutes are represented as 0 to 59.
+
+{\bf @MONTH(date)}\\
+    This function returns the number of the month from a date serial number.  
+The months are represented as 1 (January) to 12 (December).
+
+{\bf @NOW}\\
+    This function returns the serial day number of the current date and time.
+
+{\bf @NVAL(string,n)}\\
+    This function returns the numeric value of the cell specified by the 
+arguments.  The string argument specifies the column (``A'', ``B'', etc.) and the
+argument n specifies the row number.  If either of the arguments are outside 
+of the worksheet limits or the cell has no numeric value, the function returns 
+0.
+ 
+{\bf @PI}\\
+    This function returns the value of $\pi$ (3.141592654...).
+
+{\bf @PMT(pv,i,term)}\\
+    This function returns the payment for an ordinary annuity with the payment 
+made at the end of each term.  The arguments are the principal present value 
+of the loan amount, the periodic interest rate, and the number of terms 
+(usually months) for paying off the loan.  The period for expressing the 
+interest rate and number of terms must be the same.  For example, if the 
+interest rate is monthly, the number of terms is the number of months.
+
+{\bf @POW(x,y)}\\
+    This function returns the result of $x$ raised to the power $y$, 
+    i.e. $x^y$.  $x$ must be nonnegative.
+
+{\bf @PROD(range)}\\
+    This function returns the product of all the nonblank cells in the given 
+range.
+
+{\bf @PV(pmt,i,term)}\\
+    This function returns the present value of an ordinary annuity with the 
+payment made at the end of each term, at a fixed interest rate.  The arguments 
+are the periodic payment amount, the interest rate per term, and the number of 
+terms.  The period for expressing the interest rate and number of terms must 
+be the same.  For example, if the interest rate is monthly, the number of 
+terms is the number of months.
+
+{\bf @RND(x)}\\
+    This function returns the value that round off $x$ to the nearest integer.
+
+{\bf @RTD(x)}\\
+    This function converts the angle measurement $x$ in radians to degrees.
+
+{\bf @SECOND(date)}\\
+    This function returns the number of seconds since the last full minute 
+from a date serial number.
+
+{\bf @SIN(x)}\\
+    This function returns the sine of $x$ which is an angle in radians.
+
+
+{\bf @SQRT(x)}\\
+    This function returns the square root of $x$.  $x$ must be nonnegative.
+
+{\bf @STDDEV(range)}\\
+    This function returns the sample standard deviation of the cell values in 
+range.
+
+{\bf @STINDEX(n,range)}\\
+    This function returns the character string contents of a cell specified by 
+the index number n and the range.  range is any single row or column in the 
+worksheet.  The range cells are numbered from 1 to n, starting with the 
+leftmost cell in the row or the topmost cell in the column.
+
+{\bf @STON(string)}\\
+    This function converts string to its numeric value.  string must be a 
+valid numeric expression.
+
+{\bf @SVAL(string,n)}\\
+    This function returns the string value of the cell specified by the 
+arguments.  The string argument specifies the column (``A'', ``B'', etc.) and the
+argument n specifies the row number.  If either of the arguments are outside 
+of the worksheet limits or the cell has no string value, the function returns 
+a null string.
+
+{\bf @SUBSTR(string,position1,position2)}\\
+    This function returns the characters from position1 through and including 
+position2 from the designated string.  The first character in string is at 
+position number 1.  If position 2 is greater than the length of the string, 
+position2 is the length of the string.  If position1 is less than 1 or greater 
+than position2, the function returns the null string.
+
+{\bf @SUM(range)}\\
+    This function returns the sum of all the nonblank cells in the given 
+range.  The function ignores empty cells and treats labels as 0.
+
+{\bf @TAN(x)}\\
+    This function returns the tangent of $x$ which is an angle in radians.
+
+{\bf @YEAR(date)}\\
+    This function returns the year from a date serial number.  Valid years 
+start with 1970.  The latest valid year is system dependent.
+\end{document}

@@ -1,0 +1,103 @@
+Version 1.1	(5/4/1993)	Stewart Forster
+	untcx.c		v1.0.5
+		- Fixed statfs code which had the wrong call args for
+		SunOs and Ultrix (but didn't make any diff though).
+		Thanks to H.J.Lu for pointing that one out
+		- Completed AIX port
+		- Added LINUX patches, these may be somewhat confused as
+		the person who provided the patches did not understand
+		the way untcx invokes itself, so they were re-patched by
+		me without a machine to test them on.
+		Thanks to H.J.Lu for the patches.
+		- Fixed timeout code which was resetting inode mod times
+		which I was later using to see if file had changed.
+		This would only prevent execs from recompressing if they
+		had been running for longer than the LOCALTIMEOUT period.
+		- Fixed checks on symlinks over NFS.
+		- Fixed bug whereby if an exec was run, in between the
+		latent stage after recompression and before untcx noted
+		that the recompression had completed, it would not get
+		recompressed.
+	config.h	v1.0.3
+		- Removed the need for utime() dependent includes.
+		- Added AIX #defs
+Version 1.0.4	(1/4/1993)	Stewart Forster
+	untcx.c		v1.0.4
+		- Added symlink code to handle cases where a symlink to
+		a shell script resulted in the shell script being called
+		with $0 was being set to the path of the script, and not
+		the symlink.  Added stuff so untcx would create symlinks
+		in ENFSDIR as well, and manage them (including floating
+		links) properly. (I hope!)  Resulting fix results in
+		`basename $0` equalling the basename of the symlink,
+		although `dirname $0` will be different (unavoidable).
+		This problem should affect almost nobody, unless a shell
+		script gets picky about `dirname $0`, in which case you
+		should not tcx such scripts. :-(
+		- Changed the execl for the "unpacker" to pass along the
+		pathname of the uncompressor through argv[0], rather than
+		"unpacker", which was what was confusing the Unix compress
+		system (silly me!)
+		Thanks to Lionel Mallet for pointing this out.
+	tcx.c		v1.0.4
+		- Changed the execl for the "packer" to pass along the
+		pathname of the compressor through argv[0], rather than
+		"packer", which was what was confusing the Unix compress
+		system (silly me!)
+		Thanks to Lionel Mallet for pointing this out.
+Version 1.0.3	(30/3/1993)	Stewart Forster
+	untcx.c		v1.0.3
+		- Fixed a race condition bug whereby under SUNOS, if
+		untcx encountered a local executable, that had just been
+		unpacked while it was setting up, it would get stuck in
+		an infinite loop.  This race is pretty slim, but may have
+		happened on large multi-user systems.
+		- Fixed symlink resolving bug.  Didn't check for length
+		returned from readlink, and was strcat-ing strings that
+		were not always null-terminated!
+		- Added #ifdef to allow tcx to ALWAYS unpack to /tmp.
+		Suggestion by Mike Lawley.
+		- Added code to unpack to ENFSDIR if file being unpacked
+		has a link count greater than 1, so that hard links may
+		be preserved.
+	tcx.c		v1.0.3
+		- Added symbolic link resolving code from untcx.c, to
+		allow tcx to operate on symlinks.  Added symlink bug fix.
+		Suggestion by Richard van de Stadt.
+		- Added code to check for hard link count, and abort with
+		a warning if count is greater than 1.  This prevents the
+		destruction of hard links when packing.
+	config.h	v1.0.2
+		- Added UNPACK_IN_PLACE option definition.
+
+Version 1.0.2	(27/3/1993)	Stewart Forster
+	untcx.c		v1.0.2
+		- Added open file table reference count to internal hash
+		tables for SUNOS.  This means that inodes won't have to
+		time out before recompressing the file they point to.
+		  Thanks to Mike Lawley for pointing out problem
+		- Fixed tragic bug in pathname resolution that would have
+		caused a lot of problems when a program needs to access
+		files in the directory in which it was invoked, and not
+		where it lived! Also the cause of incorrect pathname
+		generation on NFS mounted executables placed in ENFSDIR.
+		Thanks to many who directly and indirectly reported this.
+
+Version 1.0.1	(26/3/1993)	Stewart Forster
+	tcx.c		v1.0.2
+		- Worked around Ultrix file lock problem on NFS mounted
+		files.  Ultrix 4.2 can't lock NFS files.
+			v1.0.1
+		- Rewrote scratch file creation code to fix Ultrix
+		ftruncate bug reported by John Adcock and Joel Fine.
+		Removed the need for ftruncate().
+	untcx.c		v1.0.1
+		- Fixed trailing slash on mkdir argument which Ultrix
+		barfs on. Reported by John Adcock.
+	config.h	v1.0.1
+		- Added comments about not using tmpfs on SUNOS for ENFSDIR
+
+Version 1.0	(25/3/1993)	(Original Release)	Stewart Forster
+	tcx.c		v1.0
+	untcx.c		v1.0		
+	config.h	v1.0

@@ -1,0 +1,1220 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Terminal Input,  Next: Terminal Output,  Prev: System Environment,  Up: System Interface
+
+Terminal Input
+==============
+
+   The terminal input functions and variables keep track of or
+manipulate terminal input.
+
+   See *Note Emacs Display::, for related functions.
+
+ * Function: recent-keys
+     This function returns a string comprising the last 100
+     characters read from the terminal.  These are the last 100
+     characters read by Emacs, no exceptions.
+
+          (recent-keys)
+          => "erminal.  These are the last 100 characters read by Emacs, no
+          exceptions.
+          
+          @example
+          (recent-keys)^U^X^E"
+
+     Here the string `@example' is a Texinfo command that was
+     inserted in the source file for the manual, and `^U^X^E' are the
+     characters that were typed to evaluate the expression
+     `(recent-keys)'.
+
+ * Command: open-dribble-file FILENAME
+     This function opens a "dribble file" named FILENAME.  When a
+     dribble file is open, Emacs copies all keyboard input characters
+     to that file.  (The contents of keyboard macros are not typed on
+     the keyboard so they are not copied to the dribble file.)
+
+     You close the dribble file by calling this function with an
+     argument of `""'.  The function always returns `nil'.
+
+     This function is normally used to record the input necessary to
+     trigger an Emacs bug, for the sake of a bug report.
+
+          (open-dribble-file "$j/dribble")
+               => nil
+
+   See also the `open-termscript' function (*note Terminal Output::.).
+
+ * Function: set-input-mode INTERRUPT FLOW QUIT-CHAR
+     This function sets the mode for reading keyboard input.  If
+     INTERRUPT is non-null, then Emacs uses input interrupts.  If it
+     is `nil', then it uses CBREAK mode.
+
+     If FLOW is non-`nil', then Emacs uses XON/XOFF (`C-q', `C-s')
+     flow control for output to terminal.  This has no effect except
+     in CBREAK mode.  *Note Flow Control::.
+
+     The normal setting is system dependent.  Some systems always use
+     CBREAK mode regardless of what is specified.
+
+     If QUIT-CHAR is non-`nil', it specifies the character to use for
+     quitting.  Normally this is 7, the code for `C-g'.  *Note
+     Quitting::.
+
+ * Variable: meta-flag
+     This variable tells Emacs whether to treat the 0200 bit in
+     keyboard input as the Meta bit.  `nil' means no, and anything
+     else means yes.  In version 19, `meta-flag' will be a function
+     instead of a variable.
+
+ * Variable: keyboard-translate-table
+     This variable defines the translate table for keyboard input. 
+     This allows the user to redefine the keys on the keyboard
+     without changing any command bindings.  Its value must be a
+     string or `nil'.
+
+     If `keyboard-translate-table' is a string, then each character
+     read from the keyboard is looked up in this string and the
+     character in the string is used instead.  If the string is of
+     length N, character codes N and up are untranslated.
+
+     In the example below, `keyboard-translate-table' is set to a
+     string of 128 characters.  Then the characters `C-s' and `C-\'
+     are swapped and the characters `C-q' and `C-^' are swapped. 
+     After executing this function, typing `C-\' has all the usual
+     effects of typing `C-s', and vice versa.  (*Note Flow Control::
+     for more information on this subject.)
+
+          (defun evade-flow-control ()
+            "Replace C-s with C-\ and C-q with C-^."
+            (interactive)
+            (let ((the-table (make-string 128 0)))
+              (let ((i 0))
+                (while (< i 128)
+                  (aset the-table i i)
+                  (setq i (1+ i))))
+          
+              ;; Swap `C-s' and `C-\'.
+              (aset the-table ?\034 ?\^s)
+              (aset the-table ?\^s ?\034)
+              ;; Swap `C-q' and `C-^'.
+              (aset the-table ?\036 ?\^q)
+              (aset the-table ?\^q ?\036)
+          
+              (setq keyboard-translate-table the-table)))
+
+     Note that this translation is the first thing that happens after
+     a character is read from the terminal.  As a result,
+     record-keeping features such as `recent-keys' and
+     `open-dribble-file' record the translated characters.
+
+
+
+File: elisp,  Node: Terminal Output,  Next: Flow Control,  Prev: Terminal Input,  Up: System Interface
+
+Terminal Output
+===============
+
+   The terminal output functions send or keep track of output sent
+from the computer to the terminal.  The `baud-rate' function tells
+you what Emacs thinks is the output baud rate of the terminal.
+
+ * Function: baud-rate
+     This function returns the output baud rate of the terminal.
+
+          (baud-rate)
+               => 9600
+
+     If you are running across a network, and different parts of the
+     network work at different baud rates, the value returned by
+     Emacs may be different from the value used by your local
+     terminal.  Some network protocols communicate the local terminal
+     speed to the remote machine, so that Emacs and other programs
+     can get the proper value, but others do not.  If the machine
+     where Emacs is running has the wrong speed setting, you can
+     specify the right speed using the `stty' program.  However, you
+     will have to start Emacs afresh to make this take effect.
+
+     *Note:* In version 19, `baud-rate' is a variable so that you can
+     change it conveniently within Emacs.
+
+ * Function: send-string-to-terminal STRING
+     This function sends STRING to the terminal without alteration. 
+     Control characters in STRING will have terminal-dependent effects.
+
+     One use of this function is to define function keys on terminals
+     that have downloadable function key definitions.  For example,
+     this is how on certain terminals to define function key 4 to
+     move forward four characters (by transmitting the characters
+     `C-u C-f' to the computer):
+
+          (send-string-to-terminal "\eF4\^U\^F")
+               => nil
+
+ * Command: open-termscript FILENAME
+     This function is used to open a "termscript file" that will
+     record all the characters sent by Emacs to the terminal.  It
+     returns `nil'.  Termscript files are useful for investigating
+     problems where Emacs garbles the screen, problems which are due
+     to incorrect termcap entries or to undesirable settings of
+     terminal options more often than actual Emacs bugs.  Once you
+     are certain which characters were actually output, you can
+     determine reliably whether they correspond to the termcap
+     specifications in use.
+
+     See also `open-dribble-file' in *Note Terminal Input::.
+
+          (open-termscript "../junk/termscript")
+               => nil
+
+
+
+File: elisp,  Node: Flow Control,  Next: Batch Mode,  Prev: Terminal Output,  Up: System Interface
+
+Flow Control
+============
+
+   This section attempts to answer the question "Why does Emacs
+choose to use flow-control characters in its command character set?" 
+For a second view on this issue, read the comments on flow control in
+the `emacs/INSTALL' file from the distribution; for help with
+termcaps and DEC terminal concentrators, see `emacs/etc/TERMS'.
+
+   At one time, most terminals did not need flow control.  This meant
+that the choice of `C-s' and `C-q' as command characters was
+reasonable.  Emacs, for economy of keystrokes and portability, chose
+to use the control characters in the ASCII character set, and tried
+to make the assignments mnemonic (thus, `C-s' for search and `C-q'
+for quote).
+
+   Later, some terminals were introduced which used these characters
+for flow control.  They were not very good terminals, so Emacs
+maintainers did not pay attention.  In later years, the practice
+became widespread among terminals, but by this time it was usually an
+option.  And the majority of users, who can turn flow control off,
+were unwilling to switch to less mnemonic key bindings for the sake
+of flow control.
+
+   So which usage is "right", Emacs's or that of some terminal and
+concentrator manufacturers?  This is a rhetorical (or religious)
+question; it has no simple answer.
+
+   One reason why we are reluctant to cater to the problems caused by
+`C-s' and `C-q' is that they are gratuitous.  There are other
+techniques (albeit less common in practice) for flow control that
+preserve transparency of the character stream.  Note also that their
+use for flow control is not an official standard.  Interestingly, on
+the model 33 teletype with a paper tape punch (which is very old),
+`C-s' and `C-q' were sent by the computer to turn the punch on and off!
+
+   GNU Emacs (version 18.48 and later) provides several options for
+coping with terminals or front-ends that insist on using flow control
+characters.  Listed in estimated order of preference, these options
+are as follows:
+
+  1. Have Emacs run in CBREAK mode with the kernel handling flow
+     control.  Issue `(set-input-mode nil t)' from `.emacs'.  After
+     doing this, it is necessary to find other keys to bind to the
+     commands `isearch-forward' and `quoted-insert'.  The usual
+     nominees are `C-^' and `C-\'.  There are two ways to get this
+     effect:
+
+       1. Use the `keyboard-translate-table' to cause `C-^' and `C-\'
+          to be received by Emacs as though `C-s' and `C-q' were
+          typed.  Emacs (except at its very lowest level) never knows
+          that the characters typed were anything but `C-s' and
+          `C-q', so the use of these keys inside `isearch-forward'
+          still works--typing `C-^' while incremental searching will
+          move the cursor to the next match, etc.  For example:
+
+               (setq keyboard-translate-table (make-string 128 0))
+               (let ((i 0))
+                 (while (< i 128)
+                   (aset keyboard-translate-table i i)
+                   (setq i (1+ i))))
+               
+                 ;; Swap `C-s' and `C-\'.
+                 (aset the-table ?\034 ?\^s)
+                 (aset the-table ?\^s ?\034)
+                 ;; Swap `C-q' and `C-^'.
+                 (aset the-table ?\036 ?\^q)
+                 (aset the-table ?\^q ?\036)))
+
+       2. Simply rebind the keys `C-^' and `C-\' to `isearch-forward'
+          and `quoted-insert'.  To use the new keys to repeat
+          searches, it is necessary to set `search-repeat-char' to
+          `C-^' as well.
+
+  2. Don't use CBREAK mode, but cause `C-s' and `C-q' to be bound to
+     a null command.  The problem with this solution is that the flow
+     control characters were probably sent because whatever sent them
+     is falling behind on the characters being sent to it.  The
+     characters that find their way to the terminal screen will not
+     in general be those that are intended.  Also, it will be be
+     necessary to find other keys to bind to `isearch-forward' and
+     `quoted-insert'; see the previous alternative.
+
+        Here is a suitable null command:
+
+          (defun noop ()
+            "Do nothing; return nil."
+            (interactive))
+
+  3. Don't use CBREAK mode, and unset the `C-s' and `C-q' keys with
+     the `global-unset-key' function.  This is similar to the
+     previous alternative, except that the flow control characters
+     will probably cause beeps or visible bells.
+
+        Note that if the terminal is the source of the flow control
+     characters and kernel flow control handling is enabled, you
+     probably will not have to send padding characters as specified
+     in a termcap or terminfo entry.  In this case, it may be
+     possible to customize a termcap entry to provide better Emacs
+     performance on the assumption that flow control is in use.  This
+     effect can also be simulated by announcing (with `stty' or its
+     equivalent) that the terminal is running at a very slow speed,
+     provided you are communicating across a network so that `stty'
+     does not actually try to change the line speed.
+
+
+
+File: elisp,  Node: Batch Mode,  Prev: Flow Control,  Up: System Interface
+
+Batch Mode
+==========
+
+   The command line option `-batch' causes Emacs to run
+noninteractively.  In this mode, Emacs does not read commands from
+the terminal, it does not alter the terminal modes, and it does not
+expect to be outputting to an erasable screen.  The idea is that you
+will specify Lisp programs to run; when they are finished, Emacs
+should exit.  The way to specify the programs to run is with `-l
+FILE', which causes the library named FILE to be loaded, and `-f
+FUNCTION', which causes FUNCTION to be called with no arguments.
+
+   Any Lisp program output that would normally go to the echo area,
+either using `message' or using `prin1', etc., with `t' as the
+stream, will actually go to Emacs's standard output descriptor when
+in batch mode.  Thus, Emacs behaves much like a noninteractive
+application program.  (The echo area output that Emacs itself
+normally generates, such as command echoing, is suppressed entirely.)
+
+ * Variable: noninteractive
+     This variable is non-`nil' when Emacs is running in batch mode.
+
+
+
+File: elisp,  Node: Emacs Display,  Next: Tips,  Prev: System Interface,  Up: Top
+
+Emacs Display
+*************
+
+   This chapter describes a number of features related to the display
+that Emacs presents to the user.
+
+* Menu:
+
+* Refresh Screen::      Clearing the screen and redrawing everything on it.
+* Screen Attributes::   How big is the Emacs screen.
+* Truncation::          Folding or wrapping long text lines.
+* The Echo Area::       Where messages are displayed.
+* Selective Display::   Hiding part of the buffer text.
+* Overlay Arrow::       Display of an arrow to indicate position.
+* Temporary Displays::  Displays that go away automatically.
+* Waiting::             Forcing display update and waiting for user.
+* Blinking::            How Emacs shows the matching open parenthesis.
+* Control Char Display::  How control characters are displayed.
+* Beeping::             Audible signal to the user.
+* Window Systems::      Which window system is being used.
+
+ 
+
+File: elisp,  Node: Refresh Screen,  Next: Screen Attributes,  Prev: Emacs Display,  Up: Emacs Display
+
+Refreshing the Screen
+=====================
+
+ * Command: redraw-display
+     This function clears the screen and redraws what is supposed to
+     appear on it.
+
+
+
+File: elisp,  Node: Screen Attributes,  Next: Truncation,  Prev: Refresh Screen,  Up: Emacs Display
+
+Screen Attributes
+=================
+
+   The screen attribute functions describe and define the
+characteristics of the terminal.
+
+ * Function: screen-height
+     This function returns the number of lines on the screen that are
+     available for display.
+
+          (screen-height)
+               => 50
+
+ * Function: screen-width
+     This function returns the number of columns on the screen that
+     are available for display.
+
+          (screen-width)
+               => 80
+
+ * Function: set-screen-height LINES &optional NOT-ACTUAL-SIZE
+     This function declares that the terminal can display LINES lines.
+     The sizes of existing windows will be altered proportionally to
+     fit.
+
+     If NOT-ACTUAL-SIZE is non-`nil', then Emacs will display LINES
+     lines of output, but will not change its value for the actual
+     height of the screen.  Knowing the correct actual size may be
+     necessary for correct cursor positioning.
+
+     If LINES is different from what it was previously, then the
+     entire screen is cleared and redisplayed using the new size.
+
+     This function returns `nil'.
+
+ * Function: set-screen-width COLUMNS &optional NOT-ACTUAL-SIZE
+     This function declares that the terminal can display COLUMNS
+     columns.  The details are as in `set-screen-height'.
+
+ * Variable: no-redraw-on-reenter
+     This variable controls whether Emacs redraws the entire screen
+     after it has been suspended and resumed.  Non-`nil' means yes,
+     `nil' means no.  On most terminals, it is necessary to redraw. 
+     Not redrawing is useful if the terminal can remember and restore
+     the Emacs screen contents.
+
+ * Variable: inverse-video
+     This variable controls whether Emacs uses inverse video for all
+     text on the screen.  Non-`nil' means yes, `nil' means no.  The
+     default is `nil'.
+
+ * User Option: mode-line-inverse-video
+     This variable controls the use of inverse video for mode lines. 
+     If it is non-`nil', then mode lines are displayed in inverse
+     video (or another suitable display mode).  Otherwise, mode lines
+     are displayed normal, just like the rest of the screen.  The
+     default is `t'.
+
+
+
+File: elisp,  Node: Truncation,  Next: The Echo Area,  Prev: Screen Attributes,  Up: Emacs Display
+
+Truncation
+==========
+
+   When a line of text extends beyond the right edge of a window, the
+line can either be truncated or continued on the next line.  When a
+line is truncated, this is shown with a `$' in the rightmost column
+of the window.  When a line is continued or "wrapped" onto the next
+line, this is shown with a `\' on the rightmost column of the window.
+The additional screen lines used to display a long text line are
+called "continuation" lines.  (Note that wrapped lines are not
+filled; filling has nothing to do with truncation and continuation. 
+*Note Filling::.)
+
+ * User Option: truncate-lines
+     This buffer-local variable controls how Emacs displays lines
+     that extend beyond the right edge of the window.  If it is
+     non-`nil', then Emacs does not display continuation lines; but
+     rather each line of text will take exactly one screen line, and
+     a dollar sign will be shown at the edge of any line that extends
+     to or beyond the edge of the window.  The default is `nil'.
+
+     If the variable `truncate-partial-width-windows' is non-`nil',
+     then truncation is used for windows that are not the full width
+     of the screen, regardless of the value of `truncate-lines'.
+
+ * Variable: default-truncate-lines
+     This variable is the default value for `truncate-lines' in
+     buffers that do not override it.
+
+ * User Option: truncate-partial-width-windows
+     This variable determines how lines that are too wide to fit on
+     the screen are displayed in side-by-side windows (*note
+     Splitting Windows::.).  If it is non-`nil', then wide lines are
+     truncated (with a `$' at the end of the line); otherwise they
+     are wrapped (with a `\' at the end of the line).
+
+
+
+File: elisp,  Node: The Echo Area,  Next: Selective Display,  Prev: Truncation,  Up: Emacs Display
+
+The Echo Area
+=============
+
+   The "echo area" is used for displaying messages made with the
+`message' primitive, and for echoing keystrokes.  It is not the same
+as the minibuffer, despite the fact that the minibuffer appears (when
+active) in the same place on the screen as the echo area.  The ``GNU
+Emacs Manual'' specifies the rules for resolving conflicts between
+the echo area and the minibuffer for use of that screen space (*note
+: (emacs)Minibuffer.).
+
+   You can write output in the echo area by using the Lisp printing
+funtions with `t' as the stream (*note Output Functions::.), or as
+follows:
+
+ * Function: message STRING &rest ARGUMENTS
+     This function prints a one-line message in the echo area.  The
+     argument STRING is similar to a C language `printf' control
+     string.  See `format' in *Note String Conversion::, for the
+     details on the conversion specifications.  `message' returns the
+     constructed string.
+
+          (message "Minibuffer depth is %d." (minibuffer-depth))
+          => "Minibuffer depth is 0."
+          
+          ---------- Echo Area ----------
+          Minibuffer depth is 0.
+          ---------- Echo Area ----------
+
+ * Variable: cursor-in-echo-area
+     This variable controls where the cursor is positioned when a
+     message is displayed in the echo area.  If it is non-`nil', then
+     the cursor appears at the end of the message.  Otherwise, the
+     cursor appears at point--not in the echo area at all.
+
+     The value is normally `nil' except when bound to `t' for brief
+     periods of time.
+
+
+
+File: elisp,  Node: Selective Display,  Next: Overlay Arrow,  Prev: The Echo Area,  Up: Emacs Display
+
+Selective Display
+=================
+
+   "Selective display" is a class of minor modes in which specially
+marked lines do not appear on the screen, or in which highly indented
+lines do not appear.
+
+   The first variant, explicit selective display, is designed for use
+in a Lisp program.  The program controls which lines are hidden by
+altering the text.  Outline mode uses this variant.  In the second
+variant, the choice of lines to hide is made automatically based on
+indentation.  This variant is designed as a user-level feature.
+
+   The way you control explicit selective display is by replacing a
+newline (control-j) with a control-m.  The text which was formerly a
+line following that newline is now invisible.  Strictly speaking, it
+is no longer a separate line, since only newlines can separate lines;
+it is now part of the previous line.
+
+   On its own, selective display does not affect editing commands. 
+For example, `C-f' (`forward-char') moves point unhesitatingly into
+invisible space.  However, the replacement of newline characters with
+carriage return characters affects some editing commands.  For
+example, `next-line' skips invisible lines, since it searches only
+for newlines.  Modes that use selective display can also define
+commands that take account of the newlines, or which make parts of
+the text visible or invisible.
+
+   When you write a selectively displayed buffer into a file, all the
+control-m's are replaced by their original newlines.  This means that
+when you next read in the file, it looks OK, with nothing invisible. 
+Selective display is an effect that is seen only in Emacs.
+
+ * Variable: selective-display
+     This buffer-local variable enables selective display.  This
+     means that lines, or portions of lines, may be made invisible.
+
+        * If the value of `selective-display' is `t', then any
+          portion of a line that follows a control-m will not be
+          displayed.
+
+        * If the value of `selective-display' is a positive integer,
+          then lines that start with more than `selective-display'
+          columns of indentation will not be displayed.
+
+     When some portion of a buffer is invisible, the vertical
+     movement commands operate as if that portion did not exist,
+     allowing a single `next-line' command to skip any number of
+     invisible lines.  However, character movement commands (such as
+     `forward-char') will not skip the invisible portion, and it is
+     possible (if tricky) to insert or delete parts of an invisible
+     portion.
+
+     In the examples below, what is shown is the *display* of the
+     buffer `foo', which changes with the value of
+     `selective-display'.  The *contents* of the buffer do not change.
+
+          (setq selective-display nil)
+               => nil
+          
+          ---------- Buffer: foo ----------
+          1 on this column
+           2on this column
+            3n this column
+            3n this column
+           2on this column
+          1 on this column
+          ---------- Buffer: foo ----------
+          
+          (setq selective-display 2)
+               => 2
+          
+          ---------- Buffer: foo ----------
+          1 on this column
+           2on this column
+           2on this column
+          1 on this column
+          ---------- Buffer: foo ----------
+
+ * Variable: selective-display-ellipses
+     If this buffer-local variable is non-`nil', then Emacs displays
+     `...' at the end of a line that is followed by invisible text. 
+     This example is a continuation of the previous one.
+
+          (setq selective-display-ellipses t)
+               => t
+          
+          ---------- Buffer: foo ----------
+          1 on this column
+           2on this column ...
+           2on this column
+          1 on this column
+          ---------- Buffer: foo ----------
+
+
+
+File: elisp,  Node: Overlay Arrow,  Next: Temporary Displays,  Prev: Selective Display,  Up: Emacs Display
+
+Overlay Arrow
+=============
+
+   The "overlay arrow" is useful for directing the user's attention
+to a particular line in a buffer.  For example, in the modes used for
+interface to debuggers, the overlay arrow indicates the current line
+of code about to be executed.
+
+ * Variable: overlay-arrow-string
+     This variable holds the string to display as an arrow, or `nil'
+     if the arrow feature is not in use.
+
+ * Variable: overlay-arrow-position
+     This variable holds a marker which indicates where to display
+     the arrow.  It should point at the beginning of a line.  The
+     arrow text will be displayed at the beginning of that line,
+     overlaying any text that would otherwise appear.  Since the
+     arrow is usually short, and the line usually begins with
+     indentation, normally nothing significant is overwritten.
+
+     The overlay string is displayed only in the buffer which this
+     marker points into.  Thus, only one buffer can have an overlay
+     arrow at any given time.
+
+
+
+File: elisp,  Node: Temporary Displays,  Next: Waiting,  Prev: Overlay Arrow,  Up: Emacs Display
+
+Temporary Displays
+==================
+
+   Temporary displays are used by commands to put output into a
+buffer and then present it to the user for perusal rather than for
+editing.  Many of the help commands use this feature.
+
+ * Special Form: with-output-to-temp-buffer BUFFER-NAME FORMS...
+     This function executes FORMS while arranging to insert any
+     output they print into the buffer named BUFFER-NAME.  The buffer
+     is then shown in some window for viewing, displayed but not
+     selected.
+
+     The buffer is named by the string BUFFER-NAME, and it need not
+     already exist.  The argument BUFFER-NAME must be a string, not a
+     buffer.  The buffer is erased initially (with no questions
+     asked), and it is marked as unmodified after
+     `with-output-to-temp-buffer' exits.
+
+     `with-output-to-temp-buffer' first binds `standard-output' to
+     the buffer, then it evaluates the forms in FORMS.  With
+     `standard-output' rebound, any output directed there will
+     naturally be inserted into that buffer.  Only Lisp output
+     directed to the stream `standard-output' is affected; screen
+     display and messages in the echo area, although output in the
+     general sense of the word, are not affected.  *Note Output
+     Functions::.
+
+     The value of the last form in FORMS is returned.
+
+          ---------- Buffer: foo ----------
+           This is the contents of foo.
+          ---------- Buffer: foo ----------
+          
+          (with-output-to-temp-buffer "foo"
+              (print 20)
+              (print standard-output))
+          => #<buffer foo>
+          
+          ---------- Buffer: foo ----------
+          20
+          
+          #<buffer foo>
+          
+          ---------- Buffer: foo ----------
+
+ * Variable: temp-buffer-show-hook
+     The value of the `temp-buffer-show-hook' variable is either
+     `nil' or is called as a function to display a help buffer.  This
+     variable is used by `with-output-to-temp-buffer'.
+
+ * Function: momentary-string-display STRING POSITION &optional CHAR
+          MESSAGE
+     This function momentarily displays STRING in the current buffer
+     at POSITION (which is a character offset from the beginning of
+     the buffer).  The display remains until the next character is
+     typed.
+
+     If the next character the user types is CHAR, Emacs ignores it. 
+     Otherwise, that character remains buffered for subsequent use as
+     input.  Thus, typing CHAR will simply remove the string from the
+     display, while typing (say) `C-f' will remove the string from
+     the display and later (presumably) move point forward.  The
+     argument CHAR is a space by default.
+
+     The result of `momentary-string-display' is not useful.
+
+     If MESSAGE is non-`nil', it is displayed in the echo area.  If
+     it is `nil', then instructions to type CHAR are displayed there,
+     e.g., `Type RET to continue editing'.
+
+     In this example, point is initially located at the beginning of
+     the second line:
+
+          ---------- Buffer: foo ----------
+          This is the contents of foo.
+          -!-This is the contents of foo.
+          ---------- Buffer: foo ----------
+          
+          (momentary-string-display
+             "******* Important Message! *******" (point) ?\r
+             "Type RET when done reading")
+          => t
+          
+          ---------- Buffer: foo ----------
+          This is the contents of foo.
+          ******* Important Message! *******This is the contents of foo.
+          ---------- Buffer: foo ----------
+          
+          ---------- Echo Area ----------
+          Type RET when done reading
+
+     This function works by actually changing the text in the buffer.
+     As a result, if you later undo in this buffer, you will see the
+     message come and go.
+
+
+
+File: elisp,  Node: Waiting,  Next: Blinking,  Prev: Temporary Displays,  Up: Emacs Display
+
+Waiting for Elapsed Time or Input
+=================================
+
+   The waiting commands are designed to make Emacs wait for a certain
+amount of time to pass or until there is input.  For example, you may
+wish to pause in the middle of a computation to allow the user time
+to view the display.  `sit-for' performs a pause with an update of
+screen, while `sleep-for' performs a pause without updating the screen.
+
+ * Function: sit-for SECONDS
+     This function performs redisplay (provided there is no pending
+     input from the user), then waits SECONDS seconds, or until input
+     is available.  The result is `t' if `sit-for' waited the full
+     time with no input arriving (see `input-pending-p' in *Note
+     Keyboard Input::).  Otherwise, `nil' is returned.
+
+     Redisplay is always preempted if input arrives, and does not
+     happen at all if input is available before it starts.  Thus,
+     there is no way to force screen updating if there is pending
+     input; however, if there is no input pending, you can force an
+     update with no delay by using `(sit-for 0)'.
+
+     The purpose of `sit-for' to give the user time to read text that
+     you display.
+
+ * Function: sleep-for SECONDS
+     This function simply pauses for SECONDS seconds without updating
+     the display.  It pays no attention to available input.  It
+     returns `nil'.
+
+     Use `sleep-for' when you wish to guarantee a delay.
+
+
+
+File: elisp,  Node: Blinking,  Next: Control Char Display,  Prev: Waiting,  Up: Emacs Display
+
+Blinking
+========
+
+   This section describes the mechanism by which Emacs shows a
+matching open parenthesis when the user inserts a close parenthesis.
+
+ * Variable: blink-paren-hook
+     The value of this variable should be a function (of no
+     arguments) to be called whenever a char with close parenthesis
+     syntax is inserted.  The value of `blink-paren-hook' may be
+     `nil', in which case nothing is done.
+
+          *Note:* in version 18, this function is named
+          `blink-paren-hook', but since it is not called with the
+          standard convention for hooks, it is being renamed to
+          `blink-paren-function' in version 19.
+
+ * Variable: blink-matching-paren
+     If this variable is `nil', then `blink-matching-open' does
+     nothing.
+
+ * Variable: blink-matching-paren-distance
+     This variable specifies the maximum distance to scan for a
+     matching parenthesis before giving up.
+
+ * Function: blink-matching-open
+     This function is the default value of `blink-paren-hook'.  It
+     assumes that point follows a character with close parenthesis
+     syntax and moves the cursor momentarily to the matching opening
+     character.  If that character is not already on the screen, then
+     its context is shown by displaying it in the echo area.  To
+     avoid long delays, this function does not search farther than
+     `blink-matching-paren-distance' characters.
+
+     Here is an example of calling this function explicitly.
+
+          (defun interactive-blink-matching-open ()
+            "Indicate momentarily the start of sexp before point."
+            (interactive)
+            (let ((blink-matching-paren-distance (buffer-size))
+                  (blink-matching-paren t))
+              (blink-matching-open)))
+
+
+
+File: elisp,  Node: Control Char Display,  Next: Beeping,  Prev: Blinking,  Up: Emacs Display
+
+Display of Control Characters
+=============================
+
+   These variables affect the way certain characters are displayed on
+the screen.  Since they change the number of columns the characters
+occupy, they also affect the indentation functions.
+
+ * User Option: ctl-arrow
+     This buffer-local variable controls how control characters are
+     displayed.  If it is non-`nil', they are displayed as an uparrow
+     followed by the character: `^A'.  If it is `nil', they are
+     displayed as a backslash followed by three octal digits: `\001'.
+
+ * Variable: default-ctl-arrow
+     The value of this variable is the default value for `ctl-arrow'
+     in buffers that do not override it.  This is the same as
+     `(default-value 'ctl-arrow)' (*note Default Value::.).
+
+ * User Option: tab-width
+     The value of this variable is the spacing between tab stops used
+     for displaying tab characters in Emacs buffers.  The default is
+     8.  Note that this feature is completely independent from the
+     user-settable tab stops used by the command `tab-to-tab-stop'. 
+     *Note Indent Tabs::.
+
+
+
+File: elisp,  Node: Beeping,  Next: Window Systems,  Prev: Control Char Display,  Up: Emacs Display
+
+Beeping
+=======
+
+   You can make Emacs ring a bell (or blink the screen) to attract
+the user's attention.  Be conservative about how often you do this;
+frequent bells can become irritating.  Also be careful not to use
+beeping alone when signaling an error is appropriate.  (*Note
+Errors::.)
+
+ * Function: ding &optional DONT-TERMINATE
+     This function beeps, or flashes the screen (see `visible-bell'
+     below).  It also terminates any keyboard macro currently
+     executing unless DONT-TERMINATE is non-`nil'.
+
+ * Function: beep &optional DONT-TERMINATE
+     This is a synonym for `ding'.
+
+ * Variable: visible-bell
+     This variable determines whether Emacs will try to flash the
+     screen to represent a bell.  Non-`nil' means yes, `nil' means
+     no.  This is effective only if the termcap entry for the
+     terminal in use has the visible bell flag (`vb') set.
+
+
+
+File: elisp,  Node: Window Systems,  Prev: Beeping,  Up: Emacs Display
+
+Window Systems
+==============
+
+   Emacs works with several window systems, most notably X Windows. 
+Note that both Emacs and the X Window System use the term "window",
+but use it differently.  The entire Emacs screen is a single window
+as far as X Windows is concerned; the individual Emacs windows are
+not known to X Windows at all.
+
+ * Variable: window-system
+     This variable tells Lisp programs what window system Emacs is
+     running under.  Its value should be a symbol such as `x' (if
+     Emacs is running under X Windows) or `nil' (if Emacs is running
+     on an ordinary terminal).
+
+ * Variable: window-system-version
+     This variable distinguishes between different versions of the X
+     Window System.  Its value is 10 or 11 when using X Windows;
+     `nil' otherwise.
+
+ * Variable: window-setup-hook
+     The value of the `window-setup-hook' variable is either `nil' or
+     a function for Emacs to call after loading your `.emacs' file
+     and the default initialization file (if any), after loading
+     terminal-specific Lisp code, and after calling
+     `term-setup-hook'.  `window-setup-hook' is called with no
+     arguments.
+
+     This hook is used for internal purposes: setting up
+     communication with the window system, and creating the initial
+     window.  Users should not interfere with it.
+
+
+
+File: elisp,  Node: Tips,  Next: GNU Emacs Internals,  Prev: Emacs Display,  Up: Top
+
+Tips and Standards
+******************
+
+   This chapter describes no additional features of Emacs Lisp. 
+Instead it gives advice on making effective use of the features
+described in the previous chapters.
+
+* Menu:
+
+* Style Tips::                Writing clean and robust programs.
+* Compilation Tips::          Making compiled code run fast.
+* Documentation Tips::        Writing readable documentation strings.
+
+ 
+
+File: elisp,  Node: Style Tips,  Next: Compilation Tips,  Prev: Tips,  Up: Tips
+
+Writing Clean Lisp Programs
+===========================
+
+   Here are some tips for avoiding common errors in writing Lisp code
+intended for widespread use:
+
+   * Since all global variables share the same name space, and all
+     functions share another name space, you should choose a short
+     word to distinguish your program from other Lisp programs.  Then
+     take care to begin the names of all global variables, constants,
+     and functions with the chosen prefix.  This helps avoid name
+     conflicts.
+
+     This recommendation applies even to names for traditional Lisp
+     primitives that are not primitives in Emacs Lisp--even to `cadr'.
+     Believe it or not, there is more than one plausible way to
+     define `cadr'.  Play it safe; append your name prefix to produce
+     a name like `foo-cadr' or `mylib-cadr' instead.
+
+     If one prefix is insufficient, your package may use two or three
+     alternative common prefixes, so long as they make sense.
+
+   * It is often useful to put a call to `provide' in each separate
+     library program, at least if there is more than one entry point
+     to the program.
+
+   * If one file FOO uses a macro defined in another file BAR, FOO
+     should contain `(require 'BAR)' before the first use of the
+     macro.  (And BAR should contain `(provide 'BAR)', to make the
+     `require' work.)  This will cause BAR to be loaded when you
+     byte-compile FOO.  Otherwise, you risk compiling FOO without the
+     necessary macro loaded, and that would produce compiled code
+     that won't work right.  *Note Compiling Macros::.
+
+   * If you define a major mode, make sure to run a hook variable
+     using `run-hooks', just as the existing major modes do.  *Note
+     Hooks::.
+
+   * Please do not define `C-c LETTER' as a key.  These sequences are
+     reserved for users; they are the *only* sequences reserved for
+     users, so we cannot do without them.
+
+     Everything in Emacs that used to define such sequences has been
+     changed, which was a lot of work.  Abandoning this convention
+     would waste that work and inconvenience the users.
+
+   * It is a bad idea to define aliases for the Emacs primitives. 
+     Use the standard names instead.
+
+   * Redefining an Emacs primitive is an even worse idea.  It may do
+     the right thing for a particular program, but  there is no
+     telling what other programs might break as a result.
+
+   * If a file does replace any of the functions or library programs
+     of standard Emacs, prominent comments at the beginning of the
+     file should say which functions are replaced, and how the
+     behavior of the replacements differs from that of the originals.
+
+   * If a file requires certain standard library programs to be
+     loaded beforehand, then the comments at the beginning of the
+     file should say so.
+
+   * Don't use `next-line' or `previous-line' in programs; nearly
+     always, `forward-line' is more convenient as well as more
+     predictable and robust.  *Note Text Lines::.
+
+   * Don't use functions that set the mark in your Lisp code (unless
+     you are writing a command to set the mark).  The mark is a
+     user-level feature, so it is incorrect to change the mark except
+     to supply a value for the user's benefit.  *Note The Mark::.
+
+     In particular, don't use these functions:
+
+        * `beginning-of-buffer', `end-of-buffer'
+
+        * `replace-string', `replace-regexp'
+
+     If you just want to move point, or replace a certain string,
+     without any of the other features intended for interactive
+     users, you can replace these functions with one or two lines of
+     simple Lisp code.
+
+   * The recommended way to print a message in the echo area is with
+     the `message' function, not `princ'.  *Note The Echo Area::.
+
+   * When you encounter an error condition, call the function `error'
+     (or `signal').  The function `error' does not return.  *Note
+     Signaling Errors::.
+
+     Do not use `message', `throw', `sleep-for', or `beep' to report
+     errors.
+
+   * Avoid using recursive edits.  Instead, do what the Rmail `w'
+     command does: use a new local keymap that contains one command
+     defined to switch back to the old local keymap.  Or do what the
+     `edit-options' command does: switch to another buffer and let
+     the user switch back at will.  *Note Recursive Editing::.
+
+   * In some other systems there is a convention of choosing variable
+     names that begin and end with `*'.  We don't use that convention
+     in Emacs Lisp, so please don't use it in your library.  The
+     users will find Emacs more coherent if all libraries use the
+     same conventions.
+
+   * Indent each function with `C-M-q' (`indent-sexp') using the
+     default indentation parameters.
+
+   * Don't make a habit of putting close-parentheses on lines by
+     themselves; Lisp programmers find this disconcerting.  Once in a
+     while, when there is a sequence of many consecutive
+     close-parentheses, it may make sense to split them in one or two
+     significant places.
+
+   * Please put a copyright notice on the file if you give copies to
+     anyone.  Use the same lines that appear at the top of the Lisp
+     files in Emacs itself.  If you have not signed papers to assign
+     the copyright to the Foundation, then place your name in the
+     copyright notice in place of the Foundation's name.
+
+
+
+File: elisp,  Node: Compilation Tips,  Next: Documentation Tips,  Prev: Style Tips,  Up: Tips
+
+Tips for Making Compiled Code Fast
+==================================
+
+   Here are ways of improving the execution speed of byte-compiled
+lisp programs.
+
+   * Use iteration rather than recursion whenever possible.  Function
+     calls are slow in Emacs Lisp even when a compiled function is
+     calling another compiled function.
+
+   * Using the primitive list-searching functions `memq', `assq' or
+     `assoc' is even faster than explicit iteration.  It may be worth
+     rearranging a data structure so that one of these primitive
+     search functions can be used.
+
+     For example, if you want to search a list of strings for a
+     string equal to a given one, you can use an explicit loop:
+
+          (let ((tail list))
+            (while (and tail (not (string= string (car tail))))
+              (setq tail (cdr tail))))
+
+     However, if you use a list of elements of the form `(STRING)', 
+     such as `(("foo") ("#&") ("bar"))', then you can search it with
+     `assoc':
+
+          (assoc string list)
+
+     The latter runs entirely in C code, so it is much faster.
+
+   * Certain built-in functions are handled specially by the byte
+     compiler avoiding the need for an ordinary function call.  It is
+     a good idea to use these functions rather than alternatives.  To
+     see whether a function is handled specially by the compiler,
+     examine its `byte-compile' property.  If the property is
+     non-`nil', then the function is handled specially.
+
+     For example, the following input will show you that `aref' is
+     compiled specially (*note Array Functions::.) while `elt' is not
+     (*note Sequence Functions::.):
+
+          (get 'aref 'byte-compile)
+               => byte-compile-two-args
+          
+          (get 'elt 'byte-compile)
+               => nil
+
+   * Often macros result in faster execution than functions.  For
+     example, the following macro and the following function have the
+     same effect when called, but code using the macro runs faster
+     because it avoids an extra call to a user-defined function:
+
+          (defmacro fast-cadr (x) (list 'car (list 'cdr x)))
+          
+          (defun slow-cadr (x) (car (cdr x)))
+
+
+
+File: elisp,  Node: Documentation Tips,  Prev: Compilation Tips,  Up: Tips
+
+Tips for Documentation Strings
+==============================
+
+   Here are some tips for the writing of documentation strings.
+
+   * Every command, function or variable intended for users to know
+     about should have a documentation string.
+
+   * An internal subroutine of a Lisp program need not have a
+     documentation string, and you can save space by using a comment
+     instead.
+
+   * The first line of the documentation string should consist of one
+     or two complete sentences which stand on their own as a summary.
+     In particular, start the line with a capital letter and end with
+     a period.
+
+     The documentation string can have additional lines which expand
+     on the details of how to use the function or variable.  The
+     additional lines should be made up of complete sentences also,
+     but they may be filled if that looks good.
+
+   * Do not start or end a documentation string with whitespace.
+
+   * Format the documentation string so that it fits in an Emacs
+     window on an 80 column screen.  It is a good idea for most lines
+     to be no wider than 60 characters.  The first line can be wider
+     if necessary to fit the  information that ought to be there.
+
+     However, rather than simply filling the entire documentation
+     string, you can make it much more readable by choosing line
+     breaks with care.  Use blank lines between topics if the
+     documentation string is long.
+
+   * *Do not* indent subsequent lines of a documentation string so
+     that the text is lined up in the source code with the text of
+     the first line.  This looks nice in the source code, but looks
+     bizarre when users view the documentation.  Remember that the
+     indentation before the starting double-quote is not part of the
+     string!
+
+   * A variable's documentation string should start with `*' if the
+     variable is one that users would want to set interactively
+     often.  If the value is a long list, or a function, or if the
+     variable would only be set in init files, then don't start the
+     documentation string with `*'.  *Note Defining Variables::.
+
+   * The documentation string for a variable that is a yes-or-no flag
+     should start with words such as "Non-nil means...", to make it
+     clear both that the variable only has two meaningfully distinct
+     values and which value means "yes".
+
+   * When a function's documentation string mentions the value of an
+     argument of the function, use the argument name in capital
+     letters as if it were a name for that value.  Thus, the
+     documentation string of the function `/' refers to its second
+     argument as `DIVISOR'.
+
+     Also use all caps for meta-syntactic variables, such as when you
+     show the decomposition of a list or vector into subunits, some
+     of which may be variable.
+
+   * When a documentation string refers to a Lisp symbol, write it as
+     it would be printed (which usually means in lower case), with
+     single-quotes around it.  For example: ``lambda''.  There are
+     two exceptions: write `t' and `nil' without single-quotes.
+
+   * Don't write key sequences directly in documentation strings. 
+     Instead, use the `\\[...]' construct to stand for them.  For
+     example, instead of writing `C-f', write `\\[forward-char]'. 
+     When the documentation string is printed, Emacs will substitute
+     whatever key is currently bound to `forward-char'.  This will
+     usually be `C-f', but if the user has moved key bindings, it
+     will be the correct key for that user.  *Note Keys in
+     Documentation::.
+
+   * In documentation strings for a major mode, you will want to
+     refer to the key bindings of that mode's local map, rather than
+     global ones.  Therefore, use the construct `\\<...>' once in the
+     documentation string to specify which key map to use.  Do this
+     before the first use of `\\[...]'.  The text inside the
+     `\\<...>' should be the name of the variable containing the
+     local keymap for the major mode.
+
+
+
+File: elisp,  Node: GNU Emacs Internals,  Next: Standard Errors,  Prev: Tips,  Up: Top
+
+GNU Emacs Internals
+*******************
+
+   This chapter describes how the runnable Emacs executable is dumped
+with the preloaded Lisp libraries in it, how storage is allocated,
+and some internal aspects of GNU Emacs that may be of interest to C
+programmers.
+
+* Menu:
+
+* Building Emacs::      How to preload Lisp libraries into Emacs.
+* Pure Storage::        A kludge to make preloaded Lisp functions sharable.
+* Garbage Collection::  Reclaiming space for Lisp objects no longer used.
+* Object Internals::    Data formats of buffers, windows, processes.
+* Writing Emacs Primitives::   Writing C code for Emacs.
+
+ 

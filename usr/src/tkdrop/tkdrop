@@ -1,0 +1,280 @@
+#!/usr/bin/wish -f
+# $Id: tkdrop,v 2.0 1993/01/14 23:27:41 schwartz Exp $
+# Copyright 1993, Scott Schwartz <schwartz@cs.psu.edu>
+
+# Todo:
+#   don't hardcode font, bitmap, etc. use app-defaults.
+#   popup, rather than map/unmap for edit widgets?
+
+proc qset {uvar val} {
+    upvar $uvar var
+    if {$val != {} && $val != "default"} {
+	set var $val
+    }
+}
+
+# Visual effects
+
+proc map_edits {} { global edits; pack append . $edits {top fillx} }
+proc unmap_edits {} { global edits; pack unpack $edits }
+
+# d&d support
+ 
+set _dd_path {}
+proc receive_path {p} { 
+  global _dd_path
+  set _dd_path $p 
+}
+
+proc package_path {path win} {
+    if {[winfo children $win] == ""} {
+        label $win.label -text ""
+        pack append $win $win.label top
+    }
+    $win.label config -text "$path"
+}
+
+proc send_path {path interp ddwin} {
+    send $interp "receive_path $path"
+    send $interp "drag&drop target $ddwin handle path"
+}
+
+proc invoke_path {p} {
+    set_data $p
+    invoke
+}
+
+proc invoke_icon {} {
+    invoke
+}
+
+proc invoke {} {
+    global env id data
+
+    # set up environment for shell we will invoke
+    set env(argv) "[$data get]"
+    set env(id) "[$id get]"
+
+    # if [catch {set shell $env(SHELL)}] { set shell /bin/sh }
+    # XXX - shells handle -c in different ways with respect to $0,
+    # so we pick one and hope it is the same everywhere.
+    # rc is so much nicer, though.
+    set shell /bin/sh
+
+    set argv [list $shell -c "[get_cmd]" $shell]
+    set argv [concat "$argv" "[get_data]" < /dev/null &]
+    flash_icon
+    if [catch {eval exec $argv} rc] {
+	puts stderr $rc
+    }
+    set_data ""
+    # XXX - tcl bug: need this to reap child process?
+    exec true
+}
+
+set fmtx 0
+proc flash {w} {
+    global fmtx
+    if {$fmtx > 0} return
+    incr fmtx
+    set bg [lindex [$w configure -background] 4]
+    set fg [lindex [$w configure -foreground] 4]
+    set restoreCmd [list $w configure -background $bg -foreground $fg ]
+    $w configure -background $fg -foreground $bg
+    after 0300 
+    eval $restoreCmd
+    incr fmtx -1
+    return
+}
+
+proc flash_icon {}  {global icon; flash $icon}
+proc flash_label {} {global label; flash $label}
+
+set emtx 0
+proc edit_features {} {
+    global emtx
+    flash_label
+    if {$emtx == 0} {
+        incr emtx
+        map_edits
+    } {
+        incr emtx -1
+        unmap_edits
+    }
+}
+
+#  command support
+
+proc accept_cmd {} {
+}
+
+proc accept_data {} {
+    global data env
+    set env(argv) "[$data get]"
+}
+
+proc accept_id {} {
+    global env id
+    set env(id) "[$id get]"
+}
+
+proc accept_iname {} {
+  global icon iname
+  set nn [$iname get]
+  if ![string match "@*" $nn] {
+    set nn "@$nn"
+  }
+  set on [lindex [$icon config -bitmap] 4]
+  $icon config -bitmap $nn
+#  if [catch {$icon config -bitmap $nn} rc] {
+#    set_iname $on
+#    puts stderr $rc
+#    error $rc
+#  }
+}
+
+proc accept_lname {} {
+  global label lname
+  $label config -text [$lname get]
+  wm iconname . [$lname get]
+}
+
+proc get_stuff {} {
+  global id
+  return "[$id get]"
+}
+
+proc get_data {} {
+    global data
+    return "[$data get]"
+}
+
+proc get_id {} {
+    global id
+    return "[$id get]"
+}
+
+proc get_cmd {} {
+    global cmd
+    return "[$cmd get]"
+}
+
+# Entry point
+
+wm title . Tkdrop
+
+# XXX - getopt or something
+
+set arg_cmd {$id "$@"}
+set arg_data ""
+set arg_id "echo"
+set arg_icon "@/usr/include/X11/bitmaps/Term" 
+set arg_label $arg_id
+
+set i 0
+#if {$argc == 0} { puts stderr "Usage: cmd id icon label args..."; exit 1 }
+if {$argc > 0} { qset arg_cmd [lindex $argv $i]; incr i; incr argc -1 }
+if {$argc > 0} { qset arg_id [lindex $argv $i]; incr i; incr argc -1 }
+if {$argc > 0} { qset arg_icon [lindex $argv $i]; incr i; incr argc -1 }
+if {$argc > 0} { qset arg_label [lindex $argv $i]; incr i; incr argc -1 }
+if {$argc > 0} { qset arg_data [lrange $argv $i end]; incr i; incr argc -1 }
+
+set font "fixed"
+set lfont "variable"
+set ewidth 48
+
+# We map and unmap entry widgets for command and iconname
+
+set edits [frame .edits]
+
+pack append [set f [frame $edits.f2]] \
+  [label $f.l -text "icon " -font $lfont] {left fillx} \
+  [set iname [entry $f.e -relief sunken -font $font -width 48]] {right fillx} 
+
+pack append [set f [frame $edits.f3]] \
+  [label $f.l -text "label " -font $lfont] {left fillx} \
+  [set lname [entry $f.e -relief sunken -font $font -width 48]] {right fillx}
+
+pack append [set f [frame $edits.f1]] \
+  [label $f.l -text "sh -c" -font $lfont] {left fillx} \
+  [set cmd [entry $f.e -relief sunken -font $font -width 48]] {right fillx}
+
+pack append [set f [frame $edits.f4]] \
+  [label $f.l -text "argv " -font $lfont] {left fillx} \
+  [set data [entry $f.e -relief sunken -font $font -width 48]] {right fillx}
+
+pack append [set f [frame $edits.f5]] \
+  [label $f.l -text "id " -font $lfont] {left fillx} \
+  [set id [entry $f.e -relief sunken -font $font -width 48]] {right fillx}
+
+pack append $edits \
+    $edits.f1 {top frame e} $edits.f5 {top frame e} $edits.f4 {top frame e} \
+    $edits.f2 {top frame e} $edits.f3 {top frame e}
+
+proc set_entry {e s} { 
+    $e delete 0 end; $e insert 0 $s
+    #focus $e
+    if [winfo ismapped $e] {tk_entrySeeCaret $e}
+} 
+
+proc set_cmd {p}   { global cmd;   set_entry $cmd $p;   accept_cmd }
+proc set_id {p}    { global id;    set_entry $id $p;    accept_id }
+proc set_data {p}  { global data;  set_entry $data $p;  accept_data }
+proc set_iname {p} { global iname; set_entry $iname $p; accept_iname }
+proc set_lname {p} { global lname; set_entry $lname $p; accept_lname }
+
+bind $cmd   <Return> "accept_cmd"
+#bind $cmd   <Tab>    "focus $id"
+bind $id    <Return> "accept_id"
+#bind $id    <Tab>    "focus $data"
+bind $data  <Return> "accept_data"
+#bind $data  <Tab>    "focus $iname"
+bind $iname <Return> "catch {accept_iname}"
+#bind $iname <Tab>    "focus $lname"
+bind $lname <Return> "accept_lname"
+#bind $lname <Tab>    "focus $cmd"
+
+drag&drop target $cmd   handler {path {set_cmd   $_dd_path}}
+drag&drop target $iname handler {path {set_iname $_dd_path}}
+drag&drop target $lname handler {path {set_lname $_dd_path}}
+drag&drop target $data  handler {path {set_data  $_dd_path}}
+drag&drop target $id    handler {path {set_id    $_dd_path}}
+
+drag&drop source $cmd -button 3 \
+    -tokencmd {package_path [$cmd get]} -sendcmd {send_path [$cmd get]}
+drag&drop source $iname -button 3 \
+    -tokencmd {package_path [$iname get]} -sendcmd {send_path [$iname get]}
+drag&drop source $lname -button 3 \
+    -tokencmd {package_path [$lname get]} -sendcmd {send_path [$lname get]}
+drag&drop source $data -button 3 \
+    -tokencmd {package_path [$data get]} -sendcmd {send_path [$data get]}
+drag&drop source $id -button 3 \
+    -tokencmd {package_path [$id get]} -sendcmd {send_path [$id get]}
+
+# Icon and Cmd are always visible
+
+set icon [label .icon]
+set label [label .label -font $font]
+
+bind $icon <Double-Button-1> { invoke_icon }
+bind $label <Double-Button-1> { edit_features }
+
+drag&drop target $icon handler {path {invoke_path $_dd_path}}
+drag&drop target $label handler {path {invoke_path $_dd_path}}
+
+drag&drop source $icon -button 3 \
+    -tokencmd {package_path [get_stuff]} -sendcmd {send_path [get_stuff]}
+drag&drop source $label -button 3 \
+    -tokencmd {package_path [get_stuff]} -sendcmd {send_path [get_stuff]}
+
+pack append . $icon {top fill} $label {top fillx}
+
+set_cmd   $arg_cmd
+set_iname $arg_icon
+set_lname $arg_label
+set_data  $arg_data
+set_id    $arg_id
+
+# Local Variables:
+# mode:tcl
+# End:

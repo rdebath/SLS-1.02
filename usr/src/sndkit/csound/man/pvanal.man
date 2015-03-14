@@ -1,0 +1,79 @@
+.TH PVANAL 1Csound "7 Feb 1991"
+.SH NAME
+pvanal - Fourier analysis module for Csound PVOC unit generator
+.SH SYNTAX
+\fBpvanal 
+[\-n \fIframe\-size\fB]
+[\-o \fIoverlap\fB | \-i \fIincrement\fB] 
+\fIinputSoundFile\fB
+\fIoutputFFTFile\fB
+\fR
+.SH DESCRIPTION
+.B pvanal
+converts a playable sample (a time-domain representation) into a series 
+of short-time Fourier transform (STFT) frames centred at regular points 
+throughout the file (a frequency-domain representation).  The output file 
+can then be used as the data for the PVOC unit generator in Csound to generate 
+notes based on the original sample, but with their timescales and pitches 
+arbitrarily and dynamically modified.
+.PP
+The flags are listed below.  Where a flag takes an argument, a space is 
+expected between the flag and the argument (unlike most Csound programs).
+The phase vocoder recognizes the following flags (defaults in brackets):
+.TP 12
+\fB\-n \fInum\fR
+STFT frame size - the number of samples included in each fourier 
+analysis frame.  It must be a power of two, in the range 16 to 16384.  
+For clean results, a frame must be larger than the longest pitch period 
+of the sample.  However, overly long frames result in temporal 'smearing'
+or reverberation.  The sampling rate divided by the frame size gives the
+bandwitdth of each bin.
+(default is the smallest power of two corresponding to more 
+than 20 milliseconds i.e. 256 points for 10 kHz 
+sampling rate, giving a 25.6 ms frame). 
+.TP 12
+\fB\-o \fInum\fR
+(4) Window overlap factor.  This controls how many Fourier transform
+frames are generated.  Csound's PVOC will interpolate between frames, but too 
+few frames will generate audible distortion.  Too many frames will result 
+in a huge analysis file.  Use n=4 as a compromise (each point in the input 
+file occurs in 4 of the output frame windows; i.e., the offset between 
+successive STFT frames is (framesize/4) ).  Do not use with 
+.B \-i.
+.TP 12
+\fB\-i \fInum\fR
+(frame-size/4) STFT frame offset.  Converse of above, specifies the increment 
+(in samples) between successive Fourier frames directly.  Best not used.  
+Do not use with 
+.B \-o.
+.SH EXAMPLE
+A typical call to pvanal would be:
+.EX 5
+pvanal asound pvoc.1
+.EE
+.PP
+This analyses the playable sound 
+.I asound
+using the default frame size and overlap to produce the file 
+.I pvoc.1 
+which is appropriately named for use with Csound's PVOC.
+.SH FILES
+The output file has a special PVOC header including details of the source
+sound and the analysis frame rate and overlap.  The analysis frames are
+stored as 
+.I float, 
+with the magnitude and `frequency' (in Hz) 
+for the first N/2 + 1 Fourier bins of each frame in turn.  `Frequency' 
+encodes the phase increment in such a way that for 
+strong harmonics, it will give a good indication of the true frequency.  
+For low amplitude or rapidly moving harmonics, it is less meaningful.
+.SH DIAGNOSTICS
+Prints number of frames to process, and total frames completed on every 20th.
+.SH SEE ALSO
+.MS Csound 1Csound , 
+.I The Csound Reference Manual
+.SH AUTHOR
+Dan Ellis, 
+.B dpwe@media-lab.media.mit.edu
+.SH BUGS
+Currently reads only Ircam-format soundfiles.

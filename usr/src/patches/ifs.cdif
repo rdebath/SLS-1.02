@@ -1,0 +1,2378 @@
+--- linux/config.in	Fri Apr  9 21:28:10 1993
++++ linux/config.in	Fri Apr  9 19:29:27 1993
+@@ -64,6 +64,8 @@
+ CONFIG_NFS_FS y/n n
+ ISO9660 cdrom filesystem support
+ CONFIG_ISO9660_FS y/n n
++Inheriting filesystem (IFS) support
++CONFIG_IFS_FS y/n n
+ .
+ Various character device drivers..
+ .
+diff -ur +new-file linux/include/linux/fs.h linux/include/linux/fs.h
+--- linux/include/linux/fs.h	Tue Apr  6 20:57:21 1993
++++ linux/include/linux/fs.h	Fri Apr  9 19:25:27 1993
+@@ -162,6 +162,7 @@
+ #include <linux/iso_fs_i.h>
+ #include <linux/nfs_fs_i.h>
+ #include <linux/xia_fs_i.h>
++#include <linux/ifs_fs_i.h>
+ 
+ struct inode {
+ 	dev_t		i_dev;
+@@ -202,9 +203,12 @@
+ 		struct iso_inode_info isofs_i;
+ 		struct nfs_inode_info nfs_i;
+ 		struct xiafs_inode_info xiafs_i;
++		struct ifs_inode_info ifs_i;
+ 	} u;
+ };
+ 
++#include <linux/ifs_fs_f.h>
++
+ struct file {
+ 	mode_t f_mode;
+ 	dev_t f_rdev;			/* needed for /dev/tty */
+@@ -214,6 +218,9 @@
+ 	unsigned short f_reada;
+ 	struct inode * f_inode;
+ 	struct file_operations * f_op;
++	union {
++		struct ifs_file_info ifs_f;
++	} u;
+ };
+ 
+ struct file_lock {
+@@ -233,6 +240,7 @@
+ #include <linux/iso_fs_sb.h>
+ #include <linux/nfs_fs_sb.h>
+ #include <linux/xia_fs_sb.h>
++#include <linux/ifs_fs_sb.h>
+ 
+ struct super_block {
+ 	dev_t s_dev;
+@@ -255,6 +263,7 @@
+ 		struct isofs_sb_info isofs_sb;
+ 		struct nfs_sb_info nfs_sb;
+ 		struct xiafs_sb_info xiafs_sb;
++		struct ifs_sb_info ifs_sb;
+ 	} u;
+ };
+ 
+diff -ur +new-file linux/include/linux/ifs_fs.h linux/include/linux/ifs_fs.h
+--- linux/include/linux/ifs_fs.h
++++ linux/include/linux/ifs_fs.h	Fri Apr  9 20:40:21 1993
+@@ -0,0 +1,166 @@
++#ifndef _LINUX_IFS_FS_H
++#define _LINUX_IFS_FS_H
++
++/*
++ * The inheriting filesystem constants/structures
++ */
++
++#include <linux/fs.h>
++#include <linux/ifs_fs_param.h>
++
++#define Dprintk (void)
++
++#define IFS_SUPER_MAGIC 0x494e /* IN */
++#define IFS_ANY_INO 1 /* can be any value outside of IFS_MIN_INO..IFS_MAX_INO */
++
++#define IFS_MIN_INO          2
++#define IFS_MAX_INO 0x7ffffff0
++
++#define IFS_UNWHITEOUT	0x53464900	/* unwhiteout ioctl */
++
++#define IFS_ST_NORMAL	0 /* no special attributes */
++#define IFS_ST_WHITEOUT	1 /* entry is whited out */
++#define IFS_ST_HIDE	2 /* lower levels are hidden */
++
++#define IFS_CAN_SB(inode,nth,op) \
++  ((inode) && IFS_I(inode)->layer[nth] && IFS_I(inode)->layer[nth]->i_sb && \
++    IFS_I(inode)->layer[nth]->i_sb->s_op && \
++    IFS_I(inode)->layer[nth]->i_sb->s_op->op)
++#define IFS_DO_SB(inode,nth,op,args) \
++  IFS_I(inode)->layer[nth]->i_sb->s_op->op args
++#define IFS_VAL_SB(inode,nth,op,args) \
++  (IFS_CAN_SB(inode,nth,op) ? IFS_DO_SB(inode,nth,op,args) : -EBADF)
++#define IFS_OP_SB(inode,nth,op,args) \
++  if (IFS_CAN_SB(inode,nth,op)) IFS_DO_SB(inode,nth,op,args)
++
++#define IFS_CAN_INODE(inode,nth,op) \
++  ((inode) && IFS_I(inode)->layer[nth] && IFS_I(inode)->layer[nth]->i_op && \
++    IFS_I(inode)->layer[nth]->i_op->op)
++#define IFS_DO_INODE(inode,nth,op,args) \
++  IFS_I(inode)->layer[nth]->i_op->op args
++#define IFS_VAL_INODE(inode,nth,op,args) \
++  (IFS_CAN_INODE(inode,nth,op) ? IFS_DO_INODE(inode,nth,op,args) : -EBADF)
++#define IFS_OP_INODE(inode,nth,op,args) \
++  if (IFS_CAN_INODE(inode,nth,op)) IFS_DO_INODE(inode,nth,op,args)
++
++/*
++ * KLUDGE ALERT: IFS should use its own struct file and go through the normal
++ *               open routines.
++ */
++
++#define IFS_CAN_FILE(inode,nth,op) \
++  ((inode) && IFS_I(inode)->layer[nth] && IFS_I(inode)->layer[nth]->i_op && \
++    IFS_I(inode)->layer[nth]->i_op->default_file_ops && \
++    IFS_I(inode)->layer[nth]->i_op->default_file_ops->op)
++#define IFS_DO_FILE(inode,nth,op,args) \
++    IFS_I(inode)->layer[nth]->i_op->default_file_ops->op args
++
++#define USE_INODE(inode) ((inode)->i_count++)
++
++#define IFS_DOT_NAME(n,l) \
++  ((l == 1 || l == 2) && n[0] == '.' && (l == 1 || n[1] == '.'))
++#define IFS_DEL_NAME(n,l) \
++  (l == 3 && n[2] == '.' && n[0] == '.' && n[1] == '.')
++
++#define IFS_SB(s) (&((s)->u.ifs_sb))
++#define IFS_I(i) (&((i)->u.ifs_i))
++#define IFS_F(f) (&((f)->u.ifs_f))
++#define IFS_NTH(i,n) ((i)->u.ifs_i.layer[n])
++#define IFS_LAYERS(i) ((i)->i_sb->u.ifs_sb.layers)
++
++#define IFS_IS_RO(i) (IS_RDONLY(IFS_NTH(i->i_sb->s_mounted,0)))
++
++/*
++ * This one is ugly: creation routines have many parts in common. Therefore,
++ * everything is handled by a single routine. Unfortunately, we need to access
++ * function pointers in the i_op fields of inodes that are only known at run
++ * time. This is done by using an offset into i_op and casting everything to
++ * ints. A solution involving macros would generate a lot more code and
++ * wouldn't be much more readable.
++ */
++
++#define IFS_IOP_OFF(op) ((char *) &dummy_ops.op-(char *) &dummy_ops)
++
++
++struct ifs_mpar {
++	int layers;
++	char *names[IFS_MAX_LAYERS];
++};
++
++
++/* misc.c */
++
++extern void ifs_lock(struct inode *inode);
++extern void ifs_unlock(struct inode *inode);
++extern void ifs_lock4(struct inode *i1,struct inode *i2,struct inode *i3,
++    struct inode *i4);
++extern void ifs_unlock4(struct inode *i1,struct inode *i2,struct inode *i3,
++    struct inode *i4);
++extern void ifs_adjust_ops(struct inode *ifs_inode);
++extern void ifs_init_inode(struct inode *ifs_inode,struct inode **layers);
++extern struct inode *ifs_iget(struct super_block *sb,struct inode **new,
++    int layers,int *is_new);
++extern int ifs_status(struct inode *dir,const char *name,int len);
++extern int ifs_whiteout(struct inode *dir,const char *name,int len);
++extern int ifs_hide(struct inode *dir,const char *name,int len);
++extern int ifs_unwhiteout(struct inode *dir,const char *name,int len);
++extern int ifs_user_unwhiteout(struct inode *dir,const char *name,int len);
++extern int ifs_unhide(struct inode *dir,const char *name,int len);
++extern int ifs_open_file(struct inode *inode,struct file **filp,int flags);
++extern void ifs_close_file(struct file *filp);
++extern int ifs_empty(struct inode *dir,int ifs_dir);
++extern int ifs_purge(struct inode *dir);
++
++/* clone.c */
++
++extern int ifs_build_path(struct inode *dir);
++extern int ifs_clone_file(struct inode *inode);
++extern int ifs_copy_object(struct inode *object,struct inode *dir,
++    const char *name,int len);
++
++/* namei.c */
++
++extern int ifs_lookup(struct inode *dir,const char *name,int len,
++    struct inode **result);
++extern int ifs_create(struct inode *dir,const char *name,int len,int mode,
++    struct inode **result);
++extern int ifs_mkdir(struct inode *dir,const char *name,int len,int mode);
++extern int ifs_rmdir(struct inode *dir,const char *name,int len);
++extern int ifs_unlink(struct inode *dir,const char *name,int len);
++extern int ifs_symlink(struct inode *inode,const char *name,int len,
++    const char *symname);
++extern int ifs_link(struct inode *oldinode,struct inode *dir,const char *name,
++    int len);
++extern int ifs_mknod(struct inode *dir,const char *name,int len,int mode,
++    int rdev);
++extern int ifs_rename(struct inode *old_dir,const char *old_name,int old_len,
++    struct inode *new_dir,const char *new_name,int new_len);
++
++/* inode.c */
++
++extern void ifs_put_inode(struct inode *inode);
++extern void ifs_put_super(struct super_block *sb);
++extern void ifs_write_super(struct super_block *sb);
++extern struct super_block *ifs_read_super(struct super_block *s,void *data,
++    int silent);
++extern void ifs_statfs(struct super_block *sb,struct statfs *buf);
++extern void ifs_read_inode(struct inode *inode);
++extern void ifs_write_inode(struct inode *inode);
++extern int ifs_notify_change(int flags,struct inode *inode);
++
++/* dir.c */
++
++extern struct file_operations ifs_dir_operations;
++extern struct inode_operations ifs_dir_inode_operations;
++
++/* file.c */
++
++extern struct file_operations ifs_file_operations;
++extern struct inode_operations ifs_file_inode_operations;
++extern void ifs_truncate(struct inode *inode);
++
++/* symlink.c */
++
++extern struct inode_operations ifs_symlink_inode_operations;
++
++#endif
+diff -ur +new-file linux/include/linux/ifs_fs_f.h linux/include/linux/ifs_fs_f.h
+--- linux/include/linux/ifs_fs_f.h
++++ linux/include/linux/ifs_fs_f.h	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,13 @@
++#ifndef _IFS_FS_F
++#define _IFS_FS_F
++
++/*
++ * Inheriting file system file data
++ */
++
++struct ifs_file_info {
++	int layer; /* readdir */
++	struct file *open; /* file access */
++};
++
++#endif
+diff -ur +new-file linux/include/linux/ifs_fs_i.h linux/include/linux/ifs_fs_i.h
+--- linux/include/linux/ifs_fs_i.h
++++ linux/include/linux/ifs_fs_i.h	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,25 @@
++#ifndef _IFS_FS_I
++#define _IFS_FS_I
++
++/*
++ * Inheriting file system inode data in memory
++ */
++
++
++#include <linux/ifs_fs_param.h>
++
++
++struct ifs_inode_info {
++	struct inode * volatile layer [IFS_MAX_LAYERS];
++	struct inode *parent; /* parent chain is kept in-core */
++	struct inode *next,*prev; /* IFS' own lookup list */
++	struct wait_queue *pop_wait; /* lock inode while popping a file */
++	int pop_lock;
++	struct wait_queue *trans_wait;
++	int trans_lock;
++	uid_t val_uid; /* validated permission data */
++	gid_t val_gid;
++	umode_t val_mode;
++};
++
++#endif
+diff -ur +new-file linux/include/linux/ifs_fs_param.h linux/include/linux/ifs_fs_param.h
+--- linux/include/linux/ifs_fs_param.h
++++ linux/include/linux/ifs_fs_param.h	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,11 @@
++#ifndef _LINUX_IFS_FS_PARAM_H
++#define _LINUX_IFS_FS_PARAM_H
++
++/*
++ * Global inheriting filesystem parameters
++ */
++
++#define IFS_BITS       2
++#define IFS_MAX_LAYERS (1 << IFS_BITS)
++
++#endif
+diff -ur +new-file linux/include/linux/ifs_fs_sb.h linux/include/linux/ifs_fs_sb.h
+--- linux/include/linux/ifs_fs_sb.h
++++ linux/include/linux/ifs_fs_sb.h	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,12 @@
++#ifndef _IFS_FS_SB
++#define _IFS_FS_SB
++
++struct ifs_sb_info {
++	int layers;
++	struct inode *ifs_inodes; /* private list of inodes */
++	ino_t ifs_ino; /* inode number allocation counter */
++	struct wait_queue *ino_wait; /* lock inode creation */
++	int ino_lock;
++};
++
++#endif
+diff -ur +new-file linux/fs/Makefile linux/fs/Makefile
+--- linux/fs/Makefile	Sun Mar  7 16:21:10 1993
++++ linux/fs/Makefile	Fri Apr  9 19:25:27 1993
+@@ -7,7 +7,7 @@
+ #
+ # Note 2! The CFLAGS definitions are now in the main makefile...
+ 
+-SUBDIRS = minix ext ext2 msdos proc isofs nfs xiafs
++SUBDIRS = minix ext ext2 msdos proc isofs nfs xiafs ifs
+ 
+ ifdef CONFIG_MINIX_FS
+ FS_SUBDIRS := $(FS_SUBDIRS) minix
+@@ -32,6 +32,9 @@
+ endif
+ ifdef CONFIG_XIA_FS
+ FS_SUBDIRS := $(FS_SUBDIRS) xiafs
++endif
++ifdef CONFIG_IFS_FS
++FS_SUBDIRS := $(FS_SUBDIRS) ifs
+ endif
+ 
+ 
+diff -ur +new-file linux/fs/filesystems.c linux/fs/filesystems.c
+--- linux/fs/filesystems.c	Sun Apr  4 07:08:51 1993
++++ linux/fs/filesystems.c	Fri Apr  9 19:25:27 1993
+@@ -32,6 +32,9 @@
+ #ifdef CONFIG_ISO9660_FS
+ #include <linux/iso_fs.h>
+ #endif
++#ifdef CONFIG_IFS_FS
++#include <linux/ifs_fs.h>
++#endif
+ 
+ struct file_system_type file_systems[] = {
+ #ifdef CONFIG_MINIX_FS
+@@ -57,6 +60,9 @@
+ #endif
+ #ifdef CONFIG_ISO9660_FS
+ 	{isofs_read_super,	"iso9660",	1},
++#endif
++#ifdef CONFIG_IFS_FS
++	{ifs_read_super,	"ifs",		0},
+ #endif
+ 	{NULL,			NULL,		0}
+ };
+diff -ur +new-file linux/fs/ifs/Makefile linux/fs/ifs/Makefile
+--- linux/fs/ifs/Makefile
++++ linux/fs/ifs/Makefile	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,33 @@
++#
++# Makefile for the linux inheriting filesystem routines.
++#
++# Note! Dependencies are done automagically by 'make dep', which also
++# removes any old dependencies. DON'T put your own dependencies here
++# unless it's something special (ie not a .c file).
++#
++# Note 2! The CFLAGS definitions are now in the main makefile...
++
++.c.s:
++	$(CC) $(CFLAGS) -S $<
++.c.o:
++	$(CC) $(CFLAGS) -c $<
++.s.o:
++	$(AS) -o $*.o $<
++
++OBJS=	namei.o inode.o file.o dir.o symlink.o misc.o clone.o
++
++ifs.o:	$(OBJS)
++	$(LD) -r -o ifs.o $(OBJS)
++
++clean:
++	rm -f core *.o *.a tmp_make
++
++dep:
++	$(CPP) -M *.c > .depend
++
++#
++# include a dependency file if one exists
++#
++ifeq (.depend,$(wildcard .depend))
++include .depend
++endif
+diff -ur +new-file linux/fs/ifs/clone.c linux/fs/ifs/clone.c
+--- linux/fs/ifs/clone.c
++++ linux/fs/ifs/clone.c	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,333 @@
++/*
++ *  linux/fs/ifs/clone.c
++ *
++ *  Written 1992,1993 by Werner Almesberger
++ */
++
++#include <asm/segment.h>
++
++#include <linux/ifs_fs.h>
++#include <linux/sched.h>
++#include <linux/kernel.h>
++#include <linux/errno.h>
++#include <linux/stat.h>
++#include <linux/fcntl.h>
++
++
++static int ifs_do_build_path(struct inode *dir);
++
++
++static int ifs_get_name(struct inode *parent,struct inode *item,
++    struct dirent *de)
++{
++	struct file *filp;
++	int retval;
++
++Dprintk("ifs_get_name\n");
++	retval = ifs_open_file(parent,&filp,O_RDONLY);
++	if (retval)
++		return retval;
++	do retval = filp->f_op->readdir(filp->f_inode,filp,de,0);
++	while (retval > 0 && de->d_ino != item->i_ino);
++	ifs_close_file(filp);
++Dprintk("retval = %d\n",retval);
++	if (retval <= 0)
++		return retval ? retval : -ENOENT;
++	return 0;
++}
++
++
++/*
++ * Does not consume ITEM. ITEM may or may not be locked by the caller.
++ */
++
++static int ifs_prepare_cloning(struct inode *item,struct dirent *de,
++    mode_t *mode)
++{
++	struct inode *parent,*use,*orig;
++	int follow,retval;
++
++Dprintk("ifs_prepare_cloning\n");
++	if (!(parent = IFS_I(item)->parent))
++		panic("Climbing beyond root");
++	retval = ifs_do_build_path(parent);
++	if (retval)
++		return retval;
++	for (follow = 1; follow < IFS_LAYERS(item); follow++)
++		if (IFS_NTH(item,follow)) break;
++	if (follow == IFS_LAYERS(item))
++		panic("Parent has no lower inode");
++	USE_INODE(orig = IFS_NTH(item,follow));
++	if (mode)
++		*mode = orig->i_mode;
++	USE_INODE(use = IFS_NTH(parent,follow));
++	retval = ifs_get_name(use,orig,de);
++	iput(orig);
++	iput(use);
++	return retval;
++}
++
++
++/*
++ * Does not consume DIR. DIR may or may not be locked by the caller.
++ */
++
++static int ifs_do_build_path(struct inode *dir)
++{
++	struct inode *parent,*use,*new;
++	struct dirent de;
++	mode_t mode;
++	int retval;
++
++Dprintk("ifs_do_build_path (%d)\n",dir);
++	if (IFS_NTH(dir,0))
++		return 0;
++	parent = IFS_I(dir)->parent;
++	if (!parent)
++		panic("Climbing beyond root");
++	retval = ifs_prepare_cloning(dir,&de,&mode);
++	if (retval)
++		return retval;
++	use = IFS_NTH(parent,0); /* can't lock parent */
++	if (!use || !use->i_op || !use->i_op->mkdir || !use->i_op->lookup)
++		return -EBADF;
++	USE_INODE(use); /* to keep inode busy */
++	USE_INODE(use); /* for mkdir */
++de.d_name[de.d_reclen] = 0;
++Dprintk("creating dir '%s'\n",de.d_name);
++	retval = use->i_op->mkdir(use,de.d_name,de.d_reclen,mode);
++	if (retval) {
++		iput(use);
++		return retval;
++	}
++	USE_INODE(use);
++	retval = use->i_op->lookup(use,de.d_name,de.d_reclen,&new);
++	iput(use);
++	if (retval)
++		return retval;
++	if (IFS_NTH(dir,0)) {
++		iput(new);
++		return -EEXIST;
++	}
++	IFS_NTH(dir,0) = new;
++	return 0;
++}
++
++
++/*
++ * Creates a path in the top level file system that corresponds to a path to DIR
++ * in a lower file system. Does not swallow DIR. DIR is (always?) locked by the
++ * caller.
++ */
++
++int ifs_build_path(struct inode *dir)
++{
++	int old_fs,retval;
++
++Dprintk("ifs_build_path\n");
++	old_fs = get_fs(); /* for readdir */
++	set_fs(get_ds());
++	retval = ifs_do_build_path(dir);
++	set_fs(old_fs);
++	return retval;
++}
++
++
++/*
++ * ORIG is locked by the caller.
++ */
++
++static int ifs_do_clone_by_name(struct inode *orig,struct inode *dir,
++    const char *name,int len,struct inode **result)
++{
++	struct inode *new;
++	struct file *in,*out;
++	unsigned long page;
++	int retval,size;
++
++	USE_INODE(dir);
++	retval = dir->i_op->create(dir,name,len,orig->i_mode & ~0777,&new);
++	if (retval)
++		return retval;
++	new->i_uid = orig->i_uid;
++	new->i_gid = orig->i_gid;
++	new->i_atime = orig->i_atime;
++	new->i_mtime = orig->i_mtime;
++	new->i_ctime = orig->i_ctime;
++	if (new->i_sb->s_op && new->i_sb->s_op->notify_change)
++		new->i_sb->s_op->notify_change(NOTIFY_UIDGID | NOTIFY_TIME,new);
++	retval = ifs_open_file(orig,&in,O_RDONLY);
++	if (retval) {
++		USE_INODE(dir);
++		(void) dir->i_op->unlink(dir,name,len);
++		iput(new);
++		return retval;
++	}
++	retval = ifs_open_file(new,&out,O_WRONLY);
++	if (retval) {
++		ifs_close_file(in);
++		(void) dir->i_op->unlink(dir,name,len);
++		iput(new);
++		return retval;
++	}
++	page = get_free_page(GFP_KERNEL);
++	while ((size = in->f_op->read(in->f_inode,in,(void *) page,PAGE_SIZE))
++	    > 0)
++		if ((retval = out->f_op->write(out->f_inode,out,(void *) page,
++		    size)) != size)
++			break;
++	free_page(page);
++	ifs_close_file(in);
++	ifs_close_file(out);
++	if (size) {
++		if (dir->i_op && dir->i_op->unlink)
++			(void) dir->i_op->unlink(dir,name,len);
++		iput(new);
++		return size < 0 ? size : retval < 0 ? retval : -ENOSPC;
++	}
++	new->i_mode = orig->i_mode;
++	if (new->i_sb->s_op && new->i_sb->s_op->notify_change)
++		new->i_sb->s_op->notify_change(NOTIFY_MODE,new);
++	if (result)
++		*result = new;
++	else iput(new);
++	return 0;
++}
++
++
++/*
++ * Does not consume INODE. INODE is locked by the caller.
++ */
++
++static int ifs_do_clone_by_inode(struct inode *inode)
++{
++	struct inode *parent,*new;
++	struct dirent de;
++	int retval,n;
++
++Dprintk("ifs_do_clone_by_inode\n");
++	if (IFS_NTH(inode,0))
++		return -EEXIST;
++	if (!(parent = IFS_I(inode)->parent))
++		panic("Climbing beyond root");
++	retval = ifs_prepare_cloning(inode,&de,NULL);
++	if (retval)
++		return retval;
++	if (!IFS_CAN_INODE(parent,0,create) || !IFS_CAN_INODE(parent,0,unlink))
++		return -EBADF;
++	while (IFS_I(inode)->pop_lock)
++		sleep_on(&IFS_I(inode)->pop_wait);
++	IFS_I(inode)->pop_lock = 1;
++	for (n = 0; n < IFS_LAYERS(inode); n++)
++		if (IFS_NTH(inode,n)) break;
++de.d_name[de.d_reclen] = 0;
++	if (n == IFS_LAYERS(inode))
++		retval = -EBADF;
++	else retval = ifs_do_clone_by_name(IFS_NTH(inode,n),IFS_NTH(parent,0),
++		    de.d_name,de.d_reclen,&new);
++	if (!retval)
++		IFS_NTH(inode,0) = new;
++	IFS_I(inode)->pop_lock = 0;
++	wake_up(&IFS_I(inode)->pop_wait);
++	return retval;
++}
++
++
++/*
++ * Does not consume INODE. INODE is not locked by the caller.
++ */
++
++int ifs_clone_file(struct inode *inode)
++{
++	int old_fs,retval;
++
++Dprintk("ifs_clone_file\n");
++	old_fs = get_fs(); /* for read/write */
++	set_fs(get_ds());
++	ifs_lock(inode);
++	retval = ifs_do_clone_by_inode(inode);
++	ifs_unlock(inode);
++	set_fs(old_fs);
++	return retval;
++}
++
++
++/*
++ * Copies a regular file. OBJECT is locked by the caller.
++ */
++
++int ifs_copy_file(struct inode *object,struct inode *dir,const char *name,
++    int len)
++{
++	return ifs_do_clone_by_name(object,dir,name,len,NULL);
++}
++
++
++/*
++ * Copies a symbolic link. OBJECT is locked by the caller.
++ */
++
++int ifs_copy_link(struct inode *object,struct inode *dir,const char *name,
++    int len)
++{
++	printk("IFS: can't move symbolic links across devices\n");
++	return -EINVAL;
++}
++
++
++/*
++ * Copies a directory file. OBJECT is locked by the caller.
++ */
++
++int ifs_copy_dir(struct inode *object,struct inode *dir,const char *name,
++    int len)
++{
++	printk("IFS: can't move directories across devices\n");
++	return -EINVAL;
++}
++
++
++/*
++ * Copies a device file, a FIFO or something similar. OBJECT is locked by the
++ * caller.
++ */
++
++int ifs_copy_node(struct inode *object,struct inode *dir,const char *name,
++    int len)
++{
++	printk("IFS: can't move non-files and non-directories across devices"
++	    "\n");
++	return -EINVAL;
++}
++
++
++/*
++ * Copies the file system object OBJECT to directory PARENT with name NAME.
++ * OBJECT must not be located inside PARENT. Does not consume OBJECT or PARENT.
++ * OBJECT is locked by the caller.
++ */
++
++int ifs_copy_object(struct inode *object,struct inode *parent,const char *name,
++    int len)
++{
++	int retval;
++
++	if (!parent)
++		panic("ifs_copy_object: parent == NULL");
++             if (S_ISREG(object->i_mode))
++		retval = ifs_copy_file(object,parent,name,len);
++	else if (S_ISDIR(object->i_mode))
++		retval = ifs_copy_dir(object,parent,name,len);
++	else if (S_ISLNK(object->i_mode))
++		retval = ifs_copy_link(object,parent,name,len);
++	else if (S_ISCHR(object->i_mode) || S_ISBLK(object->i_mode) ||
++	    S_ISFIFO(object->i_mode))
++		retval = ifs_copy_node(object,parent,name,len);
++	else {
++		printk("IFS: bad inode type 0%o\n",object->i_mode);
++		return -EBADF;
++	}
++	if (retval)
++		return retval;
++	return 0;
++}
+diff -ur +new-file linux/fs/ifs/dir.c linux/fs/ifs/dir.c
+--- linux/fs/ifs/dir.c
++++ linux/fs/ifs/dir.c	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,190 @@
++/*
++ *  linux/fs/ifs/dir.c
++ *
++ *  Written 1992,1993 by Werner Almesberger
++ *
++ *  IFS directory handling functions
++ */
++
++#include <asm/segment.h>
++
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/mm.h>
++#include <linux/ifs_fs.h>
++#include <linux/errno.h>
++#include <linux/stat.h>
++#include <linux/fcntl.h>
++
++
++static int ifs_dir_lseek(struct inode *inode,struct file *filp,off_t offset,
++    int whence);
++static int ifs_readdir(struct inode *inode,struct file *filp,
++    struct dirent *dirent,int count);
++static int ifs_dir_ioctl(struct inode *inode,struct file *file,unsigned int op,
++    unsigned int arg);
++static int ifs_dir_open(struct inode *inode,struct file *filp);
++static void ifs_dir_release(struct inode *inode,struct file *filp);
++
++
++static struct file_operations ifs_dir_operations = {
++	ifs_dir_lseek,		/* lseek */
++	NULL,			/* read */
++	NULL,			/* write - bad */
++	ifs_readdir,		/* readdir */
++	NULL,			/* select - default */
++	ifs_dir_ioctl,		/* ioctl - default */
++	NULL,			/* mmap */
++	ifs_dir_open,		/* open */
++	ifs_dir_release		/* release */
++};
++
++struct inode_operations ifs_dir_inode_operations = {
++	&ifs_dir_operations,	/* default directory file-ops */
++	ifs_create,		/* create */
++	ifs_lookup,		/* lookup */
++	ifs_link,		/* link */
++	ifs_unlink,		/* unlink */
++	ifs_symlink,		/* symlink */
++	ifs_mkdir,		/* mkdir */
++	ifs_rmdir,		/* rmdir */
++	ifs_mknod,		/* mknod */
++	ifs_rename,		/* rename */
++	NULL,			/* readlink */
++	NULL,			/* follow_link */
++	NULL,			/* no bmap */
++	NULL,			/* truncate */
++	NULL			/* permission */
++};
++
++
++static int ifs_dir_lseek(struct inode *inode,struct file *filp,off_t offset,
++    int whence)
++{
++	if (offset || whence)
++		return -EINVAL;
++	ifs_dir_release(inode,filp);
++	IFS_F(filp)->layer = 0;
++	IFS_F(filp)->open = NULL;
++	return 0;
++}
++
++
++/*
++ * f_pos is entirely ignored, so the BSD-isms telldir() and seekdir() won't
++ * work. COUNT is not used. INODE may already be locked by the caller.
++ */
++
++static int ifs_readdir(struct inode *inode,struct file *filp,
++    struct dirent *dirent,int count)
++{
++	struct inode *i;
++	struct dirent de;
++	int retval,old_layer,old_fs,length,n;
++
++Dprintk("readdir\n");
++	if (!inode || !S_ISDIR(inode->i_mode)) return -EBADF;
++	old_fs = get_fs();
++	set_fs(get_ds());
++	while (1) {
++		if (!IFS_F(filp)->open) {
++			old_layer = IFS_F(filp)->layer;
++			retval = 0;
++			while (IFS_F(filp)->layer < IFS_MAX_LAYERS) {
++				if (IFS_NTH(inode,IFS_F(filp)->layer))
++					if (!(retval = ifs_open_file(IFS_NTH(
++					    inode,IFS_F(filp)->layer),
++					    &IFS_F(filp)->open,O_RDONLY)))
++						break;
++				IFS_F(filp)->layer++;
++			}
++			if (!IFS_F(filp)->open) {
++				set_fs(old_fs);
++				return old_layer ? 0 : retval;
++			}
++		}
++		if (!IFS_F(filp)->open->f_op || !IFS_F(filp)->open->f_op->
++		    readdir)
++			length = -EINVAL;
++		else length = IFS_F(filp)->open->f_op->readdir(IFS_F(filp)->
++			    open->f_inode,IFS_F(filp)->open,&de,1);
++		if (length < 0) {
++Dprintk("readdir: error %d\n",length);
++			break;
++}
++		if (!length) {
++			ifs_close_file(IFS_F(filp)->open);
++			IFS_F(filp)->open = NULL;
++			IFS_F(filp)->layer++;
++			continue;
++		}
++Dprintk("length=%d\n",length);
++		if (length == 2 && de.d_name[0] == '.' && de.d_name[1] == '.') {
++			for (n = 0; n < IFS_F(filp)->layer; n++)
++				if (IFS_NTH(inode,n))
++					break;
++			if (n != IFS_F(filp)->layer) continue;
++			break;
++		}
++		if (!inode->i_op || !inode->i_op->lookup)
++			panic("no lookup");
++		USE_INODE(inode);
++		if (inode->i_op->lookup(inode,de.d_name,length,&i)) {
++Dprintk("readdir: lookup failed\n");
++			continue;
++}
++Dprintk("back from lookup\n");
++		de.d_ino = i->i_ino;
++		for (n = 0; n < IFS_F(filp)->layer; n++)
++			if (IFS_NTH(i,n))
++				break;
++		iput(i);
++		if (n < IFS_F(filp)->layer) {
++Dprintk("%d (n) < %d (layer)\n",n,IFS_F(filp)->layer);
++			continue;
++}
++Dprintk("readdir returning %d\n",length);
++		break;
++	}
++	set_fs(old_fs);
++	if (length > 0)
++		memcpy_tofs(dirent,&de,sizeof(struct dirent));
++	return length;
++}
++
++
++static int ifs_dir_open(struct inode *inode,struct file *filp)
++{
++	IFS_F(filp)->layer = 0;
++	IFS_F(filp)->open = NULL;
++	return 0;
++}
++
++
++static void ifs_dir_release(struct inode *inode,struct file *filp)
++{
++	if (IFS_F(filp)->open) {
++		ifs_close_file(IFS_F(filp)->open);
++		IFS_F(filp)->open = NULL;
++	}
++}
++
++
++static int ifs_dir_ioctl(struct inode *inode,struct file *file,unsigned int op,
++    unsigned int arg)
++{
++	char *page;
++	int retval;
++
++	if (op != IFS_UNWHITEOUT)
++		return -EINVAL;
++	retval = getname((char *) arg,&page);
++	if (retval)
++		return retval;
++	page[PAGE_SIZE-1] = 0;
++	ifs_lock(inode); /* not really necessary, but looks better */
++	retval = ifs_user_unwhiteout(inode,page,strlen(page));
++	ifs_unlock(inode);
++	putname(page);
++	return retval;
++}
+diff -ur +new-file linux/fs/ifs/file.c linux/fs/ifs/file.c
+--- linux/fs/ifs/file.c
++++ linux/fs/ifs/file.c	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,142 @@
++/*
++ *  linux/fs/ifs/file.c
++ *
++ *  Written 1992,1993 by Werner Almesberger
++ *
++ *  IFS regular file handling primitives
++ */
++
++#include <asm/segment.h>
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/ifs_fs.h>
++
++
++static int ifs_lseek(struct inode *inode,struct file *filp,off_t offset,
++    int origin);
++static int ifs_open(struct inode *inode,struct file *filp);
++static void ifs_release(struct inode *inode,struct file *filp);
++
++
++#define C_ ,
++#define IFS_F_WRAPPER(name,args,argl,retnone) \
++  static int ifs_##name(struct inode *inode,struct file *filp args) \
++  { \
++    int retval; \
++  \
++    if (!IFS_F(filp)->open) \
++      return -EBADF; \
++    if (!IFS_F(filp)->open->f_op->name) \
++      return retnone; \
++    IFS_F(filp)->open->f_pos = filp->f_pos; \
++    retval = IFS_F(filp)->open->f_op->name(IFS_F(filp)->open->f_inode, \
++      IFS_F(filp)->open argl); \
++    filp->f_pos = IFS_F(filp)->open->f_pos; \
++    return retval; \
++  }
++
++
++IFS_F_WRAPPER(read,C_ char *buffer C_ int size,C_ buffer C_ size,-EINVAL)
++IFS_F_WRAPPER(write,C_ char *buffer C_ int size,C_ buffer C_ size,-EINVAL)
++IFS_F_WRAPPER(select,C_ int flag C_ select_table *table,C_ flag C_ table,1)
++IFS_F_WRAPPER(ioctl,C_ unsigned int op C_ unsigned int arg,C_ op C_ arg,-EINVAL)
++IFS_F_WRAPPER(mmap,C_ unsigned long addr C_ size_t length C_ int mask C_
++    unsigned long offset,C_ addr C_ length C_ mask C_ offset,-ENODEV)
++IFS_F_WRAPPER(fsync,,,0) /* ? */
++
++
++static struct file_operations ifs_file_operations = {
++	ifs_lseek,		/* lseek */
++	ifs_read,		/* read */
++	ifs_write,		/* write */
++	NULL,			/* readdir - bad */
++	ifs_select,		/* select */
++	ifs_ioctl,		/* ioctl */
++	ifs_mmap,		/* mmap */
++	ifs_open,		/* open */
++	ifs_release,		/* release */
++	ifs_fsync		/* fsync */
++};
++
++struct inode_operations ifs_file_inode_operations = {
++	&ifs_file_operations,	/* default file operations */
++	NULL,			/* create */
++	NULL,			/* lookup */
++	NULL,			/* link */
++	NULL,			/* unlink */
++	NULL,			/* symlink */
++	NULL,			/* mkdir */
++	NULL,			/* rmdir */
++	NULL,			/* mknod */
++	NULL,			/* rename */
++	NULL,			/* readlink */
++	NULL,			/* follow_link */
++	NULL,			/* bmap */
++	ifs_truncate,		/* truncate */
++	NULL			/* permission */
++};
++
++
++static int ifs_lseek(struct inode *inode,struct file *filp,off_t offset,
++    int origin)
++{
++	int retval;
++
++	if (!IFS_F(filp)->open)
++		return -EBADF;
++	if (IFS_F(filp)->open->f_op->lseek) {
++    		retval = IFS_F(filp)->open->f_op->lseek(IFS_F(filp)->open->
++		    f_inode,IFS_F(filp)->open,offset,origin);
++		if (retval >= 0)
++			filp->f_pos = retval;
++		return retval;
++	}
++	retval = origin ? origin == 1 ? filp->f_pos+offset :
++	    IFS_F(filp)->open->f_inode->i_size-offset : offset;
++	if (retval < 0)
++		return -EINVAL;
++	filp->f_reada = 0;
++	return filp->f_pos = retval;
++}
++
++
++static int ifs_open(struct inode *inode,struct file *filp)
++{
++	struct inode *use;
++	int retval,n;
++
++Dprintk("ifs_open\n");
++	if ((filp->f_mode & 2) && !IFS_NTH(inode,0)) {
++		retval = ifs_clone_file(inode);
++		if (retval)
++			return retval;
++	}
++	use = NULL;
++	for (n = 0; n < IFS_LAYERS(inode); n++)
++		if (IFS_NTH(inode,n)) {
++			use = IFS_NTH(inode,n);
++			break;
++		}
++	if (!use) /* bogus inode */
++		return -ENOENT;
++	return ifs_open_file(use,&IFS_F(filp)->open,filp->f_flags);
++}
++
++
++static void ifs_release(struct inode *inode,struct file *filp)
++{
++	if (!IFS_F(filp)->open)
++		printk("ifs_release: open is NULL\n");
++	else {
++		ifs_close_file(IFS_F(filp)->open);
++		IFS_F(filp)->open = NULL;
++	}
++}
++
++
++void ifs_truncate(struct inode *inode)
++{
++	if (IFS_CAN_INODE(inode,0,truncate))
++		IFS_DO_INODE(inode,0,truncate,(IFS_NTH(inode,0)));
++}
+diff -ur +new-file linux/fs/ifs/inode.c linux/fs/ifs/inode.c
+--- linux/fs/ifs/inode.c
++++ linux/fs/ifs/inode.c	Fri Apr  9 19:26:42 1993
+@@ -0,0 +1,189 @@
++/*
++ *  linux/fs/ifs/inode.c
++ *
++ *  Written 1992,1993 by Werner Almesberger
++ */
++
++#include <asm/segment.h>
++
++#include <linux/fs.h>
++#include <linux/ifs_fs.h>
++#include <linux/sched.h>
++#include <linux/errno.h>
++#include <linux/string.h>
++#include <linux/locks.h>
++
++
++void ifs_put_inode(struct inode *inode)
++{
++	int n;
++
++Dprintk("ifs_put_inode\n");
++	if (IFS_I(inode)->next)
++		IFS_I(IFS_I(inode)->next)->prev = IFS_I(inode)->prev;
++	if (IFS_I(inode)->prev)
++		IFS_I(IFS_I(inode)->prev)->next = IFS_I(inode)->next;
++	else IFS_SB(inode->i_sb)->ifs_inodes = IFS_I(inode)->next;
++	if (IFS_I(inode)->parent)
++		iput(IFS_I(inode)->parent);
++	for (n = 0; n < IFS_LAYERS(inode); n++)
++		if (IFS_NTH(inode,n))
++			iput(IFS_NTH(inode,n));
++/* no inode caching ... (would be useless anyway) */
++	memset(inode,0,sizeof(struct inode));
++}
++
++
++void ifs_put_super(struct super_block *sb)
++{
++Dprintk("ifs_put_super\n");
++	lock_super(sb);
++	sb->s_dev = 0;
++	unlock_super(sb);
++	return;
++}
++
++
++void ifs_write_super(struct super_block *sb)
++{
++Dprintk("ifs_write_super\n");
++	sb->s_dirt = 0;
++	if (!(IFS_NTH(sb->s_mounted,0)->i_sb->s_flags & MS_RDONLY))
++		IFS_OP_SB(sb->s_mounted,0,write_super,(IFS_NTH(sb->s_mounted,0)
++		    ->i_sb));
++	/* lower layers are always read-only */
++}
++
++
++static struct super_operations ifs_sops = { 
++	ifs_read_inode,
++	ifs_notify_change,
++	ifs_write_inode,
++	ifs_put_inode,
++	ifs_put_super,
++	ifs_write_super,
++	ifs_statfs
++};
++
++
++struct super_block *ifs_read_super(struct super_block *s,void *data,int silent)
++{
++	struct inode *layers[IFS_MAX_LAYERS];
++	int layer,retval,i,j;
++
++	s->s_magic = IFS_SUPER_MAGIC;
++	if ((IFS_SB(s)->layers = ((struct ifs_mpar *) data)->layers) >
++	    IFS_MAX_LAYERS) {
++		s->s_dev = 0;
++		printk("Too many layers\n");
++		return NULL;
++	}
++	for (layer = 0; layer < IFS_SB(s)->layers; layer++) {
++		retval = namei(((struct ifs_mpar *) data)->names[layer],
++		    &layers[layer]);
++		if (retval) {
++			while (--layer >= 0)
++				iput(layers[layer]);
++			printk("namei returns %d\n",retval);
++			return NULL;
++		}
++	}
++	for (i = 0; i < layer; i++)
++		for (j = i+1; j < layer; j++)
++			if (layers[i] == layers[j]) {
++				while (--layer >= 0)
++					iput(layers[layer]);
++				printk("IFS: layer %d and %d are identical.\n",
++				    i,j);
++				return NULL;
++			}
++	IFS_SB(s)->ifs_inodes = NULL;
++	IFS_SB(s)->ifs_ino = IFS_MIN_INO;
++	IFS_SB(s)->ino_wait = NULL;
++	IFS_SB(s)->ino_lock = 0;
++	/* set up enough so that it can read an inode */
++	s->s_op = &ifs_sops;
++	if (!(s->s_mounted = iget(s,IFS_ANY_INO))) {
++		s->s_dev = 0;
++		printk("get root inode failed\n");
++		return NULL;
++	}
++Dprintk("initializing root\n");
++	ifs_init_inode(s->s_mounted,layers);
++	IFS_I(s->s_mounted)->parent = NULL;
++	return s;
++}
++
++
++void ifs_statfs(struct super_block *sb,struct statfs *buf)
++{
++	struct statfs sum,temp;
++	int n;
++	unsigned short old_fs;
++
++	old_fs = get_fs();
++	set_fs(get_ds());
++	IFS_DO_SB(sb->s_mounted,0,statfs,(IFS_NTH(sb->s_mounted,0)->i_sb,
++	    &sum));
++	sum.f_type = sb->s_magic;
++	for (n = 1; n < IFS_SB(sb)->layers; n++) {
++		IFS_DO_SB(sb->s_mounted,n,statfs,(IFS_NTH(sb->s_mounted,n)
++		    ->i_sb,&temp));
++		sum.f_blocks += (temp.f_blocks*temp.f_bsize)/sum.f_bsize;
++		sum.f_files += temp.f_files;
++	}
++	set_fs(old_fs);
++	memcpy_tofs(buf,&sum,sizeof(sum));
++}
++
++
++void ifs_read_inode(struct inode *inode)
++{
++Dprintk("ifs_read_inode\n");
++	inode->i_mode = 0;
++	IFS_I(inode)->pop_lock = 0;
++	IFS_I(inode)->pop_wait = NULL;
++}
++
++
++void ifs_write_inode(struct inode *inode)
++{
++Dprintk("ifs_write_inode\n");
++	if (IFS_IS_RO(inode))
++		return;
++	inode->i_dirt = 0;
++	IFS_OP_SB(inode,0,write_inode,(IFS_NTH(inode,0)));
++	/* lower layers are always read-only */
++}
++
++
++int ifs_notify_change(int flags,struct inode *inode)
++{
++	int retval;
++
++Dprintk("ifs_notify_change (0x%X,0x%X)\n",flags,(int) inode);
++	if (flags && IFS_IS_RO(inode)) {
++		inode->i_uid = IFS_I(inode)->val_uid;
++		inode->i_gid = IFS_I(inode)->val_gid;
++		inode->i_mode = IFS_I(inode)->val_mode;
++		return -EROFS;
++	}
++	if (inode->i_uid == IFS_I(inode)->val_uid && inode->i_gid ==
++	    IFS_I(inode)->val_gid)
++		flags &= ~NOTIFY_UIDGID;
++	if (inode->i_mode == IFS_I(inode)->val_mode)
++		flags &= ~NOTIFY_MODE;
++	if (!flags)
++		return 0;
++	if (!IFS_NTH(inode,0)) {
++		retval = ifs_clone_file(inode);
++		if (retval)
++			return retval;
++	}
++	IFS_NTH(inode,0)->i_uid = IFS_I(inode)->val_uid = inode->i_uid;
++	IFS_NTH(inode,0)->i_gid = IFS_I(inode)->val_gid = inode->i_gid;
++	IFS_NTH(inode,0)->i_mode = IFS_I(inode)->val_mode = inode->i_mode;
++	if (!IFS_CAN_SB(inode,0,notify_change))
++		return 0;
++	return IFS_DO_SB(inode,0,notify_change,(flags,IFS_NTH(inode,0)));
++}
+diff -ur +new-file linux/fs/ifs/misc.c linux/fs/ifs/misc.c
+--- linux/fs/ifs/misc.c
++++ linux/fs/ifs/misc.c	Fri Apr  9 19:27:06 1993
+@@ -0,0 +1,512 @@
++/*
++ *  linux/fs/ifs/misc.c
++ *
++ *  Written 1992,1993 by Werner Almesberger
++ */
++
++#include <asm/segment.h>
++
++#include <linux/ifs_fs.h>
++#include <linux/sched.h>
++#include <linux/kernel.h>
++#include <linux/errno.h>
++#include <linux/string.h>
++#include <linux/stat.h>
++#include <linux/fcntl.h>
++
++
++void ifs_lock(struct inode *inode)
++{
++	while (IFS_I(inode)->trans_lock)
++		sleep_on(&IFS_I(inode)->trans_wait);
++	IFS_I(inode)->trans_lock = 1;
++}
++
++
++void ifs_unlock(struct inode *inode)
++{
++	if (!IFS_I(inode)->trans_lock)
++		printk("ifs_unlock: not locked\n");
++	IFS_I(inode)->trans_lock = 0;
++	wake_up(&IFS_I(inode)->trans_wait);
++}
++
++
++static void reduce(struct inode **i1,struct inode **i2,struct inode **i3,
++    struct inode **i4)
++{
++	if (*i1 == *i2) *i2 = NULL;
++	if (*i1 == *i3) *i3 = NULL;
++	if (*i1 == *i4) *i4 = NULL;
++	if (*i2 == *i3) *i3 = NULL;
++	if (*i2 == *i4) *i4 = NULL;
++	if (*i3 == *i4) *i4 = NULL;
++}
++
++
++#define IFS_SLEEP(i) \
++    if (i && IFS_I(i)->trans_lock) sleep_on(&IFS_I(i)->trans_wait);
++#define IFS_LOCK(i) if (i) IFS_I(i)->trans_lock = 1;
++#define IFS_PROBE(i) (!i || !IFS_I(i)->trans_lock)
++#define IFS_UNLOCK(i) \
++    if (i) { IFS_I(i)->trans_lock = 0; wake_up(&IFS_I(i)->trans_wait); }
++
++
++/*
++ * This is atomic locking of up to four inodes at the same time. Unused inodes
++ * are specified by passing the NULL pointer.
++ */
++
++void ifs_lock4(struct inode *i1,struct inode *i2,struct inode *i3,
++    struct inode *i4)
++{
++	reduce(&i1,&i2,&i3,&i4);
++	while (1) {
++		IFS_SLEEP(i1);
++		IFS_SLEEP(i2);
++		IFS_SLEEP(i3);
++		IFS_SLEEP(i4);
++		if (IFS_PROBE(i1) && IFS_PROBE(i2) && IFS_PROBE(i3) &&
++		    IFS_PROBE(i4)) {
++			IFS_LOCK(i1);
++			IFS_LOCK(i2);
++			IFS_LOCK(i3);
++			IFS_LOCK(i4);
++			return;
++		}
++	}
++}
++
++
++void ifs_unlock4(struct inode *i1,struct inode *i2,struct inode *i3,
++    struct inode *i4)
++{
++	reduce(&i1,&i2,&i3,&i4);
++	IFS_UNLOCK(i1);
++	IFS_UNLOCK(i2);
++	IFS_UNLOCK(i3);
++	IFS_UNLOCK(i4);
++}
++
++
++static void cvt_blocks(struct inode *dest,struct inode *src)
++{
++	dest->i_blksize = 512;
++	dest->i_blocks = (src->i_blksize*src->i_blocks+511) >> 9;
++}
++
++
++#define CCI(d,s,e) (d)->i_##e = (s)->i_##e
++
++#define COPY_CORRESPONDING(d,s) \
++  (CCI(d,s,mode), CCI(d,s,nlink), CCI(d,s,uid), CCI(d,s,gid), CCI(d,s,rdev), \
++  CCI(d,s,size), CCI(d,s,atime), CCI(d,s,mtime), CCI(d,s,ctime), \
++  cvt_blocks(d,s))
++
++
++/*
++ * Does not consume ifs_inode. Does not make assumptions about locking of
++ * IFS_INODE.
++ */
++
++void ifs_adjust_ops(struct inode *ifs_inode)
++{
++	struct inode *use;
++	int n;
++
++	use = NULL;
++	for (n = 0; n < IFS_LAYERS(ifs_inode); n++)
++		if (IFS_NTH(ifs_inode,n)) {
++			use = IFS_NTH(ifs_inode,n);
++			break;
++		}
++	if (!use)
++		panic("ifs_adjust_ops: fell through");
++	     if (S_ISREG(use->i_mode))
++		ifs_inode->i_op = &ifs_file_inode_operations;
++	else if (S_ISDIR(use->i_mode))
++		ifs_inode->i_op = &ifs_dir_inode_operations;
++	else if (S_ISLNK(use->i_mode))
++		ifs_inode->i_op = &ifs_symlink_inode_operations;
++	else if (S_ISCHR(use->i_mode))
++		ifs_inode->i_op = &chrdev_inode_operations;
++	else if (S_ISBLK(use->i_mode))
++		ifs_inode->i_op = &blkdev_inode_operations;
++	else if (S_ISFIFO(use->i_mode))
++		init_fifo(ifs_inode);
++	else {
++		printk("IFS: bad inode type 0%o\n",IFS_NTH(ifs_inode,n)->i_mode);
++		ifs_inode->i_op = NULL;
++	}
++}
++
++
++void ifs_init_inode(struct inode *ifs_inode,struct inode **layers)
++{
++	int n;
++
++Dprintk("ifs_init_inode\n");
++	memcpy((char *) IFS_I(ifs_inode)->layer,layers,IFS_LAYERS(ifs_inode)*
++	    sizeof(struct inode *));
++	for (n = 0; n < IFS_LAYERS(ifs_inode); n++)
++		if (IFS_NTH(ifs_inode,n)) {
++			COPY_CORRESPONDING(ifs_inode,
++			    IFS_NTH(ifs_inode,n));
++			IFS_I(ifs_inode)->val_uid = IFS_NTH(ifs_inode,n)->i_uid;
++			IFS_I(ifs_inode)->val_gid = IFS_NTH(ifs_inode,n)->i_gid;
++			IFS_I(ifs_inode)->val_mode = IFS_NTH(ifs_inode,n)->
++			    i_mode;
++			break;
++		}
++	ifs_adjust_ops(ifs_inode);
++}
++
++
++struct inode *ifs_iget(struct super_block *sb,struct inode **new,int layers,
++    int *is_new)
++{
++	struct inode *scan,*inode;
++	ino_t current;
++	int size;
++
++	while (IFS_SB(sb)->ino_lock)
++		sleep_on(&IFS_SB(sb)->ino_wait);
++	IFS_SB(sb)->ino_lock = 1;
++	size = sizeof(struct inode *)*(layers-1);
++	for (scan = IFS_SB(sb)->ifs_inodes; scan; scan = IFS_I(scan)->next) {
++Dprintk("iget: checking inode %d\n",scan->i_ino);
++		if (scan->i_dev == sb->s_dev && !memcmp((char *) &IFS_I(scan)->
++		    layer[1],&new[1],size) && (IFS_I(scan)->layer[0] == new[0]
++		    || IFS_I(scan)->pop_lock))
++			break;
++}
++	if (scan) {
++		IFS_SB(sb)->ino_lock = 0;
++		wake_up(&IFS_SB(sb)->ino_wait);
++		USE_INODE(scan);
++		while (IFS_I(scan)->pop_lock)
++			sleep_on(&IFS_I(scan)->pop_wait);
++		*is_new = 0;
++Dprintk("iget: old ino = %d\n",scan->i_ino);
++		return scan;
++	}
++	do {
++		current = IFS_SB(sb)->ifs_ino;
++		IFS_SB(sb)->ifs_ino = IFS_SB(sb)->ifs_ino >= IFS_MAX_INO ?
++		    IFS_MIN_INO : IFS_SB(sb)->ifs_ino+1;
++		for (scan = IFS_SB(sb)->ifs_inodes; scan; scan = IFS_I(scan)->
++		    next)
++			if (scan->i_dev == sb->s_dev && scan->i_ino == current)
++				break;
++	}
++	while (scan);
++	if (!(inode = iget(sb,current))) {
++		IFS_SB(sb)->ino_lock = 0;
++		wake_up(&IFS_SB(sb)->ino_wait);
++		return NULL;
++	}
++	IFS_I(inode)->next = IFS_SB(sb)->ifs_inodes;
++	IFS_I(inode)->prev = NULL;
++	if (IFS_SB(sb)->ifs_inodes)
++		IFS_I(IFS_SB(sb)->ifs_inodes)->prev = inode;
++	IFS_SB(sb)->ifs_inodes = inode;
++	*is_new = 1;
++	ifs_init_inode(inode,new);
++	IFS_SB(sb)->ino_lock = 0;
++	wake_up(&IFS_SB(sb)->ino_wait);
++Dprintk("iget: new ino = %d\n",inode->i_ino);
++	return inode;
++}
++
++
++/*
++ * Does not swallow DIR. DIR may or may not be locked by the caller.
++ */
++
++int ifs_status(struct inode *dir,const char *name,int len)
++{
++	struct inode *spec_inode,*inode;
++	int found,status;
++
++Dprintk("ifs_is_deleted (%x,%d)\n",(int) dir, dir ? dir->i_ino : 0);
++	if (!dir)
++		return IFS_ST_NORMAL;
++	if (!dir->i_op || !dir->i_op->lookup) panic("iid dir...\n");
++	USE_INODE(dir);
++	if (dir->i_op->lookup(dir,"...",3,&spec_inode))
++		return IFS_ST_NORMAL;
++Dprintk("[1]\n");
++	if (!spec_inode->i_op || !spec_inode->i_op->lookup)
++		panic("spec_inode...\n");
++	status = IFS_ST_NORMAL;
++	found = !spec_inode->i_op->lookup(spec_inode,name,len,&inode);
++	if (found) {
++		status = S_ISDIR(inode->i_mode) ? IFS_ST_HIDE : IFS_ST_WHITEOUT;
++		iput(inode);
++	}
++Dprintk("[2]\n");
++	return status;
++}
++
++
++/*
++ * Creates a white out or hide entry for the specified file. Does not swallow
++ * DIR. DIR is locked by the caller.
++ */
++
++static int ifs_special(struct inode *dir,const char *name,int len,int hide)
++{
++	struct inode *spec_dir,*dummy;
++	int retval;
++
++	retval = ifs_build_path(dir);
++	if (retval)
++		return retval;
++	if (!IFS_CAN_INODE(dir,0,mkdir) || !IFS_CAN_INODE(dir,0,lookup))
++		return -EBADF;
++	USE_INODE(IFS_NTH(dir,0));
++	retval = IFS_DO_INODE(dir,0,mkdir,(IFS_NTH(dir,0),"...",3,dir->i_mode &
++	    0666));
++	if (retval && retval != -EEXIST)
++		return retval;
++	USE_INODE(IFS_NTH(dir,0));
++	retval = IFS_DO_INODE(dir,0,lookup,(IFS_NTH(dir,0),"...",3,&spec_dir));
++	if (retval)
++		return retval;
++	if (hide ? !spec_dir->i_op->mkdir : !spec_dir->i_op->create) {
++		iput(spec_dir);
++		return -EBADF;
++	}
++	if (hide)
++		retval = spec_dir->i_op->mkdir(spec_dir,name,len,spec_dir->
++		    i_mode & 0777);
++	else {
++		retval = spec_dir->i_op->create(spec_dir,name,len,(spec_dir->
++		    i_mode & 0777) | S_IFREG,&dummy);
++		if (!retval)
++			iput(dummy);
++	}
++	return retval;
++}
++
++
++/*
++ * Creates a white out entry for the specified file. Does not swallow DIR.
++ * DIR is locked by the caller.
++ */
++
++int ifs_whiteout(struct inode *dir,const char *name,int len)
++{
++	return ifs_special(dir,name,len,0);
++}
++
++
++/*
++ * Creates a hode entry for the specified file. Does not swallow DIR.
++ * DIR is locked by the caller.
++ */
++
++int ifs_hide(struct inode *dir,const char *name,int len)
++{
++	return ifs_special(dir,name,len,1);
++}
++
++
++/*
++ * Removes a white out or hide entry for the specified file if one exists.
++ * Does not swallow DIR. DIR is locked by the caller.
++ */
++
++int ifs_unspecial(struct inode *dir,const char *name,int len,int hide,int user)
++{
++	struct inode *del_dir;
++	int retval;
++
++Dprintk("ifs_unspecial\n");
++	if (!IFS_NTH(dir,0))
++		return user ? -ENOENT : 0;
++	if (!IFS_CAN_INODE(dir,0,lookup))
++		return -EBADF;
++	USE_INODE(IFS_NTH(dir,0));
++	retval = IFS_DO_INODE(dir,0,lookup,(IFS_NTH(dir,0),"...",3,&del_dir));
++	if (retval)
++		return retval == -ENOENT && !user ? 0 : retval;
++	if (!del_dir->i_op->unlink) {
++		iput(del_dir);
++		return -EBADF;
++	}
++	retval = hide ? del_dir->i_op->rmdir(del_dir,name,len) :
++	    del_dir->i_op->unlink(del_dir,name,len);
++	if (retval && (user || retval != -ENOENT))
++		return retval;
++	return 0;
++}
++
++/*
++ * Removes a white out entry for the specified file if one exists. Does not
++ * swallow DIR. DIR is locked by the caller.
++ */
++
++int ifs_unwhiteout(struct inode *dir,const char *name,int len)
++{
++	return ifs_unspecial(dir,name,len,0,0);
++}
++
++
++/*
++ * Removes a white out entry for the specified file if one exists. Does not
++ * swallow DIR. DIR is locked by the caller. Returns more errors that
++ * ifs_unwhiteout.
++ */
++
++int ifs_user_unwhiteout(struct inode *dir,const char *name,int len)
++{
++	return ifs_unspecial(dir,name,len,0,1);
++}
++
++
++/*
++ * Removes a hide entry for the specified file if one exists. Does not
++ * swallow DIR. DIR is locked by the caller.
++ */
++
++int ifs_unhide(struct inode *dir,const char *name,int len)
++{
++	return ifs_unspecial(dir,name,len,1,0);
++}
++
++
++void ifs_close_file(struct file *filp)
++{
++Dprintk("ifs_close\n");
++	if (filp->f_op && filp->f_op->release)
++		filp->f_op->release(filp->f_inode,filp);
++	filp->f_count--;
++	iput(filp->f_inode);
++}
++
++
++/*
++ * INODE is locked by the caller. *filp is guaranteed to be NULL if the file
++ * can't be opened.
++ */
++
++int ifs_open_file(struct inode *inode,struct file **filp,int flags)
++{
++	int retval;
++
++Dprintk("ifs_open_file\n");
++	if (!(*filp = get_empty_filp()))
++		return -ENFILE;
++	USE_INODE((*filp)->f_inode = inode);
++	(*filp)->f_flags = flags;
++	(*filp)->f_mode = (flags+1) & O_ACCMODE;
++	(*filp)->f_pos = (*filp)->f_reada = 0;
++	(*filp)->f_op = (*filp)->f_inode->i_op ? (*filp)->f_inode->i_op->
++	    default_file_ops : NULL;
++	if ((*filp)->f_op && (*filp)->f_op->open) {
++		retval = (*filp)->f_op->open((*filp)->f_inode,*filp);
++		if (retval) {
++			ifs_close_file(*filp);
++			*filp = NULL;
++			return retval;
++		}
++	}
++	return 0;
++}
++
++
++/*
++ * Returns a non-zero integer if the directory is empty or inaccessible, zero
++ * otherwise. Does not consume DIR. IFS_DIR should be set if DIR is an IFS
++ * directory.
++ */
++
++int ifs_empty(struct inode *dir,int ifs_dir)
++{
++	struct file *filp;
++	struct dirent de;
++	unsigned short old_fs;
++	int retval;
++
++	if (ifs_open_file(dir,&filp,O_RDONLY))
++		return 0;
++	if (!filp->f_op || !filp->f_op->readdir) {
++		ifs_close_file(filp);
++		return 0;
++	}
++	old_fs = get_fs();
++	set_fs(get_ds());
++	do retval = filp->f_op->readdir(filp->f_inode,filp,&de,0);
++	while (retval > 0 && de.d_name[0] == '.' && (de.d_reclen == 1 ||
++	    (de.d_name[1] == '.' && (de.d_reclen == 2 || (ifs_dir &&
++	    (de.d_name[2] == '.' && de.d_reclen == 3))))));
++	set_fs(old_fs);
++	ifs_close_file(filp);
++	return !retval;
++}
++
++
++/*
++ * Removes the IFS subdirectory of a directory. Does not consume DIR. DIR is
++ * a regular inode.
++ */
++
++int ifs_purge(struct inode *dir)
++{
++	struct inode *inode;
++	struct file *filp;
++	struct dirent de;
++	unsigned short old_fs;
++	int retval,was_empty;
++
++	if (!dir || !dir->i_op || !dir->i_op->lookup || !dir->i_op->rmdir)
++		return -EBADF;
++	USE_INODE(dir);
++	retval = dir->i_op->lookup(dir,"...",3,&inode);
++	if (retval) {
++		iput(dir);
++		return 0;
++	}
++	if (!inode->i_op || !inode->i_op->unlink) {
++		iput(inode);
++		iput(dir);
++		return -EBADF;
++	}
++	retval = ifs_open_file(inode,&filp,O_RDONLY);
++	if (!retval && (!filp->f_op || !filp->f_op->readdir))
++		retval = -EBADF;
++	if (retval) {
++		iput(inode);
++		iput(dir);
++		return retval;
++	}
++	old_fs = get_fs();
++	set_fs(get_ds());
++	do {
++		was_empty = 1;
++		while (1) {
++			retval = filp->f_op->readdir(filp->f_inode,filp,&de,0);
++			if (retval <= 0)
++				break;
++			if (de.d_name[0] != '.' || (de.d_reclen != 1 &&
++			    (de.d_name[1] != '.' || de.d_reclen != 2))) {
++				was_empty = 0;
++				USE_INODE(inode);
++				retval = inode->i_op->unlink(inode,de.d_name,
++				    de.d_reclen);
++				if (retval)
++					break;
++			}
++		}
++	}
++	while (!retval && !was_empty);
++	set_fs(old_fs);
++	ifs_close_file(filp);
++	iput(inode);
++	if (!retval) {
++		USE_INODE(dir);
++		retval = dir->i_op->rmdir(dir,"...",3);
++	}
++	return retval;
++}
+diff -ur +new-file linux/fs/ifs/namei.c linux/fs/ifs/namei.c
+--- linux/fs/ifs/namei.c
++++ linux/fs/ifs/namei.c	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,469 @@
++/*
++ *  linux/fs/ifs/namei.c
++ *
++ *  Written 1992,1993 by Werner Almesberger
++ */
++
++#include <asm/segment.h>
++
++#include <linux/ifs_fs.h>
++#include <linux/kernel.h>
++#include <linux/errno.h>
++#include <linux/stat.h>
++
++
++/*
++ * Beware: DIR may be locked by the caller.
++ */
++
++int ifs_lookup(struct inode *dir,const char *name,int len,
++    struct inode **result)
++{
++	struct inode *new[IFS_MAX_LAYERS];
++	dev_t dev;
++	int error,none,n,is_new,status;
++
++Dprintk("ifs_lookup\n");
++	if (len == 1 && name[0] == '.') {
++		*result = dir;
++		return 0;
++	}
++	if (len == 2 && name[0] == '.' && name[1] == '.')
++	    {
++		if (!(*result = IFS_I(dir)->parent)) { /* root */
++			*result = dir;
++			return 0;
++		}
++		USE_INODE(*result);
++		iput(dir);
++		return 0;
++	}
++	if (IFS_DEL_NAME(name,len) || ((status = ifs_status(IFS_NTH(dir,0),name,
++	    len)) & IFS_ST_WHITEOUT)) {
++Dprintk("deleted\n");
++		iput(dir);
++		return -ENOENT;
++	}
++	error = -ENOENT;
++	none = 1;
++	for (n = 0; n < (status & IFS_ST_HIDE ? 1 : IFS_LAYERS(dir)); n++)
++		if (!IFS_CAN_INODE(dir,n,lookup))
++			new[n] = NULL;
++		else {
++			dev = IFS_NTH(dir,n)->i_dev;
++			USE_INODE(IFS_NTH(dir,n));
++			error = IFS_DO_INODE(dir,n,lookup,(IFS_NTH(dir,n),name,
++			    len,&new[n]));
++			  /* RC1: files may be added or removed to or from
++			     upper layers while we scan lower layers */
++			if (error) new[n] = NULL;
++			else if (new[n]->i_dev == dev)
++					none = 0;
++				else {
++					iput(new[n]);
++					new[n] = NULL;
++					error = -ENOENT;
++				}
++		}
++	while (n < IFS_LAYERS(dir)) new[n++] = NULL;
++	/* RC1 yields bogus inode */
++	if (none) {
++		iput(dir);
++		return error;
++	}
++	if (!(*result = ifs_iget(dir->i_sb,new,IFS_LAYERS(dir),&is_new))) {
++		iput(dir);
++		return -EACCES;
++	}
++	if (!is_new)
++		iput(dir);
++	else IFS_I(*result)->parent = dir;
++Dprintk("ifs_lookup done\n");
++	return 0;
++}
++
++
++static struct inode_operations dummy_ops;
++
++
++static int ifs_creop(off_t op,struct inode *dir,const char *name,int len,
++    struct inode *link,struct inode **result,int p1,int p2)
++{
++	struct inode *old;
++	int retval;
++
++Dprintk("ifs_creop: op %d\n",op);
++	ifs_lock(dir);
++	if (IFS_IS_RO(dir)) {
++		ifs_unlock(dir);
++		iput(dir);
++		return -EROFS;
++	}
++	if (IFS_DEL_NAME(name,len)) {
++		ifs_unlock(dir);
++		iput(dir);
++		return -EINVAL;
++	}
++	USE_INODE(dir);
++	if (!dir->i_op->lookup(dir,name,len,&old)) {
++		ifs_unlock(dir);
++		iput(dir);
++		iput(old);
++		return -EEXIST;
++	}
++	retval = ifs_build_path(dir);
++	if (retval) {
++		ifs_unlock(dir);
++		iput(dir);
++		return retval;
++	}
++	if (!IFS_NTH(dir,0)->i_op || !(int) (((char *) dir->i_op)+op) ||
++	    !dir->i_op || !dir->i_op->lookup) {
++		ifs_unlock(dir);
++		iput(dir);
++		return -EBADF;
++	}
++	retval = ifs_unwhiteout(dir,name,len);
++	if (retval) {
++		ifs_unlock(dir);
++		iput(dir);
++		return retval;
++	}
++	USE_INODE(dir);
++	if (dir->i_op->lookup(dir,name,len,&old))
++		old = NULL;
++	else {
++		if (IFS_NTH(old,0)) {
++			(void) ifs_whiteout(dir,name,len);
++			ifs_unlock(dir);
++			iput(dir);
++			iput(old);
++			return -EEXIST;
++		}
++		ifs_lock(old);
++	}
++	USE_INODE(IFS_NTH(dir,0));
++	if (link) {
++		USE_INODE(link);
++		retval = IFS_DO_INODE(dir,0,link,(link,IFS_NTH(dir,0),name,
++		    len));
++	}
++	else retval = ((int (*)(struct inode *,const char *,int,int,int))
++		    *(int *) ((char *) IFS_NTH(dir,0)->i_op+op))(IFS_NTH(dir,0),
++		    name,len,p1,p2);
++	if (retval) {
++		if (old) {
++			(void) ifs_whiteout(dir,name,len);
++			ifs_unlock(old);
++			iput(old);
++		}
++		ifs_unlock(dir);
++		iput(dir);
++		return retval;
++	}
++	if (!result) {
++		if (old) {
++			if (old && op == IFS_IOP_OFF(mkdir))
++				retval = ifs_hide(dir,name,len);
++			ifs_unlock(old);
++			iput(old);
++		}
++		ifs_unlock(dir);
++		iput(dir);
++		return retval;
++	}
++	if (old) {
++		*result = old;
++		IFS_NTH(old,0) = *(struct inode **) p2;
++		ifs_adjust_ops(old);
++		ifs_unlock(old);
++		ifs_unlock(dir);
++		iput(dir);
++		return 0;
++	}
++	iput(*(struct inode **) p2);
++	ifs_unlock(dir);
++	return dir->i_op->lookup(dir,name,len,result);
++}
++
++
++int ifs_create(struct inode *dir,const char *name,int len,int mode,
++    struct inode **result)
++{
++	struct inode scratch;
++
++	return ifs_creop(IFS_IOP_OFF(create),dir,name,len,NULL,result,
++	    mode,(int) &scratch);
++}
++
++
++int ifs_mkdir(struct inode *dir,const char *name,int len,int mode)
++{
++	return ifs_creop(IFS_IOP_OFF(mkdir),dir,name,len,NULL,NULL,mode,0);
++}
++
++
++int ifs_symlink(struct inode *inode,const char *name,int len,
++    const char *symname)
++{
++	if (len == 3 && get_fs_byte(name) == '.' && get_fs_byte(name+1) == '.'
++	    && get_fs_byte(name+2) == '.') {
++		iput(inode);
++		return -EINVAL;
++	}
++	return ifs_creop(IFS_IOP_OFF(symlink),inode,name,len,NULL,NULL,
++	    (int) symname,0);
++}
++
++
++int ifs_link(struct inode *oldinode,struct inode *dir,const char *name,int len)
++{
++	printk("IFS: ifs_link not yet implemented\n");
++	return -EINVAL;
++#if 0
++	retval = ifs_creop(IFS_IOP_OFF(link),dir,name,len,oldinode,NULL,0,0);
++	iput(link);
++	return retval;
++#endif
++}
++
++
++int ifs_mknod(struct inode *dir,const char *name,int len,int mode,int rdev)
++{
++	return ifs_creop(IFS_IOP_OFF(mknod),dir,name,len,NULL,NULL,mode,rdev);
++}
++
++
++
++static int ifs_remove(int rmdir,struct inode *dir,const char *name,int len)
++{
++	struct inode *item;
++	int retval,empty,n;
++
++	ifs_lock(dir);
++	if (IFS_IS_RO(dir)) {
++		ifs_unlock(dir);
++		iput(dir);
++		return -EROFS;
++	}
++	if (IFS_DEL_NAME(name,len)) {
++		ifs_unlock(dir);
++		iput(dir);
++		return -ENOENT;
++	}
++	if (!dir->i_op || !dir->i_op->lookup)
++		panic("i_op->lookup missing");
++	USE_INODE(dir);
++	retval = dir->i_op->lookup(dir,name,len,&item);
++	if (retval) {
++		ifs_unlock(dir);
++		iput(dir);
++		return retval;
++	}
++	ifs_lock(item);
++	if (rmdir) {
++		if (!ifs_empty(item,1))
++			retval = -ENOTEMPTY;
++		if (!retval && IFS_NTH(item,0) && !ifs_empty(IFS_NTH(item,0),0))
++			retval = ifs_purge(IFS_NTH(item,0));
++		  /* Bug: whited out entries may become visible for a moment */
++		if (!retval && item->i_count > 1)
++			retval = -EBUSY;
++		if (!retval)
++			retval = ifs_unhide(dir,name,len);
++		ifs_unlock(item);
++		iput(item);
++		if (!retval) {
++			USE_INODE(dir);
++			retval = dir->i_op->lookup(dir,name,len,&item);
++		}
++		if (retval) {
++			ifs_unlock(dir);
++			iput(dir);
++			return retval;
++		}
++		ifs_lock(item);
++		if (IFS_NTH(item,0))
++			iput(IFS_NTH(item,0));
++		IFS_NTH(item,0) = NULL;
++	}
++	if (rmdir ? IFS_CAN_INODE(dir,0,rmdir) : IFS_CAN_INODE(dir,0,unlink)) {
++		USE_INODE(IFS_NTH(dir,0));
++		retval = rmdir ? IFS_DO_INODE(dir,0,rmdir,(IFS_NTH(dir,0),name,
++		    len)) : IFS_DO_INODE(dir,0,unlink,(IFS_NTH(dir,0),name,
++		    len));
++		if (retval && retval != -ENOENT) { /* detect race condition */
++			ifs_unlock(item);
++			iput(item);
++			ifs_unlock(dir);
++			iput(dir);
++			return retval;
++		}
++		if (!retval && IFS_NTH(item,0)) {
++			iput(IFS_NTH(item,0));
++			IFS_NTH(item,0) = NULL;
++		}
++	}
++	empty = 1;
++	for (n = 1; n < IFS_LAYERS(dir); n++)
++		if (IFS_NTH(item,n)) {
++			empty = 0;
++			if (!rmdir && S_ISDIR(IFS_NTH(item,n)->i_mode)) {
++				ifs_unlock(item);
++				iput(item);
++				ifs_unlock(dir);
++				iput(dir);
++				return -EPERM;
++			}
++		}
++	ifs_unlock(item);
++	iput(item);
++	if (empty)
++		retval = 0;
++	else retval = ifs_whiteout(dir,name,len);
++	ifs_unlock(dir);
++	iput(dir);
++	return retval;
++}
++
++
++int ifs_rmdir(struct inode *dir,const char *name,int len)
++{
++	return ifs_remove(1,dir,name,len);
++}
++
++
++int ifs_unlink(struct inode *dir,const char *name,int len)
++{
++	return ifs_remove(0,dir,name,len);
++}
++
++
++static int do_rename(struct inode *old_dir,const char *old_name,int old_len,
++    struct inode *new_dir,const char *new_name,int new_len)
++{
++	struct inode *old,*new,*ifs_dir;
++	int retval,n,copy;
++
++	if (IFS_IS_RO(new_dir))
++		return -EROFS;
++	if (IFS_DEL_NAME(old_name,old_len) || IFS_DEL_NAME(new_name,new_len))
++		retval = -EINVAL;
++	if (!old_dir->i_op || !old_dir->i_op->lookup)
++		return -EBADF;
++	USE_INODE(old_dir);
++	if (old_dir->i_op->lookup(old_dir,old_name,old_len,&old))
++		return -ENOENT;
++	ifs_lock(new_dir);
++	retval = ifs_build_path(new_dir);
++	if (retval) {
++		ifs_unlock(new_dir);
++		iput(old);
++		return retval;
++	}
++	if (!new_dir->i_op || !new_dir->i_op->lookup)
++		return -EBADF;
++	USE_INODE(new_dir);
++	if (new_dir->i_op->lookup(new_dir,new_name,new_len,&new))
++		new = NULL;
++	ifs_unlock(new_dir);
++	ifs_lock4(old_dir,new_dir,old,new);
++	if (!IFS_NTH(new_dir,0)) {
++		ifs_unlock4(old_dir,new_dir,old,new);
++		iput(old);
++		return -ENOENT; /* should be -ERACE :-) */
++	}
++	for (n = 0; n < IFS_LAYERS(old); n++)
++		if (IFS_NTH(old_dir,n) && IFS_NTH(old,n)) break;
++	if (n == IFS_LAYERS(old)) {
++		ifs_unlock4(old_dir,new_dir,old,new);
++		iput(old);
++		return -ENOENT;
++	}
++	copy = n || IFS_NTH(old,0)->i_dev != IFS_NTH(new_dir,0)->i_dev;
++	if (copy) {
++		/* copy file to target/... and rename it later because rename
++		   must be atomic. */
++		if (!IFS_CAN_INODE(new_dir,0,mkdir) || !IFS_CAN_INODE(new_dir,0,
++		    lookup))
++			retval = -EBADF;
++		else {
++			USE_INODE(IFS_NTH(new_dir,0));
++			retval = IFS_VAL_INODE(new_dir,0,mkdir,(IFS_NTH(new_dir,
++			    0),"...",3,new_dir->i_mode & 0666));
++		}
++		if (retval == -EEXIST)
++			retval = 0;
++		if (!retval) {
++			USE_INODE(IFS_NTH(new_dir,0));
++			retval = IFS_VAL_INODE(new_dir,0,lookup,
++			    (IFS_NTH(new_dir,0),"...",3,&ifs_dir));
++		}
++		if (!retval) {
++			retval = ifs_copy_object(IFS_NTH(old,n),ifs_dir,"...",
++			    3);
++			if (!retval && (!ifs_dir->i_op || !ifs_dir->i_op->
++			    rename)) {
++				iput(ifs_dir);
++				retval = -EBADF;
++			}
++			if (!retval) {
++				USE_INODE(IFS_NTH(new_dir,0));
++				retval = ifs_dir->i_op->rename(ifs_dir,"...",3,
++				    IFS_NTH(new_dir,0),new_name,new_len);
++			}
++		}
++	}
++	else {
++		USE_INODE(IFS_NTH(old_dir,0));
++		USE_INODE(IFS_NTH(new_dir,0));
++		retval = IFS_VAL_INODE(old_dir,n,rename,(IFS_NTH(old_dir,n),
++		    old_name,old_len,IFS_NTH(new_dir,0),new_name,new_len));
++	}
++	if (retval) {
++		ifs_unlock4(old_dir,new_dir,old,new);
++		if (new)
++			iput(new);
++		iput(old);
++		return retval;
++	}
++	if (copy) {
++		if (IFS_NTH(old,0)) {
++			IFS_OP_INODE(old,0,unlink,(IFS_NTH(old,0),old_name,
++			    old_len)); /* get rid of old,0 */
++			IFS_NTH(old,0) = NULL;
++		}
++	}
++	else {
++		if (!new)
++			iput(IFS_NTH(old,0));
++		else {
++			if (IFS_NTH(new,0))
++				iput(IFS_NTH(new,0));
++			IFS_NTH(new,0) = IFS_NTH(old,0);
++		}
++		IFS_NTH(old,0) = NULL;
++	}
++	(void) ifs_unwhiteout(new_dir,new_name,new_len);
++	for (n = 0; n < IFS_LAYERS(old); n++)
++		if (IFS_NTH(old,n)) break;
++	if (n != IFS_LAYERS(old))
++		(void) ifs_whiteout(old_dir,old_name,old_len);
++	ifs_unlock4(old_dir,new_dir,old,new);
++	if (new)
++		iput(new);
++	iput(old);
++	return 0;
++}
++
++
++int ifs_rename(struct inode *old_dir,const char *old_name,int old_len,
++    struct inode *new_dir,const char *new_name,int new_len)
++{
++	int retval;
++
++	retval = do_rename(old_dir,old_name,old_len,new_dir,new_name,new_len);
++	iput(old_dir);
++	iput(new_dir);
++	return retval;
++}
+diff -ur +new-file linux/fs/ifs/symlink.c linux/fs/ifs/symlink.c
+--- linux/fs/ifs/symlink.c
++++ linux/fs/ifs/symlink.c	Fri Apr  9 19:25:27 1993
+@@ -0,0 +1,125 @@
++/*
++ *  linux/fs/ifs/symlink.c
++ *
++ *  Written 1993 by Werner Almesberger
++ *
++ *  IFS symlink handling code
++ */
++
++#include <asm/segment.h>
++
++#include <linux/sched.h>
++#include <linux/errno.h>
++#include <linux/fs.h>
++#include <linux/ifs_fs.h>
++#include <linux/stat.h>
++
++
++static int ifs_readlink(struct inode *inode,char *buffer,int buflen);
++
++static int ifs_follow_link(struct inode *dir,struct inode *inode,int flag,
++    int mode,struct inode **res_inode);
++
++
++/*
++ * symlinks can't do much...
++ */
++
++struct inode_operations ifs_symlink_inode_operations = {
++	NULL,			/* no file-operations */
++	NULL,			/* create */
++	NULL,			/* lookup */
++	NULL,			/* link */
++	NULL,			/* unlink */
++	NULL,			/* symlink */
++	NULL,			/* mkdir */
++	NULL,			/* rmdir */
++	NULL,			/* mknod */
++	NULL,			/* rename */
++	ifs_readlink,		/* readlink */
++	ifs_follow_link,	/* follow_link */
++	NULL,			/* bmap */
++	NULL,			/* truncate */
++	NULL			/* permission */
++};
++
++
++static int ifs_follow_link(struct inode *dir,struct inode *inode,int flag,
++    int mode,struct inode **res_inode)
++{
++	struct inode *use;
++	unsigned long page;
++	int retval,n,old_fs;
++
++	*res_inode = NULL;
++	if (!dir) {
++		dir = current->root;
++		dir->i_count++;
++	}
++	if (!inode) {
++		iput(dir);
++		return -ENOENT;
++	}
++printk("mode=0%o\n",inode->i_mode);
++	if (!S_ISLNK(inode->i_mode)) {
++printk("@%%#$%%^\n");
++		iput(dir);
++		*res_inode = inode;
++		return 0;
++	}
++	retval = -ENOENT; /* bogus inode */
++	use = NULL;
++	for (n = 0; n < IFS_LAYERS(inode); n++)
++		if (IFS_NTH(inode,n)) {
++			use = IFS_NTH(inode,n);
++			retval = use->i_op && use->i_op->readlink ? 0 : -EINVAL;
++			break;
++		}
++	if (!retval) {
++		ifs_lock(dir);
++		page = get_free_page(GFP_KERNEL);
++		old_fs = get_fs();
++		set_fs(get_ds());
++		USE_INODE(use);
++		retval = use->i_op->readlink(use,(char *) page,PAGE_SIZE);
++		if (retval >= 0) {
++			((char *) page)[retval] = 0;
++printk("link = \"%s\"\n",(char *) page);
++			USE_INODE(dir);
++			retval = open_namei((char *) page,flag,mode,res_inode,
++			    dir);
++		}
++		set_fs(old_fs);
++		ifs_unlock(dir);
++		free_page(page);
++	}
++	iput(inode);
++	iput(dir);
++	return retval;
++}
++
++
++static int ifs_readlink(struct inode *inode,char *buffer,int buflen)
++{
++	struct inode *use;
++	int retval,n;
++
++	if (!S_ISLNK(inode->i_mode)) {
++		iput(inode);
++		return -EINVAL;
++	}
++	retval = -ENOENT; /* bogus inode */
++	use = NULL;
++	for (n = 0; n < IFS_LAYERS(inode); n++)
++		if (IFS_NTH(inode,n)) {
++			use = IFS_NTH(inode,n);
++			retval = use->i_op && use->i_op->readlink ? 0 : -EINVAL;
++			break;
++		}
++	iput(inode);
++	if (!retval) {
++		USE_INODE(use);
++		retval = use->i_op->readlink(use,buffer,buflen);
++	}
++	return retval;
++}

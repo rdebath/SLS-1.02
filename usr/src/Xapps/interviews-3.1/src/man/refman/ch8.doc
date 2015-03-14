@@ -1,0 +1,222 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 7
+%label{style-basics}{8.1}
+%label{vscrollbar}{8.2}
+
+\begin{document}
+%
+%
+\chapter{Styles}%
+%
+\float{figure}{8-\pagenumber{00}}%378.8 -643.76 -2
+\float{figure}{8-\pagenumber{00}}%378.8 -643.76 0
+User interface toolkits traditionally have coupled the management
+of style attributes such as color and font with the composition of
+objects in a window.  This coupling is too rigid and inefficient for
+many applications because  attributes are {\font{Times-Italic}logical}
+information, whereas composition is a {\font{Times-Italic}physical}
+organization.  For example, a document logically contains text and
+graphics organized into chapters, sections, subsections, and paragraphs.  Physically,
+the document contains lines, columns, and pages.  The font of a string
+of characters in the document is independent of whether there is a
+line break within the string or not, thus the style information is
+orthogonal to the layout.
+
+\quad InterViews provides a %
+%
+\term{style}%
+%
+ class for organizing user interface attributes.  A style is similar
+to an environment in a text formatting system such as Scribe.  Styles
+may be nested hierarchically, and attributes defined in an outer style
+are visible in an inner style if not otherwise defined.  A style consists
+of an optional name, an optional list of prefixes for wildcard-matching,
+a collection of attributes (name-value pairs), a collection of styles
+nested inside the style, and a parent style.%
+%
+\section{Defining a style}%
+%
+Figure%
+%
+\code{interface Style : Resource \{\
+\quad Style();\
+\quad Style(const String\& name);\
+\quad Style(Style* parent);\
+\quad Style(const String\& name, Style* parent);\smallskip
+\quad void name(const String\&);\
+\quad const String* name() const;\
+\quad void alias(const String\&);\
+\quad long alias\_count() const;\
+\quad const String* alias(long) const;\
+\quad Style* parent() const;\smallskip
+\quad void append(Style*);\
+\quad void remove(Style*);\
+\quad long children() const;\
+\quad Style* child(long) const;\smallskip
+\quad void attribute(const String\& name, const String\& value, int
+priority = 0);\
+\quad void remove\_attribute(const String\& name);\
+\quad long attributes() const;\
+\quad boolean attribute(long, String\& name, String\& value) const;\smallskip
+\quad void add\_trigger(const String\& , Action*);\
+\quad void remove\_trigger(const String\&, Action* = nil);\
+\quad void add\_trigger\_any(Action*);\
+\quad void remove\_trigger\_any(Action*);\smallskip
+\quad boolean find\_attribute(const String\&, String\& value) const;\
+\quad boolean find\_attribute(const String\&, long\&) const;\
+\quad boolean find\_attribute(const String\&, double\&) const;\
+\quad boolean find\_attribute(const String\&, Coord\&) const;\
+\quad boolean value\_is\_on(const String\&);\
+\};%
+%
+\figurecaption{Style protocol\label{style-basics}.}%
+%
+%0.23999 -5.52005 1
+}%
+%
+ \ref{style-basics} shows the style class operations for creating
+and accessing simple style information.  When a style is created,
+its name and parent style may be specified.  The default parent style
+is nil.  Style::name sets or gets the style's name.  Style::parent
+gets the style's parent.  The parent cannot be set directly, but can
+be changed by appending the style to its (new) parent.
+
+\quad Style::append and Style::remove add and delete a style from
+the list of styles nested inside another style.  Style::children returns
+the number of nested styles.  Style::child returns the indexed child
+in the list.  Style::find\_style returns the nested style with the
+given name or nil if there is none.
+
+\quad Style::attribute adds a <{\font{Times-Italic}name,value}> pair
+to the list of attributes in the style.  If an attribute is already
+defined with the name, the value will be updated unless the specified
+priority is lower than the already-defined priority of the attribute  Style::remove\_attribute
+deletes the named attribute from the style's attribute list.  Style::attributes
+and the get form of Style::attribute can be used to retrieve all the
+attributes  defined on a style.  The order of the list is arbitrary.%
+%
+\section{Finding an attribute}%
+%
+The style class provides two overloaded functions for finding an attribute
+value given the name.  Style::find\_attribute takes two parameters
+and returns a boolean value that is true if the attribute is found
+and false otherwise.  The first parameter is the desired name, which
+can either be passed as a String object or a {\font{Times-Italic}const
+char*}.  The second parameter is a reference to where the value of
+the attribute should be stored if found.  If the parameter is a string,
+then the value is simply copied directly.  If it is a long or double,
+then value string is converted to a number.  If the result parameter
+is a Coord, then the value string is converted to a number and multiplied
+by the units specified in the value string after the number.  The
+unit specification can be \252in\272 for inches, \252cm\272 for centimeters,
+\252mm\272 for millimeters, \252em\272 for the
+width in points of the character \252m\272 in the style's font, and
+\252pt\272 for points.
+
+\quad The other function for finding an attribute is Style::value\_is\_on.  This
+function is equivalent to calling Style::find\_attribute and testing
+if the value string is \252on\272 or \252true\272.  The test is case-insensitive.%
+%
+\section{Wildcard matching}%
+%
+Attribute names may contain \252*\272 characters to specify wildcard
+matching.  A name of the form A*B will match an attribute B in a nested
+style named A.  Wildcard names also may begin with a \252*\272, which
+matches in any descendant style.  Thus, *A*B will match an attribute
+B in any descendant style named A.  Because attributes are inherited,
+specifying the wildcard name *B is  identical to specifying the normal
+attribute B.
+
+\quad In addition to a name, styles may have a list of associated
+aliases.  Style::alias prepends a string to the list.  Wildcard matches
+search using a style's name first, then search using the style's aliases
+in the reverse order in which they are defined.  Aliases are typically
+used for indicating a subclass relationship and allowing styles to
+inherit attributes specified for a superclass.
+
+\quad For example, suppose the root style defines the following attributes:
+
+\quad \quad \quad {\font{Helvetica}\size{10}*Mover*autorepeat:off
+
+}\quad \quad \quad {\font{Helvetica}\size{10}*UpMover*autorepeat:on}\smallskip
+\quad Consider descendant styles S and T:  S's aliases are UpMover
+and Mover; T's aliases are DownMover and Mover.  Style::find\_attribute
+for \252autorepeat\272 will return \252on\272 for S, \252off\272 for
+T.
+
+\quad The wildcard matching algorithm is compatible with the X resource
+manager to support the same user customization functionality.  Wildcard
+attributes typically are defined only on the root style, as loaded
+from the window system, application defaults files, or command-line
+arguments.%
+%
+%
+\section{Using styles with glyphs}%
+%
+Glyphs that draw typically contain the specific style information
+they need to render.  For example, a character glyph contains the
+font and color it uses to draw.  Higher level glyphs, such as a slider
+for scrolling, contain a style from which they construct their components.  When
+styles support trigger routines to detect attribute value changes,
+these higher-level components will be able to reconstruct their contents
+automatically.
+
+\quad Figure%
+%
+\code{Glyph* vscroll\_bar(Adjustable* a) \{\
+\quad WidgetKit\& kit = *WidgetKit::instance();\
+\quad const LayoutKit\& layout = *LayoutKit::instance();\
+\quad kit.begin\_style("VScrollBar");
+
+\quad kit.alias("ScrollBar");\
+\quad Style* s = kit.style();\
+\quad Coord mover\_size = 15.0;\
+\quad s->find\_attribute("mover\_size", mover\_size);\
+\quad Glyph* sep = layout.vspace(1.0);\
+\quad return kit.inset\_frame(\
+\quad \quad layout.vbox(\
+\quad \quad \quad layout.v\_fixed\_span(up\_mover(a, s), mover\_size),\
+\quad \quad \quad sep,\
+\quad \quad \quad new VScroller(a, s),\
+\quad \quad \quad sep,\
+\quad \quad \quad layout.v\_fixed\_span(down\_mover(a, s), mover\_size)\
+\quad \quad ),\
+\quad \quad s\
+\quad );\
+\}%
+%
+\figurecaption{Using styles to build glyphs\label{vscrollbar}.}%
+%
+%-1.68001 -64.08 4
+}%
+%
+ \ref{vscrollbar} shows a function that builds a vertical scrollbar
+by creating a box containing an up-mover (button with up-arrow), a
+scroller (slider), and a down-mover (button with down-arrow).  The
+function creates a new style and gives it the prefixes VScrollBar
+and ScrollBar for customization.  If the attribute \252mover\_size\272
+is defined on the style, then its value will override the default
+(15.0).%
+%
+\section{Summary}%
+%
+User interface geometry and attribute management are two different
+problems that are best solved independently.  Whereas glyphs define
+a physical organization with a directed acyclic graph, styles define
+a logical organization with a strict hierarchy.  Both structures are
+simple and the connection between them is straightforward.
+
+\quad Styles provide a unified framework for managing user-customizable
+attributes, document formatting information, and structured graphics
+state.  Style prefixes support wildcarding and allow the decoupling
+of the implementation class hierarchy from the logical class hierarchy
+offered to the user for the purposes of customization.  This approach
+makes applications simpler to develop, more consistent to use, and
+easier to integrate.
+
+\pagebreak
+%
+\end{document}

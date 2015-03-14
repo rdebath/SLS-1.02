@@ -1,0 +1,43 @@
+Miscellaneous implementation notes:
+
+IPC_NOID is a pointer value which marks a resource as being in an 
+indeterminate  state. 
+
+Resources can be deleted dynamically so that after every sleep due 
+to external reasons the id must be checked as being valid. When the 
+sleep is on one of the ipc locks the process will be woken up if the 
+resource is to be destroyed.  For shared memory non-zero nattch 
+prevents destruction.
+
+Shared memory:
+An internal page table is maintained for each segment. This
+table contains entries for the pages allocated in memory, 
+their location in swap space, or 0 for not present pages.
+
+When a process attaches a shared segment, its page tables
+are mapped with pointers with the following code:
+
+shm_sgn : page table entry format for not present page has changed.
+   bit 0: indicates "not present",
+   bits 1..7 code of handler,
+   bit 31: attached read-only or read/write
+   bits 8..19: shmid (-> restriction on SHMMNI)
+   bits 20..29: page number within the segment = 
+		(virtual_address - start) >> 12
+                 where start <= virtual address < end.
+
+There is one internal page table (< PAGE_SIZE) per segment. Hence the 
+restriction SHMMAX <= 4M.
+
+If a process incurs a page fault within the attached region, the page fault 
+handler uses this code to access the internal page table and either
+fault in the page or copy the entry into the process' page table. 
+
+The standard swap routines are prevented from swapping out shared
+pages by marking the page_table entries PAGE_DIRTY. They always
+have an attach count > 1 when attached by a process.
+
+write protection is handled correctly by the 0.99p7 kernel as shared memory 
+pages are marked PAGE_SHARED or PAGE_READONLY  (no COW).
+
+

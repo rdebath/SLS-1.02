@@ -1,0 +1,56 @@
+MODULE GetImports;
+
+FROM System	IMPORT GetArgCount, GetArgument, Exit;
+FROM Strings	IMPORT tString, AssignEmpty, Append, Concatenate, Assign,
+		       ArrayToString, StringToArray;
+FROM Scanner	IMPORT ScanTabName;
+FROM Parser	IMPORT Parser, CloseParser, ParsTabName;
+FROM Errors	IMPORT NumberOfErrors;
+FROM IO		IMPORT StdOutput, StdError, CloseIO;
+
+VAR ErrorCount : CARDINAL;
+
+VAR
+  i, j		: CARDINAL;
+  Argument	: ARRAY [0 .. 127] OF CHAR;
+  ch		: CHAR;
+  String	,
+  FileNameS	,
+  Lib		: tString;
+
+BEGIN
+  (* handling of arguments	*)
+  AssignEmpty (Lib);
+
+  FOR i := 1 TO GetArgCount () - 1 DO
+    GetArgument (i, Argument);
+    IF (Argument [0] = '-') AND (Argument [1] = 'l') THEN
+      j := 2;
+      LOOP
+	ch := Argument [j];
+	IF ch = 0C THEN EXIT; END;
+	Append (Lib, ch);
+	INC (j);
+      END; (* LOOP *)
+      Append (Lib, '/');
+    END; (* IF *)
+  END; (* FOR *)
+
+  ArrayToString	(ScanTabName, FileNameS);	(* name of scanner table *)
+  Assign	(String, Lib);
+  Concatenate	(String, FileNameS);
+  Append	(String, 0C);
+  StringToArray	(String, ScanTabName);
+
+  ArrayToString	(ParsTabName, FileNameS);	(* name of parser table *)
+  Assign	(String, Lib);
+  Concatenate	(String, FileNameS);
+  Append	(String, 0C);
+  StringToArray	(String, ParsTabName);
+
+  ErrorCount := Parser ();
+  CloseParser;
+
+  CloseIO;
+  IF NumberOfErrors () = 0 THEN Exit (0); ELSE Exit (1); END;
+END GetImports.

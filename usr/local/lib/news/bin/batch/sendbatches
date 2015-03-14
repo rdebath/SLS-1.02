@@ -1,0 +1,196 @@
+#! /bin/sh
+# Master batching control.
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/batch:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+origpath="$PATH"
+
+parms=$NEWSCTL/batchparms
+log=$NEWSCTL/batchlog
+
+case "$-" in
+*x*)	n='***NOTE***'
+	echo "$n expect spurious batching failures due to \`sh -x' $n" >&2
+	# no, there isn't any portable fix
+	;;
+esac
+
+# lock against multiple simultaneous execution
+lock="$NEWSCTL/LOCKbatch"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+if newslock $ltemp $lock
+then
+	trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+else
+	exit 0
+fi
+
+cd $NEWSARTS/out.going
+
+# Determine what systems are being requested, in what order.
+case "$1"
+in
+	-d)
+	debug=yes
+	shift
+	;;
+esac
+case $#
+in
+	0)
+	if egrep '^/default/[ 	]' $parms >/dev/null	# default line found
+	then
+		syses=`ls -tr | egrep -v '^[@.]'`	# oldest first
+	else
+		syses="`egrep '^[^/#]' $parms | awk '{ print $1 }'`"
+	fi
+	;;
+
+	*)
+	syses="$*"
+	;;
+esac
+case $debug
+in
+	yes)
+	for sys in $syses
+	do
+		echo $sys
+	done
+	exit 0
+	;;
+esac
+
+# Start up logging.
+date >>$log
+
+# Run through them.
+for sys in $syses
+do
+	# Move into his directory, include it in search path.
+	here=$NEWSARTS/out.going/$sys
+	if test ! -d $here
+	then
+		echo "$0: cannot find batch directory for \`$sys'" |
+							mail $NEWSMASTER
+		continue
+	fi
+	cd $here
+	PATH=$here:$origpath ; export PATH
+	NEWSSITE=$sys ; export NEWSSITE		# For site-specific programs.
+	NEWSSITEDIR=$here ; export NEWSSITEDIR	# ditto
+
+	# Is there anything to do?
+	files=`echo togo*`
+	if test "$files" = 'togo*' || test "$files" = "togo" -a ! -s togo
+	then
+		continue			# no
+	fi
+
+	# Pick up the batchparms line.
+	ctlline="`egrep \"^$sys[ 	]\" $parms | sed 1q`"
+	if test " $ctlline" = " "
+	then
+		ctlline="`egrep '^/default/[ 	]' $parms | sed 1q`"
+	fi
+	set $ctlline
+	if test " $#" -ne 6
+	then
+		echo "$0: bad or missing batchparms line for \`$sys'" |
+							mail $NEWSMASTER
+		continue
+	fi
+	batchsize=$2
+	limit=$3
+	batcher=$4
+	muncher=$5
+	sender=$6
+
+	# How many to send?
+	outstand=`queuelen $sys`
+	nbatch=`expr $limit - $outstand`
+	roomfor=`spacefor $batchsize outbound $sys`
+	if test " $nbatch" -gt " $roomfor"
+	then
+		nbatch=$roomfor
+	fi
+
+	# If not allowed to send, remember reason.
+	status='batches flowing'
+	if test " $nbatch" -le 0
+	then
+		if test " $roomfor" -le 0
+		then
+			status='disk too full for batching'
+		else
+			status='queue full, no recent movement'
+		fi
+	fi
+
+	# Try sending some.
+	while test " $nbatch" -gt 0
+	do
+		# Does he have batches prepared already?
+		if test "`echo togo.[0-9]`" = 'togo.[0-9]'
+		then
+			# No -- need some more batches.
+			if test ! -s togo && test ! -s togo.more &&
+							test ! -s togo.next
+			then
+				break		# Nothing left to do.
+			fi
+			batchsplit $batchsize
+		fi
+
+		# Send some batches.
+		them=`ls | egrep '^togo\.[0-9]' | sed "${nbatch}q"`
+		for f in $them
+		do
+			# Sigh... sh -x on this won't work, because the -x
+			# output ends up in /tmp/nb$$, and there is no way
+			# to either (a) separate it out (bearing in mind that
+			# some shells randomly interleave -x lines from the
+			# processes in a pipeline) or (b) turn off -x for
+			# a moment in a portable way.
+			( ( cd $NEWSARTS ; $batcher $here/$f ) | $muncher |
+						$sender $sys ) >/tmp/nb$$ 2>&1
+			if test $? -eq 0 -a ! -s /tmp/nb$$
+			then
+				rm -f $f /tmp/nb$$
+			else
+				(
+					echo "$0: batching $f for \`$sys' failed"
+					cat /tmp/nb$$
+					echo "$0: aborting"
+				) | mail $NEWSMASTER
+				rm -f /tmp/nb$$
+				exit 1
+			fi
+		done
+		ndone=`echo $them | wc -w`
+		nbatch=`expr $nbatch - $ndone`
+
+		# Recheck the space -- it can fall for other reasons.
+		roomfor=`spacefor $batchsize outbound $sys`
+		if test " $nbatch" -gt " $roomfor"
+		then
+			nbatch=$roomfor
+		fi
+	done
+
+	# Report status, if appropriate.
+	nart=`cat togo* | wc -l | awk '{print $1}'`
+	if test " $nart" -gt 0
+	then
+		echo "$sys	backlog $nart ($status)" >>$log
+	fi
+done
+
+date >>$log
+echo >>$log

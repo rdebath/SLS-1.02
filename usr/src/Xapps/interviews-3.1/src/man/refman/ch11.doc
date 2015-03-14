@@ -1,0 +1,335 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 10
+%label{allot}{12.2}
+%label{char}{12.3}
+%label{glue}{11.3}
+%label{layout}{12.2}
+%label{box}{12.3}
+%label{deck}{11.2}
+%label{page}{12.5}
+%label{monoglyph}{12.10}
+%label{background}{12.11}
+%label{margin}{11.5}
+%label{shadow}{12.13}
+%label{markers}{12.14}
+%label{tformsetter}{12.15}
+%label{center}{12.16}
+%label{composition}{12.17}
+%label{compositor}{12.18}
+%label{patch}{12.19}
+%label{rule}{12.4}
+%label{hit}{?}
+%label{requisition}{12.1}
+%label{boxes}{11.1}
+%label{fixed-span}{11.4}
+
+\begin{document}
+%
+%
+\chapter{LayoutKit}%
+%
+\float{figure}{11-\pagenumber{00}}%372.72 -645.84 -2
+\float{figure}{11-\pagenumber{00}}%372.72 -645.84 0
+Composite glyphs usually manage the physical layout of their children.  LayoutKit
+provides operations for creating objects that are useful in managing
+the arrangement of one or more glyphs.  The LayoutKit objects are
+modelled after the Knuth's TeX document processing system.%
+%
+\section{Boxes}%
+%
+A box is a polyglyph that uses a layout object to arrange its components.
+A layout object is not a glyph, but helps a glyph manage the requests
+and allocations of component glyphs. Figure%
+%
+\code{interface Layout \{\
+\quad void request(GlyphIndex count, const Requisition*, Requisition\&
+result);\
+\quad void allocate(\
+\quad \quad const Allocation\& given, GlyphIndex count, const Requisition*,\
+\quad \quad Allocation* result\
+\quad );\
+\};\medskip
+PolyGlyph* box(Layout*, GlyphIndex size = 10) const;\
+PolyGlyph* hbox(GlyphIndex size) const;\
+PolyGlyph* hbox(\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil,\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil\
+) const;\
+PolyGlyph* vbox(GlyphIndex size) const;\
+PolyGlyph* vbox(\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil,\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil\
+) const;\
+PolyGlyph* hbox\_first\_aligned(GlyphIndex size) const;\
+PolyGlyph* hbox\_first\_aligned(\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil,\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil\
+) const;\
+PolyGlyph* vbox\_first\_aligned(GlyphIndex size) const;\
+PolyGlyph* vbox\_first\_aligned(\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil,\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil\
+) const;\
+PolyGlyph* overlay(\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil,\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil\
+) const;%
+%
+\figurecaption{Layout protocol and LayoutKit box operations\label{boxes}}%
+%
+%1.20001 1.19998 1
+}%
+%
+ \ref{boxes} shows the Layout protocol and the LayoutKit operations
+that create boxes.
+
+\quad Layout::request is given an array of requisitions for the individual
+components and computes a single requisition for the result.  Layout::allocate
+is given the requisitions of the components and the overall allocation,
+returning the allocations of the individual components.
+
+\quad A box can be constructed either with a list of up to 10 initial
+glyph components, or an initial size estimate on the number of components.  The
+size is not a maximum, but can avoid growing the list dynamically.
+
+\quad LayoutKit::hbox returns a box that tiles its components in the
+X dimension left-to-right and aligns the component origins in the
+Y dimension. LayoutKit::vbox returns a box that tiles top-to-bottom
+and aligns in the X dimension.  LayoutKit::overlay aligns in both
+the X and Y dimensions, drawing the components in back-to-front order.
+
+\quad LayoutKit::hbox returns a box with its X origin at the left
+side of the box; LayoutKit::vbox returns a box with its Y origin at
+the top of the box.  Sometimes it is more convenient to have the origin
+correspond to the origin of the first component.  For example, a column
+of text might want to have its Y origin correspond to the base line
+of the first line of text.  When the aligment should correspond to
+the first component's alignment, one can use LayoutKit::hbox\_first\_aligned
+or LayoutKit::vbox\_first\_aligned.
+
+\quad A %
+%
+\term{deck}%
+%
+ is a polyglyph similar in some ways to an overlay box.  However,
+instead of overlaying its components, a deck is a polyglyph where
+only one of the components is visible at any time.  Figure%
+%
+\code{interface Deck : PolyGlyph \{\
+\quad GlyphIndex card() const;\
+\quad void flip\_to(GlyphIndex);\
+\};\smallskip
+Deck* deck(GlyphIndex size) const;\
+Deck* deck(\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil,\
+\quad Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph* = nil, Glyph*
+= nil\
+) const;%
+%
+\figurecaption{Deck protocol and LayoutKit operations\label{deck}}%
+%
+%1.19998 3.12 2
+}%
+%
+ \ref{deck} shows the deck protocol and the LayoutKit operations to
+create decks.
+
+\quad Deck::flip\_to sets which component should currently be visible;  Deck::card
+returns the current top.  The natural size of a deck is the maximum
+size of the natural sizes of its components.  A deck can be stretched
+to be as large as its largest  fully-stretched component.%
+%
+\section{Glue}%
+%
+Boxes stretch or shrink their components to fit the available space.  However,
+many components are rigid.  For example, characters in text typically
+do not stretch or shrink.  Instead, we prefer to stretch or shrink
+the white space between words.  In TeX, this flexible white space
+is referred to as \252glue\272.
+
+\quad LayoutKit provides the set of operations to create glue object
+shown in Figure%
+%
+\code{Glyph* glue(\
+\quad DimensionName, Coord natural, Coord stretch, Coord shrink, float
+alignment\
+) const;\
+Glyph* glue(const Requisition\&) const;\
+Glyph* hglue() const;\
+Glyph* hglue(Coord natural) const;\
+Glyph* hglue(Coord natural, Coord stretch, Coord shrink) const;\
+Glyph* hglue(Coord natural, Coord stretch, Coord shrink, float alignment)
+const;\smallskip
+Glyph* vglue() const;\
+Glyph* vglue(Coord natural);\
+Glyph* vglue(Coord natural, Coord stretch, Coord shrink) const;\
+Glyph* vglue(Coord natural, Coord stretch, Coord shrink, float alignment)
+const;\smallskip
+Glyph* hspace(Coord) const;\
+Glyph* vspace(Coord) const;\
+Glyph* shape\_of(Glyph*) const;\
+Glyph* shape\_of\_xy(Glyph*, Glyph*) const;\smallskip
+Glyph* spaces(int count, Coord each, const Font*, const Color*) const;\
+Glyph* strut(\
+\quad const Font*, Coord natural = 0, Coord stretch = 0, Coord shrink
+= 0\
+) const;\
+Glyph* hstrut(\
+\quad Coord right\_bearing, Coord left\_bearing = 0,\
+\quad Coord natural = 0, Coord stretch = 0, Coord shrink = 0\
+) const;\
+Glyph* vstrut(\
+\quad Coord ascent, Coord descent = 0,\
+\quad Coord natural = 0, Coord stretch = 0, Coord shrink = 0\
+) const;%
+%
+\figurecaption{LayoutKit operations for creating spacing glyphs\label{glue}}%
+%
+%-1.67999 -255.12 2
+}%
+%
+ \ref{glue}.  LayoutKit::glue is the most general operation.  It can
+either be passed a specific dimension, natural size, stretchability,
+shrinkability, and alignment, or it can be passed a complete requisition.
+
+\quad LayoutKit::hglue and LayoutKit::vglue can create glue that is
+horizontally or vertically stretchable, respectively.  The requirement
+in the minor dimension is undefined.  If no parameters are passed
+to LayoutKit::hglue or vglue, then a natural size of zero is assumed.  If
+no stretchability is specified, then the glue is assumed to be infinitely
+stretchable.
+
+\quad LayoutKit::hspace and LayoutKit::vspace create glue with a given
+size that is rigid.  LayoutKit::shape\_of returns glue that has the
+same requisition as another glyph.  LayoutKit::shape\_of\_xy returns
+glue that takes its X requirement from one glyph and its Y requirement
+from another glyph.
+
+\quad LayoutKit::spaces returns glue that correspond to a given number
+of spaces in the current font.  Unlike other glue objects, which despite
+being generally referred to as \252white space\272 do not actually
+have an appearance, spaces are drawn in the given color.%
+%
+\section{Alignment}%
+%
+In addition to laying out a collection of glyphs, it is often desirable
+to modify the positioning of a single glyph.  LayoutKit provides operations
+to adjust the layout of a glyph.  These operations return a monoglyph.
+
+\quad Figure%
+%
+\code{MonoGlyph* center(Glyph*, float x = 0.5, float y = 0.5) const;\
+MonoGlyph* center\_dimension(Glyph*, DimensionName, float align) const;\
+MonoGlyph* hcenter(Glyph*, float x = 0.5) const;\
+MonoGlyph* vcenter(Glyph*, float y = 0.5) const;\smallskip
+MonoGlyph* fixed(Glyph*, Coord x, Coord y) const;\
+MonoGlyph* fixed\_dimension(Glyph*, DimensionName, Coord) const;\
+MonoGlyph* hfixed(Glyph*, Coord x) const;\
+MonoGlyph* vfixed(Glyph*, Coord y) const;\
+MonoGlyph* flexible(Glyph*, Coord stretch = fil, Coord shrink = fil)
+const;\
+MonoGlyph* flexible\_dimension(\
+\quad Glyph*, DimensionName, Coord stretch = fil, Coord shrink = fil\
+) const;\
+MonoGlyph* hflexible(\
+\quad Glyph*, Coord stretch = fil, Coord shrink = fil\
+) const;\
+MonoGlyph* vflexible(\
+\quad Glyph*, Coord stretch = fil, Coord shrink = fil\
+) const;\
+MonoGlyph* natural(Glyph*, Coord x, Coord y) const;\
+MonoGlyph* natural\_dimension(Glyph*, DimensionName, Coord) const;\
+MonoGlyph* hnatural(Glyph*, Coord) const;\
+MonoGlyph* vnatural(Glyph*, Coord) const;%
+%
+\figurecaption{LayoutKit operations that adjust alignment\label{fixed-span}}%
+%
+%-0.720001 -7.44003 3
+}%
+%
+ \ref{fixed-span} shows the operations that affect the requisition
+of a glyph.  LayoutKit::center , center\_dimension, hcenter, and vcenter
+change the origin of a glyph as it appears in a requisition.  When
+the glyph body is allocated, it is given the origin it requested.  Thus,
+the name \252center\272 is somewhat misleading as these monoglyphs
+merely return a glyph that asks to be centered at a particular position,
+they do not actually change the origin themselves.
+
+\quad LayoutKit::fixed, fixed\_dimension, hfixed, and vfixed change
+a glyph to appear rigid even if it is flexible.  Fixed monoglyphs
+are ideal for specifying sizes that are otherwise undefined, such
+as the initial height of a file chooser.  The inverse functionality--making
+a glyph flexible that may be rigid--is provided by the LayoutKit::flexible,
+flexible\_dimension, hflexible, and vflexible operations.  The LayoutKit::natural,
+natural\_dimension, hnatural, and vnatural operations are similar
+to the fixed operations in that they change the natural size, but
+they do not affect the flexibility.
+
+\quad LayoutKit also provides a set of operations to put a margin
+around a glyph.  These operations are shown in Figure%
+%
+\code{MonoGlyph* margin(Glyph*, Coord) const;\
+MonoGlyph* margin(Glyph*, Coord hmargin, Coord vmargin) const;\
+MonoGlyph* margin(\
+\quad Glyph*, Coord lmargin, Coord rmargin, Coord bmargin, Coord tmargin\
+) const;\
+MonoGlyph* margin(\
+\quad Glyph*,\
+\quad Coord lmargin, Coord lstretch, Coord lshrink,\
+\quad Coord rmargin, Coord rstretch, Coord rshrink,\
+\quad Coord bmargin, Coord bstretch, Coord bshrink,\
+\quad Coord tmargin, Coord tstretch, Coord tshrink\
+) const;\
+MonoGlyph* hmargin(Glyph*, Coord) const;\
+MonoGlyph* hmargin(Glyph*, Coord lmargin, Coord rmargin) const;\
+MonoGlyph* hmargin(\
+\quad Glyph*,\
+\quad Coord lmargin, Coord lstretch, Coord lshrink,\
+\quad Coord rmargin, Coord rstretch, Coord rshrink\
+) const;\
+MonoGlyph* vmargin(Glyph*, Coord) const;\
+MonoGlyph* vmargin(Glyph*, Coord lmargin, Coord rmargin) const;\
+MonoGlyph* vmargin(\
+\quad Glyph*,\
+\quad Coord bmargin, Coord bstretch, Coord bshrink,\
+\quad Coord tmargin, Coord tstretch, Coord tshrink\
+) const;\
+MonoGlyph* lmargin(Glyph*, Coord) const;\
+MonoGlyph* lmargin(Glyph*, Coord nat, Coord stretch, Coord shrink)
+const;\
+MonoGlyph* rmargin(Glyph*, Coord) const;\
+MonoGlyph* rmargin(Glyph*, Coord nat, Coord stretch, Coord shrink)
+const;\
+MonoGlyph* bmargin(Glyph*, Coord) const;\
+MonoGlyph* bmargin(Glyph*, Coord nat, Coord stretch, Coord shrink)
+const;\
+MonoGlyph* tmargin(Glyph*, Coord) const;\
+MonoGlyph* tmargin(Glyph*, Coord nat, Coord stretch, Coord shrink)
+const;%
+%
+\figurecaption{LayoutKit margin operations\label{margin}}%
+%
+%-0.719986 0.240051 4
+}%
+%
+ \ref{margin}.  LayoutKit::margin is overloaded to specify a fixed
+margin around the entire glyph, distinct horizontal and vertical margins,
+separate left, right, bottom, and top margins, or flexible margins
+on each side.  LayoutKit::hmargin specifies horizontal margins; LayoutKit::vmargin
+specifies vertical margins.  LayoutKit::lmargin, rmargin, bmargin,
+and tmargin specify left, right, bottom, and top margins, respectively.%
+\end{document}

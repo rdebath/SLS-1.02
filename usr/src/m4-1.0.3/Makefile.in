@@ -1,0 +1,181 @@
+# Main Makefile for GNU m4.
+# Copyright (C) 1992 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+SHELL = /bin/sh
+
+#### Start of system configuration section. ####
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+U = @U@
+
+CC = @CC@
+RANLIB = @RANLIB@
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+MAKEINFO = makeinfo
+
+# Should be GNU awk, for the checks/get_them script.
+AWK = @AWK@
+
+DEFS = @DEFS@
+CFLAGS = -g
+LDFLAGS = -g
+LIBS = @LIBS@
+LIBOBJS = @LIBOBJS@
+
+prefix = /usr/local
+binprefix = 
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+infodir = $(prefix)/info
+
+#### End of system configuration section. ####
+
+.c.o:
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(DEFS) -I$(srcdir) -I$(srcdir)/lib $<
+
+# `configure' uses DEFS to convey many definitions to the C compiler.
+# Besides what is usual to Autoconf, this is worth mentioning:
+#
+#	HAVE_MKSTEMP	has mkstemp(3), checked only if not HAVE_TMPFILE
+#	HAVE_EFGCVT	has [efg]cvt(3), =2 if declared in <stdlib.h>
+
+HEADERS = m4.h
+SOURCES = m4.c input.c output.c symtab.c builtin.c macro.c \
+debug.c eval.c path.c format.c
+OBJECTS = $Um4.o $Uinput.o $Uoutput.o $Usymtab.o $Ubuiltin.o $Umacro.o \
+$Udebug.o $Ueval.o $Upath.o $Uformat.o
+
+DISTFILES = README NEWS TODO THANKS COPYING INSTALL \
+ChangeLog Makefile.in configure.in aclocal.m4 ansi2knr.c \
+$(HEADERS) $(SOURCES) m4.texinfo configure \
+texinfo.tex m4.info m4.info-1 m4.info-2
+
+MDEFINES = CC='$(CC)' CFLAGS='$(CFLAGS)' LIBOJBS='$(LIBOJBS)' \
+RANLIB='$(RANLIB)' AWK='$(AWK)'
+
+all: m4
+
+info: m4.info
+
+m4: $(OBJECTS) lib/libm4.a
+	$(CC) $(LDFLAGS) -o m4 $(OBJECTS) lib/libm4.a $(LIBS)
+
+$(OBJECTS): m4.h lib/obstack.h
+builtin.o: lib/regex.h
+
+lib/libm4.a:
+	cd lib; $(MAKE) $(MFLAGS) $(MDEFINES) libm4.a
+
+ansi2knr: ansi2knr.c
+	$(CC) $(CFLAGS) $(DEFS) $(LDFLAGS) -o ansi2knr $(srcdir)/ansi2knr.c
+_builtin.c: builtin.c ansi2knr
+	./ansi2knr $(srcdir)/builtin.c > _builtin.c
+_debug.c: debug.c ansi2knr
+	./ansi2knr $(srcdir)/debug.c | sed 's/ va_alist;$$//' > _debug.c
+_eval.c: eval.c ansi2knr
+	./ansi2knr $(srcdir)/eval.c > _eval.c
+_format.c: format.c ansi2knr
+	./ansi2knr $(srcdir)/format.c > _format.c
+_input.c: input.c ansi2knr
+	./ansi2knr $(srcdir)/input.c > _input.c
+_m4.c: m4.c ansi2knr
+	./ansi2knr $(srcdir)/m4.c | sed 's/ va_alist;$$//' > _m4.c
+_macro.c: macro.c ansi2knr
+	./ansi2knr $(srcdir)/macro.c > _macro.c
+_output.c: output.c ansi2knr
+	./ansi2knr $(srcdir)/output.c > _output.c
+_path.c: path.c ansi2knr
+	./ansi2knr $(srcdir)/path.c > _path.c
+_symtab.c: symtab.c ansi2knr
+	./ansi2knr $(srcdir)/symtab.c > _symtab.c
+
+m4.info: m4.texinfo
+	$(MAKEINFO) -o m4.info $(srcdir)/m4.texinfo
+
+install: m4 m4.info
+	$(INSTALL_PROGRAM) m4 $(bindir)/$(binprefix)m4
+	for file in m4.info*; do \
+	  $(INSTALL_DATA) $$file $(infodir)/$$file; \
+	done
+
+uninstall:
+	rm -f $(bindir)/$(binprefix)m4 $(infodir)/m4.info*
+
+check: m4
+	cd checks; $(MAKE) $(MFLAGS) $(MDEFINES) check
+
+tags: TAGS
+
+TAGS: $(HEADERS) $(SOURCES)
+	etags $(HEADERS) $(SOURCES)
+
+clean: clean-recursive clean-local
+
+clean-recursive:
+	cd lib; $(MAKE) $(MFLAGS) $(MDEFINES) clean
+	cd checks; $(MAKE) $(MFLAGS) $(MDEFINES) clean
+
+clean-local:
+	rm -f m4 *.o core
+
+mostlyclean: clean
+
+distclean: distclean-recursive distclean-local
+
+distclean-recursive:
+	cd lib; $(MAKE) $(MFLAGS) $(MDEFINES) distclean
+	cd checks; $(MAKE) $(MFLAGS) $(MDEFINES) distclean
+
+distclean-local: clean-local
+	rm -f Makefile config.status
+
+realclean: realclean-recursive realclean-local
+
+realclean-recursive:
+	cd lib; $(MAKE) $(MFLAGS) $(MDEFINES) realclean
+	cd checks; $(MAKE) $(MFLAGS) $(MDEFINES) realclean
+
+realclean-local: distclean-local
+	rm -f m4.info* TAGS checks/[0-9][0-9].*
+
+dist: $(DISTFILES)
+	echo `pwd` | sed 's|.*/||' > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`
+	ln $(DISTFILES) `cat .fname`
+	cd lib; $(MAKE) $(MFLAGS) $(MDEFINES) dist
+	cd checks; $(MAKE) $(MFLAGS) $(MDEFINES) dist
+	mkdir `cat .fname`/examples
+	ln examples/* `cat .fname`/examples
+	chmod -R a+r `cat .fname`
+	tar chZf `cat .fname`.tar.Z `cat .fname`
+	rm -rf `cat .fname` .fname
+
+Makefile: Makefile.in config.status
+	./config.status
+
+config.status: configure
+	$(srcdir)/configure --no-create
+
+configure: configure.in aclocal.m4
+	cd $(srcdir); autoconf
+
+# Prevent GNU make v3 from overflowing arg limit on SysV.
+.NOEXPORT:

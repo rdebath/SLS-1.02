@@ -1,0 +1,643 @@
+%% This file documents RLaB, a Vector and Matrix Programming Language
+%% Copyright @copyright{} 1992, 1993 Ian R. Searle
+%%     
+%% Permission is granted to make and distribute verbatim copies of
+%% this manual provided the copyright notice and this permission notice
+%% are preserved on all copies.
+%%
+%% Permission is granted to process this file through TeX and print the
+%% results, provided the printed document carries a copying permission
+%% notice identical to this one except for the removal of this paragraph
+%% (this paragraph not being relevant to the printed manual).
+%%
+%% Permission is granted to copy and distribute modified versions of this
+%% manual under the conditions for verbatim copying, provided also that the
+%% sections entitled ``Distribution'' and ``General Public License'' are
+%% included exactly as in the original, and provided that the entire
+%% resulting derived work is distributed under the terms of a permission
+%% notice identical to this one.
+%%
+%% Permission is granted to copy and distribute translations of this manual
+%% into another language, under the above conditions for modified versions,
+%% except that the sections entitled ``Distribution'' and ``General Public
+%% License'' may be included in a translation approved by the author instead
+%% of in the original English.
+
+\documentstyle[11pt]{article}
+%%
+%% Set up page style, new commands etc...
+%%
+\setlength{\parindent}{0in}
+\setlength{\textwidth}{6.25in}
+\setlength{\oddsidemargin}{0.35in}
+\setlength{\evensidemargin}{0in}
+\setlength{\parskip}{0.1in}
+%%
+%%  Tell LaTeX to number subsubsections and list them in 
+%%  the table of contents
+%%
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+%%
+\newcommand{\defeq}{\stackrel{\triangle}{=}}
+\newcommand{\rvec}[4]{{}^{#2}\vec{#1}^{#3}_{#4}}
+\newcommand{\bvec}[4]{{}^{#2}{\mbox{\boldmath $#1$}}{}^{#3}_{#4}}
+\newcommand{\dbvec}[4]{{}^{#2}\dot{\mbox{\boldmath $#1$}}{}^{#3}_{#4}}
+\newcommand{\ddbvec}[4]{{}^{#2}\ddot{\mbox{\boldmath $#1$}}{}^{#3}_{#4}}
+%%
+%% Define RLaB logo.
+%%
+%%\def\LaTeX{{\rm L\kern-.36em\raise.3ex\hbox{\sc a}\kern-.15em
+%%    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\def\RLaB{{\rm R\kern-.1667em\lower.5ex\hbox{L}\kern-.25em\raise.3ex
+    \hbox{\sc a}\kern-.2emB}}
+%%
+%%
+\title{\RLaB\ Matrix Tutorial}
+\author{Ian R. Searle \\ ians@eskimo.com}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+   \RLaB\ is an interactive or batch mode matrix-oriented programming
+   language. \RLaB\ also serves as a convenient interface to the
+   LAPACK, FFTPACK, and RANLIB numerical libraries from netlib.
+
+   This tutorial is intended to serve as an introduction to the most
+   commonly used data type\footnote{This tutorial is only a
+   ``stop-gap'' measure until the real tutorial and reference manual
+   are available}, the matrix, or two-dimensional array. You are
+   encouraged to read this tutorial while sitting in front of a
+   computer running \RLaB , trying each example as it is shown in the
+   text. Since \RLaB\ documentation is scarce at the moment, this
+   tutorial is tediously slow; please bear with me.
+   
+   Since \RLaB\ variables are not explicitly typed, types and
+   dimensionality are inferred from usage. This creates more work for
+   \RLaB\, but eases the burden on the user\footnote{Isn't that what
+   programs are for ?}.
+
+\section{Matrix Creation}
+
+   The simplest way to create a matrix is to type it in at the command
+   line: 
+
+\begin{verbatim}
+> m = [ 1, 2, 3; 4, 5, 6; 7, 8, 9 ]
+ m =
+ matrix columns 1 thru 3
+        1          2          3  
+        4          5          6  
+        7          8          9  
+\end{verbatim}
+
+   In this context the `\verb+[ ]+' signal Rlab that a matrix should
+   be created. The inputs (or arguments) for matrix creation are
+   whatever is inside the `\verb+[ ]+'. The rows of the matrix are
+   delimited with `\verb+;+' and the elements of each row are
+   delimited with `\verb+,+'.
+
+   Matrices can also be composed from complex numbers, and strings.
+   All numeric operations and functions work for any combination of
+   real and complex operands/arguments. However, matrices composed of
+   string elements cannot be used exactly like numeric matrices.
+   String matrix construction, element referencing, and assignment
+   work exactly like numeric matrices but, numeric functions like
+   \verb+svd()+ will not operate on string matrices. Nor will binary
+   operations between string and numeric matrices work. For example:
+   \verb|A_numeric + B_string| will produce a runtime error.
+
+\begin{verbatim}
+z = [ 1 + 2i, 2 + 3i, 3 + 4i ;
+>     4 + 5i, 5 + 6i, 6 + 7i ]
+ z =
+ matrix columns 1 thru 3
+                  1 + 2i                  2 + 3i                  3 + 4i
+                  4 + 5i                  5 + 6i                  6 + 7i
+
+> sm = [ "str11", "str12" ;
+>        "str21", "str22" ]
+ sm =
+str11  str12  
+str21  str22  
+\end{verbatim}
+
+   While the previous method for matrix creation is convenient, it is
+   rarely useful. More useful are the functions such as :
+   \verb+rand()+, \verb+eye()+, and \verb+ones()+.
+
+\begin{verbatim}
+> mr = rand(3,3)
+ mr =
+ matrix columns 1 thru 3
+        1      0.333      0.665  
+    0.975     0.0369     0.0847  
+    0.647      0.162      0.204  
+\end{verbatim}
+
+   The previous example creates a 3-by-3 matrix with randomly
+   generated elements.
+
+   An even more useful method for creating a matrix is to read the
+   matrix from a file. Rlab provides several ways of doing this. The
+   two most popular are \verb+readm()+, and \verb+read()+.
+
+   \verb+readm()+ reads a text file that contains white-space
+   separated columns of numbers. The first line of the file must
+   contain the row and column dimensions of the matrix.
+
+\begin{verbatim}
+> m = readm ("mat.dat")
+ m =
+ matrix columns 1 thru 4
+        1          2          3          4  
+        5          6          7          8  
+        9         10         11         12  
+\end{verbatim}
+
+   \verb+read()+ reads a matrix that has been written with Rlab's
+   \verb+write()+. 
+
+\subsection{Vector Creation}
+
+   Although there is no distinct vector type in \RLaB , you can
+   pretend that there is. If your algorithm, or program does not need
+   two dimensional arrays, then you can use matrices as singly
+   dimensioned arrays.
+
+   When using vectors, or single dimension arrays, row matrices are
+   created. The simplest way to create a vector is with the `\verb+:+'
+   operator(s): `\verb+start:end:inc+'. The leftmost operand specifies
+   the starting value, the second operand specifies the last value.
+   The default increment, or spacing, is 1. But, a third operand (the
+   rightmost) can be used to specify a non-unity increment.
+
+\begin{verbatim}
+> a = 1:4
+ a =
+ matrix columns 1 thru 4
+        1          2          3          4  
+> a[3]
+        3
+> x = 1:2:0.5
+ x =
+ matrix columns 1 thru 3
+        1        1.5          2  
+\end{verbatim}
+
+   Regardless of how the matrix, or vector,  was created it can be
+   indexed either way. For example:
+
+\begin{verbatim}
+> a = rand(3,4)
+ a =
+ matrix columns 1 thru 4
+        1      0.333      0.665      0.167  
+    0.975     0.0369     0.0847      0.655  
+    0.647      0.162      0.204      0.129  
+> a[4]
+    0.333
+> v = 1:4
+ v =
+ matrix columns 1 thru 4
+        1          2          3          4  
+> v[1;3]
+        3
+\end{verbatim}
+
+   As you can see, matrices are stored internally in a column-wise
+   fashion. To force a matrix to it's internal form you can use the
+   `\verb+[:]+' operator:
+
+\begin{verbatim}
+> a = rand(2,3)
+ a =
+ matrix columns 1 thru 3
+        1      0.647     0.0369  
+    0.975      0.333      0.162  
+> a [ : ]
+ matrix columns 1 thru 1
+        1  
+    0.975  
+    0.647  
+    0.333  
+   0.0369  
+    0.162  
+\end{verbatim}
+
+\section{Matrix Attributes}
+
+   Matrix attributes, such as number of rows, are accessible in
+   several ways. All atributes are accesible through function calls,
+   for example:
+
+\begin{verbatim}
+> a = rand(3,5)
+ a =
+ matrix columns 1 thru 5
+        1      0.333      0.665      0.167       0.91  
+    0.975     0.0369     0.0847      0.655      0.112  
+    0.647      0.162      0.204      0.129      0.299  
+> show (a)
+   name:      a       
+   class:     matrix  
+   type:      real    
+     nr:      3       
+     nc:      5       
+> size (a)
+ matrix columns 1 thru 2
+        3          5  
+> class (a)
+matrix
+> type (a)
+real
+\end{verbatim}
+
+   Matrix attributes are also accessible via a shorthand notation:
+
+\begin{verbatim}
+> a.nr
+        3
+> a.nc
+        5
+> a.n
+       15
+> a.class
+matrix
+> a.type
+real
+\end{verbatim}
+  
+\section{Matrix Operations}
+
+   The usual mathematical operators {\verb|+, -, *, /|} operate on
+   matrices as well as scalars. For {\verb+A binop B+}:
+
+   \begin{description}
+     \item[\verb|+|] Does element-by-element addition of two matrices.
+              The row and column dimensions of both \verb+A+ and
+              \verb+B+ must be the same. An exception to the
+              aforementioned rule occurs when either \verb+A+ or
+              \verb+B+ is a 1-by-1 matrix; in this case a
+              scalar-matrix addition operation is performed.
+
+     \item[\verb+-+] Does element-by-element subtraction of two matrices.
+              The row and column dimensions of both \verb+A+ and
+              \verb+B+ must be the same. An exception to the
+              aforementioned rule occurs when either \verb+A+ or
+              \verb+B+ is a 1-by-1 matrix; in this case a
+              scalar-matrix addition operation is performed.
+
+     \item[\verb+*+] Performs matrix multiplication on the two
+              operands.  The column dimension of {\verb+A+} must match
+              the row dimension of {\verb+B+}. An exception to the
+              aforementioned rule occurs when either \verb+A+ or
+              \verb+B+ is a 1-by-1 matrix; in this case a
+              scalar-matrix multiplication is performed.
+
+     \item[\verb+/+] Performs matrix ``right-division'' on it's operands.
+              The matrix right-division (\verb+B/A+) can be thought of
+              as {\verb+B*inv (A)+}. The column dimensions of \verb+A+
+              and \verb+B+ must be the same. Internally right division
+              is the same as ``left-division'' with the arguments
+              transposed. 
+
+		\[ B / A = ( A^T \setminus B^T )^T \]
+
+              The exception to the aforementioned dimension rule
+              occurs when \verb+A+ is a 1-by-1 matrix; in this case a
+              matrix-scalar divide occurs.
+
+   \end{description}
+
+   Additionally, \RLaB\ has several other operators that function on
+   matrix operand(s). 
+
+   \begin{description}
+     \item[\verb+.*+] Performs element-by-element multiplication on
+              it's operands. The operands must have the same row and
+              column dimensions, unless either \verb+A+ or \verb+B+ is
+              a 1-by-1 matrix.
+
+     \item[\verb+./+] Performs element-by-element division on it's
+              operands. The operands must have the same row and column
+              dimensions, unless either \verb+A+ or \verb+B+ is a
+              1-by-1 matrix.
+
+     \item[$\setminus$] Performs matrix ``left-division''. Given
+              operands {\verb+A\B+} matrix left division is the
+              solution to the set of equations $Ax = B$. If $B$ has
+              several columns, then each column of $x$ is a solution
+              to {\verb+A*x[;i] = B[;i]+}. The row dimensions of
+              \verb+A+ and \verb+B+ must agree.
+
+     \item[$.\setminus$] Performs element-by-element left-division.
+              Element-by-element left-division is provided for
+              symmetry, and is equivalent to \verb+B./A+. The row and
+              column dimensions of \verb+A+ and \verb+B+ must agree,
+              unless either one is a 1-by-1 matrix.
+
+     \item[${}^\wedge{}$] {\verb+A^B+} raises \verb+A+ to the \verb+B+
+              power. When \verb+A+ is a matrix, and \verb+B+ is an
+              integer scalar, the operation is performed by successive
+              multiplications. When \verb+B+ is not an integer, then
+              the operation is performed via an \verb+A+'s eigenvalues
+              and eigenvectors. The operation is not allowed if
+              \verb+B+ is a matrix.
+
+     \item[${.}^\wedge{}$] {\verb+A.^B+} raises \verb+A+ to the
+              \verb+B+ power in an element-by-element fashion. Either
+              \verb+A+ or \verb+B+ can be matrix or scalar. If both
+              \verb+A+ and \verb+B+ are matrix, then the row and
+              column dimensions must agree.
+
+     \item[\verb+'+] This unary operator performs the matrix transpose
+              operation. \verb+A'+ swaps the rows and columns of A.
+              For a matrix with complex elements a complex conjugate
+              transpose is performed.
+
+     \item[\verb+.'+] This unary operator performs the matrix
+              transpose operation. \verb+A.'+ swaps the rows and
+              columns of A.  The difference between \verb+'+ and
+              \verb+.'+ is only apparent when \verb+A+ is a complex
+              matrix; then \verb+A.'+ does not perform a complex
+              conjugate transpose.
+
+   \end{description}
+
+   Several details are important to note:
+
+   \begin{itemize}
+
+     \item The two symbol operators are just that, two symbols. White
+           space, or any other character in between the two symbols is
+           an error, or may be interpreted differently.
+
+     \item The expression \verb+2./A+ is {\bf not} interpreted as
+           \verb+2. /A+. Rlab is smart enough to group the period with
+           the \verb+/+.
+
+   \end{itemize}
+
+\section{Matrix Relational Operations}
+
+   The way matrices can be used within if-statement tests is special,
+   so we will discuss it briefly here. The result of a matrix
+   relational test, such as, \verb+A == B+ is a matrix the same size
+   as \verb+A+ and \verb+B+ filled with ones and zeros according to
+   the result of an element-by-element test. If either of the operands
+   is scalar, or a 1-by-1 matrix, then the element-by-element test is
+   performed as before, by using the scalar value repeatedly. For
+   example:
+
+\begin{verbatim}
+> a = [1, 2, 3; 4, 5, 6; 7, 8, 9]
+ a =
+ matrix columns 1 thru 3
+        1          2          3  
+        4          5          6  
+        7          8          9  
+> b = a'
+ b =
+ matrix columns 1 thru 3
+        1          4          7  
+        2          5          8  
+        3          6          9  
+> a == b
+ matrix columns 1 thru 3
+        1          0          0  
+        0          1          0  
+        0          0          1  
+> a >= 5
+ matrix columns 1 thru 3
+        0          0          0  
+        0          1          1  
+        1          1          1  
+\end{verbatim}
+
+   \RLaB\ if-tests do not accept matrices. The builtin functions
+   \verb+any()+ and \verb+all()+ can be used in combination with
+   relational and logical tests to conditionally execute statements
+   based upon matrix properties. For example: the following function,
+   which determines if it's argument contains an infinite value(s),
+   uses a combination of the \verb+==+ operator and the \verb+any()+
+   function to determine if any of the elements of \verb+X+ are
+   infinite.
+
+\begin{verbatim}
+isinf = function ( X )
+{
+  if (any (any (X == inf())) || any (any (X == -inf())))
+  {
+    return 1;
+  else
+    return 0;
+  }
+};
+\end{verbatim}
+
+   The function \verb+any()+ returns true if any of the element(s) of
+   it's argument are non-zero. The function \verb+all()+ returns true
+   if all of the element(s) of it's argument are non-zero.
+
+   Also note the usage of \verb+any()+; this will be discussed in
+   Section~\ref{sec:functions}.
+
+\section{Element Referencing}
+
+   Any expression that evaluates to a matrix can have it's elements
+   referenced. The simplest case occurs when a matrix has been created
+   and assigned to a variable. One can reference single elements, or
+   one can reference full or partial rows and/or columns of a matrix.
+   Element referencing is performed via the `{\verb+[ ]+}' operators,
+   using the `\verb+;+' to delimit row and column specifications, and
+   the `\verb+,+' to delimit individual row or column specifications.
+
+   To reference a single element:
+
+\begin{verbatim}
+> a
+ a =
+ matrix columns 1 thru 3
+    0.167       0.91      0.265  
+    0.655      0.112        0.7  
+    0.335       1.82      0.531  
+     1.31      0.223        1.4  
+> a [ 2 ; 3 ]
+      0.7
+\end{verbatim}
+
+   To reference an entire row, or column:
+
+\begin{verbatim}
+> a [ 2 ; ]
+ matrix columns 1 thru 3
+    0.655      0.112        0.7  
+
+> a [ ; 3 ]
+ matrix columns 1 thru 1
+    0.265  
+      0.7  
+    0.531  
+      1.4  
+\end{verbatim}
+
+   To reference a sub-matrix:
+
+\begin{verbatim}
+> a [ 2,3,4 ; 1,2 ]
+ matrix columns 1 thru 2
+    0.655      0.112  
+    0.335       1.82  
+     1.31      0.223  
+\end{verbatim}
+
+   As stated previously, any expression that evaluates to a matrix can
+   have it's elements referenced. A very common example is getting the
+   row or column dimension of a matrix:
+
+\begin{verbatim}
+> size (a)[1]
+        4
+\end{verbatim}
+
+   In the previous example the function \verb+size+ returns a
+   two-element matrix, from which we extract the 1st element (the
+   value of the row dimension).
+
+   The same concept holds for \RLaB\ lists, which can contain matrices.
+   A fairly common situation occurs when we use \verb+eig+:
+
+\begin{verbatim}
+> a=rand(3,3)
+ a =
+ matrix columns 1 thru 3
+    0.915      0.924      0.362  
+    0.441     0.0882      0.148  
+   0.0735      0.908      0.879  
+> e = eig (a)
+   val          vec          
+> e.val
+ val =
+ matrix columns 1 thru 3
+               1.51 + 0i             -0.266 + 0i              0.641 + 0i
+
+> e.val[prod (size (e.val))]
+    0.641
+\end{verbatim}
+
+   In the previous example we used \verb+prod (size (e.val))+ to find
+   the total number of eigenvalues, and then extract the last
+   eigenvalue from the array of eigenvalues returned by \verb+eig+.
+
+\section{Assignment}
+
+   Matrices can be assigned to in whole or in part. We have shown
+   complete matrix assignment over, and over in the last few pages. In
+   the same way that matrix elements can be referenced singly, or in
+   groups, matrices can have single elements re-assigned, or groups of
+   elements re-assigned.
+
+\begin{verbatim}
+> a[2;2] = 200
+ a =
+ matrix columns 1 thru 3
+    0.915      0.924      0.362  
+    0.441        200      0.148  
+   0.0735      0.908      0.879  
+> a[2, 3; 2, 3] = [100, 200; 300, 400]
+ a =
+ matrix columns 1 thru 3
+    0.915      0.924      0.362  
+    0.441        100        200  
+   0.0735        300        400  
+\end{verbatim}
+
+   Of course, the row and column dimensions of the matrices on the
+   left, and right hand side of the equals sign must agree.
+
+\section{Functions}
+\label{sec:functions}
+
+   \RLaB\ functions are objects assigned to variables and are
+   treated, for the most part, like all other variables. For instance
+   user-functions, can be copied or re-assigned. One nice side-effect
+   of this implementation is that functions can be passed as arguments
+   to other functions just like variables. But I digress \ldots\ what
+   I really meant to discuss in this section is the four general
+   categories of functions available in \RLaB\ . Of course you are
+   free, even encouraged to write your own functions but, they will be
+   easier to use for others if they fit into one of the following
+   categories\footnote{Not very hard to do, since anything will fit
+   into category 4.}.
+
+   \begin{description}
+
+     \item[Scalar Functions:] These functions operate on scalars, and
+           treat matrices in an element-by-element fashion. Some
+           examples are:
+
+           \begin{tabbing}
+             function1 \= function2 \= function2 \= function4 \kill        
+             abs \> exp \> floor \> round \\
+             cos \> sin \> tan \> ceil \\
+             sqrt \> real \> imag \> conj \\
+             isnan \> int \> \> \\
+           \end{tabbing}
+
+     \item[Vector Functions:] These functions operate on vectors,
+           either row-vectors (1-by-$n$) or column vectors ($m$-by-1),
+           in the same fashion.  If the argument is a matrix with $m
+           \geq 1$ then the operation is performed in a column-wise
+           fashion. Some examples are:
+
+           \begin{tabbing}
+             function1 \= function2 \= function2 \= function4 \kill        
+             sum \> prod \> mean \> max \\
+             min \> fft \> sort \> any \\
+           \end{tabbing}
+
+           When using a vector oriented function, like \verb+max()+ it
+           is possible to obtain matrix quantities. For example the
+           maximum value in a matrix can be obtained via 
+           \verb+max (max (a))+. The first call to \verb+max()+
+           returns a vector of the maximum values from each column,
+           and the second call to \verb+max()+ returns the maximum
+           value in the matrix.
+
+     \item[Matrix Functions:] These functions operate on matrices as a
+           single entity. Some examples are:
+
+           \begin{tabbing}
+             function1 \= function2 \= function2 \= function4 \kill        
+             balance \> chol \> det \> eig \\
+             hess \> inv \> lu \> norm \\
+             pinv \> qr \> rank \> rcond \\
+             reshape \> solve \> svd \> symm \\
+           \end{tabbing}
+
+     \item[Misc. Functions:] These functions are in this particular
+           category simply because they don't fit anywhere else. Some
+           examples are:
+
+           \begin{tabbing}
+             function1 \= function2 \= function2 \= function4 \kill        
+             system \> getline \> show \> who \\
+             what \> tic \> toc \> printf \\
+             format \> write \> \> \\
+           \end{tabbing}
+
+   \end{description}
+           
+\section{Conclusion}
+
+   This concludes our simple matrix tutorial. We have just barely
+   covered some of the things users can do with matrices. The on-line
+   help provides detailed information on all the built-in functions,
+   as well as language specifics.
+
+\end{document}

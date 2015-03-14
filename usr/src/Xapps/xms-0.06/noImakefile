@@ -1,0 +1,59 @@
+# noImakefile
+# 
+# This is a simple makefile provided for the convenience of those 
+# unfortunate users who don't have Imake.  If at all possible, use 
+# Imakefile instead.
+
+# This makefile is for X11R4 and assumes you have the Andrew widgets (Xaw).
+#
+# Users of earlier X11 versions or X11R4 systems that lack the 
+# Xaw library should remove -lXaw -lXmu, and -lXext from XLIBS,
+# the "menu" and "label" modules from SRCS and OBJS, and
+# all the R4_DEFINES below.
+
+R4_DEFINES = -DR4 -DMENU -DLABEL
+
+# Name of program to make
+TARGET=xms
+
+CC=gcc
+LD=$(CC)
+
+CFLAGS= -O -DXMS
+LDFLAGS=
+
+XLIBS= -lXaw -lXmu -lXt -lXext -lX11
+
+SRCS= Ms.c main.c Mama.c menu.c label.c work.c mspawn.c
+OBJS= Ms.o main.o Mama.o menu.o label.o work.o mspawn.o
+
+$(TARGET): $(OBJS)
+	$(LD) $(LDFLAGS) $(OBJS) $(XLIBS) -lm -o $(TARGET)
+
+Mama.o: Mama.c Mama.h MamaP.h Ms.h ms_real.h ms_ipc.h backward.h
+	$(CC) $(CFLAGS) $(R4_DEFINES) Mama.c -c
+
+Ms.o: Ms.c Ms.h MsP.h Mama.h ms_job.h backward.h
+	$(CC) $(CFLAGS) $(R4_DEFINES) Ms.c -c
+
+
+main.o: main.c Mama.h Ms.h backward.h
+	$(CC) $(CFLAGS) $(R4_DEFINES) main.c -c
+
+menu.o: menu.c
+	$(CC) $(CFLAGS) $(R4_DEFINES) menu.c -c
+
+label.o: label.c
+	$(CC) $(CFLAGS) $(R4_DEFINES) label.c -c
+
+work.o: work.c work.h ms_ipc.h ms_real.h
+	$(CC) $(CFLAGS) work.c -c
+
+mspawn.o: mspawn.c mspawn.h ms_ipc.h
+	$(CC) $(CFLAGS) mspawn.c -c
+
+clean: 
+	rm -f $(OBJS) core *~
+
+spotless: clean
+	rm -f $(TARGET) Makefile.bak

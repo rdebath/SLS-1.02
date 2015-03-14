@@ -1,0 +1,19 @@
+
+(SYMBOL-NAME (QUOTE XYZ))
+"XYZ"
+
+(PROGN (GENSYM 77) T) T
+
+(PRIN1-TO-STRING (GENSYM "FOO-"))
+"#:FOO-78"
+
+(PRIN1-TO-STRING (GENSYM 32))
+"#:FOO-32"
+
+(PRIN1-TO-STRING (GENSYM))
+"#:FOO-33"
+
+(PRIN1-TO-STRING (GENSYM "garbage-"))
+#+XCL "#:|garbage|-34"
+#+CLISP "#:|garbage-34|"
+

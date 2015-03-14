@@ -1,0 +1,2890 @@
+/*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: Specification of code generation
+ *		 Generated code generator generates C-Code for an
+ *		 attributed structure tree
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/08/14 07:34:10 $
+ *	$Revision: 1.12 $
+ *
+ ***/
+
+TRAFO Code PUBLIC CodeCompUnits
+
+EXPORT	{
+CONST
+  cNoOp			=  0;		(* C operators			*)
+  cNotEqual		=  1;
+  cTimes		=  2;
+  cPlus			=  3;
+  cMinus		=  4;
+  cDivide		=  5;
+  cLess			=  6;
+  cLessEqual		=  7;
+  cEqual		=  8;
+  cGreater		=  9;
+  cGreaterEqual		= 10;
+  cAnd			= 11;
+  cIn			= 13;
+  cMod			= 14;
+  cNot			= 15;
+  cOr			= 16;
+  cUnion		= 17;
+  cDifference		= 18;
+  cIntersection		= 19;
+  cSymDiff		= 20;
+  cIsSubset1		= 21;
+  cIsSubset2		= 22;
+
+  cAssign		= 23;
+  cPassValue		= 24;
+  cPassAddress		= 25;
+}
+
+GLOBAL	{
+FROM Base	IMPORT
+  OptionIsSet	, OpenHeader	, OpenProgram;
+
+FROM IO		IMPORT
+  tFile		, WriteS	, WriteC	, WriteI	,
+  WriteN	, WriteR	, WriteCard	, WriteNl	,
+  WriteClose	;
+
+FROM Layout	IMPORT
+  WriteSpaces	;
+
+FROM Strings	IMPORT
+  tString	, tStringIndex	;
+
+FROM StringMem	IMPORT
+  tStringRef	, GetString	, Length	, WriteString	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	, WriteIdent	;
+
+FROM Tree	IMPORT
+  tTree		, NoTree	,
+  Definition	, Foreign	, Program	, Implementation,
+  Decimal	, Octal		, Hexadecimal	;
+
+FROM Defs	IMPORT
+  tObject	, tObjects	, tType		, tSelectors	,
+  tCObjects	, tStrings	,
+  NoObject	, NoObjects	, NoSelectors	, NoCObjects	,
+  NoStrings	,
+  ProcABS	, ProcCAP	, ProcCHR	, ProcDEC	,
+  ProcEXCL	, ProcFLOAT	, ProcHALT	, ProcHIGH	,
+  ProcINC	, ProcINCL	, ProcMAX	, ProcMIN	,
+  ProcODD	, ProcORD	, ProcSIZE	, ProcTRUNC	,
+  ProcVAL	, ProcADR	, ProcTSIZE	, ProcTRANSFER	,
+  ProcNEWPROCESS, ProcIOTRANSFER, ProcNEW	, ProcDISPOSE	,
+  IdentSYSTEM	,
+  TypeLONGCARD	, TypeBOOLEAN	, TypeWORD	, TypeADDRESS	,
+  TypeIntCard	, TypeSTRING	, TypeStringChar, TypeVOID	,
+  TypeCHAR	, Field1	, TypeDecl1	,
+  ShortInt	, LongInt	, ShortCard	, LongCard	,
+  Real		, LongReal	, Bool		, Char		,
+  Bitset	, Proc		, Word		, Address	,
+  IntCard	, Nil		, StringChar	, String	,
+  StdProcType1	, OpaqueType1	, Array1	, Enumeration1	,
+  Pointer1	, ProcType1	, Record1	, Set1		,
+  Subrange1	,
+  GetSelectors	, GetType	,
+  GetIndexType	, GetElemType	, GetTargetType	, GetResultType	,
+  GetFields	, GetLiteral	,
+  IsExported	, IsOpenArray	, IsVAR		, IsProcedure	,
+  IsOfType	, IsForward	, IsIntType	, IsOpen	;
+
+FROM Values	IMPORT
+  tValue	, ValueToInt	, MinCharVal	, MaxCharVal	,
+  ZeroValue	, MaxShortCardVal;
+
+FROM Types	IMPORT
+  TypeSize	, GetLwb	, GetUpb	, SizeUnsignedChar,
+  MaxLongInt	, Cast		;
+
+FROM AssocTab	IMPORT
+  BeginAssocTab	, PutAssoc	, GetAssoc	, CloseAssocTab	;
+
+FROM GenIdents	IMPORT
+  GenLabel	, GenWith	, GenBound	, GenReturn	,
+  GenOpaque	;
+
+FROM Errors	IMPORT
+  CompilerError	, ErrorMessageP	, Restriction	, Warning	,
+  NoTRANSFER	, NoIOTRANSFER	, NoNEWPROCESS	, StructTypeReq	,
+  OutOfLongRange;
+
+IMPORT Strings, Idents, GenIdents, DynArray, Defs, Values;
+
+CONST
+  pMaxPrec		=  1;	(* C operator precedences	*)
+  pCall			=  1;
+  pSubscript		=  1;
+  pSelect		=  1;
+  pCast			=  2;
+  pDeref		=  3;
+  pAdr			=  3;
+  pNot			=  3;
+  pTimes		=  4;
+  pDivide		=  4;
+  pMod			=  4;
+  pPlus			=  5;
+  pMinus		=  5;
+  pComparison		=  7;
+  pLess			=  7;
+  pLessEqual		=  7;
+  pGreater		=  7;
+  pGreaterEqual		=  7;
+  pEqual		=  8;
+  pNotEqual		=  8;
+  pIntersection		=  9;
+  pSymDiff		= 10;
+  pUnion		= 11;
+  pAnd			= 12;
+  pOr			= 13;
+  pIn			= 14;
+  pDifference		= 14;
+  pIsSubset1		= 14;
+  pIsSubset2		= 14;
+  pAssign		= 14;
+  pPassValue		= 14;
+  pPassAddress		= 14;
+  pMinPrec		= 14;
+
+CONST
+  Auto			= 1;	(* C storage classes		*)
+  Static		= 2;
+
+CONST
+  Full			= TRUE;
+  NonFull		= NOT Full;
+  Before		= TRUE;
+  After			= NOT Before;
+  Strncpy		= TRUE;
+
+VAR
+  f		: tFile;	(* C header/source file(s)	*)
+  Indent	: CARDINAL;	(* level of indentation		*)
+
+		  (* table with precedence of C operators	*)
+  Precedence	: ARRAY [cNoOp .. cPassAddress] OF SHORTCARD;
+
+
+(*------- MODULE LabelStack --------------------------------------------------*)
+
+MODULE LabelStack;
+
+(* Stack for the administration of the labels generated for the	*)
+(* translation of LOOP and EXIT statements.			*)
+
+FROM DynArray	IMPORT
+  MakeArray	, ExtendArray	, ReleaseArray	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+EXPORT QUALIFIED Push, Pop, Top, Begin, Close;
+
+CONST
+  Infinite	= 1048576;
+  InitialSize	= 16;
+
+VAR
+  StackPtr	,
+  StackSize	: LONGINT;
+  LabelStack	: POINTER TO ARRAY [0 .. Infinite] OF tIdent;
+
+PROCEDURE Push	(Ident: tIdent);
+BEGIN
+  IF StackPtr = StackSize THEN
+    ExtendArray (LabelStack, StackSize, SIZE (tIdent));
+  END;
+  LabelStack^ [StackPtr] := Ident;
+  INC (StackPtr);
+END Push;
+
+PROCEDURE Pop	();
+BEGIN
+  DEC (StackPtr);
+END Pop;
+
+PROCEDURE Top	(): tIdent;
+BEGIN
+  IF StackPtr > 0 THEN
+    RETURN LabelStack^ [StackPtr - 1];
+  ELSE
+    RETURN NoIdent;	(* error: EXIT not in LOOP context	*)
+  END;
+END Top;
+
+PROCEDURE Begin;
+BEGIN
+  StackSize	:= InitialSize;
+  StackPtr	:= 0;
+  MakeArray (LabelStack, StackSize, SIZE (tIdent));
+END Begin;
+
+PROCEDURE Close;
+BEGIN
+  ReleaseArray (LabelStack, StackSize, SIZE (tIdent));
+END Close;
+
+END LabelStack;
+
+(*------- END LabelStack -----------------------------------------------------*)
+
+(*------- MODULE WithStack ---------------------------------------------------*)
+
+MODULE WithStack;
+
+(* Stack for the administration of the pointer variables	*)
+(* generated for the translation of WITH statements.		*)
+
+FROM DynArray	IMPORT
+  MakeArray	, ExtendArray	, ReleaseArray	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+FROM Defs	IMPORT
+  tObjects	, NoObject	, Identify2	;
+
+EXPORT QUALIFIED Push, Pop, GetWith, Begin, Close;
+
+CONST
+  Infinite	= 1048576;
+  InitialSize	= 16;
+
+TYPE
+  tStackElem	= RECORD
+		    WithId	: tIdent;
+		    Fields	: tObjects;
+		  END;
+
+VAR
+  StackPtr	,
+  StackSize	: LONGINT;
+  WithStack	: POINTER TO ARRAY [0 .. Infinite] OF tStackElem;
+
+PROCEDURE Push	(pWithId: tIdent; pFields: tObjects);
+BEGIN
+  IF StackPtr = StackSize THEN
+    ExtendArray (WithStack, StackSize, SIZE (tStackElem));
+  END;
+  WITH WithStack^ [StackPtr] DO
+    WithId := pWithId;
+    Fields := pFields;
+  END;
+  INC (StackPtr);
+END Push;
+
+PROCEDURE Pop	();
+BEGIN
+  DEC (StackPtr);
+END Pop;
+
+PROCEDURE GetWith	(FieldId: tIdent): tIdent;
+VAR
+  StackIndex	: LONGINT;
+BEGIN
+  StackIndex := StackPtr - 1;
+  LOOP
+    WITH WithStack^ [StackIndex] DO
+      IF Identify2 (FieldId, Fields) # NoObject THEN RETURN WithId; END;
+    END;
+    DEC (StackIndex);
+  END;
+END GetWith;
+
+PROCEDURE Begin;
+BEGIN
+  StackSize	:= InitialSize;
+  StackPtr	:= 0;
+  MakeArray (WithStack, StackSize, SIZE (tStackElem));
+END Begin;
+
+PROCEDURE Close;
+BEGIN
+  ReleaseArray (WithStack, StackSize, SIZE (tStackElem));
+END Close;
+
+END WithStack;
+
+(*------- END WithStack ------------------------------------------------------*)
+
+(*------- MODULE ParamTable --------------------------------------------------*)
+
+MODULE ParamTable;
+
+(* Module for the administration of the additional parameters used to	*)
+(* translate open array parameters.					*)
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+FROM GenIdents	IMPORT
+  GenParam	;
+
+FROM Defs	IMPORT
+  tObject	,
+  tCObjects	, NoCObjects	,
+  IsVAR		,
+  LookUp	;
+
+EXPORT GenParams, GetParam, ValueOpens, VAROpens;
+
+VAR
+  VAROpens	,
+  ValueOpens	: tCObjects;
+
+PROCEDURE GenParams	(OpenParams: tCObjects);
+BEGIN
+  WHILE OpenParams # NoCObjects DO
+    OpenParams^.CObjects.CObject := GenParam ();
+    OpenParams := OpenParams^.CObjects.Next;
+  END;
+END GenParams;
+
+PROCEDURE GetParam	(M2Object: tObject): tIdent;
+BEGIN
+  IF IsVAR (M2Object) THEN
+    RETURN LookUp (M2Object, VAROpens);
+  ELSE
+    RETURN LookUp (M2Object, ValueOpens);
+  END;
+END GetParam;
+
+BEGIN
+  ValueOpens	:= NoCObjects;
+  VAROpens	:= NoCObjects;
+END ParamTable;
+
+(*------- END ParamTable -----------------------------------------------------*)
+
+(*------- MODULE PointerTable ------------------------------------------------*)
+
+MODULE PointerTable;
+
+(* Module for the administration of the global and local pointer	*)
+(* variables, used to translate the access to local variables of	*)
+(* statically enclosing procedures					*) 
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+FROM GenIdents	IMPORT
+  GenGlobalPtr	, GenLocalPtr	;
+
+FROM Defs	IMPORT
+  tObject	,
+  tCObjects	, NoCObjects	,
+  LookUp	;
+
+EXPORT 
+  GenGlobalPtrs	, GenLocalPtrs	, GetGlobalPtr	, GetLocalPtr	,
+  GlobalPtrs	, LocalPtrs	;
+
+VAR
+  GlobalPtrs	,
+  LocalPtrs	: tCObjects;
+
+PROCEDURE GenGlobalPtrs	(GlobalPtrs: tCObjects);
+BEGIN
+  WHILE GlobalPtrs # NoCObjects DO
+    WITH GlobalPtrs^.CObjects DO
+      CObject := GenGlobalPtr (M2Object^.Var1.Ident);
+    END;
+    GlobalPtrs := GlobalPtrs^.CObjects.Next;
+  END;
+END GenGlobalPtrs;
+
+PROCEDURE GenLocalPtrs	(LocalPtrs: tCObjects);
+BEGIN
+  WHILE LocalPtrs # NoCObjects DO
+    LocalPtrs^.CObjects.CObject := GenLocalPtr ();
+    LocalPtrs := LocalPtrs^.CObjects.Next;
+  END;
+END GenLocalPtrs;
+
+PROCEDURE GetGlobalPtr	(M2Object: tObject): tIdent;
+BEGIN
+  RETURN LookUp (M2Object, GlobalPtrs);
+END GetGlobalPtr;
+
+PROCEDURE GetLocalPtr	(M2Object: tObject): tIdent;
+BEGIN
+  RETURN LookUp (M2Object, LocalPtrs);
+END GetLocalPtr;
+
+BEGIN
+  GlobalPtrs	:= NoCObjects;
+  LocalPtrs	:= NoCObjects;
+END PointerTable;
+
+(*------- END PointerTable ---------------------------------------------------*)
+
+PROCEDURE OverOrUnderflow (CtrlType: tType; ToValue, ByValue: tValue): BOOLEAN;
+(* Check if the translation of the Modula-2 FOR-statement		*)
+(*	FOR v := a TO b BY c DO ... END;	(b = const)		*)
+(* into the C for-statement						*)
+(*	for (v = a; v <= b; v += c) { ... }	(v >= b if c < 0)	*)
+(* would result in a over resp. underflow of the control variable v.	*)
+(* 'CtrlType' is the type of v, 'ToValue' is the value of b, and	*)
+(* 'ByValue' is the value of c.						*)
+VAR
+  MinCValue	,
+  MaxCValue	: tValue;
+BEGIN
+  IF ToValue.Kind = Values.NoValue THEN
+    (* error: illegal limit value				*)
+    (* or							*)
+    (* restriction: overflow test not possible, because module	*)
+    (*		    Values could not evaluate b, because b	*)
+    (*		    contains a constant in the range		*)
+    (*		    MAX (INTEGER) + 1 .. MAX (CARDINAL).	*)
+    (*		    Assume there would be an overflow!		*)
+    RETURN TRUE;
+  ELSE
+    IF CtrlType^.Kind = Subrange1 THEN
+      CtrlType := CtrlType^.Subrange1.Type;
+    END;
+
+    CASE CtrlType^.Kind OF
+    | ShortCard		,
+      ShortInt		,
+      LongCard		,
+      LongInt		,
+      Char		:
+	GetLwb (CtrlType, MinCValue);
+	GetUpb (CtrlType, MaxCValue);
+
+    | Bool		,
+      Enumeration1	:
+	IF TypeSize (CtrlType) = SizeUnsignedChar THEN
+	  MinCValue := MinCharVal;
+	  MaxCValue := MaxCharVal;
+	ELSE
+	  MinCValue := ZeroValue;
+	  MaxCValue := MaxShortCardVal;
+	END;
+
+    ELSE
+      (* error: illegal type of control variable	*)
+      RETURN TRUE;
+    END;
+
+    IF ValueToInt (ByValue) >= 0 THEN
+      IF CtrlType = TypeLONGCARD THEN
+	RETURN FALSE;
+	(* restriction: MAX (CARDINAL) is not representable as INTEGER	*)
+	(*		or as tValue. But b (see above) does not	*)
+	(*		contain a constant in the range			*)
+	(*		MAX (INTEGER) + 1..MAX (CARDINAL).		*)
+	(*		Hence assume there would be no overflow!	*)
+      END;
+      RETURN ValueToInt (ToValue) > ValueToInt (MaxCValue) - ValueToInt (ByValue);
+    ELSE
+      RETURN ValueToInt (ToValue) < ValueToInt (MinCValue) - ValueToInt (ByValue);
+    END;
+  END;
+END OverOrUnderflow;
+
+(*======= code generation procedures =========================================*)
+
+(*
+ *	generate code for a string constant
+ *)
+
+PROCEDURE CodeString1	(s: tStringRef);
+(* The characters '"' and '\' are escaped with a backslash '\'.	*)
+(* note: within @ ... @ opp will transform \\\\ to \\		*)
+VAR i		: tStringIndex;
+    Ch		: CHAR;
+    String	: tString;
+BEGIN
+  GetString (s, String);
+  @"@
+  FOR i := 1 TO Length (s) DO
+    Ch := Strings.Char (String, i);
+    IF (Ch = '"') OR (Ch = '\') THEN @\\@ END; %cCh%
+  END;
+  @"@
+END CodeString1;
+
+(*
+ *	generate a string constant for a character constant
+ *)
+
+PROCEDURE CodeString3	(Ch: CHAR);
+(* The characters '"' and '\' are escaped with a backslash '\'.	*)
+(* note: within @ ... @ opp will transform \\\\ to \\		*)
+BEGIN
+  @"@
+  IF (Ch < ' ') OR (Ch > '~') THEN @\\@%oORD (Ch)%
+  ELSIF (Ch = '"') OR (Ch = '\') THEN @\\@ %cCh%
+  ELSE %cCh%
+  END;
+  @"@
+END CodeString3;
+
+(*
+ *	generate code for a character constant
+ *)
+
+PROCEDURE CodeChar	(Ch: CHAR);
+(* The characters "'" and '\' are escaped with a backslash '\'.	*)
+(* Non-printable characters are written either as their C	*)
+(* escape sequence (\\0, \\n, \\t, \\b, \\r, \\f) or are represented	*)
+(* by their internal code written as an octal number.		*)
+(* note: within @ ... @ opp will transform \\\\ to \\		*)
+BEGIN
+  CASE Ch OF
+  | "'"		: @'\\''@
+  | '\'		: @'\\\\'@
+  | ' ' .. '&'	,
+    '(' .. '['	,
+    ']' .. '~'	: @'@%cCh%@'@
+  | 0C		: @'\\0'@
+  | 10C		: @'\\b'@
+  | 11C		: @'\\t'@
+  | 12C		: @'\\n'@
+  | 14C		: @'\\f'@
+  | 15C		: @'\\r'@
+  ELSE
+    @((CHAR)'\\@%oORD (Ch)%@')@
+  END;
+END CodeChar;
+
+(*
+ *	generate code for a value
+ *)
+
+PROCEDURE CodeValue	(Value: tValue);
+VAR
+  Object: tObject;
+BEGIN
+  CASE Value.Kind OF
+  | Values.Integer	: %dValue.IntValue%
+  | Values.Real		: %rValue.RealValue%
+  | Values.Boolean	: IF Value.BoolValue THEN @TRUE@ ELSE @FALSE@ END;
+  | Values.StringChar	,
+    Values.Char		: CodeChar (Value.CharValue);
+  | Values.String	: CodeString1 (Value.StringValue);
+  | Values.Bitset	: @0X@%hLONGCARD (Value.BitsetValue)%@L@
+  | Values.Enumeration	: Object := Value.EnumValue;
+			  %iObject^.EnumLiteral1.CIdent%
+  | Values.NilType	: @NIL@
+  ELSE
+    (* error: illegal value *)
+  END;
+END CodeValue;
+
+(*
+ *	generate code for a type name
+ *)
+
+PROCEDURE CodeTypeName	(Type: tType);
+VAR
+  Object: tObject;
+BEGIN
+  CASE Type^.Kind OF
+  | Array1	,
+    Enumeration1,
+    Pointer1	,
+    ProcType1	,
+    Record1	,
+    Set1	,
+    Subrange1	,
+    OpaqueType1	:
+      Object := Type^.Constructor.TypeObj;
+      IF Object # NoObject THEN
+	%iObject^.Object.CIdent%
+	RETURN;
+      END;
+
+  ELSE
+  END;
+
+  IF Type^.Kind = Subrange1 THEN
+    Type := Type^.Subrange1.Type;
+  END;
+
+  CASE Type^.Kind OF
+  | ShortInt	: @SHORTINT@
+  | LongInt	: @LONGINT@
+  | ShortCard	: @SHORTCARD@
+  | LongCard	: @LONGCARD@
+  | Real	: @REAL@
+  | LongReal	: @LONGREAL@
+  | Bool	: @BOOLEAN@
+  | Char	: @CHAR@
+  | Bitset	: @BITSET@
+  | Proc	: @PROC@
+  | Word	: @WORD@
+  | Address	: @ADDRESS@
+  | OpaqueType1	: @OPAQUE@
+  | Array1	: @struct @%iType^.Array1.StructId%
+  | Enumeration1: IF TypeSize (Type) = SizeUnsignedChar THEN
+		    @unsigned char@
+		  ELSE
+		    @unsigned short@
+		  END;
+  | Pointer1	: CodeTypeName (Type^.Pointer1.Type);
+  | ProcType1	: CodeTypeName (Type^.ProcType1.Type);
+  | Record1	: @struct @%iType^.Record1.StructId%
+  | Set1	: @unsigned long@
+  ELSE
+    (* error: illegal type name *)
+  END;
+END CodeTypeName;
+
+(*
+ *	generate code for the part of a declarator before the identifier
+ *)
+
+PROCEDURE CodeDeclarator1	(Type: tType);
+BEGIN
+  IF (Type^.Kind = Pointer1) AND (Type^.Pointer1.TypeObj = NoObject) THEN
+    CodeDeclarator1 (Type^.Pointer1.Type); @ *@
+  ELSIF (Type^.Kind = ProcType1) AND (Type^.ProcType1.TypeObj = NoObject) THEN
+    @ (*@
+  END;
+END CodeDeclarator1;
+
+(*
+ *	generate code for the part of a declarator after the identifier
+ *)
+
+PROCEDURE CodeDeclarator2	(Type: tType);
+BEGIN
+  IF (Type^.Kind = Pointer1) AND (Type^.Pointer1.TypeObj = NoObject) THEN
+    CodeDeclarator2 (Type^.Pointer1.Type);
+  ELSIF (Type^.Kind = ProcType1) AND (Type^.ProcType1.TypeObj = NoObject) THEN
+    @)()@
+  END;
+END CodeDeclarator2;
+
+(*
+ *	generate declarations for the global/local pointer variables,
+ *	which are used to translate the access to local	variables of
+ *	statically enclosing procedures
+ *)
+
+PROCEDURE CodePointers	(StorageClass: SHORTCARD; Pointers: tCObjects);
+VAR
+  Type	: tTree;
+BEGIN
+  WHILE Pointers # NoCObjects DO
+    WITH Pointers^.CObjects DO
+      Type := M2Object^.Var1.TypeTree;
+
+      IF NOT IsOpenArray (M2Object) THEN
+
+?	IF StorageClass = Static THEN @static @ END;
+	CodeType (Type, NonFull);
+	  CodeDecla (Type, Before); @ *@%iCObject% CodeDecla (Type, After); @;$
+
+      ELSE
+
+?	IF StorageClass = Static THEN @static @ END;
+	CodeType (Type^.Array.ElemType, NonFull); @ *@%iCObject%@;$
+
+?	IF StorageClass = Static THEN @static @ END;
+	@LONGCARD @%iCObject%@_O;$
+
+      END;
+
+    END;
+    Pointers := Pointers^.CObjects.Next;
+  END;
+END CodePointers;
+
+(*
+ *	generate code to save and reinitialize the global pointer variables,
+ *	which are used to translate the access to local	variables of procedure p
+ *	(called upon each entry of p)
+ *)
+
+PROCEDURE CodePush	(LocalPtrs: tCObjects);
+VAR GlobalPtr	: tIdent;
+BEGIN
+  WHILE LocalPtrs # NoCObjects DO
+    WITH LocalPtrs^.CObjects DO
+      GlobalPtr := GetGlobalPtr (M2Object);
+
+?     %iCObject%@ = @%iGlobalPtr%@;$
+
+      IF IsOpenArray (M2Object) THEN
+
+?	%iGlobalPtr%@ = @%iM2Object^.Var1.CIdent%@;$
+
+?	%iCObject%@_O = @%iGlobalPtr%@_O;$
+?	%iGlobalPtr%@_O = @%iGetParam (M2Object)%@;$
+
+      ELSIF IsVAR (M2Object) THEN
+
+?	%iGlobalPtr%@ = @%iM2Object^.Var1.CIdent%@;$
+
+      ELSE
+
+?	%iGlobalPtr%@ = &@%iM2Object^.Var1.CIdent%@;$
+
+      END;
+    END;
+    LocalPtrs := LocalPtrs^.CObjects.Next;
+  END;
+END CodePush;
+
+(*
+ *	generate code to restore the global pointer variables, which are
+ *	used to translate the access to local variables of procedure p
+ *	(called upon each exit from p)
+ *)
+
+PROCEDURE CodePop	(LocalPtrs: tCObjects);
+VAR GlobalPtr	: tIdent;
+BEGIN
+  WHILE LocalPtrs # NoCObjects DO
+    WITH LocalPtrs^.CObjects DO
+      GlobalPtr := GetGlobalPtr (M2Object);
+
+?     %iGlobalPtr%@ = @%iCObject%@;$
+
+      IF IsOpenArray (M2Object) THEN
+?	%iGlobalPtr%@_O = @%iCObject%@_O;$
+      END;
+    END;
+    LocalPtrs := LocalPtrs^.CObjects.Next;
+  END;
+END CodePop;
+
+(*
+ *	generate code for a label range
+ *)
+
+PROCEDURE CodeLabelRange (Label1, Label2: tValue);
+VAR
+  IntLabel	: INTEGER;
+  BoolLabel	: BOOLEAN;
+  CharLabel	: CHAR;
+  EnumLiterals	: tObjects;
+  EnumIndex1	,
+  EnumIndex2	: SHORTCARD;
+  Type		: tType;
+BEGIN
+  CASE Label1.Kind OF
+  | Values.Integer	:
+      FOR IntLabel := Label1.IntValue TO Label2.IntValue DO
+?	@case @ %dIntLabel% @:;$
+      END;
+
+  | Values.Boolean	:
+      FOR BoolLabel := Label1.BoolValue TO Label2.BoolValue DO
+	IF BoolLabel THEN
+?	  @case TRUE:$
+	ELSE
+?	  @case FALSE:$
+	END;
+      END;
+
+  | Values.Char		,
+    Values.StringChar	:
+      FOR CharLabel := Label1.CharValue TO Label2.CharValue DO
+?	@case @ CodeChar (CharLabel); @:;$
+      END;
+
+  | Values.Enumeration	:
+      Type		:= GetType (Label1.EnumValue);
+      EnumLiterals	:= Type^.Enumeration1.Objects;
+      EnumIndex1	:= ValueToInt (Label1);
+      EnumIndex2	:= ValueToInt (Label2);
+
+      WHILE EnumLiterals # NoObjects DO
+	WITH EnumLiterals^.Elmt.Object^.EnumLiteral1 DO
+	  IF (Index >= EnumIndex1) AND
+	     (Index <= EnumIndex2) THEN
+?	    @case @ %iCIdent% @:;$
+	  END;
+	END;
+
+	EnumLiterals := EnumLiterals^.Elmt.Next;
+      END;
+
+  ELSE
+  END;
+END CodeLabelRange;
+
+(*
+ *	generate code to allocate memory for open array value parameters
+ *)
+
+PROCEDURE CodeAlloc	(ValueOpens: tCObjects);
+VAR
+  ArrayCnt	: CARDINAL;
+BEGIN
+  IF ValueOpens # NoCObjects THEN
+    ArrayCnt := 0;
+
+?   @ALLOC_OPEN_ARRAYS(@
+
+    LOOP
+      INC (ArrayCnt);
+
+      WITH ValueOpens^.CObjects DO
+        %iCObject%@ * @
+	  @sizeof(@ CodeTypeName (GetElemType (GetType (M2Object))); @)@
+      END;
+
+      ValueOpens := ValueOpens^.CObjects.Next;
+      IF ValueOpens = NoObjects THEN
+	EXIT;
+      END;
+
+      @ + @
+
+    END;
+
+    @, @%dArrayCnt%@)$
+
+  END;
+END CodeAlloc;
+
+(*
+ *	generate code to copy an open array value parameter
+ *)
+
+PROCEDURE CodeCopy	(ValueOpens: tCObjects);
+BEGIN
+  WHILE ValueOpens # NoCObjects DO
+    WITH ValueOpens^.CObjects DO
+?     @COPY_OPEN_ARRAY(@
+	%iM2Object^.Var1.CIdent%@, @
+	%iCObject%@, @
+	CodeTypeName (GetElemType (GetType (M2Object)));
+      @)$
+    END;
+    ValueOpens := ValueOpens^.CObjects.Next;
+  END;
+END CodeCopy;
+
+(*
+ *	generate code to release memory for an open array value parameter
+ *)
+
+PROCEDURE CodeFree	(ValueOpens: tCObjects);
+BEGIN
+  IF ValueOpens # NoCObjects THEN
+?   @FREE_OPEN_ARRAYS$
+  END;
+END CodeFree;
+
+(*
+ *	generate declarations for the local array variables, which
+ *	are used to translate the parameter passing of strings,
+ *	if the corresponding formal parameters are no open arrays
+ *)
+
+PROCEDURE CodeStrings	(Strings: tStrings);
+BEGIN
+  WHILE Strings # NoStrings DO
+    WITH Strings^.StringPar DO
+?     CodeTypeName (FormalType); @ @ %iCString% @;$
+    END;
+    Strings := Strings^.StringPar.Next;
+  END;
+END CodeStrings;
+
+(*
+ *	generate code to initialize the local array variables, which
+ *	are used to translate the parameter passing of strings,
+ *	if the corresponding formal parameters are no open arrays
+ *)
+
+PROCEDURE CodeStrncpy	(Strings: tStrings);
+BEGIN
+  WHILE Strings # NoStrings DO
+    WITH Strings^.StringPar DO
+?     @(void)strncpy(@
+		      IF OptionIsSet ('c') THEN @(char *)@ END;
+		      %iCString% @.A, @
+		      CodeString2 (M2String, Strncpy); @, @
+                      @sizeof(@ %iCString% @.A)@
+      @);$
+    END;
+    Strings := Strings^.StringPar.Next;
+  END;
+END CodeStrncpy;
+
+(*
+ *	generate code for additional record field selectors
+ *)
+
+PROCEDURE CodeSelectors	(Selectors: tSelectors);
+BEGIN
+  IF Selectors # NoSelectors THEN
+    CodeSelectors (Selectors^.Selectors.Next);
+    %iSelectors^.Selectors.Selector%@.@
+  END;
+END CodeSelectors;
+
+(*
+ *	generate code for type casts
+ *)
+
+PROCEDURE CodeCast	(Type: tType);
+BEGIN
+  @(@ CodeTypeName (Type); CodeDeclarator1 (Type); CodeDeclarator2 (Type); @)@
+END CodeCast;
+
+PROCEDURE CodeCastVAR	(Type: tType);
+BEGIN
+  @(@ CodeTypeName (Type); CodeDeclarator1 (Type); @ *@ CodeDeclarator2 (Type); @)@
+END CodeCastVAR;
+
+(*
+ *	generate code for standard procedure MIN
+ *)
+
+PROCEDURE CodeMIN	(Type: tType);
+VAR Object: tObject;
+BEGIN
+  CASE Type^.Kind OF
+  | ShortInt	: @MIN_SHORTINT@
+  | LongInt	: @MIN_LONGINT@
+  | ShortCard	: @MIN_SHORTCARD@
+  | LongCard	: @MIN_LONGCARD@
+  | Real	: @MIN_REAL@
+  | LongReal	: @MIN_LONGREAL@
+  | Bool	: @MIN_BOOLEAN@
+  | Char	: @MIN_CHAR@
+  | Enumeration1: WITH Type^.Enumeration1 DO
+		    Object := GetLiteral (Objects, 0);
+		  END;
+		  %iObject^.EnumLiteral1.CIdent%
+  | Subrange1	: CodeValue (Type^.Subrange1.Lwb);
+		  IF IsIntType (Type) AND Cast (cPassValue, Type, TypeIntCard) THEN @L@ END;
+  ELSE
+  END;
+END CodeMIN;
+
+(*
+ *	generate code for standard procedure MAX
+ *)
+
+PROCEDURE CodeMAX	(Type: tType);
+VAR Object: tObject;
+BEGIN
+  CASE Type^.Kind OF
+  | ShortInt	: @MAX_SHORTINT@
+  | LongInt	: @MAX_LONGINT@
+  | ShortCard	: @MAX_SHORTCARD@
+  | LongCard	: @MAX_LONGCARD@
+  | Real	: @MAX_REAL@
+  | LongReal	: @MAX_LONGREAL@
+  | Bool	: @MAX_BOOLEAN@
+  | Char	: @MAX_CHAR@
+  | Enumeration1: WITH Type^.Enumeration1 DO
+		    Object := GetLiteral (Objects, MaxValue);
+		  END;
+		  %iObject^.EnumLiteral1.CIdent%
+  | Subrange1	: CodeValue (Type^.Subrange1.Upb);
+		  IF IsIntType (Type) AND Cast (cPassValue, Type, TypeIntCard) THEN @L@ END;
+  ELSE
+  END;
+END CodeMAX;
+}
+
+BEGIN	{
+  Indent := 0;
+
+  Precedence [cNoOp		] := pMinPrec;
+  Precedence [cNotEqual		] := pNotEqual;
+  Precedence [cTimes		] := pTimes;
+  Precedence [cPlus		] := pPlus;
+  Precedence [cMinus		] := pMinus;
+  Precedence [cDivide		] := pDivide;
+  Precedence [cLess		] := pLess;
+  Precedence [cLessEqual	] := pLessEqual;
+  Precedence [cEqual		] := pEqual;
+  Precedence [cGreater		] := pGreater;
+  Precedence [cGreaterEqual	] := pGreaterEqual;
+  Precedence [cAnd		] := pAnd;
+  Precedence [cIn		] := pIn;
+  Precedence [cMod		] := pMod;
+  Precedence [cNot		] := pNot;
+  Precedence [cOr		] := pOr;
+  Precedence [cUnion		] := pUnion;
+  Precedence [cDifference	] := pDifference;
+  Precedence [cIntersection	] := pIntersection;
+  Precedence [cSymDiff		] := pSymDiff;
+  Precedence [cIsSubset1	] := pIsSubset1;
+  Precedence [cIsSubset2	] := pIsSubset2;
+  Precedence [cAssign		] := pAssign;
+  Precedence [cPassValue	] := pPassValue;
+  Precedence [cPassAddress	] := pPassAddress;
+
+  BeginAssocTab;
+  LabelStack.Begin;
+  WithStack.Begin;
+}
+
+CLOSE	{
+  CloseAssocTab;
+  LabelStack.Close;
+  WithStack.Close;
+}
+
+/*
+ *	generate code for compilation units
+ */
+
+PROCEDURE CodeCompUnits ([ROOT, CompUnits])
+
+ROOT		(CompUnits) :-
+		CodeCompUnits (CompUnits);
+		.
+DefMod		(_, Ident, _, CompUnits0 (), Import, Decls) :-
+{
+		f := OpenHeader (Ident);
+
+		@#define DEFINITION_@%iIdent$
+		@$
+
+		CodeImports (Import);
+		CodeDefs1 (Decls);
+
+		@extern void BEGIN_@%iIdent%@();$
+
+		WriteClose (f);
+};
+		.
+DefMod:DefMod	(_, Ident, _, Next:CompUnit, Import, Decls) :-
+{
+		(* Associate the name of the definition module with	*)
+		(* a pointer to its attributed structure tree (used to	*)
+		(* access the import statements and the declarations	*)
+		(* within the corresponding implementation module).	*)
+		PutAssoc (Ident, DefMod);
+
+		IF OptionIsSet ('i') THEN
+		  f := OpenHeader (Ident);
+
+		  @#define DEFINITION_@%iIdent$
+		  @$
+
+		  CodeImports (Import);
+		  CodeDefs1 (Decls);
+
+		  @extern void BEGIN_@%iIdent%@();$
+
+		  WriteClose (f);
+		END;
+
+		CodeCompUnits (Next);
+};
+		.
+ProgMod:ProgMod	(Kind, Ident, Pos, CompUnits0 (), Import1:Import, Decls1:Decls, Stmts) :-
+		Kind = Implementation;
+	DefMod: tTree;
+{
+		f := OpenProgram (Ident);
+
+		(* DefMod is a pointer to the attributed	*)
+		(* structure tree of the corresponding		*)
+  		(* definition module.				*)
+		GetAssoc (Ident, DefMod);
+		IF DefMod = NoTree THEN
+		  CompilerError ("Code.CodeCompUnits");
+		END;
+
+		@#include "SYSTEM_.h"$
+		@$
+
+		CodeImports (Import1);
+
+		@#ifndef DEFINITION_@%iIdent$
+		@#include "@%iIdent%@.h"$
+		@#endif$
+		@$
+
+		CodeDefs2 (DefMod^.DefMod.Decls);
+		@$
+
+		CodeDecls1 (Decls1);
+		@$
+
+		GenGlobalPtrs (ProgMod^.\ProgMod.GlobalPtrs);
+		GlobalPtrs := ProgMod^.\ProgMod.GlobalPtrs;
+
+		CodePointers (Static, ProgMod^.\ProgMod.GlobalPtrs);
+		@$
+		
+		CodeProcs (Decls1);
+
+		@void BEGIN_@%iIdent%@()$
+		@{$
+		@  static BOOLEAN has_been_called = FALSE;$
+		@$
+
+?i		   CodeStrings (ProgMod^.\ProgMod.Strings);
+		   IF ProgMod^.\ProgMod.Strings # NoStrings THEN @$ END;
+
+		@  if (!has_been_called) {$
+		@    has_been_called = TRUE;$
+		@$
+
+		     (* To ensure the initialization of all (global)	*)
+		     (* modules, the import statements from the		*)
+		     (* definition module have to be considered too	*)
+?i		     CodeInits (DefMod^.DefMod.Import);
+		     CodeInits (Import1);
+		     CodeStrncpy (ProgMod^.\ProgMod.Strings);
+		     CodeInits (Decls1);
+		@$
+		     CodeStmts (Stmts);
+
+?d4		@  }$
+		@}$
+
+		WriteClose (f);
+};
+		.
+ProgMod:ProgMod	(Kind, Ident, _, CompUnits0 (), Import, Decls, Stmts) :-
+		Kind = Program;
+{
+		f := OpenProgram (Ident);
+
+		@#include "SYSTEM_.h"$
+		@$
+
+		CodeImports (Import);
+
+		CodeDecls1 (Decls);
+		@$
+
+		GenGlobalPtrs (ProgMod^.\ProgMod.GlobalPtrs);
+		GlobalPtrs := ProgMod^.\ProgMod.GlobalPtrs;
+
+		CodePointers (Static, ProgMod^.\ProgMod.GlobalPtrs);
+		@$
+		
+		CodeProcs (Decls);
+
+		@void BEGIN_MODULE()$
+		@{$
+?i		  CodeStrings (ProgMod^.\ProgMod.Strings);
+		  IF ProgMod^.\ProgMod.Strings # NoStrings THEN @$ END;
+
+		  CodeInits (Import);
+		  CodeStrncpy (ProgMod^.\ProgMod.Strings);
+		  CodeInits (Decls);
+		@$
+		  CodeStmts (Stmts);
+?d		@}$
+
+		WriteClose (f);
+};
+		.
+/*
+ *	generate code for (global) import statements
+ */
+
+PROCEDURE CodeImports ([Import, ImpIds])
+
+From		(Next, Ident, ..) :-
+		Ident # IdentSYSTEM;
+		@#ifndef DEFINITION_@%iIdent$
+		@#include "@%iIdent%@.h"$
+		@#endif$
+		@$
+		CodeImports (Next);
+		.
+From		(Next, ..) :-
+		CodeImports (Next);
+		.
+Objects		(Next, ImpIds) :-
+		CodeImports (ImpIds);
+		CodeImports (Next);
+		.
+ImpIds1		(Ident, _, Next) :-
+		Ident # IdentSYSTEM;
+		@#ifndef DEFINITION_@%iIdent$
+		@#include "@%iIdent%@.h"$
+		@#endif$
+		@$
+		CodeImports (Next);
+		.
+ImpIds1		(_, _, Next) :-
+		CodeImports (Next);
+		.
+/*
+ *	generate calls to initialization procedures for modules
+ */
+
+PROCEDURE CodeInits (t: [Import, ImpIds, Decls])
+
+From		(Next, Ident, ..) :-
+		Ident # IdentSYSTEM;
+?		@BEGIN_@%iIdent%@();$
+		CodeInits (Next);
+		.
+From		(Next, ..) :-
+		CodeInits (Next);
+		.
+Objects		(Next, ImpIds) :-
+		CodeInits (ImpIds);
+		CodeInits (Next);
+		.
+ImpIds1		(Ident, _, Next) :-
+		Ident # IdentSYSTEM;
+?		@BEGIN_@%iIdent%@();$
+		CodeInits (Next);
+		.
+ImpIds1		(_, _, Next) :-
+		CodeInits (Next);
+		.
+Module		(Next, _, _, _, Decls, _) :-
+?		%it^.Module.CIdent%@();$
+		CodeInits (Decls);
+		CodeInits (Next);
+		.
+Decl		(Next) :-
+		CodeInits (Next);
+		.
+/*
+ *	generate code for the declarations of a definition module
+ *	(to be included in the header file)
+ */
+
+PROCEDURE CodeDefs1 (t: [Decls])
+
+Var		(Next, VarIds, Type) :-
+		CodeEnums (Type);
+		@extern @ CodeType (Type, Full); @ @ CodeIds (VarIds, Type); @;$
+		CodeDefs1 (Next);
+		.
+Const		(Next, _, StringConst (StringVal)) :-
+		Length (StringVal) > 1;
+		@extern CHAR @%it^.Const.CIdent%@[];$
+		CodeDefs1 (Next);
+		.
+Const		(Next, _, expr) :-
+		expr^.Expr.IsCConst;
+		@#define @%it^.Const.CIdent%@	@ CodeExpr (expr, pMaxPrec); @$
+		CodeDefs1 (Next);
+		.
+Const		(Next, _, Expr) :-
+		@#define @%it^.Const.CIdent%@	@ CodeValue (t^.Const.Object^.Const1.Value); @$
+		CodeDefs1 (Next);
+		.
+TypeDecl	(Next, _, Type, _) :-
+		CodeEnums (Type);
+		@typedef @ CodeType (Type, Full); @ @
+		  CodeDecla (Type, Before); %it^.TypeDecl.CIdent% CodeDecla (Type, After); @;$
+		CodeDefs1 (Next);
+		.
+ProcHead	(Next, _, Formals, ResultType, _) :-
+		@extern @ CodeType (ResultType, Full); @ @%it^.ProcHead.CIdent%
+		@ ARGS((@ CodeFormals3 (Formals, NoIdent); @));$
+		CodeDefs1 (Next);
+		.
+Opaque		(Next, _) :-
+		@typedef OPAQUE @%it^.Opaque.CIdent%@;$
+		CodeDefs1 (Next);
+		.
+/*
+ *	generate code for the declarations of a definition module
+ *	(to be included in the source file)
+ */
+
+PROCEDURE CodeDefs2 (t: [Decls])
+
+Var		(Next, VarIds, Type) :-
+		CodeType (Type, NonFull); @ @ CodeIds (VarIds, Type); @;$
+		CodeDefs2 (Next);
+		.
+Const		(Next, _, StringConst (StringVal)) :-
+		Length (StringVal) > 1;
+		@CHAR @%it^.Const.CIdent%@ [] = @ CodeString1 (StringVal); @;$
+		CodeDefs2 (Next);
+		.
+Decl		(Next) :-
+		CodeDefs2 (Next);
+		.
+/*
+ *	generate code for constant, type, and global variable
+ *	declarations of an implementation or program module
+ *	generate structure declarations for structured types used in
+ *	local variable declarations
+ *	generate forward declarations for non exported procedures
+ *	of an implementation or program module
+ */
+
+PROCEDURE CodeDecls1 (t: [Decls])
+
+Var		(Next, VarIds, Type) :-
+		t^.Var.IsGlobal;
+		CodeEnums (Type);
+		@static @ CodeType (Type, Full); @ @ CodeIds (VarIds, Type); @;$
+		CodeDecls1 (Next);
+		.
+Var		(Next, VarIds, Type) :-
+		NOT t^.Var.IsGlobal;
+		CodeEnums (Type);
+		CodeStruct (Type);
+		CodeDecls1 (Next);
+		.
+Const		(Next, _, StringConst (StringVal)) :-
+		Length (StringVal) > 1;
+		@static CHAR @%it^.Const.CIdent%@ [] = @ CodeString1 (StringVal); @;$
+		CodeDecls1 (Next);
+		.
+Const		(Next, _, expr) :-
+		expr^.Expr.IsCConst;
+		@#define @%it^.Const.CIdent%@	@ CodeExpr (expr, pMaxPrec); @$
+		CodeDecls1 (Next);
+		.
+Const		(Next, ..) :-
+		@#define @%it^.Const.CIdent%@	@ CodeValue (t^.Const.Object^.Const1.Value); @$
+		CodeDecls1 (Next);
+		.
+TypeDecl	(Next, _, Type, _) :-
+		CodeEnums (Type);
+		@typedef @ CodeType (Type, Full); @ @
+		  CodeDecla (Type, Before); %it^.TypeDecl.CIdent% CodeDecla (Type, After); @;$
+		CodeDecls1 (Next);
+		.
+Proc		(Next, _, Formals, ResultType, Decls, _) :-
+		NOT IsExported (t^.Proc.Object);
+		@static @ CodeType (ResultType, Full); @ @%it^.Proc.CIdent%
+		@ ARGS((@ CodeFormals3 (Formals, NoIdent); @));$
+		CodeDecls1 (Decls);
+		CodeDecls1 (Next);
+		.
+Proc		(Next, _, _, _, Decls, _) :-
+		CodeDecls1 (Decls);
+		CodeDecls1 (Next);
+		.
+Module		(Next, _, _, _, Decls, _) :-
+		CodeDecls1 (Decls);
+		CodeDecls1 (Next);
+		.
+/*
+ *	generate code for type declarations
+ *	( generate a C type name)
+ */
+
+PROCEDURE CodeType (t: [Type, Fields, TagField, Variants], Full: BOOLEAN)
+
+/* Full = FALSE: generate a declaration of the form struct Name for	*/
+/*		 arrays and records instead of a complete structure	*/
+/*		 declaration						*/
+
+Array		(_, IndexType, ElemType), _ :-
+		IndexType^.SimpleType.Type2^.Kind = Subrange1;
+	Lwb: tValue, LwbExpr: tTree, UpbExpr: tTree;
+{
+		IF Full THEN
+		  GetLwb (IndexType^.SimpleType.Type2, Lwb);
+		  LwbExpr := IndexType^.SimpleType.Type2^.Subrange1.LwbExpr;
+		  UpbExpr := IndexType^.SimpleType.Type2^.Subrange1.UpbExpr;
+
+		  @struct @%it^.Array.Type2^.Array1.StructId%@ {$
+?i4?		      CodeType (ElemType, Full); @ @
+		      CodeDecla (ElemType, Before);
+		      @A[@
+		       IF UpbExpr^.Expr.IsCConst THEN
+			 IF ValueToInt (Lwb) # 0 THEN
+			   CodeExpr (UpbExpr, pMinus + 1);
+		         ELSE
+			   CodeExpr (UpbExpr, pPlus + 1);
+		         END;
+		       ELSE
+		         CodeValue (IndexType^.SimpleType.Type2^.Subrange1.Upb);
+		       END;
+		       IF ValueToInt (Lwb) # 0 THEN
+		         @ - @
+		         IF LwbExpr^.Expr.IsCConst THEN
+		           CodeExpr (LwbExpr, pMinus);
+		         ELSE
+			   CodeValue (Lwb);
+		         END;
+		       END;
+		       @ + 1@
+		      @]@
+		      CodeDecla (ElemType, After); @;$
+?d4?		  @}@
+		ELSE
+		  @struct @%it^.Array.Type2^.Array1.StructId%
+		END;
+};
+		.
+Array		(_, IndexType, ElemType), _ :-
+		IndexType^.SimpleType.Type2^.Kind = Enumeration1;
+	Upb: tValue;
+{
+		IF Full THEN
+		  GetUpb (IndexType^.SimpleType.Type2, Upb);
+		  @struct @%it^.Array.Type2^.Array1.StructId%@ {$
+?i4?		      CodeType (ElemType, Full); @ @
+		      CodeDecla (ElemType, Before);
+		      @A[@ CodeValue (Upb); @ + 1]@
+		      CodeDecla (ElemType, After); @;$
+?d4?		  @}@
+		ELSE
+		  @struct @%it^.Array.Type2^.Array1.StructId%
+		END;
+};
+		.
+Array		(_, IndexType, ElemType), _ :-
+	Lwb: tValue, Upb: tValue;
+{
+		IF Full THEN
+		  GetLwb (IndexType^.SimpleType.Type2, Lwb);
+		  GetUpb (IndexType^.SimpleType.Type2, Upb);
+
+		  @struct @%it^.Array.Type2^.Array1.StructId%@ {$
+?i4?		      CodeType (ElemType, Full); @ @
+		      CodeDecla (ElemType, Before);
+		      @A[@%dValueToInt (Upb) - ValueToInt (Lwb) + 1%@]@
+		      CodeDecla (ElemType, After); @;$
+?d4?		  @}@
+		ELSE
+		  @struct @%it^.Array.Type2^.Array1.StructId%
+		END;
+};
+		.
+Record		(Fields0 ()), _ :-
+/* generate a dummy field named 'dummy' of type char, because	*/
+/* empty structures are not allowed in C			*/
+{
+		IF Full THEN
+		  @struct @%it^.Record.Type2^.Record1.StructId%@ {$
+?i4?		      @char dummy;$
+?d4?		  @}@
+		ELSE
+		  @struct @%it^.Record.Type2^.Record1.StructId%
+		END;
+};
+		.
+Record		(fields1:Fields1), _ :-
+{
+		IF Full THEN
+		@struct @%it^.Record.Type2^.Record1.StructId%@ {$
+?i4		    CodeType (fields1, Full);
+?d4?		@}@
+		ELSE
+		  @struct @%it^.Record.Type2^.Record1.StructId%
+		END;
+};
+		.
+SetType		(_), _ :-
+		@unsigned long@
+		.
+Pointer		(ti:TypeId0), _ :-
+		(IsForward (t^.Pointer.TypePos, ti^.TypeId0.Object));
+{
+		CASE ti^.TypeId0.Type2^.Kind OF
+		| Record1	: @struct @%iti^.TypeId0.Type2^.Record1.StructId%
+		| Array1	: @struct @%iti^.TypeId0.Type2^.Array1.StructId%
+		ELSE
+		  %iti^.TypeId0.Object^.Object.CIdent%
+		  ErrorMessageP (StructTypeReq, Restriction, ti^.TypeId0.Pos);
+		END;
+};
+		.
+Pointer		(TargetType), _ :-
+		CodeType (TargetType, Full);
+		.
+ProcType	(_, ResultType), _ :-
+		CodeType (ResultType, Full);
+		.
+Enumeration	(EnumIds), _ :-
+{
+		IF TypeSize (t^.Enumeration.Type2) = SizeUnsignedChar THEN
+		  @unsigned char@
+		ELSE
+		  @unsigned short@
+		END;
+};
+		.
+Subrange	(Void (), ..), _ :-
+		CodeTypeName (t^.Subrange.Type2^.Subrange1.Type);
+		.
+Subrange	(type:TypeId, ..), _ :-
+		%itype^.TypeId.Object^.Object.CIdent%
+		.
+Void		(), _ :-
+		@void@
+		.
+TypeId		(..), _ :-
+		%it^.TypeId.Object^.Object.CIdent%
+		.
+RecordSect	(Next, FieldIds, Type), _ :-
+?		CodeType (Type, Full); @ @ CodeIds (FieldIds, Type); @;$
+		CodeType (Next, Full);
+		.
+VariantSect	(Next, TagField, Variants0 (), Fields0 ()), _ :-
+/* generate a dummy field named 'dummy' of type char, because	*/
+/* empty structures are not allowed in C			*/
+		CodeType (TagField, Full);
+?		@union {$
+?i4?		    @char dummy;$
+?d4?		@} @%it^.VariantSect.UnionId%@;$
+		CodeType (Next, Full);
+		.
+VariantSect	(Next, TagField, Variants, Fields0 ()), _ :-
+		CodeType (TagField, Full);
+?		@union {$
+?i4		    CodeType (Variants, Full);
+?d4?		@} @%it^.VariantSect.UnionId%@;$
+		CodeType (Next, Full);
+		.
+VariantSect	(Next, TagField, Variants, Else), _ :-
+		CodeType (TagField, Full);
+?		@union {$
+?i4		    CodeType (Variants, Full);
+?		    @struct {$
+?i4			CodeType (Else, Full);
+?d4?		    @} @%it^.VariantSect.ElseId%@;$
+?d4?		@} @%it^.VariantSect.UnionId%@;$
+		CodeType (Next, Full);
+		.
+TagField1	(type, _), _ :-
+?		%itype^.TypeId.Object^.Object.CIdent%@ @%it^.TagField1.CIdent%@;$
+		.
+Variant		(_, Fields0 (), Next), _ :-
+/* generate a dummy field named 'dummy' of type char, because	*/
+/* empty structures are not allowed in C			*/
+?		@struct {$
+?i4?		    @char dummy;$
+?d4?		@} @%it^.Variant.StructId%@;$
+		CodeType (Next, Full);
+		.
+Variant		(_, fields1:Fields1, Next), _ :-
+?		@struct {$
+?i4		    CodeType (fields1, Full);
+?d4?		@} @%it^.Variant.StructId%@;$
+		CodeType (Next, Full);
+		.
+/*
+ *	generate code for type declarations
+ *	(generate the part of a C declarator before/after the identifier)
+ */
+
+PROCEDURE CodeDecla ([Type], Before: BOOLEAN)
+
+Pointer		(TargetType), _ :-
+		CodeDecla (TargetType, Before);
+{
+		IF Before THEN @*@ END;
+};
+		.
+ProcType	(FormalTypes, _), _ :-
+{
+		IF Before THEN @(*@ ELSE @) ARGS((@ CodeFormals4 (FormalTypes); @))@ END;
+};
+		.
+/*
+ *	generate code for type declarations
+ *	(generate a C structure declaration)
+ */
+
+PROCEDURE CodeStruct (t: [Type])
+
+Array		(..) :-
+		CodeType (t, Full); @;$
+		.
+Record		(..) :-
+		CodeType (t, Full); @;$
+		.
+Pointer		(TargetType) :-
+		CodeStruct (TargetType);
+		.
+/*
+ *	generate code for enumeration literals
+ */
+
+PROCEDURE CodeEnums (t: [Type, Fields, Variants, EnumIds])
+
+Array		(_, IndexType, ElemType) :-
+		CodeEnums (IndexType);
+		CodeEnums (ElemType);
+		.
+Record		(Fields) :-
+		CodeEnums (Fields);
+		.
+SetType		(BaseType) :-
+		CodeEnums (BaseType);
+		.
+Pointer		(TargetType) :-
+		CodeEnums (TargetType);
+		.
+Enumeration	(EnumIds) :-
+		CodeEnums (EnumIds);
+		.
+RecordSect	(Next, _, Type) :-
+		CodeEnums (Type);
+		.
+VariantSect	(Next, _, Variants, Else) :-
+		CodeEnums (Variants);
+		CodeEnums (Else);
+		CodeEnums (Next);
+		.
+Variant		(_, Fields, Next) :-
+		CodeEnums (Fields);
+		CodeEnums (Next);
+		.
+EnumIds1	(_, Next) :-
+		@#define @%it^.EnumIds1.CIdent%@	@
+		  %dt^.EnumIds1.Object^.EnumLiteral1.Index$
+		CodeEnums (Next);
+		.
+/*
+ *	generate code for variable and field identifier lists
+ */
+
+PROCEDURE CodeIds (t: [VarIds, FieldIds], Type: tTree)
+
+/* Type: tree of the type belonging to the variables resp. fields	*/
+
+VarIds1		(_, Next), _ :-
+		CodeDecla (Type, Before); %it^.VarIds1.CIdent% CodeDecla (Type, After);
+		CodeSepa (Next);
+		CodeIds (Next, Type);
+		.
+FieldIds1	(_, Next), _ :-
+		CodeDecla (Type, Before); %it^.FieldIds1.CIdent% CodeDecla (Type, After);
+		CodeSepa (Next);
+		CodeIds (Next, Type);
+		.
+/*
+ *	generate code for procedure declarations
+ *	generate initialization routines for local modules
+ */
+
+PROCEDURE CodeProcs (t: [Decls])
+
+Proc		(Next, _, Formals, ResultType, Decls, Stmts) :-
+	NewLine: BOOLEAN;
+{
+		CodeProcs (Decls);
+
+		GenParams (t^.Proc.VAROpens);
+		GenParams (t^.Proc.ValueOpens);
+		GenLocalPtrs (t^.Proc.LocalPtrs);
+
+		VAROpens	:= t^.Proc.VAROpens;
+		ValueOpens	:= t^.Proc.ValueOpens;
+		LocalPtrs	:= t^.Proc.LocalPtrs;
+
+		IF NOT IsExported (t^.Proc.Object) THEN @static @ END;
+		CodeType (ResultType, Full); @ @%it^.Proc.CIdent%@$
+		@# ifdef __STDC__$
+		@(@ CodeFormals3 (Formals, NoIdent); @)$
+		@# else$
+		@(@ CodeFormals1 (Formals); @)$
+		CodeFormals2 (Formals, NoIdent);
+		@# endif$
+		@{$
+		  NewLine := (t^.Proc.ValueOpens # NoCObjects) OR
+			     (t^.Proc.LocalPtrs  # NoCObjects) OR
+			     (t^.Proc.Strings    # NoStrings );
+?i		  CodeDecls2 (Decls, NewLine);
+		  IF t^.Proc.ValueOpens # NoCObjects THEN
+?		    @OPEN_ARRAY_LOCALS$
+		  END;
+		  CodePointers (Auto, t^.Proc.LocalPtrs);
+		  CodeStrings (t^.Proc.Strings);
+		  IF NewLine THEN @$ END;
+
+		  CodeAlloc   (t^.Proc.ValueOpens);
+		  CodeCopy    (t^.Proc.ValueOpens);
+		  CodePush    (t^.Proc.LocalPtrs);
+		  CodeStrncpy (t^.Proc.Strings);
+		  CodeInits   (Decls);
+
+		  CodeStmts (Stmts);
+
+		  IF GetResultType (GetType (t^.Proc.Object)) = TypeVOID THEN
+		    CodePop (t^.Proc.LocalPtrs);
+		    CodeFree (t^.Proc.ValueOpens);
+		  ELSE
+		    (* the last statement of a function must	*)
+		    (* be a return statement, hence no code to	*)
+		    (* release open array value parameters or	*)
+		    (* to restore global pointer variables has	*)
+		    (* to be generated here			*)
+		    IF OptionIsSet ('r') THEN
+?		      @ReturnError(__FILE__, __LINE__);$
+		    END;
+		  END;
+
+?d		@}$
+		@$
+
+		VAROpens	:= NoCObjects;
+		ValueOpens	:= NoCObjects;
+		LocalPtrs	:= NoCObjects;
+};
+		CodeProcs (Next);
+		.
+Module		(Next, _, Import, Export, Decls, Stmts) :-
+		CodeProcs (Decls);
+{
+		@static void @%it^.Module.CIdent%@()$
+		@{$
+?i		  CodeStrings (t^.Module.Strings);
+		  IF t^.Module.Strings # NoStrings THEN @$ END;
+
+		  CodeStrncpy (t^.Module.Strings);
+		  CodeStmts (Stmts);
+?d		@}$
+		@$
+};
+		CodeProcs (Next);
+		.
+Decl		(Next) :-
+		CodeProcs (Next);
+		.
+/*
+ *	generate code for formal parameter lists
+ *	(parameter names)
+ */
+
+PROCEDURE CodeFormals1 (t: [Formals, ParIds])
+
+Formals1	(_, ParIds, _, Next) :-
+		CodeFormals1 (ParIds); CodeSepa (Next);
+		CodeFormals1 (Next);
+		.
+ParIds1		(_, Next) :-
+		(IsOpenArray (t^.ParIds1.Object));
+		%it^.ParIds1.CIdent%@, @
+		%iGetParam (t^.ParIds1.Object)%
+		CodeSepa (Next);
+		CodeFormals1 (Next);
+		.
+ParIds1		(_, Next) :-
+		%it^.ParIds1.CIdent% CodeSepa (Next);
+		CodeFormals1 (Next);
+		.
+/*
+ *	generate code for formal parameter lists
+ *	(parameter declarations)
+ */
+
+PROCEDURE CodeFormals2 (t: [Formals, ParIds], ElemTypeId: tIdent)
+
+/* ElemTypeId: identifier of the element type of open array parameters	*/
+
+Formals1	(_, ParIds, type:TypeId, Next), _ :-
+		%itype^.TypeId.Object^.Object.CIdent%@ @ CodeFormals2 (ParIds, NoIdent); @;$
+		CodeFormals2 (Next, NoIdent);
+		.
+Formals1	(_, ParIds, Array ({TRUE}, _, type:TypeId), Next), _ :-
+		CodeFormals2 (ParIds, type^.TypeId.Object^.Object.CIdent);
+		CodeFormals2 (Next, NoIdent);
+		.
+ParIds1		(_, Next), _ :-
+		(IsOpenArray (t^.ParIds1.Object));
+		%iElemTypeId%@ @%it^.ParIds1.CIdent%@[];$
+		@LONGCARD @%iGetParam (t^.ParIds1.Object)%@;$
+		CodeFormals2 (Next, ElemTypeId);
+		.
+ParIds1		(_, Next), _ :-
+		{ IF IsVAR (t^.ParIds1.Object) THEN @*@ END; };
+		%it^.ParIds1.CIdent% CodeSepa (Next);
+		CodeFormals2 (Next, NoIdent);
+		.
+/*
+ *	generate prototypes for formal parameter lists
+ *	(parameter declarations)
+ */
+
+PROCEDURE CodeFormals3 (t: [Formals, ParIds], TypeId: tIdent)
+
+/* TypeId: identifier of the element type of open array parameters	*/
+
+Formals1	(_, ParIds, type:TypeId, Next), _ ;
+Formals1	(_, ParIds, Array ({TRUE}, _, type:TypeId), Next), _ :-
+		CodeFormals3 (ParIds, type^.TypeId.Object^.Object.CIdent);
+		CodeSepa (Next);
+		CodeFormals3 (Next, NoIdent);
+		.
+ParIds1		(_, Next), _ :-
+		(IsOpenArray (t^.ParIds1.Object));
+		%iTypeId%@ @%it^.ParIds1.CIdent%@[], @
+		@LONGCARD @%iGetParam (t^.ParIds1.Object)% CodeSepa (Next);
+		CodeFormals3 (Next, TypeId);
+		.
+ParIds1		(_, Next), _ :-
+		%iTypeId% { IF IsVAR (t^.ParIds1.Object) THEN @ *@ ELSE @ @ END; };
+		%it^.ParIds1.CIdent% CodeSepa (Next);
+		CodeFormals3 (Next, TypeId);
+		.
+/*
+ *	generate prototypes for procedure types
+ */
+
+PROCEDURE CodeFormals4 (FormalTypes)
+
+FormalType	(IsVAR, Type, Next):-
+		CodeType (Type, Full);
+		{ IF IsVAR THEN @ *@ END; };
+		CodeSepa (Next);
+		CodeFormals4 (Next);
+		.
+/*
+ *	generate code for local variable declarations
+ */
+
+PROCEDURE CodeDecls2 ([Decls] => NewLine: BOOLEAN)
+
+/* NewLine: NewLine is set to TRUE if there are local variable	*/
+/*	    declarations					*/
+
+Var		(Next, VarIds, Type) => _ :-
+?		CodeType (Type, NonFull); @ @ CodeIds (VarIds, Type); @;$
+		NewLine := TRUE;
+		{ CodeDecls2 (Next, NewLine); };
+		.
+Module		(Next, _, _, _, Decls, _) => _ :-
+		{ CodeDecls2 (Decls, NewLine); };
+		{ CodeDecls2 (Next, NewLine); };
+		.
+Decl		(Next) => _ :-
+		{ CodeDecls2 (Next, NewLine); };
+		.
+/*
+ *	generate code for expressions, designators, and set elements
+ */
+
+PROCEDURE CodeExpr (t: [Expr, Elems], Prec: SHORTCARD)
+
+/* The attribute Prec is the precedence of the C-operator used in the	*/
+/* parent expression. It is used to determine, when an expression has	*/
+/* to be put in parentheses to enforce the correct evaluation order in	*/
+/* C.									*/
+
+Binary		(_, Lop, Rop), _ :-
+		t^.Binary.COperator IN {{cIn, cDifference, cIsSubset1, cIsSubset2}};
+{
+		CASE t^.Binary.COperator OF
+		| cIn		: @IN@
+		| cDifference	: @SET_DIFF@
+		| cIsSubset1	: @SET_IS_SUBSET1@
+		| cIsSubset2	: @SET_IS_SUBSET2@
+		END;
+};
+		@(@ CodeExpr (Lop, pPassValue); @, @ CodeExpr (Rop, pPassValue); @)@
+		.
+Binary		(_, Lop, Rop), _ :-
+	        (t^.Binary.COperator IN {{cPlus, cMinus}}) AND
+	        (Lop^.Expr.Type = TypeADDRESS) AND (Rop^.Expr.Type = TypeADDRESS);
+{
+		IF Prec <= Precedence [t^.Binary.COperator] THEN @(@ END;
+		CodeExpr (Lop, Precedence [t^.Binary.COperator] + 1);
+		IF t^.Binary.COperator = cPlus THEN @ + @ ELSE @ - @ END;
+		@(LONGCARD)@ CodeExpr (Rop, pCast);
+		IF Prec <= Precedence [t^.Binary.COperator] THEN @)@ END;
+};
+		.
+Binary		(_, Lop, Rop), _ :-
+		(t^.Binary.COperator = cMinus) AND
+		NOT (Lop^.Expr.Type = TypeADDRESS) AND (Rop^.Expr.Type = TypeADDRESS);
+{
+		IF Prec < pCast THEN @(@ END;
+		@(ADDRESS)(@ CodeExpr (Lop, pMinus + 1); @ - (LONGCARD)@ CodeExpr (Rop, pCast); @)@
+		IF Prec < pCast THEN @)@ END;
+};
+		.
+Binary		(_, Lop, Rop), _ :-
+		(t^.Binary.COperator IN {{cTimes, cDivide}}) AND
+		((Lop^.Expr.Type = TypeADDRESS) OR (Rop^.Expr.Type = TypeADDRESS));
+{
+		IF Prec < pCast THEN @(@ END;
+		@(ADDRESS)(@
+		IF Lop^.Expr.Type = TypeADDRESS THEN
+		  @(LONGCARD)@ CodeExpr (Lop, pCast);
+		ELSE
+		  CodeExpr (Lop, Precedence [t^.Binary.COperator] + 1);
+		END;
+		IF t^.Binary.COperator = cTimes THEN @ * @ ELSE @ / @ END;
+		IF Rop^.Expr.Type = TypeADDRESS THEN
+		  @(LONGCARD)@ CodeExpr (Rop, pCast);
+		ELSE
+		  CodeExpr (Rop, Precedence [t^.Binary.COperator]);
+		END;
+		@)@
+		IF Prec < pCast THEN @)@ END;
+};
+		.
+Binary		(_, Lop, Rop), _ :-
+{
+		IF Prec <= Precedence [t^.Binary.COperator] THEN @(@ END;
+		CodeExpr (Lop, Precedence [t^.Binary.COperator] + 1);
+		(* Precedence [t^.Binary.COperator] + 1 to avoid	*)
+		(* superfluous brackets (all binary operators	*)
+		(* are left associative)			*)
+		CASE t^.Binary.COperator OF
+		| cNotEqual	: @ != @
+		| cTimes	: @ * @
+		| cPlus		: @ + @
+		| cMinus	: @ - @
+		| cDivide	: @ / @
+		| cLess		: @ < @
+		| cLessEqual	: @ <= @
+		| cEqual	: @ == @
+		| cGreater	: @ > @
+		| cGreaterEqual	: @ >= @
+		| cAnd		: @ && @
+		| cMod		: @ % @
+		| cOr		: @ || @
+		| cUnion	: @ | @
+		| cIntersection	: @ & @
+		| cSymDiff	: @ ^ @
+		ELSE
+		END;
+		CodeExpr (Rop, Precedence [t^.Binary.COperator]);
+		IF Prec <= Precedence [t^.Binary.COperator] THEN @)@ END;
+};
+		.
+Unary		(_, IntConst (Kind, IntVal, _)), _ :-
+		t^.Unary.COperator = cMinus;
+{
+		CASE Kind OF
+		| Decimal	: @-@%lIntVal%
+		| Octal		: @-0@%oIntVal%
+		| Hexadecimal	: @-0X@%hIntVal%
+		END;
+};
+		.
+Unary		(_, Mop), _ :-
+{
+		IF Prec < Precedence [t^.Unary.COperator] THEN @(@ END;
+		CASE t^.Unary.COperator OF
+		| cMinus	: @-@
+		| cNot		: @!@
+		ELSE
+		END;
+		CodeExpr (Mop, Precedence [t^.Unary.COperator]);
+		IF Prec < Precedence [t^.Unary.COperator] THEN @)@ END;
+};
+		.
+IntConst	(Kind, IntVal, Pos), _ :-
+{
+		IF IntVal > MaxLongInt THEN
+		  @(LONGCARD)@
+		  ErrorMessageP (OutOfLongRange, Warning, Pos);
+		END;
+		CASE Kind OF
+		| Decimal	: %lIntVal%
+		| Octal		: @0@%oIntVal%
+		| Hexadecimal	: @0X@%hIntVal%
+		END;
+};
+		.
+RealConst	(RealVal), _ :-
+		%sRealVal%
+		.
+StringConst	(StringVal), _ :-
+		Length (StringVal) = 1;
+	String: tString;
+		GetString (StringVal, String);
+		CodeChar (Strings.Char (String, 1));
+		.
+StringConst	(StringVal), _ :-
+		CodeString1 (StringVal);
+		.
+CharConst	(CharVal), _ :-
+		CodeChar (CharVal);
+		.
+FuncCall	(designator, Actuals), _ :-
+		designator^.Designator.Type^.Kind = StdProcType1;
+		CodeStdProc (Actuals, designator^.Designator.Type^.StdProcType1.StdProc, NoObject);
+		.
+FuncCall	(qualid:Qualid, Actuals), _ :-
+		(IsProcedure (qualid^.Qualid.Object));
+		%iqualid^.Qualid.Object^.Object.CIdent% @(@ CodeActuals (Actuals); @)@
+		.
+FuncCall	(qualid:Qualid, Actual (Expr, Actuals0 ())), _ :-
+		(IsOfType (qualid^.Qualid.Object));
+{
+		IF Prec < pCast THEN
+		  @((@%iqualid^.Qualid.Object^.Object.CIdent%@)@ CodeExpr (Expr, pCast); @)@
+		ELSE
+		  @(@%iqualid^.Qualid.Object^.Object.CIdent%@)@ CodeExpr (Expr, pCast);
+		END;
+};
+		.
+FuncCall	(Designator, Actuals), _ :-
+		@(*@ CodeExpr (Designator, pDeref); @)@ @(@ CodeActuals (Actuals); @)@
+		.
+Set		(_, Elems0 ()), _ :-
+		@0X0L@
+		.
+Set		(BaseType, elems1:Elems1), _ :-
+{
+		IF Prec <= pUnion THEN
+		  @(@ CodeExpr (elems1, pMinPrec); @)@
+		ELSE
+		  CodeExpr (elems1, Prec)
+		END;
+};
+		.
+BitSet		(Elems0 ()), _ :-
+		@0X0L@
+		.
+BitSet		(elems1:Elems1), _ :-
+{
+		IF Prec <= pUnion THEN
+		  @(@ CodeExpr (elems1, pMinPrec); @)@
+		ELSE
+		  CodeExpr (elems1, Prec);
+		END;
+};
+		.
+Qualid0		(..), _ :-
+		t^.Qualid0.IsGlobalPtr AND IsOpen (t^.Qualid0.Type);
+		%iGetGlobalPtr (t^.Qualid0.Object)%
+		.
+Qualid0		(_, Ident), _ :-
+		t^.Qualid0.Object^.Kind = Field1;
+		%iWithStack.GetWith (Ident)%
+		@->@
+		CodeSelectors (t^.Qualid0.Object^.Field1.Selectors);
+		%it^.Qualid0.Object^.Field1.CIdent%
+		.
+Qualid1		(_, _, qualid), _ :-
+		qualid^.Qualid.IsGlobalPtr;
+		%iGetGlobalPtr (qualid^.Qualid.Object)%
+		@->@
+		CodeSelectors (GetSelectors (t^.Qualid1.Object));
+		%it^.Qualid1.Object^.Object.CIdent%
+		.
+Qualid1		(_, _, qualid), _ :-
+		(IsVAR (qualid^.Qualid.Object));
+		%iqualid^.Qualid.Object^.Var1.CIdent%
+		@->@
+		CodeSelectors (GetSelectors (t^.Qualid1.Object));
+		%it^.Qualid1.Object^.Object.CIdent%
+		.
+Qualid1		(_, _, Qualid), _ :-
+		t^.Qualid1.Object^.Kind = Field1;
+		CodeExpr (Qualid, pSelect);
+		@.@
+		CodeSelectors (t^.Qualid1.Object^.Field1.Selectors);
+		%it^.Qualid1.Object^.Field1.CIdent%
+		.
+Qualid		(..), _ :-
+		t^.Qualid.IsGlobalPtr;
+{
+		IF Prec < pDeref THEN
+		  @(*@%iGetGlobalPtr (t^.Qualid.Object)%@)@
+		ELSE
+		  @*@%iGetGlobalPtr (t^.Qualid.Object)%
+		END;
+};
+		.
+Qualid		(..), _ :-
+		IsVAR (t^.Qualid.Object) AND NOT IsOpen (t^.Qualid.Type);
+{
+		IF Prec < pDeref THEN
+		  @(*@%it^.Qualid.Object^.Var1.CIdent%@)@
+		ELSE
+		  @*@%it^.Qualid.Object^.Var1.CIdent%
+		END;
+};
+		.
+Qualid		(..), _ :-
+		%it^.Qualid.Object^.Object.CIdent%
+		.
+Subscript	(_, qualid:Qualid0 (..), Index), _ :-
+		(IsOpenArray (qualid^.Qualid0.Object));
+		CodeExpr (qualid, pSubscript); @[@ CodeExpr (Index, pMinPrec); @]@
+		.
+Subscript	(_, Designator1:Deref (_, Designator2:Designator), Index), _ :-
+		NOT (Designator2^.Designator.Type^.Kind = OpaqueType1);
+	Lwb: tValue;
+{
+		GetLwb (GetIndexType (Designator1^.Deref.Type), Lwb);
+		CodeExpr (Designator2, pSelect);
+		@->A[@
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (Index, pMinus + 1); @ - @ CodeValue (Lwb);
+		ELSE
+		  CodeExpr (Index, pMinPrec);
+		END;
+		@]@
+};
+		.
+Subscript	(_, qualid:Qualid, Index), _ :-
+		qualid^.Qualid.IsGlobalPtr AND NOT IsOpen (qualid^.Qualid.Type);
+	Lwb: tValue;
+{
+		GetLwb (GetIndexType (qualid^.Qualid.Type), Lwb);
+		%iGetGlobalPtr (qualid^.Qualid.Object)%
+		@->A[@
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (Index, pMinus + 1); @ - @ CodeValue (Lwb);
+		ELSE
+		  CodeExpr (Index, pMinPrec);
+		END;
+		@]@
+};
+		.
+Subscript	(_, qualid:Qualid, Index), _ :-
+		IsVAR (qualid^.Qualid.Object) AND NOT IsOpen (qualid^.Qualid.Type);
+	Lwb: tValue;
+{
+		GetLwb (GetIndexType (qualid^.Qualid.Type), Lwb);
+		%iqualid^.Qualid.Object^.Var1.CIdent%
+		@->A[@
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (Index, pMinus + 1); @ - @ CodeValue (Lwb);
+		ELSE
+		  CodeExpr (Index, pMinPrec);
+		END;
+		@]@
+};
+		.
+Subscript	(_, designator, Index), _ :-
+	Lwb: tValue;
+{
+		GetLwb (GetIndexType (designator^.Designator.Type), Lwb);
+		CodeExpr (designator, pSelect);
+		@.A[@
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (Index, pMinus + 1); @ - @ CodeValue (Lwb);
+		ELSE
+		  CodeExpr (Index, pMinPrec);
+		END;
+		@]@
+};
+		.
+Select		(_, Deref (_, designator), _), _ :-
+		designator^.Designator.Type^.Kind = OpaqueType1;
+	Object: tObject; { Object := designator^.Designator.Type^.Constructor.TypeObj; };
+		@((@ %iGenOpaque (Object^.Object.CIdent)% @)@
+		CodeExpr (designator, pCast);
+		@)->@
+		CodeSelectors (GetSelectors (t^.Select.Object));
+		%it^.Select.Object^.Object.CIdent%
+		.
+Select		(_, Deref (_, Designator), _), _ :-
+		CodeExpr (Designator, pSelect);
+		@->@
+		CodeSelectors (GetSelectors (t^.Select.Object));
+		%it^.Select.Object^.Object.CIdent%
+		.
+Select		(_, Designator, _), _ :-
+		CodeExpr (Designator, pSelect);
+		@.@
+		CodeSelectors (GetSelectors (t^.Select.Object));
+		%it^.Select.Object^.Object.CIdent%
+		.
+Deref		(_, designator), _ :-
+		designator^.Designator.Type^.Kind = OpaqueType1;
+	Object: tObject;
+{
+		Object := designator^.Designator.Type^.Constructor.TypeObj;
+
+		IF Prec < pDeref THEN
+		  @(*(@ %iGenOpaque (Object^.Object.CIdent)% @)@
+		    CodeExpr (designator, pCast);
+		  @)@
+		ELSE
+		  @*(@ %iGenOpaque (Object^.Object.CIdent)% @)@
+		    CodeExpr (designator, pCast);
+		END;
+};
+		.
+Deref		(_, Designator), _ :-
+{
+		IF Prec < pDeref THEN
+		  @(*@ CodeExpr (Designator, pDeref); @)@
+		ELSE
+		  @*@ CodeExpr (Designator, pDeref);
+		END;
+};
+		.
+Elem		(Next, SetElem), _ :-
+		@SET_ELEM(@ CodeExpr (SetElem, pPassValue); @)@ CodeSepa (Next);
+		CodeExpr (Next, pUnion);
+		.
+ElemRange	(Next, Lwb, Upb), _ :-
+		Lwb^.Expr.IsCConst AND Upb^.Expr.IsCConst;
+		@SET_cRNG(@ CodeExpr (Lwb, pPassValue); @, @ CodeExpr (Upb, pPassValue); @)@
+		CodeSepa (Next);
+		CodeExpr (Next, pUnion);
+		.
+ElemRange	(Next, Lwb, Upb), _ :-
+		@SET_RANGE(@ CodeExpr (Lwb, pPassValue); @, @ CodeExpr (Upb, pPassValue); @)@
+		CodeSepa (Next);
+		CodeExpr (Next, pUnion);
+		.
+/*
+ *	generate code to determine the address of an expression
+ *	(must be a variable)
+ */
+
+PROCEDURE CodeAdr (t: [Expr])
+
+Deref		(_, Designator) :-
+		CodeExpr (Designator, pMinPrec);
+		.
+Qualid		(..) :-
+		t^.Qualid.IsGlobalPtr;
+		%iGetGlobalPtr (t^.Qualid.Object)%
+		.
+Qualid0		(..) :-
+		(IsVAR (t^.Qualid0.Object));
+		%it^.Qualid0.Object^.Var1.CIdent%
+		.
+Expr		(..) :-
+		@&@ CodeExpr (t, pAdr);
+		.
+/*
+ *	generate code to pass a string as actual parameter
+ */
+
+PROCEDURE CodeString2 (t: [Expr], Strncpy: BOOLEAN)
+
+/* Strncpy = TRUE: the string is an actual parameter of libray routine	*/
+/*		   strncpy						*/
+
+StringConst	(StringVal), _ :-
+{		IF OptionIsSet ('c') AND NOT Strncpy THEN @(STRING)@ END; };
+		CodeString1 (StringVal);
+		.
+CharConst	(CharVal), _ :-
+{		IF OptionIsSet ('c') AND NOT Strncpy THEN @(STRING)@ END; };
+		CodeString3 (CharVal);
+		.
+Qualid		(..), _ :-
+		t^.Qualid.Type = TypeSTRING;
+{		IF OptionIsSet ('c') AND Strncpy THEN @(char *)@ END; };
+		%it^.Qualid.Object^.Object.CIdent%
+		.
+Qualid		(..), _ :-
+		t^.Qualid.Type = TypeStringChar;
+{		IF OptionIsSet ('c') AND NOT Strncpy THEN @(STRING)@ END; };
+		CodeString3 (t^.Qualid.Object^.Const1.Value.CharValue);
+		.
+Qualid		(..), _ :-
+		t^.Qualid.Type = TypeCHAR;
+{		IF OptionIsSet ('c') AND NOT Strncpy THEN @(STRING)@ END; };
+		CodeString3 (t^.Qualid.Object^.Const1.Value.CharValue);
+		.
+/*
+ *	generate code for statements
+ */
+
+PROCEDURE CodeStmts (t: [Stmts, Elsifs, Cases, Labels])
+
+Assign		(Next, designator, expr) :-
+		(designator^.Designator.Type^.Kind = Array1) AND
+		((expr^.Expr.Type = TypeStringChar) OR (expr^.Expr.Type = TypeSTRING));
+?		@(void)strncpy(@
+{
+		  IF OptionIsSet ('c') THEN @(char *)@ END;
+};
+		  CodeExpr (designator, pSelect); @.A, @
+		  CodeString2 (expr, Strncpy); @, @
+		  @sizeof(@ CodeExpr (designator, pSelect); @.A));$
+		CodeStmts (Next);
+		.
+Assign		(Next, designator, expr) :-
+		(Cast (cAssign, designator^.Designator.Type, expr^.Expr.Type));
+?		CodeExpr (designator, pAssign); @ = @
+		  CodeCast (designator^.Designator.Type); CodeExpr (expr, pCast); @;$
+		CodeStmts (Next);
+		.
+Assign		(Next, Designator, Expr) :-
+?		CodeExpr (Designator, pAssign); @ = @ CodeExpr (Expr, pAssign); @;$
+		CodeStmts (Next);
+		.
+Call		(Next, designator, Actuals) :-
+		designator^.Designator.Type^.Kind = StdProcType1;
+	StdProc: SHORTCARD;
+{
+		StdProc := designator^.Designator.Type^.StdProcType1.StdProc;
+		CASE StdProc OF
+		| ProcTRANSFER	:
+		    ErrorMessageP (NoTRANSFER, Restriction, designator^.Designator.Pos);
+		| ProcIOTRANSFER:
+		    ErrorMessageP (NoIOTRANSFER, Restriction, designator^.Designator.Pos);
+		| ProcNEWPROCESS:
+		    ErrorMessageP (NoNEWPROCESS, Restriction, designator^.Designator.Pos);
+		| ProcNEW	,
+		  ProcDISPOSE	:
+?		    CodeStdProc (Actuals, StdProc, t^.Call.AllocOrDealloc); @;$
+		ELSE
+?		  CodeStdProc (Actuals, StdProc, NoObject); @;$
+		END;
+};
+		CodeStmts (Next);
+		.
+Call		(Next, qualid:Qualid, Actuals) :-
+		(IsProcedure (qualid^.Qualid.Object));
+?		%iqualid^.Qualid.Object^.Object.CIdent%@(@ CodeActuals (Actuals); @);$
+		CodeStmts (Next);
+		.
+Call		(Next, Designator, Actuals) :-
+?		@(*@ CodeExpr (Designator, pDeref); @)@ @(@ CodeActuals (Actuals); @);$
+		CodeStmts (Next);
+		.
+If		(Next, Cond, Then, Elsifs, Stmts0 ()) :-
+?		@if (@ CodeExpr (Cond, pMinPrec); @) {$
+?i		  CodeStmts (Then);
+?d		CodeStmts (Elsifs);
+?		@}$
+		CodeStmts (Next);
+		.
+If		(Next, Cond, Then, Elsifs, Else) :-
+?		@if (@ CodeExpr (Cond, pMinPrec); @) {$
+?i		  CodeStmts (Then);
+?d		CodeStmts (Elsifs);
+?		@} else {$
+?i		  CodeStmts (Else);
+?d?		@}$
+		CodeStmts (Next);
+		.
+Case		(Next, Expr, Cases, Else, {TRUE}) :-
+?		@switch (@ CodeExpr (Expr, pMinPrec); @) {$
+		CodeStmts (Cases);
+?		@default :$
+?i		  CodeStmts (Else);
+?		  @break;$
+?d?		@}$
+		CodeStmts (Next);
+		.
+Case		(Next, Expr, Cases, Else, _) :-
+?		@switch (@ CodeExpr (Expr, pMinPrec); @) {$
+		CodeStmts (Cases);
+{
+		IF OptionIsSet ('r') THEN
+?		@default :$
+?		@  CaseError(__FILE__, __LINE__);$
+?		@  break;$
+		END;
+};
+?		@}$
+		CodeStmts (Next);
+		.
+While		(Next, Cond, Stmts) :-
+?		@while (@ CodeExpr (Cond, pMinPrec); @) {$
+?i		  CodeStmts (Stmts);
+?d?		@}$
+		CodeStmts (Next);
+		.
+Repeat		(Next, Stmts, Cond) :-
+?		@do {$
+?i		  CodeStmts (Stmts);
+?d?		@} while (!@ CodeExpr (Cond, pNot); @);$
+		CodeStmts (Next);
+		.
+Loop		(Next, Stmts) :-
+		LabelStack.Push (GenLabel ());
+?		@for (;;) {$
+?i		  CodeStmts (Stmts);
+?d?		@} @%iLabelStack.Top ()%@:;$
+		LabelStack.Pop ();
+		CodeStmts (Next);
+		.
+For	 	(Next, qualid, From, to, By, Stmts) :-
+		to^.Expr.IsCConst AND NOT OverOrUnderflow (qualid^.Qualid.Type, t^.For.ToVal, t^.For.ByVal);
+?		@for (@
+		  CodeExpr (qualid, pAssign); @ = @ CodeExpr (From, pAssign); @; @
+		  CodeExpr (qualid, pComparison);
+{
+		IF ValueToInt (t^.For.ByVal) >= 0 THEN @ <= @ ELSE @ >= @ END;
+};
+		  CodeExpr (to, pComparison); @; @
+		  CodeExpr (qualid, pAssign); @ += @ CodeExpr (By, pAssign);
+		@) {$
+?i		  CodeStmts (Stmts);
+?d?		@}$
+		CodeStmts (Next);
+		.
+For	 	(Next, qualid, From, To, By, Stmts) :-
+	BoundId1: tIdent, BoundId2: tIdent, ByValue: LONGINT;
+{
+		BoundId1 := GenBound ();
+		BoundId2 := GenBound ();
+		ByValue	 := ValueToInt (t^.For.ByVal);
+
+?		@{$
+?i?		  CodeTypeName (qualid^.Qualid.Type); @ @
+		    %iBoundId1% @ = @ CodeExpr (From, pAssign); @, @
+		    %iBoundId2% @ = @ CodeExpr (To, pAssign); @;$
+		@$
+?		  @if (@ %iBoundId1%
+		IF ByValue >= 0 THEN @ <= @ ELSE @ >= @ END;
+		         %iBoundId2%
+		  @)$
+?i?		    @for (@
+		        CodeExpr (qualid, pAssign);
+			  @ = @ %iBoundId1%
+		IF ByValue >= 2 THEN
+			@, @ %iBoundId2%@ = @
+			  @FOR_LIMIT_UP(@
+			    %iBoundId2% @, @
+			    CodeExpr (By, pPassValue); @, @
+			    CodeMIN (qualid^.Qualid.Type);
+			  @)@
+		ELSIF ByValue <= -2 THEN
+			@, @ %iBoundId2%@ = @
+			  @FOR_LIMIT_DOWN(@
+			    %iBoundId2% @, @
+			    CodeExpr (By, pPassValue); @, @
+			    CodeMAX (qualid^.Qualid.Type);
+			  @)@
+		END;
+			  @;; @
+			CodeExpr (qualid, pAssign);
+			  @ += @ CodeExpr (By, pAssign);
+		        @) {$
+?i		    CodeStmts (Stmts);
+?		    @if (@ CodeExpr (qualid, pComparison);
+		IF ByValue >= 0 THEN @ >= @ ELSE @ <= @ END;
+			   %iBoundId2%
+		    @) break;$
+?d?		  @}$
+?d4?		@}$
+};
+		CodeStmts (Next);
+		.
+With		(Next, deref:Deref (_, designator), Stmts) :-
+		designator^.Designator.Type^.Kind = OpaqueType1;
+	WithId: tIdent, Object: tObject;
+{
+		WithId := GenWith ();
+		Object := designator^.Designator.Type^.Constructor.TypeObj;
+};
+?		@{$
+?i?		  @register @ CodeTypeName (deref^.Deref.Type);
+		     @ *@%iWithId%@ = @
+		       @(@ %iGenOpaque (Object^.Object.CIdent)% @)@
+		         CodeExpr (designator, pCast); @;$
+		@$
+		  WithStack.Push (WithId, GetFields (deref^.Deref.Type));
+		  CodeStmts (Stmts);
+		  WithStack.Pop ();
+?d?		@}$
+		CodeStmts (Next);
+		.
+With		(Next, designator, Stmts) :-
+	WithId: tIdent;
+{
+		WithId := GenWith ();
+};
+?		@{$
+?i?		  @register @ CodeTypeName (designator^.Designator.Type);
+		     @ *@%iWithId%@ = @ CodeAdr (designator); @;$
+		@$
+		  WithStack.Push (WithId, GetFields (designator^.Designator.Type));
+		  CodeStmts (Stmts);
+		  WithStack.Pop ();
+?d?		@}$
+		CodeStmts (Next);
+		.
+Exit		(Next) :-
+?		@goto @%iLabelStack.Top ()%@;$
+		CodeStmts (Next);
+		.
+Return1		(Next) :-
+		CodePop  (LocalPtrs);
+		CodeFree (ValueOpens);
+?		@return;$
+		CodeStmts (Next);
+		.
+Return2		(Next, expr) :-
+	ReturnId: tIdent;
+{
+		IF ((ValueOpens # NoCObjects) OR (LocalPtrs # NoCObjects)) AND
+		     t^.Return2.OpenAccessOrCall THEN
+		  ReturnId := GenReturn ();
+?		  @{$
+?i?		    CodeTypeName (t^.Return2.ResultType); @ @%iReturnId%@ = @
+		  IF Cast (cAssign, t^.Return2.ResultType, expr^.Expr.Type) THEN
+		    CodeCast (t^.Return2.ResultType); CodeExpr (expr, pCast); @;$
+		  ELSE
+		    CodeExpr (expr, pMinPrec); @;$
+		  END;
+		  @$
+		    CodePop  (LocalPtrs);
+		    CodeFree (ValueOpens);
+?		    @return @%iReturnId%@;$
+?d?		  @}$
+		ELSE
+		  CodePop  (LocalPtrs);
+		  CodeFree (ValueOpens);
+?		  @return @
+		  IF Cast (cAssign, t^.Return2.ResultType, expr^.Expr.Type) THEN
+		    CodeCast (t^.Return2.ResultType); CodeExpr (expr, pCast);
+		  ELSE
+		    CodeExpr (expr, pMinPrec);
+		  END;
+		  @;$
+		END;
+};
+		CodeStmts (Next);
+		.
+Elsifs1		(Cond, Stmts, Next) :-
+?		@} else if (@ CodeExpr (Cond, pMinPrec); @) {$
+?i		  CodeStmts (Stmts);
+?d
+		CodeStmts (Next);
+		.
+Cases1		(Labels, Stmts, Next) :-
+		CodeStmts (Labels);
+?i		CodeStmts (Stmts);
+?		@break;$
+?d
+		CodeStmts (Next);
+		.
+Label		(Next, expr) :-
+		expr^.Expr.IsCConst;
+?		@case @ CodeExpr (expr, pMinPrec); @:;$
+		CodeStmts (Next);
+		.
+Label		(Next, Expr) :-
+?		@case @ CodeValue (t^.Label.LabelVal); @:;$
+		CodeStmts (Next);
+		.
+LabelRange	(Next, Lwb, Upb) :-
+		CodeLabelRange (t^.LabelRange.LwbVal, t^.LabelRange.UpbVal);
+		CodeStmts (Next);
+		.
+/*
+ *	generate code for standard procedures
+ */
+
+PROCEDURE CodeStdProc ([Actuals], StdProc: SHORTCARD, AllocOrDealloc: tObject)
+
+/* AllocOrDealloc: object description of procedure ALLOCATE resp.	*/
+/*		   DEALLOCATE used for substitution of standard		*/
+/*		   procedure NEW resp. DISPOSE.				*/
+
+
+Actuals0	(), .. :-
+{
+		IF StdProc = ProcHALT THEN @exit(1)@ END;
+};
+		.
+Actual		(qualid:Qualid0, Actuals0 ()), .. :-
+		(IsOpenArray (qualid^.Qualid0.Object));
+{
+		IF StdProc = ProcHIGH THEN
+
+		  IF qualid^.Qualid0.IsGlobalPtr THEN
+		    @(@%iGetGlobalPtr (qualid^.Qualid0.Object)%@_O - 1)@
+		  ELSE
+		    @(@%iGetParam (qualid^.Qualid0.Object)%@ - 1)@
+		  END;
+
+		ELSIF StdProc = ProcADR THEN
+
+		    @ADR1(@ CodeExpr (qualid, pPassValue); @)@
+
+		ELSIF StdProc = ProcSIZE THEN
+
+		  @(sizeof(@ CodeTypeName (qualid^.Qualid0.Type^.Array1.ElemType); @) * @
+		  IF qualid^.Qualid0.IsGlobalPtr THEN
+		    %iGetGlobalPtr (qualid^.Qualid0.Object)%@_O@
+		  ELSE
+		    %iGetParam (qualid^.Qualid0.Object)%
+		  END;
+		  @)@
+
+		END;
+};
+		.
+Actual		(expr, Actuals0 ()), .. :-
+	Upb: tValue, Object: tObject, Type: tType;
+{
+		IF StdProc = ProcHIGH THEN
+
+		    Type := GetIndexType (expr^.Expr.Type);
+		    GetUpb (Type, Upb);
+		    CodeValue (Upb);
+		    IF IsIntType (Type) AND Cast (cPassValue, Type, TypeIntCard) THEN
+		      @L@
+		    END;
+
+		ELSIF StdProc = ProcMIN THEN
+
+		  CodeMIN (expr^.Expr.Type);
+
+		ELSIF StdProc = ProcMAX THEN
+
+		  CodeMAX (expr^.Expr.Type);
+
+		ELSIF StdProc = ProcADR THEN
+
+		  @ADR(@ CodeExpr (expr, pPassValue); @)@
+
+		ELSIF (StdProc = ProcSIZE) OR (StdProc = ProcTSIZE) THEN
+
+		  @sizeof(@ CodeExpr (expr, pPassValue); @)@
+
+		ELSIF StdProc = ProcABS THEN
+
+		  IF expr^.Expr.IsCConst THEN
+		    @ABS@
+		  ELSE
+		    Type := expr^.Expr.Type;
+		    IF Type^.Kind = Subrange1 THEN
+		      Type := Type^.Subrange1.Type;
+		    END;
+
+		    CASE Type^.Kind OF
+		    | ShortInt	: @ABSSI@
+		    | LongInt	: @ABSLI@
+		    | IntCard	: @ABS@
+		    | ShortCard	: @ABSSC@
+		    | LongCard	: @ABSLC@
+		    | Real	: @ABSR@
+		    | LongReal	: @ABSLR@
+		    ELSE
+		    END;
+		  END;
+
+		  @(@ CodeExpr (expr, pPassValue); @)@
+
+		ELSIF (StdProc = ProcNEW) OR (StdProc = ProcDISPOSE) THEN
+
+		  %iAllocOrDealloc^.Object.CIdent% @(@
+		    IF Cast (cPassAddress, TypeADDRESS, expr^.Expr.Type) THEN
+		      @(ADDRESS *)@
+		    END;
+		    CodeAdr (expr); @, @
+
+		    IF OptionIsSet ('c') THEN @(LONGCARD)@ END;
+		    @sizeof(@ CodeTypeName (GetTargetType (expr^.Expr.Type)); @)@
+		  @)@
+		  	
+		ELSE
+
+		  CASE StdProc OF
+		  | ProcCAP	: @CAP@
+		  | ProcCHR	: @CHR@
+		  | ProcDEC	: @DEC@
+		  | ProcFLOAT	: @FLOAT@
+		  | ProcINC	: @INC@
+		  | ProcODD	: @ODD@
+		  | ProcORD	: @ORD@
+		  | ProcTRUNC	: @TRUNC@
+		  ELSE
+		  END;
+		  @(@ CodeExpr (expr, pPassValue); @)@
+
+		END;
+};
+		.
+Actual		(Actual1, Actual (Actual2, Actuals0 ())), .. :-
+{
+		IF (StdProc = ProcDEC) OR (StdProc = ProcINC) THEN
+
+		  CASE StdProc OF
+		  | ProcDEC	: @DEC1@
+		  | ProcINC	: @INC1@
+		  END;
+		  @(@ CodeExpr (Actual1, pPassValue); @, @
+		  IF Actual2^.Expr.Type = TypeADDRESS THEN
+		    @(LONGCARD)@ CodeExpr (Actual2, pCast);
+		  ELSE
+		    CodeExpr (Actual2, pPassValue);
+		  END;
+		  @)@
+
+		ELSE
+
+		  CASE StdProc OF
+		  | ProcEXCL	: @EXCL@
+		  | ProcINCL	: @INCL@
+		  | ProcVAL	: @VAL@
+		  ELSE
+		  END;
+		  @(@ CodeExpr (Actual1, pPassValue); @, @
+		      CodeExpr (Actual2, pPassValue); @)@
+
+		END;
+};
+		.
+/*
+ *	generate code for actual parameter lists
+ */
+
+PROCEDURE CodeActuals (t: [Actuals])
+
+/* the basic assumption for the code generated to pass an actual	*/
+/* parameter if the corresponding formal parameter is of type		*/
+/* ARRAY OF WORD is that sizeof(WORD) = sizeof(CHAR) = 1		*/
+
+Actual		(expr, Next) :-
+	        ((expr^.Expr.Type = TypeSTRING) OR (expr^.Expr.Type = TypeStringChar)) AND
+		(t^.Actual.Formal^.Kind = Array1) AND NOT IsOpen (t^.Actual.Formal);
+		%it^.Actual.String% CodeSepa (Next);
+		CodeActuals (Next);
+		.
+Actual		(qualid:Qualid0, Next) :-
+		IsOpen (t^.Actual.Formal) AND IsOpenArray (qualid^.Qualid0.Object);
+{
+		CodeExpr (qualid, pPassValue); @, @
+		IF qualid^.Qualid0.IsGlobalPtr THEN
+		  %iGetGlobalPtr (qualid^.Qualid0.Object)%@_O@
+		ELSE
+		  %iGetParam (qualid^.Qualid0.Object)%
+		END;
+		IF t^.Actual.Formal^.Array1.ElemType = TypeWORD THEN
+		  @ * sizeof(@ CodeTypeName (qualid^.Qualid0.Type^.Array1.ElemType); @)@
+		END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr:StringConst (StringVal), Next) :-
+		(IsOpen (t^.Actual.Formal));
+		CodeString2 (expr, NOT Strncpy); @, @
+	length: CARDINAL;
+		length := Length (StringVal);
+	      { IF length = 0 THEN length := 1; END; };
+		%dlength%@L@
+		CodeSepa (Next);
+		CodeActuals (Next);
+		.
+Actual		(expr:CharConst (CharVal), Next) :-
+		(IsOpen (t^.Actual.Formal));
+		CodeString2 (expr, NOT Strncpy); @, 1L@
+		CodeSepa (Next);
+		CodeActuals (Next);
+		.
+Actual		(qualid:Qualid, Next) :-
+		IsOpen (t^.Actual.Formal) AND (qualid^.Qualid.Type = TypeSTRING);
+		CodeString2 (qualid, NOT Strncpy); @, @
+	length: CARDINAL;
+		length := Length (qualid^.Qualid.Object^.Const1.Value.StringValue);
+	      { IF length = 0 THEN length := 1; END; };
+		%dlength%@L@
+		CodeSepa (Next);
+		CodeActuals (Next);
+		.
+Actual		(qualid:Qualid, Next) :-
+		IsOpen (t^.Actual.Formal) AND (qualid^.Qualid.Type = TypeStringChar);
+		CodeString2 (qualid, NOT Strncpy); @, 1L@
+		CodeSepa (Next);
+		CodeActuals (Next);
+		.
+Actual		(qualid:Qualid, Next) :-
+		IsOpen (t^.Actual.Formal) AND (qualid^.Qualid.Type = TypeCHAR);
+		CodeString2 (qualid, NOT Strncpy); @, 1L@
+		CodeSepa (Next);
+		CodeActuals (Next);
+		.
+Actual		(Designator, Next) :-
+		IsOpen (t^.Actual.Formal) AND (t^.Actual.Formal^.Array1.ElemType = TypeWORD);
+{
+		IF OptionIsSet ('c') THEN @(WORD *)@ END;
+		CodeAdr (Designator); @, @
+		IF OptionIsSet ('c') THEN @(LONGCARD)@ END;
+		@sizeof(@ CodeExpr (Designator, pPassValue); @)@
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(designator, Next) :-
+		IsOpen (t^.Actual.Formal) AND (designator^.Designator.Type^.Kind = Array1);
+	Upb: tValue, Lwb: tValue, IndexType: tType;
+{
+		IndexType := designator^.Designator.Type^.Array1.IndexType;
+		GetLwb (IndexType, Lwb);
+		GetUpb (IndexType, Upb);
+		CodeExpr (designator, pSelect); @.A, @
+		%dValueToInt (Upb) - ValueToInt (Lwb) + 1%@L@ CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr, Next) :-
+		t^.Actual.IsVAR;
+{
+		IF Cast (cPassAddress, t^.Actual.Formal, expr^.Expr.Type) THEN
+		  CodeCastVAR (t^.Actual.Formal); CodeAdr (expr);
+		ELSE
+		  CodeAdr (expr);
+		END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr:IntConst, Next) :-
+{
+		CodeExpr (expr, pPassValue);
+		IF Cast (cPassValue, t^.Actual.Formal, TypeIntCard) THEN @L@ END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr:Unary (_, IntConst (..)), Next) :-
+		expr^.Unary.COperator = cMinus;
+{
+		CodeExpr (expr, pPassValue);
+		IF Cast (cPassValue, t^.Actual.Formal, TypeIntCard) THEN @L@ END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr:Binary, Next) :-
+		expr^.Binary.Type = TypeBOOLEAN;
+{
+		IF OptionIsSet ('c') THEN
+		  @(BOOLEAN)@ CodeExpr (expr, pCast);
+		ELSE
+		  CodeExpr (expr, pPassValue);
+		END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr:Unary, Next) :-
+		expr^.Unary.Type = TypeBOOLEAN;
+{
+		IF OptionIsSet ('c') THEN
+		  @(BOOLEAN)@ CodeExpr (expr, pCast);
+		ELSE
+		  CodeExpr (expr, pPassValue);
+		END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+Actual		(expr, Next) :-
+{
+		IF Cast (cPassValue, t^.Actual.Formal, expr^.Expr.Type) THEN
+		  CodeCast (t^.Actual.Formal); CodeExpr (expr, pCast);
+		ELSE
+		  CodeExpr (expr, pPassValue);
+		END;
+		CodeSepa (Next);
+};
+		CodeActuals (Next);
+		.
+/*
+ *	generate an optional list separator
+ */
+
+PROCEDURE CodeSepa ([VarIds, ParIds, FieldIds, Elems, Formals, Actuals, FormalTypes])
+
+VarIds1		(..) ;
+ParIds1		(..) ;
+FieldIds1	(..) ;
+Formals1	(..) ;
+FormalType	(..) ;
+Actual		(..) :- @, @ .
+Elems1		(..) :- @ | @ .

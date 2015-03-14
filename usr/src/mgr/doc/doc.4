@@ -1,0 +1,1426 @@
+'\"                        Copyright (c) 1988 Bellcore
+'\"                            All Rights Reserved
+'\"       Permission is granted to copy or use this program, EXCEPT that it
+'\"       may not be sold for profit, the copyright notice must be reproduced
+'\"       on copies, and credit should be given to Bellcore where it is due.
+'\"       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+'\"
+.Fh m_nomenu
+.Fs m_nomenu 8 "Unselect a pop-up menu from the middle mouse button"
+Deselect all menus.
+No menu will pop-up when the middle
+mouse button is pressed.
+This call does not delete the menu, it simply disassociates it
+from the button.
+.Fe
+.Fh m_nomenu2
+.Fs m_nomenu2 8 "Unselect a pop-up menu from the end mouse button"
+Deselect all menus.
+No menu will pop-up when the right
+mouse button is pressed.
+This call does not delete the menu, it simply disassociates it
+from the button.  This macro should be combined with
+.Fr m_nomenu
+ but is separate for historical reasons.
+.Fe
+.Fh m_othersave id sub name
+.Fs m_othersave 5 "Save another client's window image in a file"
+The bitmap contents of the window identified as
+.Fi id . sub
+is saved in the file
+.Fi name
+in bitmap format (see 
+.I dump.h
+for a description of the bitmap format).
+The
+.I "window id"
+can be determined either by calling
+.Fr m_getinfo G_ALL
+ or
+from the event
+.SM
+.I  M_ACCEPT
+.LG
+(see
+.Fr m_setevent
+).
+See also
+.Fr m_windowsave
+ and
+.Fr m_bitsave
+\&.
+.Fe
+.Fh m_pagemenu parent child
+.Fs m_pagemenu 8 "Break a large menu into pages"
+Connect menu 
+.Fi child
+to the bottom of menu 
+.Fi parent
+to permit
+a long menu to be paged.
+Mousing off the bottom of the
+.Fi parent 
+menu automatically pops-up the
+.I child
+menu, which
+in turn may be the parent of another menu.
+See also
+.Fr m_unpagemenu
+,
+.Fr m_linkmenu
+ and
+.Fr m_unlinkmenu
+\&.
+.Fe
+.Fh m_pop
+.Fs m_pop 10 "Pop the window context"
+Pop the window context.
+The last window context saved by calling
+.Fr m_push
+ or
+.Fr m_pushsave
+ is restored.
+If no environments have been pushed,
+.Fr m_pop
+is ignored.
+.Fe
+.Fh m_popall
+.Fs m_popall 10 "Pop all stacked window contexts"
+Like
+.Fr m_pop
+above, except all environments pushed since the 
+first call to
+.Fr m_setup
+are popped.
+The macro
+.Fr m_popall
+ is typically
+used as part of the clean up before
+client program termination.
+.Fe
+.Fh m_printstr string
+.Fs m_printstr 2 "Print a string on the window"
+Print
+.Fi string
+on the window at the current character cursor location.
+This is equivalent to the
+.I stdio
+function
+.I printf
+with a 
+.I %s
+format specified and the output directed toward the file pointer
+.I m_termout
+instead of
+.I stdout .
+.Fe
+.Fh m_push mode
+.Fs m_push 10 "Stack the window context"
+Certain parts (stack modes) of the current window environment may
+be moved to a stack, to be restored at a later time with
+.Fr m_pop
+or
+.Fr m_popall
+\&.
+Any combination of the following pieces of the
+window environment, called a window context,
+may be placed on the window stack.
+.RS
+.IP \fBP_BITMAP\fP 0.5i
+.br
+All currently defined
+.I scratchpad
+bitmaps
+are moved to the stack and become undefined in the current window context.
+.IP \fBP_CURSOR\fP 0.5i
+.br
+The current
+.I character
+cursor
+and
+.I "graphics point"
+positions are saved on the stack.
+.IP \fBP_EVENT\fP 0.5i
+.br
+All currently defined events are moved to the stack and
+become undefined in the current window context.
+.IP \fBP_FLAGS\fP 0.5i
+.br
+The window modes, as set with
+.Fr m_setmode
+are moved to the stack.
+The modes revert to their default settings in the current window context.
+.IP \fBP_FONT\fP 0.5i
+.br
+The current font setting is copied to the stack.
+If this font is subsequently deleted, by writing over it with a different
+font, the original font setting is retained, even if it can no longer
+be accessed using
+.Fr m_font
+\&.
+.IP \fBP_MENU\fP 0.5i
+.br
+All downloaded menus and menu links are moved to the the stack along with
+the currently selected menu number.
+The menus become undefined in the current context.
+.IP \fBP_MOUSE\fP 0.5i
+.br
+The mouse cursor location
+is saved on the stack.
+Its current location remains the same.
+.IP \fBP_POSITION\fP 0.5i
+.br
+The window size and location is saved on the stack.
+The current size and location are maintained.
+.IP \fBP_TEXT\fP 0.5i
+.br
+The text region location and size are saved on the stack.
+The text region in the current context is reset to the entire window.
+.IP \fBP_WINDOW\fP 0.5i
+.br
+The current image contents of the window is copied to the stack.
+This is done without altering the current contents of the window.
+.RE
+Stack modes are combined by
+.I or -ing
+them together
+to form a saved window context, such as:	
+.Fr m_push P_MENU|P_EVENT 
+ which will save all events, and menus but leave everything else
+alone.
+All stack modes that
+require client download data revert to their default settings
+when they are
+.I pushed .
+For example, after
+.Fr m_push P_MENU|P_EVENT|P_MOUSE
+ is called, no
+events or menus are currently defined,
+but the mouse remains where it is.
+The defined constant
+.SM
+.I P_ALL
+.LG
+refers to all of the modes.
+.Fe
+.Fh m_pushsave mode
+.Fs m_pushsave 10 "Stack and save the window context"
+Certain parts (stack modes) of the current window environment may
+be copied to a stack, to be restored at a later time with
+.Fr m_pop
+or
+.Fr m_popall
+\&.
+The macro
+.Fr m_pushsave
+ differs from
+.Fr m_push
+in that downloaded data, such as
+.I menus
+.I events
+or
+.I scratchpad
+bitmaps
+are copied to the stack instead of moved,
+and thus remain in effect after the call to
+.Fr m_pushsave
+\&.
+The current window context is thus unaffected.
+Any combination of the following pieces of the
+window environment may be copied to the window stack.
+.RS
+.IP \fBP_BITMAP\fP 0.5i
+.br
+All currently defined
+.I scratchpad
+bitmaps
+are copied to the stack.
+.IP \fBP_CURSOR\fP 0.5i
+.br
+The current
+.I character
+and
+.I graphics
+cursor positions are saved on the stack.
+.IP \fBP_EVENT\fP 0.5i
+.br
+All currently defined events are copied to the stack.
+.IP \fBP_FLAGS\fP 0.5i
+.br
+The window modes, as set with
+.Fr m_setmode
+, are copied to the stack.
+.IP \fBP_FONT\fP 0.5i
+.br
+The current font setting is copied to the stack.
+If this font is subsequently deleted, by writing over it with a different
+font, the original font setting is retained, even if it can no longer
+be accessed using
+.Fr m_font
+\&.
+.IP \fBP_MENU\fP 0.5i
+.br
+All downloaded menus and menu links are copied to the the stack along with
+the currently selected menu number.
+.IP \fBP_MOUSE\fP 0.5i
+.br
+The mouse cursor location
+is saved on the stack.
+.IP \fBP_POSITION\fP 0.5i
+.br
+The window size and location are saved on the stack.
+.IP \fBP_TEXT\fP 0.5i
+.br
+The text region location and size are saved on the stack.
+.IP \fBP_WINDOW\fP 0.5i
+.br
+The current image contents of the window is copied to the stack.
+.RE
+Stack modes are combined by
+.I or -ing
+them together 
+to form a saved window context, such as:	
+.Fr m_push P_MENU|P_EVENT 
+ which will save all events, and menus but leave everything else
+alone.
+.Fe
+.Fh m_put string
+.Fs m_put 12 "Save characters in the global snarf buffer"
+.Fi String
+is put into the global
+.I snarf
+buffer.
+There is one common buffer
+for all clients programs.
+The macro
+.Fr m_snarf
+ is used to retrieve the contents of the buffer.
+The \*M system
+.I cut
+function places text in this buffer, whereas 
+the system
+.I paste
+function pastes text from this buffer.
+.Fe
+.Fh m_putchar c
+.Fs m_putchar 2 "Put a character on the window"
+The character
+.Fi c
+is written in the window at the current character cursor
+location.
+This function is like the
+.I stdio
+.I putchar(c) ,
+only directed toward the client's window.
+.Fe
+.Fh m_rcircle radius
+.Fs m_rcircle 4 "Draw a circle at the graphics point"
+A circle of radius
+.Fi radius
+is drawn, centered at
+the current
+.I "graphics point" .
+The points at the edge of the circle are
+set, cleared or inverted
+depending upon the last call to
+.Fr m_func
+\&.
+Circles are always drawn as circles, both in
+.I absolute
+and in
+.I relative
+window coordinates.
+The
+.Fi radius
+is scaled based upon the average
+.Fi width
+and
+.Fi height
+of the window.
+.Fe
+.Fh m_rellipse radius1 radius2
+.Fs m_rellipse 4 "Draw an ellipse at the graphics point"
+Draw an ellipse centered at
+the
+.I "graphics point" .
+The two radii,
+.Fi radius1
+and
+.Fi radius2
+specify the major and minor axis.
+The ellipse is either
+set, cleared, or inverted
+determined by the last call to
+.Fr m_func
+\&.
+If the window is in
+.I relative
+coordinate mode,
+.Fi radius1
+and
+.Fi radius2
+are scaled based upon the average
+.Fi width
+and
+.Fi height
+of the window.
+.Fe
+.Fh m_resetesc
+.Fs m_resetesc 1 "Restore the \*M escape character to '\\e033'"
+The \*M
+.I escape
+character is reset to its to default value ('\e033').
+This turns off the debugging mode turned on by
+.Fr m_setesc
+\&.
+.Fh m_rfastdraw count data
+.Fs m_rfastdraw 4 "Draw a group of fast vectors at the graphics point"
+The next
+.Fi count
+bytes of
+.Fi data
+are sent to \*M are to be interpreted as lines drawn in
+.I "fast draw"
+mode,
+starting at
+the current graphics point.
+.I "Fast draw"
+mode permits the rapid drawing of short vectors
+by encoding an 
+.I x,y
+displacement in a single byte.
+The 
+.I x
+coordinate is contained in the most significant
+4 bits, the
+.I y
+coordinate in the least significant 4 bits.
+Values for
+.I x
+and
+.I y
+represent displacements from the previous location, and
+range from +7 to -8.
+A 7 is coded as 
+.B 0xff ,
+a -8 as
+.B 0x00 .
+If both 
+.I x
+and
+.I y
+are zero (i.e.
+.B 0x8080 ).
+The next coordinate is taken to be a
+.I move
+instead of a
+.I draw.
+An eight bit channel between \*M and the client program is required for
+.I "fast draw"
+mode.
+See also
+.Fr m_fastdraw
+\&.
+.Fe
+.Fh m_right n
+.Fs m_right 13 "Move character cursor right by tenths of a character width"
+Move the character cursor right 
+.Fi n
+tenths of a character width.
+See also
+.Fr m_left
+.Fr m_down
+and 
+.Fr m_up
+\&.
+.Fe
+.Fh m_scrollregion first_row last_row
+.Fs m_scrollregion 3 "Set up a VT00 like scrolling region"
+This sets up a
+.I "text region"
+as a
+.I  VT100-like
+scrolling region.
+The entire width of the window
+from lines
+.Fi first_row
+to
+.Fi last_row
+inclusive becomes the 
+.I "text region" .
+See also
+.Fr m_textregion
+\&.
+.Fe
+.Fh m_selectmenu n
+.Fs m_selectmenu 8 "Select a pop-up menu for the middle mouse button"
+This macro is used to indicate menu 
+.Fi n
+pops-up in response to pressing
+the
+.I middle
+mouse button.
+Menus are downloaded (with
+.Fr m_loadmenu
+) first, then selected.
+Only one menu may be selected at a time on each button.
+If the button is already down when this call is made, and there is not currently
+a menu associated with the button, then the menu just selected pops-up
+immediately.
+This last feature may be used to pop up different menus 
+in a context sensitive way.
+.Fe
+.Fh m_selectmenu2 n
+.Fs m_selectmenu2 8 "Select a pop-up menu for the right mouse button"
+This macro is used to indicate menu 
+.Fi n
+pops-up in response to pressing
+the
+.I right
+mouse button.
+Menus are downloaded (with
+.Fr m_loadmenu
+) first, then selected.
+This macro functions the same as, and should be combined with
+.Fr m_selectmenu
+ above, but exists separately for historical reasons.
+.Fe
+.Fh m_selectwin n
+.Fs m_selectwin 11 "Select an alternate window for output"
+Select alternate window
+.Fi n
+for output.
+Alternate windows are
+first created by
+.Fr m_newwin
+\&.
+All output goes to the selected
+window until either
+.Fr m_selectwin
+is called to change windows,
+or the selected window is destroyed.
+If
+.Fi n
+is 0 (zero) or the currently selected window is destroyed,
+the main, or original window is selected.
+Input from all windows is
+send to the client program on the same input channel.
+The macro
+.Fr m_setevent ACTIVATE
+ may be used to help decide what window generated the input
+by associating a unique string with each window's 
+.SM
+.I ACTIVATE
+.LG
+event.
+The
+.I selected
+window 
+and the
+.I active
+window are specified independently.
+Selecting a window does not make it the 
+.I active 
+window, and creating a new window, although it is created as the 
+.I active
+window, is not automatically selected.
+.Fe
+.Fh m_sendme string
+.Fs m_sendme 12 "Send string back to self"
+The argument
+.Fi string
+is sent back to the client process
+as if it was typed in at the keyboard.
+.Fe
+.Fh m_sendto n string
+.Fs m_sendto 12 "Send a message to another window"
+The message
+.Fi string
+is send to window
+.Fi n .
+A unique window identifier,
+.Fi n 
+is determined with either
+.Fr m_setevent
+ using the 
+.B %w
+option,
+or with
+.Fr m_getinfo
+\&.
+In general, the window id
+.Fi n
+is the process id (\c
+.I pid )
+of the client program started by \*M
+when the window was created.
+If the target window has turned on
+.SM
+.B ACCEPT
+.LG
+with
+.Fr m_setevent
+,
+.Fi string
+is received by the client program associated with the target window
+as part of the
+.SM
+.B ACCEPT
+.LG
+event.
+General write permissions must be disabled on the target client's
+.I pseudo tty
+in order for the message to be received, to prevent unsuspecting 
+.I shell s
+from interpreting messages sent by unscrupulous processes as commands.
+See also
+.Fr m_broadcast
+\&.
+.Fe
+.Fh m_setcursor i
+.Fs m_setesc 3 "Change the character cursor representation"
+The character cursor may be set to one of
+CS_BLOCK, CS_LEFT, CS_RIGHT, CS_BOX, CS_UNDER, or CS_INVIS which 
+sets the cursor representation to a solid block (the default), 
+a verticle bar at the left edge of the character cell, a verticle bar at
+the right edge, an outline box, or an underscore respectively.  CS_INVIS, 
+or any other invalid code causes the character cursor to be invisible.
+This macro currently only effects the cursor representation for the 
+active window.
+.Fe
+.Fh m_setesc c
+.Fs m_setesc 1 "Change the \*M escape character (for debugging)"
+This macro call causes the character
+.Fi c
+to be used as the \*M
+escape character by the library package (instead of 
+.I '\e033' ).
+This permits viewing
+the output stream to \*M without causing the commands to
+be executed.
+.Fe
+.Fh m_setecho
+.Fs m_setecho 1 "Turn on terminal character echo"
+Turn on character echoing, if possible.
+Character echoing is normally disabled by clients to inhibit information
+from \*M, as from calls to 
+.Fr m_getinfo
+, from echoing on the window.
+.Fe
+.Fh m_setevent n string
+.Fs m_setevent 9 "Set an event"
+An event string,
+.Fi string
+is sent to the client program by \*M upon the
+occurrence of the specified event
+.Fi n .
+The event string is typically
+read by the client program using
+.Fr m_gets
+\&.
+Event strings are never sent in response to an event unless specifically
+requested by the client program.
+Events are one of the following types.
+.RS
+.IP \fBACTIVATE\fP 0.5i
+.br
+The window became the
+.I active
+window.
+It is at the front of the display, and is currently receiving
+both mouse and keyboard input.
+.IP \fBBUTTON_1\fP 0.5i 
+.br
+The right
+mouse button was depressed.
+This event is sent only to the
+.I active
+window.
+.IP \fBBUTTON_1U\fP 0.5i
+.br
+The right mouse button was released.
+This event is sent only to the
+.I active
+window.
+.IP \fBBUTTON_2\fP 0.5i
+.br
+The middle mouse button was depressed.
+This event is sent only to the
+.I active
+window.
+.IP \fBBUTTON_2U\fP 0.5i
+.br
+The middle mouse button was released.
+This event is sent only to the
+.I active
+window.
+.IP \fBCOVERED\fP 0.5i
+.br
+The window was partially or completely obscured by another window.
+.IP \fBDEACTIVATE\fP 0.5i
+.br
+The window was deactivated, it is no longer the
+.I active
+window.
+.IP \fBREDRAW\fP 0.5i
+.br
+The display was redrawn, either by
+selecting the
+.I redraw
+option from the system menu, or by keying
+.I \s-2LEFT\s+2-r
+from the keyboard.
+Only windows that are exposed receive the 
+.SM
+.I REDRAW
+.LG
+event.
+The images of obscured windows are restored automatically by \*M.
+The client program is expected to regenerate the contents of its
+window in response to the
+.SM
+.I REDRAW
+.LG
+event.
+.IP \fBRESHAPE\fP 0.5i
+.br
+The window was reshaped.
+If the user selects the system
+.I reshape
+option,
+the 
+.SM
+.I RESHAPE
+.LG
+event is sent, even if the window stays the same shape.
+.IP \fBUNCOVERED\fP 0.5i
+.br
+The window, previously obscured, was uncovered.
+If the window also became the 
+.I active 
+window, the
+.SM
+.I UNCOVERED
+.LG
+event is sent
+before the
+.SM
+.I ACTIVATE
+.LG
+event.
+.IP \fBMOVE\fP 0.5i
+.br
+The window was moved.
+.IP \fBDESTROY\fP 0.5i
+.br
+The window was destroyed.
+Only
+.I alternate
+windows
+(as created by
+.Fr m_newwin
+) cause 
+.SM
+.I DESTROY
+.LG
+events to be sent.
+If the
+.I main 
+window is destroyed,
+the client program is sent a
+.I hangup
+signal, and its connection
+to \*M is severed.
+.IP \fBACCEPT\fP 0.5i
+.br
+Messages are accepted from client programs running in other windows
+(see
+.Fr m_sendto
+\&).
+The content of the message is obtained by specifying the 
+.Fi %m
+parameter as part of the event string, as is fully described below.
+.IP \fBNOTIFY\fP 0.5i
+.br
+Register a name with \*M, and make this name available to client programs.
+This name is available to other clients, either by a call to 
+.Fr m_getinfo G_NOTIFY
+ or with the
+.Fi %n
+parameter described below.
+Unlike the other events, 
+the
+.I notify
+string is never sent back to the client program by \*M, but is
+used to register a name for the window.
+.IP \fBSNARFED\fP 0.5i
+.br
+Text was put into the snarf buffer either by a client program with
+.Fr m_put
+ or by use of the system
+.I cut
+function.
+.IP \fBPASTE\fP 0.5i
+.br
+Text is about to arrive as a result of the system
+.I paste function.
+.RE
+
+Some
+.I event
+strings may contain substitutable parameters in the
+manner of
+.I printf
+format specifiers (i.e. %X).
+These parameters
+are applicable only to certain types of events.
+In any case, the
+.B %
+character may be forced by doubling it, as in
+.B %% .
+Where more than one data item replaces the format specifier, 
+the items are separated by 
+a
+.I space
+character.
+For the event strings
+.Fi BUTTON_1
+and
+.Fi BUTTON_2 ,
+several parameters cause \*M to sweep out some object in response to
+mouse movement, and report back the size of the swept object when the button
+is released.
+Any one of lines, boxes, text, or rectangles may be swept out with 
+this mechanism.
+Initial parameters may be associated with a sweep event by listing them
+as comma separated integers following the 
+.B %
+and preceding the sweep command character.
+The parameters (if any) set the initial size of the object to be swept, 
+in the same coordinate system in which the sweep extend is reported.
+.RS
+.IP \fB%r\fP 0.5i
+Depressing the button causes \*M to
+sweep out a rectangle in response to moving the mouse,
+in a manner similar to the system
+.I reshape
+function.
+The initial parameters set the initial width and height of the rectangle.
+When the button is released,
+the coordinates of the
+.I starting
+and
+.I ending
+points of the rectangle in response to moving the mouse, in
+.I window
+coordinates,
+are substituted for the
+.B %r .
+.IP \fB%R\fP 0.5i
+Depressing the button causes \*M to
+sweep out a rectangle,
+as in
+.B %r
+above,
+only the result is reported in 
+.I display coordinates.
+.IP \fB%b\fP 0.5i
+Depressing the button causes \*M to
+move a rectangle in response to moving the mouse,
+in a manner similar to the system
+.I move
+function.
+The initial parameters set the initial width and height of the rectangle
+to be moved.
+When the button is released,
+the current coordinates of the box's corner
+is returned in
+.I window
+coordinates,
+substituted for the
+.B %b .
+.IP \fB%B\fP 0.5i
+Depressing the button causes \*M to
+move a rectangle in response to moving the mouse,
+in a manner similar to the system
+.I move
+function.
+The initial parameters set the initial width and height of the rectangle
+to be moved.
+When the button is released,
+the current coordinates of the box's corner
+is returned in
+.I display
+coordinates,
+substituted for the
+.B %b .
+.IP \fB%l\fP 0.5i
+Depressing the button causes \*M to
+sweep out a line.
+One end of the line remains fixed at the
+.I "graphics point"
+while the other end of the line tracks the mouse position.
+The initial end point of the line may be specified as a displacement
+from the graphics point as part of the initial parameters.
+When the button is released,
+the coordinates of the
+.I starting
+and
+.I ending
+points of the line, in
+.I window
+coordinates,
+are substituted for the
+.B %l .
+.IP \fB%t\fP 0.5i
+Depressing the button causes \*M to
+sweep out text, in a manner equivalent to the system
+.I cut
+function.
+Upon the release of the button, the
+.B %t
+is replaced by the starting character coordinate of the 
+.I cut
+region, followed by character distance to the ending point
+in columns and lines respectively.
+For example, The event string 
+\fIsweep[\fP\fB%t\fP\fI]\fP
+might return
+\fIsweep[\fP\fB17 5 6 0\fP\fI]\fP,
+indicating the user swept out a six character word on a single
+line, starting on
+.Fi column
+17,
+.Fi row
+5.
+An initial size may be specified in number of rows and number of
+columns.
+.RE
+The remaining format specifiers are replaced by the information
+described below No sweep action is performed.  The first three, %p, %P,
+and %M also apply to the button release events.
+to button releases.
+.RS
+.IP \fB%p\fP 0.5i
+The
+.B %p
+is replaced by the current mouse coordinates, in
+.I window
+coordinates.
+.IP \fB%P\fP 0.5i
+The
+.B %P
+is replaced by the current mouse coordinates, in
+.I character
+coordinates.
+.IP \fB%M\fP 0.5i
+The
+.B %M
+is replaced by the time in hundredths of seconds that have elapsed
+since \*M was started.
+.IP \fB%n\fP 0.5i
+If the mouse cursor is over a window whose
+.SM
+.Fi NOTIFY
+.LG
+event is set,
+the text of that message is substituted for the
+.B %n .
+.IP \fB%w\fP 0.5i
+If the mouse cursor is over a window whose
+.SM
+.Fi NOTIFY
+.LG
+event is set,
+the 
+.Fi window_id
+of the clicked on window
+is substituted for the
+.B %w .
+This
+.Fi window_id
+may be used by
+.Fr m_sendto
+to send the clicked-on window a message.
+.IP \fB%S\fP 0.5i
+If the mouse cursor is over a window whose
+.SM
+.Fi NOTIFY
+.LG
+event is set,
+the length of that message is substituted for the
+.B %S .
+.RE
+.sp
+The 
+.SM
+.Fi ACCEPT
+.LG
+event is used to receive messages from other client programs.
+The following substituteable parameters may be used as part of the
+event string.
+.RS
+.IP \fB%f\fP 0.5i
+The
+.Fi window_id
+of message sender, as used in
+.Fr m_sendto
+, replaces the
+.B %f .
+.IP \fB%m\fP 0.5i
+The text of message sent by the other client program
+replaces the
+.B %m
+.IP \fB%s\fP 0.5i
+The length of the message, in characters,
+replaces the
+.B %s .
+For example, a call to
+.TS
+center box;
+c.
+m_setevent(ACCEPT,"Message from (\fB%f\fP), (\fB%s\fP) long is: \fB%m\fP")
+.TE
+might cause \*M to return
+.TS
+center box;
+c.
+Message from (\fB3214\fP), (\fB2\fP) long is: \fBHI\fP
+.TE
+after the client program whose
+.I "window id"
+is
+.I 3214
+uses
+.Fr m_sendto
+to send the message
+\fI"HI\|"\fP.
+.IP \fB%p\fP 0.5i
+As with the 
+.SM
+.Fi BUTTON
+.LG
+events above,
+.B %p
+is replaced by the current mouse position in
+.I window
+coordinates.
+.IP \fB%P\fP 0.5i
+As with the 
+.SM
+.Fi BUTTON
+.LG
+events above,
+.B %P
+is replaced by the current mouse position in
+.I character
+coordinates.
+.RE
+For the
+.SM
+.Fi SNARFED
+.LG
+event string,
+the following substitution parameters are recognized.
+.RS
+.IP \fB%f\fP 0.5i
+The 
+.I "window id"
+of the window filling the
+.I snarf
+buffer replaces the
+.B %f .
+.IP \fB%c\fP 0.5i
+The current length of the
+.I snarf
+buffer, in characters,
+replaces the
+.B %c .
+.IP \fB%C\fP 0.5i
+The contents of the 
+.I snarf
+buffer replaces the
+.B %C .
+At present, only the first 250 characters of the 
+.I snarf
+buffer may be returned via the
+.B %C
+parameter.
+Use
+.Fr m_snarf
+to read the entire buffer.
+.RE
+.sp
+The
+.SM
+.Fi PASTE
+.LG
+event string,
+recognizes the
+.B %c
+specifier as described under
+.SM
+.I SNARFED
+.LG
+above.
+.Fe
+.Fh m_setmode mode
+.Fs m_setmode 6 "Set a window mode"
+Various window modes may be
+.I set
+or
+.I cleared
+(see
+.Fr m_clearmode
+)
+independently.
+These modes are:
+.RS
+.IP \fBM_STANDOUT\fP 0.5i
+The window is put in standout mode.
+All characters
+are written with their foreground and background
+colors reversed.
+.IP \fBM_WOB\fP 0.5i
+The sense of
+.I white
+and
+.I black
+is reversed for the entire window,
+not just for characters as is
+.SM
+.B M_STANDOUT .
+.LG
+.IP \fBM_AUTOEXPOSE\fP 0.5i
+The next character to be typed on the window
+causes it to automatically become the
+.I active
+window.
+.IP \fBM_BACKGROUND\fP 0.5i
+Output goes to the window even if it is 
+partially or totally obscured.
+The data in exposed portions of the window is seen immediately.
+Data in covered portions of the window is saved by \*M and restored 
+when the covered portions are exposed.
+.IP \fBM_NOINPUT\fP 0.5i
+Keyboard input is prohibited.
+All input from
+the keyboard is held buffered by \*M until
+either
+.SM
+.B M_NOINPUT
+.LG
+is cleared, or a different
+window is made the
+.I active
+window.
+In the latter case
+the input goes to the newly activated
+window.
+This flag is automatically turned
+off when the user activates the window.
+This feature is for client programs that want one of their
+windows to come to the front just long enough to notify the
+user of some event, but do not want to accidently intercept keyboard
+input while the user is merrily typing to some other client.
+.IP \fBM_NOWRAP\fP 0.5i
+The character cursor does not automatically jump to the left edge of
+the next line as it reaches the right edge of its text region.
+After the right margin is passed,
+the cursor and any subsequent text disappear past the right
+edge of the window.
+.IP \fBM_OVERSTRIKE\fP 0.5i
+Text is written to the window with the mode
+specified by
+.Fr m_func
+ instead of the normal
+copy mode.
+In copy mode, the characters completely obliterate their destination
+instead of combining with it.
+.IP \fBM_ABS\fP 0.5i
+.br
+The window is set to 
+.I absolute
+coordinate mode.
+The upper left edge of the window, just inside
+the border is at position
+.Fr "" 0  0
+\&.
+All other locations
+are measured relative to that corner in pixels.
+.IP \fBM_ACTIVATE\fP 0.5i
+The window is made the
+.I active
+window,  pops to the front of the display,
+and obtains all keyboard and mouse input.
+.IP \fBM_SNARFLINES\fP 0.5i
+The system
+.I cut
+function only
+cuts entire lines.
+If any text on a line is swept out, the entire line of text
+is included.
+.IP \fBM_SNARFTABS\fP 0.5i
+The system
+.I cut
+function attempts to turn
+white space into a minimal combination of spaces and tabs.
+Tab are set at every 8 columns.
+.IP \fBM_SNARFHARD\fP 0.5i
+The system
+.I cut
+function attempts to cut
+text even if the window contents have been corrupted.
+Unidentifyable characters are returned as
+.I C_NOCHAR
+(\'?\').
+.IP \fBM_STACK\fP 0.5i
+Any events pushed on the window stack
+when this flag is set will be sent in addition to
+any currently active events. 
+This setting is useful for filters which need to receive events, yet
+still permit clients running under them to receive events as well.
+.RE
+.Fe
+.Fh m_setnoecho
+.Fs m_setnoecho 1 "Turn off character echo"
+Character echoing to the window is disabled if possible.
+Character echoing is normally disabled by clients to inhibit information
+from \*M, as from calls to 
+.Fr m_getinfo
+ from echoing on the window.
+.Fe
+.Fh m_setnoraw
+.Fs m_setnoraw 1 "Enable normal character input processing (line mode)"
+Normal terminal input processing is in effect.
+Input is buffered by lines, and all normal line editting
+and keyboard interrupt generation
+is in effect.
+.Fe
+.Fh m_setraw
+.Fs m_setraw 1 "Disable all character input processing (raw mode)"
+Every character is available as entered, no input processing is 
+done.
+This is typically called
+.I raw
+mode.
+Raw mode is not always available, in which case the macro call is
+ignored.
+.Fe
+.Fh m_shapewindow X Y Dwidth Dheight
+.Fs m_shapewindow 6 "Reposition a window"
+The window is reshaped to
+position
+.Fr "" X Y
+ and with size
+.Fi Dwidth
+by
+.Fi Dheight .
+As only the
+.I active
+window may be reshaped,
+.Fr m_shapewindow
+activates the window if it is not already active.
+The new size of the window is not guaranteed;
+the
+.I width
+or
+.I height
+may be truncated to the right or bottom edges of the display.
+The macro
+.Fr m_getinfo
+can be used to determine the actual window size.
+.Fe
+.Fh m_size columns rows
+.Fs m_size 6 "Resize a window to a specified number of rows and columns"
+The size of the window is changed so that it fits exactly
+.Fi columns
+by
+.Fi rows
+of characters in the current font.
+The window may be truncated at the right or bottom edge of the display
+if it is too large to fit on the display at its current position.
+.Fe
+.Fh m_sizeall X Y columns rows
+.Fs m_sizeall 6 "Reposition a window with a given number of rows and columns"
+The window is reshaped to position
+.Fr "" X Y
+ on the display, and resized to fit
+.Fi columns
+and
+.Fi rows
+of text.
+As only the
+.I active
+window may be reshaped,
+.Fr m_shapewindow
+ activates the window if it is not already active.
+The new size of the window is not guaranteed;
+the
+.I width
+or
+.I height
+may be truncated to the right or bottom edges of the display.
+The macro 
+.Fr m_getinfo
+can be used to determine the actual window size.
+.Fe
+.Fh m_snarf
+.Fs m_snarf 12 "Retrieve the contents of the global snarf buffer"
+The application is sent the contents of the global snarf buffer,
+if any, as specified by the last call by a client programs
+call to
+.Fr m_put
+ or by use of the system
+.I cut
+function.
+.Fe
+.Fh m_sleep
+.Fs m_sleep 13 "Do nothing"
+This call causes \*M to suspend the processing
+of characters to the window.
+After a chunk of output for all other windows has been processed,
+output processing resumes.
+This does not normally take very long, making
+.Fr m_sleep
+ almost a 
+.I no-op.
+.Fe
+.Fh m_standend
+.Fs m_standend 3 "Turn off reverse video characters"
+Inverse video mode as set by
+.Fr m_standout
+ is turned off.
+This is exactly equivalent to
+.Fr m_clearmode M_STANDOUT
+\&.
+.Fe
+.Fh m_standout
+.Fs m_standout 3 "Turn on reverse video characters"
+Inverse video mode is turned on.
+This is exactly equivalent to
+.Fr m_setmode M_STANDOUT
+\&.
+The color of the characters and their backgrounds are interchanged.
+.Fe
+.Fh m_stringto to x_dst y_dst string
+.Fs m_stringto 4 "Print a string to an scratchpad bitmap"
+The text
+.Fi string
+is printed
+starting at the location
+.Fr "" x_dst y_dst
+ on 
+.I scratchpad
+bitmap
+.Fi to .
+The text is clipped to fit in the bitmap, and no special command processing
+is done on
+.Fi string.
+If 
+.Fi to
+is 0 (zero),
+The text is printed on the window, but
+.I "text region"
+boundaries are ignored.
+This is the only way to get text into a window outside of the
+.I "text region" .
+.Fe
+.Fh m_textregion x y wide high
+.Fs m_textregion 3 "create a text region"
+A subregion within the current window
+starting at
+.Fr "" x y
+ and of size
+.Fi wide
+by
+.Fi high
+is defined within which all text is restricted.
+All functions and information that deals in
+.I character
+coordinates views the text region as if it was the entire window.
+As soon as the text region is defined, the character cursor is
+moved to row and column
+.Fr "" 0 0
+,
+which is now located at the point
+.Fr "" x y
+\&.
+Graphics output is not affected by text regions.
+.Fe
+.Fh m_textreset
+.Fs m_textreset 3 "Reset the text region to the entire window"
+The
+.I "text region"
+(defined by a call to
+.Fr m_textregion
+) is reset to be the entire window.
+This is the default setting.
+.Fe
+.Fh m_unlinkmenu parent item
+.Fs m_unlinkmenu 8 "Unlink a menu"
+The menu link associating a child menu with
+the menu
+.Fi parent
+at
+.Fi item
+(counting from zero) is removed
+(see also
+.Fr m_linkmenu
+\&).
+This function does not change the menus, only their
+connections.
+.Fe
+.Fh m_unpagemenu parent
+.Fs m_unpagemenu 8 "Disconnect two pages of a paged menu"
+The link associating the menu
+.Fi parent
+with a
+.I child
+menu is removed.
+See also
+.Fr m_pagemenu
+\&.
+.Fe
+.Fh m_up n
+.Fs m_up 13 "Move character cursor up by tenths of a character height"
+Move the character cursor up 
+.Fi n
+tenths of a character height.  This may cause the window to scroll down.
+See also
+.Fr m_left
+.Fr m_right
+and 
+.Fr m_down
+\&.
+.Fe
+.Fh m_whatsat X Y
+.Fs m_whatsat 7 "Find out what is at a particular display location"
+\*M returns to the client program a line indicating what is at the
+.I display
+coordinates
+.Fr "" X Y
+\&.
+If that location is occupied by a window,
+a line containing the window's controlling terminal, alternate window number,
+and
+.I "window id"
+is returned in a space separated list.
+If the location
+.Fr "" X Y
+ is not in a window, \*M returns a newline.
+.Fe
+.Fh m_windowsave name
+.Fs m_windowsave 5 "Save the window image on a file"
+The current image contents of the window is saved in the file
+.Fi name
+on the \*M-host machine in \*M bitmap
+format.
+File names beginning with "./" are evaluated relative to the current directory
+when \*M was started.
+See also
+.Fr m_othersave
+ and
+.Fr m_bitsave
+\&.
+.Fe

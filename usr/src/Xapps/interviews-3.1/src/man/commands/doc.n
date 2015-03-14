@@ -1,0 +1,607 @@
+.TH doc 1 "16 April 1991" "InterViews" "InterViews Reference Manual"
+.SH NAME
+doc \- simple document editor
+.SH SYNOPSIS
+\fBdoc\fP [\fIoptions\fP] [\fInames\fP]
+.SH DESCRIPTION
+\fIDoc\fP is a WYSIWYG document editor.  In addition to text, doc
+contains a simple table editor, and it can import graphics generated
+by the drawing editor \fIIdraw\fP and several types of rasterized images.
+The editor's functionality and terminology is modeled loosely after the
+LaTeX document preparation system.  In particular, doc stores its
+documents in a format that is reminiscent of LaTeX; you can translate
+many LaTeX documents into doc format with relatively little effort.
+.PP
+Doc is styled as a technical paper preparation tool.  It supports
+floating figures, cross-referencing, section and figure numbering,
+page numbering, user-defined macros and user-defined styles.
+Currently, however, it does not include an equation formatting
+facility or indexing.
+.PP
+Doc uses high-quality TeX formatting algorithms and precise PostScript
+font metrics (where available).  The TeX algorithms are able to find
+pleasing line and page breaks for most documents; where necessary, you
+can guide the formatter by inserting discretionary breaks.  With care,
+you can expect a high-quality final document.
+.SH ARGUMENTS
+In addition to standard X command-line arguments, doc accepts
+several options that are shorthand for overriding common property
+values.  The properties section has full details on the meaning of
+these properties.
+.TP
+.B \-screenmetrics
+Shorthand for setting the property \fIscreen_metrics\fP to \fIon\fP.
+.TP
+.B \-style
+Shorthand for setting the property \fIdefault_style\fP.  The value of the
+property is the following argument on the command line.
+.TP
+.B \-psfinal
+Shorthand for setting the property \fIinit_psfig_mode\fP to
+\fIfinal\fP.
+.PP
+Any parameters remaining on the command line after argument processing
+are assumed to be the names of documents; doc will open a window (a
+"viewer") for each specified document.
+.SH KEY AND MOUSE BINDINGS
+Doc assigns the left mouse button to selecting and the middle button
+to manipulating selected items.  The binding of the right button is
+item-specific.  Currently, the only use for the middle and right
+buttons is in positioning floating items.  The section on floating
+items has more details.
+.PP
+You use the left mouse button to select text or other items.
+Subsequent editing operations operate on the selected items.  Clicking
+and dragging with the left button selects a range of text.  Holding
+down the shift key while clicking left extends the current selection.
+.PP
+In addition to the current selection, doc also maintains a current
+focus.  The focus control policy is click-to-type: clicking left to
+set the selection also changes the focus to the item containing the
+selection.  For items embedded in the document (such as figures or
+embedded text frames), doc indicates the active focus by outlining the
+item.  When the focus is at the top level of the document, there is no
+explicit indication.
+.PP
+Keystrokes within a viewer are delivered to the focus item irrespective
+of the position of the mouse.  However, each doc viewer has a separate focus;
+if you have several doc windows open, keystrokes will be delivered to
+the appropriate window as determined by the window manager's focus policy.
+.SH COMMANDS
+All doc editing operations are specified by commands (simple character
+insertions are an exception).  A command consists of a keyword and
+usually one or more parameters; it can be issued from a menu (see the
+section on menus) or by binding it to a key (see the section on
+keymaps).
+.PP
+Currently, doc understands the following commands:
+.TP
+.B select
+Extend the selection around the current value.  \fIselect word\fP
+extends the selection to the enclosing word boundaries.  Repeated
+operations add successive words to the beginning of the selection.
+The paragraph-oriented \fIselect paragraph\fP works similarly.
+\fIselect all\fP selects the entire text.
+.TP
+.B go
+Move the insertion point.  The parameter specifies the unit of motion
+(character, paragraph, line, page) and the direction (forward,
+backward).  Thus, variants include combinations like \fIgo
+forward_character\fP and \fIgo backward_line\fP.  In addition, \fIgo
+beginning\fP and \fIgo end\fP move the insertion point to the
+beginning or the end of the text.
+.TP
+.B page
+Flip the view to another page of the document (but don't change the
+position of the insertion point).  Variants include \fIpage forward\fP,
+which pages towards the end of the document, \fIpage backward\fP,
+which pages towards the beginning, and \fIpage n\fP, which jumps to a
+specified page.
+.TP
+.B clip
+Clipboard-style cut-and-paste operations.  \fIclip cut\fP deletes the
+current selection and places the deleted text on the clipboard.
+\fIclip copy\fP copies the selection to the clipboard without removing
+it from the text.  \fIclip paste\fP replaces the current selection
+with the contents of the clipboard.
+.TP
+.B delete
+If the current selection is not empty, delete it.  Othersize delete
+the following character (\fIdelete following\fP) or the preceding
+character (\fIdelete preceding\fP).  Delete commands do not save text
+on the clipboard.
+.TP
+.B font, color, size, align
+Set the attributes of selected text.  Fonts can be any valid
+PostScript font for which a screen font is available.  (for example,
+\fIfont Times-BoldItalic\fP or \fIfont Symbol\fP).  Colors can
+specified as names (\fIcolor red\fP) or as RGB triples (\fIcolor
+#RRGGBB\fP).  Sizes are measured in printer's points (\fIsize 18\fP or
+\fIsize 6.5\fP).  Finally, an alignment can be either \fIleft\fP,
+\fIright\fP, \fIcenter\fP, or \fIjustify\fP.  As a special case, a
+font, color, or size command with no parameter causes doc to prompt
+for the missing value via a dialog box.
+.TP
+.B character
+Specify a character by its octal code.  Often, this command is bound
+to a key so that common non-ASCII characters can be entered
+conveniently.  If the parameter is not specified, doc will request
+it via a dialog box.
+.TP
+.B macro
+Expand a macro in place of the current selection (see the section on
+macros for more details).  If the selection is non-empty, it will be
+used as the macro parameter, otherwise a default parameter value will
+be used.  If the command doesn't specify the macro to expand, doc
+will prompt for the value via a dialog box.
+.TP
+.B item
+Insert a document item in place of the current selection.  The section
+on items has details on the available item types and their parameters.
+If the command doesn't specify the item type, doc will prompt for the
+name.
+.TP
+.B graphic
+Graphic view operations.  \fIgraphic draft\fP and \fIgraphic final\fP
+set the display mode of the selected graphic.  Draft mode displays
+graphics as a simple bounding box; final mode displays the actual
+graphic.  The initial display mode is controlled by the
+\fIinit_psfig_mode\fP property.  \fIgraphic reread\fP updates the
+selected graphic following a change to its definition.  For example,
+if you use idraw to modify a graphic, use the reread command to
+display the changes in doc.  \fIgraphic modify\fP prompts for changes
+to the graphic's attributes.  The section on graphics items has more
+details.
+.TP
+.B viewer
+Commands that operate on a viewer as a whole: \fIviewer print\fP
+creates a file that contains a PostScript version of the document.
+The PostScript file will have the same name as the document file but a
+different extension. (The \fIpostscript_file_extension\fP property
+controls the extension.)  \fIviewer view\fP creates a new view of the
+current document.  Changes made in either view will be reflected in
+both.  \fIviewer new\fP creates a new document.  \fIviewer open\fP
+opens a view of an existing document; doc will prompt for the name of
+the document.  \fIviewer close\fP closes the current view.  If the
+document has unsaved changes, doc will ask whether you want to save
+the changes before closing.  \fIviewer save\fP and \fIviewer saveas\fP
+save the document displayed in the current view.  \fIviewer save\fP
+uses the current name; \fIviewer saveas\fP prompts for a new name.
+.TP
+.B application
+Commands that operate on all open views and documents.  Currently, the
+only defined application command is \fIapplication quit\fP, which
+closes all views and exits the application.  Doc will ask what to do
+about unsaved changes.
+.TP
+.B menubar
+Install a new menubar.  The command property specifies the name of a
+property that defines the new menus.  See the menus section for more
+details.
+.TP
+.B keymap
+Install a new keymap.  The command property specifies the name of a
+property that defines the new keymap.  See the keymap section for more
+details.
+.SH DOCUMENT ITEMS
+Doc represents a document as a sequence of items.  Most items are
+simple characters, but item types can be mixed arbitrarily.  Document
+items (other than simple characters) are usually entered with
+\fIitem\fP commands.  These commands prompt for any parameters that
+the items need.
+.PP
+Currently, doc defines the following items:
+.TP
+.B float
+A document float is a secondary text flow that is anchored to a
+particular point in the primary flow.  Floats are usually used for
+ancillary material such as figures or tables.  A float takes a single
+parameter that specifes how the item should be incorporated into the
+document's numbering scheme.  Labels embedded within the float will be
+numbered within the specified context.  For example, labels embedded
+in "figure" floats will be numbered in a different sequence than
+labels embedded in "table" floats.
+.TP
+.B \ 
+In doc, you specify the positions of floats explicitly.  When first
+created, a float's position is unspecified; doc displays such floats
+as "floating" above the text of the document.  You can drag the float
+around with the middle mouse button.  To place a float in its final
+position, go to the appropriate page and drag the float to its desired
+position.  Then use the right mouse button to "push" the float into
+the document; doc will move underlying text aside to make room for the
+float.  You can fine-tune the position of the float by dragging it with
+the middle mouse button; doc will flow the text around the float as
+you drag.  (If you hold down the shift key as you drag, doc will not
+reformat the text until you release the mouse button).  To move the
+float to a different page, use the right mouse button to "pop" it out
+of the document.
+.TP
+.B tabular
+A tabular item is a simple table (the name comes from LaTeX).  A
+newly-created tabular item has a single cell.  You add rows and
+columns to build the size you need.  The dimensions of the table are
+defined by the text in its cells; the table will grow as you edit the text.
+.TP
+.B psfig
+A psfig item displays a graphic (the name cames from the psfig LaTeX
+macro package).  The item takes a parameter that specifies the name of
+the file that defines the graphic and, optionally, parameters that
+specify the width, height, scaling, or rotation of the graphic.
+.TP
+.B \ 
+The syntax of the parameters is borrowed from the psfig macros.  You
+specify parameters as a comma-separated list of keyword values.  For
+example, you could specify "width=5in,rotate=90".  Parameters that
+define lengths can include units in the same format as document
+metrics.  The section on document styles has details about units.
+.TP
+.B \ 
+Doc can read graphics generated by idraw or by Jeff Poskanzer's
+portable bitmap (pbm) tools ppmtops and pgmtops.  The bitmap tools
+convert rasterized graphics from a wide range of formats into a simple
+form of PostScript that doc can read.
+.TP
+.B parbox
+A parbox (again, a LaTeX term) is an embedded text item.  You can use
+parboxes for text that needs to be formatted separately from the main
+flow; to the surrounding text, the parbox appears like a single large
+character.  A parbox takes a single parameter that specifies the width
+of the box.
+.TP
+.B label, ref
+Label items and ref items (in conjunction with counters) support doc's
+numbering facility.  A label is a target for a cross reference; a ref
+expands into the cross reference text.  Labels and refs are connected
+via a tag (usually a mnemonic string).  For example, a ref with the
+tag "introduction" would refer to a label with the same tag.
+.TP
+.B \ 
+To use doc's cross referencing, insert labels into the document at the
+places to which you need to refer.  Often, these labels will be in
+section headings or in figure or table captions.  Then insert refs
+where you want the cross reference to appear.
+.TP
+.B counter
+A counter specifies the place in a document where a counter should be
+incremented.  For example, the counter that generates section numbers
+is incremented at each section heading, and the counter that numbers
+figures is incremented in the figure caption.  Counter items are not
+usually inserted explicitly; they are usually used in conjunction with
+macros.  The section on macros has more information.
+.SH MENUS
+Doc menus are defined by properties.  Your installation will define a
+standard set of menus, but you can provide you own if you prefer.  The
+standard set of menus is structured to suggest the commands that the
+menu entries execute.  For example, the "Font" menu contains entries
+that execute "font" commands with various parameters.  See the
+commands section for a list of the commands that doc understands.
+.PP
+Each menu (including the menubar itself) is defined by a separate
+multi-line property; each line in the property specifies a menu entry.
+An entry specification can include three fields: a tag that doc uses
+to highlight, select, enable, or disable the entry; the command that
+the entry will execute; and a label that defines the appearance of
+the entry in the menu.
+.PP
+Fields are separated by whitespace and all fields are optional.  The
+tag field is surrounded by angle brackets and the command by
+parentheses; the label field is the remainder of the line after the
+tag and command have been processed.  The best way to learn how to
+define your own menus is to examine an existing menu definition
+property.
+.PP
+Menu labels use the same text format as the document itself; in
+particular, you can specify labels that contain text in various sizes,
+fonts, and colors to suggest the result of styling commands.  As a
+special case, an entry with no label field will generate a separator
+bar that visually separates items in a menu.
+.PP
+The special command \fImenu\fP specifies a submenu definition; the
+command parameter is the name of another property that defines the
+submenu.  Using this mechanism, you can build menus of arbitrary
+depth.  However, most menu hierarchies are two levels deep: the top
+level (the menubar) consists entirely of pulldown submenus; the second
+level contains only command-generating entries.  Experience shows that
+deeply-nested menus are often hard to use.
+.SH KEYMAPS
+Doc key bindings are defined by properties.  Your installation will
+define a standard set of keymaps, but you can provide you own if you
+prefer.  The standard bindings include a set of cursor motion commands
+that are reminiscent of emacs, and a sprinkling of bindings for common
+special characters.  Key bindings tend to be highly personal; you will
+most likely want to change or extend the defaults.
+.PP
+Each keymap is defined by a separate multi-line property; each line in
+the property defines one key binding.  A binding contains two fields: a
+specification that indicates the key to bind; and the command that the
+binding generates.  The commands section describes the commands that
+doc understands.
+.PP
+Key specifications are enclosed in angle brackets; they specify the
+octal code for the key.  Codes greater than 127 specify chordings of
+keys with the workstation's "meta" or "option" key.  Commands are
+enclosed in parentheses.  The best way to learn how to define you own
+key bindings is to examine an existing keymap definition property.
+
+.SH MACROS
+Doc supports a simple macro facility that simplifies the definition of
+recurring features of a document.  A macro definition can contain any
+items that could appear in the document (although currently, doc does
+not support a macro definition that refers to another macro).  In
+addition, the definition contains a placeholder for a single
+parameter.  When it instantiates the macro, doc replaces the
+placeholder with the actual parameter text.
+.PP
+Macros are most commonly used for things like section and chapter
+headings.  For example, a "chapter" macro definition might contain a
+counter to increment the chapter number, the text "Chapter " in a
+large boldface style, a reference to the tag "chapter" that generates
+the text of the chapter number, a newline, and finally a placeholder
+for the chapter name.  When expanded, this macro will expand into two
+lines of text; the first will contain something like "Chapter 5", and
+the second something like "Experimental Results".
+.PP
+Macros are normally defined as part of a document style, although you
+can define your own to suit a particular document.  You can learn how
+to define your own macros by examining the definitions in the
+predefined style files.
+.SH STYLES
+Doc collects definitions that relate to the whole of a document into a
+document style.  Most documents will use predefined styles that define
+a consistent set of parameters.  For example, doc provides predefined
+styles for technical papers ("article"), technical reports ("report"),
+books ("book"), letters ("letter"), and overhead transparencies
+("slide").  You specify which style to use for a document by defining
+the \fIdefault_style\fP property when you create the document.  Doc
+will search for a file that matches the name of the document style.
+(The \fIstyle_path\fP and \fIstyle_file_extension\fP properties
+control the search).
+.PP
+You can also specify document style parameters in the document file
+itself.  These parameters override parameters defined in the style
+file.  Currently, doc does not define an interface to setting these
+document-defined parameters; you need to edit the document file with a
+text editor to change the values.
+.PP
+Doc defines style parameters of three types: macro definitions,
+counter formats, and document metrics.  Macro definitions and counter
+formats are user-defined; examination of existing definitions is the
+easiest way to learn how to define your own.
+.PP
+Doc metrics that specify physical lengths can also specify the units.
+Doc currently recognizes these unit designations and their plurals:
+"in", "inch", "cm", "mm", "pt", "pc", and "pica".  A missing unit is
+assumed to be points.
+.PP
+Currently, doc uses these metrics:
+.TP
+.B face
+.ns
+.TP
+.B pointsize
+.ns
+.TP
+.B color
+.ns
+.TP
+.B alignment
+The default font, size, color, and alignment to use for the document.
+.TP
+.B textwidth
+.ns
+.TP
+.B textheight
+The total width and height of the text part of a page.  If the
+document has more than one column, \fItextwidth\fP refers to the width of
+the combination of all the columns and the gutters between them.
+.TP
+.B leftsidemargin
+.ns
+.TP
+.B rightsidemargin
+.ns
+.TP
+.B bottommargin
+.ns
+.TP
+.B topmargin
+Whitespace margins to leave around the document.  Documents that have
+marginal floats, footnotes, page footers, or page headers define
+margins wide enough to hold the marginal items.
+.TP
+.B baselineskip, baselinestretch
+.ns
+.TP
+.B parskip, parstretch
+The amount of leading (extra space between lines).  The \fIbaseline\fP
+parameters control space between lines within a paragraph, the
+\fIpar\fP parameters control space between paragraphs.  The \fIskip\fP
+parameters specifiy the "natural" size of the leading; the
+\fIstretch\fP parameters specify how much the leading can stretch to
+accommodate the page formatting algorithm.  Both parameters are
+specified as a fraction of the prevailing font height.  In general,
+higher stretchabilities will allow the page formatter to find more
+page breaks that fall at interparagraph boundaries.
+.TP
+.B bigskip, bigstretch
+.ns
+.TP
+.B medskip, medstretch
+.ns
+.TP
+.B smallskip, smallstretch
+Spacing paramaters for three sizes of vertical space in a document.
+Document styles often use these values for spaces in macro
+definitions.
+.TP
+.B gutter
+The space to leave between columns in a multi-column document.
+.TP
+.B columns
+The number of columns per page.
+.TP
+.B hyphenpenalty
+The aesthetic cost of taking a formatting break at a discretionary
+hyphen.  Note that currently doc does not itself calculate the
+locations of discretionary hyphens; they must be entered explicitly by
+the author.
+.TP
+.B parbreakpenalty, skippenalty
+The aesthetic cost of taking a page break between paragraphs
+(\fIparbreak\fP) or at vertical spaces (\fIskip\fP).  Negative numbers
+encourage breaks; positive numbers discourage them.  Usually, breaks
+at skips are aesthetically better than breaks at paragraphs.
+.TP
+.B linepenalty, pagepenalty
+The aesthetic cost of each line and each page.  Large numbers tell doc
+to try to keep the number of lines and pages to a minimum.  Smaller
+numbers allow doc to spread the material out in search of "better"
+line and page breaks.
+.TP
+.B floatrepelright
+.ns
+.TP
+.B floatrepelleft
+.ns
+.TP
+.B floatrepeltop
+.ns
+.TP
+.B floatrepelbottom
+The space to leave around document floats when flowing text.
+.SH PROPERTIES
+Doc uses properties to define aspects of its behavior and appearance.
+You can define property values in any of the usual ways: in the
+application defaults file (usually "/usr/lib/X11/app-defaults/Doc"), in
+a file named "Doc" placed in the directory pointed to by the environment
+variable XAPPLRESDIR, from the "Xdefaults" property of the display
+root window, or via command-line switches.
+.PP
+Currently, doc uses these properties:
+.TP
+.B highlight
+.ns
+.TP
+.B active_highlight_color
+.ns
+.TP
+.B insert_highlight_color
+.ns
+.TP
+.B select_highlight_color
+These properties control the colors doc uses to highlight the current
+selection.  \fIActive_highlight_color\fP specifies the color of the
+outline drawn around the active object; \fIselect_highlight_color\fP
+specifies the color of the selection region within the active object;
+\fIinsert_highlight_color\fP specifies the color of the insertion
+point when the selection is empty.  If these values are not defined,
+doc will use the more general \fIhighlight\fP property.  If you
+specify a highlight color that is indistinguishable from either the
+foreground or background color (which is unavoidable on a machine with
+a 1-bit frame buffer), then doc will use an XOR highlight instead.
+.TP
+.B default_style
+Doc collects the information that describes overall document
+characteristics into a 'document style' (see the Styles section for
+details).  The document style for existing documents is stored in the
+document itself; this property defines the style that will be used for
+new documents.  Default: "article".
+.TP
+.B document_file_extension
+The file extension that doc uses when searching for documents
+specified on the command line.  Doc will not append the extension if
+the specified name already has an extension.  Default: "doc".
+.TP
+.B document_path
+A colon-separated list of directories to search for documents
+specified on the command line.  Default: ".".
+.TP
+.B idraw_font_metrics
+In current version of idraw, drawings that contain text look different
+on the screen than when printed in PostScript.  When reading idraw
+graphics, doc will attempt to match the appearance of either idraw or
+PostScript; this property specifies the strategy to use.  If
+\fIidraw_font_metrics\fP is \fIon\fP, doc displays idraw graphics that
+model the idraw appearance as closely as possible; if the property is
+\fIoff\fP, it models the PostScript appearance.  In either case, the
+PostScript that doc generates will match the screen appearance.
+Default: "on".
+.TP
+.B init_psfig_mode
+The initial display mode of graphic items.  The value \fIdraft\fP
+specifies that graphics should initially be displayed in draft mode
+(bounding box only).  The value \fIfinal\fP specifies final form.
+Specifying draft mode will speed startup time for documents that
+contain many large figures.  Default: "draft".
+.TP
+.B insert_flash_rate
+The flashing period (in seconds) for the insertion point cursor.  The
+value 0 turns off flashing.  Default: "0.5".
+.TP
+.B page_icon_font
+The font to use for the labels in the small paging buttons at the
+bottom of a doc window.  Default: "5x8".
+.TP
+.B postscript_file_extension
+The extension to append to a document name to create a PostScript file
+name when printing a document.  Default: "ps".
+.TP
+.B screen_metrics
+Normally, doc formats text according to PostScript font metrics.  This
+option forces doc to use X-derived font metrics instead.  PostScript
+metric information is more precise than the font information available
+from the X server; the final printed output looks better.  However,
+the representation of the text on the screen sometimes appears
+"squashed" because the X metrics are, on average, slightly larger than
+the PostScript metrics.  Set this property to \fIon\fP while roughing out
+a document; switch back to PostScript metrics for the final version.
+.TP
+.B style_path
+A colon-separated list of paths to search for document style files.
+Default: ".".
+.TP
+.B style_file_extension
+The extension to append to a style name when searching for a document
+style definition file.  Doc will not append an extension if the style
+name already has an extension.  Default: "sty".
+.TP
+.B version
+A string that defines the current version of doc's file format.
+Currently, doc will refuse to read documents that have incorrect
+versions.  Overriding this property may enable doc to read documents
+created with different versions.  Default: "1.0".
+.TP
+.B default_psfig_menubar
+.ns
+.TP
+.B default_tabular_menubar
+.ns
+.TP
+.B default_text_menubar
+The names of properties that define the default menubars for figures,
+tabular items, and text items.  Doc will install the appropriate
+menubar for the current selection.  See the menus section for details
+about defining menus.
+.TP
+.B default_psfig_keymap
+.ns
+.TP
+.B default_tabular_keymap
+.ns
+.TP
+.B default_encoded_keymap
+.ns
+.TP
+.B default_verbatim_keymap
+The names of properties that define the keymaps for different types of
+items.  Doc will install the appropriate keymap for the current
+selection.  \fIdefault_encoded_keymap\fP specifies the keymap for
+"normal" text; \fIdefault_verbatim_keymap\fP specifies a different
+keymap for "verbatim" text such as program code.  See the keymaps
+section for details about defining keymaps.
+.TP
+.B complaint_mode
+The way that doc should warn you about illegal actions.  Choices
+include posting a warning message (\fIreport\fP), sounding a bell
+(\fIbell\fP), or no warning (\fIignore\fP).  Default: "bell".

@@ -1,0 +1,287 @@
+Compilation and installation notes for tin - 06-12-92 
+-----------------------------------------------------
+
+Tin has been compiled on a wide range of Un*x machines with cc and gcc.
+A list of these machines can be found at the end of this file.
+
+This file is long (so was the yellow brick road) but please read it all
+as it could save you problems later and we don't want an unhappy ending
+do we? :-)  
+
+Tin can be compiled to read news in any of the following ways:
+
+  o  locally from your machines news spool dir (default /usr/spool/news).
+
+  o  locally and remotely (rtin or tin -r option) (-DNNTP_ABLE).
+
+  o  remotely from another machine via NNTP but creating tin index files
+     on local machine for each user in $HOME/.tin/.index (-DNNTP_ONLY).
+
+  o  remotely from another machine via NNTP and also retreiving tin index
+     files from remote machine via NNTP (-DNNTP_ONLY). This
+     option requires that MY NNTP XUSER & XINDEX patches be applied to
+     your NNTP server nntpd. On the NNTP server the index daemon of tin
+     'tind' needs to be run from cron to update the index files at 
+     regular inetervals.
+
+  o  locally from you machines news spool dir (defult /usr/spool/news)
+     and via CD-ROM using pseudo NNTP library with XSPOOLDIR command.
+     (-DCDROM_ABLE) must be defined and tin must be linked with the
+     pseudo NNTP CD-ROM library libcllib.a.
+ 
+  o  via CD-ROM only using pseudo NNTP library with XSPOOLDIR command.
+     (-DCDROM_ONLY) must be defined and tin must be linked with the
+     pseudo NNTP CD-ROM library libcllib.a.
+ 
+The -DNNTP_ABLE or -DNNTP_ONLY define must be added to CFLAGS in 
+Makefile and the correct libraries need to be linked to produce
+an NNTP aware tin.
+
+If -DCDROM_ABLE is defined tin will not work with normal NNTP. This
+may change as the CD-ROM library is further developed.
+
+Building Tin (Normal & Daemon versions) 
+---------------------------------------
+
+Normal version
+1)  Type 'make' and a few system types will be displayed.
+2)  Edit Makefile if you want to add/change -D<defines>.
+3)  Type 'make <system type>' to compile for your system.
+4)  Type 'make install' / 'make install_setuid' to install.
+
+Note1: If you want to retreive tin index files from your NNTP server
+      you will have to compile the tind index file daemon so do the
+      following steps:
+
+  1)  Build 'Normal version' of tin as specified by the above 4 points.
+  2)  The tind index daemon needs to be installed on your NNTP server.
+      More info. concerning my NNTP patches & the tin daemon can be 
+      found in the INSTALL.NNTP file.  
+  3)  Apply my NNTP XUSER & XINDEX patches to your nntpd server or this
+      will not work!!!. (If you want tind locally read Note3).  
+  4)  Edit the Makefile and add -DINDEX_DAEMON to your CFLAGS entry and
+      remove any -DNNTP_* defines. Also remove any -lcurses screen type
+      libs as tind does not need to be linked with curses and it will
+      save a good 30-50K on the size of tind.
+  5)  Type 'make <system type>' to compile tind daemon for your NNTP server.
+  6)  Type 'make install_daemon' to install tind daemon on your NNTP server.
+  7)  Add the following line to your system cron to run tind every 30 mins:
+        00,30 * * * * su news -c '/usr/lib/news/tind'
+        
+  Note2: tind must be run as user 'news' and the normal tin must have 
+         the correct permissions to read the central index files!
+  Note3: tind can also be used to update a copy of all index files
+         centrally so each user does not have duplicate files.
+ 
+    
+Compiler flags (-D<name> define directives)
+-------------------------------------------
+News directory structure
+------------------------
+
+LIBDIR
+Define if news software is not in /usr/lib/news.
+
+INEWSDIR
+Define if bnews/cnews program 'inews' is not in LIBDIR.
+
+SPOOLDIR
+Define if news articles are not in /usr/spool/news.
+
+
+Reading/posting news via NNTP
+----------------------------- 
+
+NNTP_ABLE
+Define if you wish to read news locally and remotely via an NNTP server.
+
+NNTP_ONLY
+Define if you [want to | can] ONLY read news remotely via an NNTP server.
+
+NNTP_INEWS
+Define if you want to use my builtin NNTP POST routine so that you no
+longer have to rely on the mini-inews from NNTP to be installed on each
+client machine. Also check that NNTP_INEWS_GATEWAY & NNTP_INEWS_DOMAIN 
+are correctly set to produce correct From: headers for your site.
+
+DONT_HAVE_NNTP_EXTS
+Define if you have a *virgin* NNTP server without my patches. This is just
+a nicety that will stop tin asking the server if it supports my NNTP server
+extensions XINDEX, XMOTD, XUSER & SPOOLDIR (cdrom) extensions.
+
+NNTP_INEWS_GATEWAY
+Defines the name of your news gateway machine. Useful if you don't want 
+your internal network visable to the outside world.
+Example: I use this define to make all my net postings appear from our news
+gateway machine 'anl433' even though I post from my own workstation 'sony01'
+ie. -DNNTP_INEWS_GATEWAY=\"anl433\"
+If the first letter of the string is a '/' the gateway name will be read from 
+the specified file.
+If the first letter of the string is a '$' the gateway name will be read from 
+the specified environment variable. The env. variable contents may be a path.
+If the first letter of the string is a '%' the gateway name will be directly
+appended to the username 
+ie. -DNNTP_INEWS_GATEWAY=\"%anl433.uucp@Germany.EU.net\" will create the net 
+address Iain.Lea%anl433.uucp@Germany.EU.net
+The '%' hack will *only* be used if NNTP_INEWS_DOMAIN is not defined.
+
+NNTP_INEWS_DOMAIN
+Defines the name of your network domain. 
+Example: I use this define to add our uucp domain '.uucp' to our news 
+gateways machine address 'anl433.uucp'.
+ie. -DNNTP_INEWS_DOMAIN=\".uucp\"
+If the first letter of the string is '/' the domain name will be read from 
+the specified file.
+If the first letter of the string is a '$' the domain name will be read from 
+the specified environment variable. The env. variable contents may be a path.
+
+NNTP_SERVER_FILE
+Only define if your nntpserver file is other than /etc/nntpserver.
+
+NETLIBS
+Contains the networking libraries needed to link with clientlib.o file.
+
+
+Reading news via CD-ROM
+-----------------------
+
+CDROM_ABLE
+Define if you wish to read news locally and from CD-ROM.
+
+CDROM_ONLY
+Define if you [want to | can] ONLY read news from CD-ROM.
+
+
+Daemon options
+--------------
+
+INDEX_DAEMON
+Define to make an index file updating daemon version of tin. Note that
+no -lcurses or screen libraries need to be linked with tin when this
+#define is specified. If defined this will automatically undefine all
+NNTP_* defines as the daemon has to be installed on the NNTP server.
+
+
+Miscellaneous options
+---------------------
+
+DEBUG
+Define if you want tin to log debug info. to files in /tmp. Activated
+by tin -Dn where n is 1 for NNTP only debug logging and n is 2 for 
+logging all debug info. Debug files written to /tmp are ARTS, ACTIVE,
+BASE and NNTP.
+
+DONT_HAVE_MKDIR
+Define if your machine does not have the mkdir() system call.
+
+DONT_HAVE_GETCWD
+Define if you don't have the getcwd() system call. getwd() will be used.
+
+DONT_HAVE_SELECT
+Define if you don't have the select() system call that is required to 
+abort the indexing of a group in art.c.
+
+DONT_LOG_USER
+Log username & info to /tmp/.tin_log for usage statistics. If reading via
+NNTP the NNTP XUSER extended command will log user info to NNTP server.
+If -DNNTP_XUSER is defined it will define LOG_USER automatically.
+
+DONT_REREAD_ACTIVE_FILE
+Define if you do not want the active file to be reread periodically.
+The reread period can be set in seconds by setting the tinrc variable
+'reread_active_file_secs='
+
+HAVE_ISPELL
+Define if you have ispell (interactive spellchecker) installed and want the
+option of checking your articles, mails before posting/mailing them.
+
+HAVE_LONG_FILENAMES
+Define if your machines filesystem supports filenames longer than 14
+chars (default for BSD type systems).
+
+HAVE_MAIL_HANDLER
+Define if you want to use the MH style mail handling & reading code in mail.c
+It should be noted that mail handling is not well tested and not yet fully
+implemented. You can expect errors if you use this define so let me know the
+problems by sending me a bug report ('B' bug command from within tin).
+
+HAVE_MMDF_MAILER
+Define if your machine uses a MMDF type mailer instead of sendmail.
+It is defined as default on SCO Unix machines. It can be dynamically 
+changed by setting the tinrc variable save_to_mmdf_mailbox to ON. 
+
+HAVE_POSIX_JC
+Define if your machine uses Posix style sigaction() signal handling.
+
+HAVE_SETREUID
+Define if problems occur when runnung tin as setuid news. Only define if
+your system supports the setreuid() system call.
+
+NO_PIPING
+Do not allow piping of articles to shell commands.
+
+NO_POSTING
+Do not allow posting/followup of articles.
+
+NO_REGEX
+Define if you do not want to use regular expression pattern matching.
+
+NO_SHELL_ESCAPE
+Do not allow shell escapes.
+
+SLOW_SCREEN_UPDATE
+Define if running over a low speed connection (ie. 2400baud). It stops
+the percentage info being shown at bottom of select and group menus and
+stops the groupname being displayed at the bottom of the screen as it is
+subscribed/unsubscribed.
+
+SMALL_MEMORY_MACHINE
+Define if you are running a machine with little memory (<4MB). Tin will
+run slightly slower but be more efficent in how memory is allocated and
+reclaimed.
+ 
+USE_CLEARSCREEN
+Define if the you wish screen to use ClearScreen() and not MoveCursor()
+and CleartoEOLN(). This is perhaps faster on slow terminals but I have
+not really run any speed tests recently.
+
+USE_INVERSE_HACK
+Define if you want inverse video and highlighted bar disabled. Can be 
+toggled in tin by the 'I' command and highlight bar by 'M' command.
+
+
+Compiled & installed on the following machines
+----------------------------------------------
+
+1) * i386 & Xenix 2.3.2/SCO SVR3.2/ISC SVR3.2/ATT SVR4.0
+2) * Sony News & NewsOS 4.1
+3) * SNI MX300/MX500 & Sinix 5.22/5.23/5.24/5.4
+4) * Sun 3/4/IPC/SS1/SS2/SS10 & SunOS 4.0.3/4.1.1/4.1.2/4.1.3 
+5) * Dec 5000/Vax & Ultrix 4.1/4.2
+6) * Vax 11/785 & BSD 4.3
+7) * DG Aviion 300 & DG-UX 4.30
+8) * Apollo DN4500 & DomainOS 10.3
+9)   ICL DRS6000 & SVR4.0 
+10)  Apricot VX/FT & SCO 3.2.2
+11)  DIAB DS90 & D-NIX 5.3
+12)  Amdahl 5890 & UTS 5.2.6b
+13)  HP 720/845 & HP-UX 7.0/8.0
+14)  IBM RS/6000 & AIX 3.1.5
+15)  NCR Tower & SysV
+16)  Atari STe & Minix 1.5.10.3b
+17)  Powerbook 140 & MacMinix
+18)  386 PC & Minix 386
+19)  Sequent S81 & PTX 1.3 / Dynix
+20)  Convex C220 & Convex Un*x
+21)  Harris HCX & CX/UX
+22)  SGI 4D/35 & IRIX 4.0.1
+23)  Pyramid 9810 & OSx96N
+24)  Alliant FX/2800 & Concentrix 2.2
+25)  Stratus i860 & FTX 2.0
+26)  i386 & Linux 0.97pl5
+27)  Apple A/UX 3.0 & gcc 2.2 (?)
+28)  Motorola Delta 3200 & SysVR3V6
+29)  Gould Powernode 9050 & utx/32
+30)  Acorn R260 & RISCiX 1.2
+
+* = compiled, installed and used by author 

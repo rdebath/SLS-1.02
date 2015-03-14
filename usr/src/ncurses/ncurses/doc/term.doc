@@ -1,0 +1,133 @@
+
+
+
+TERM(5)							TERM(5)
+
+
+NAME
+       term - format of compiled terminfo file.
+
+SYNOPSIS
+       term
+
+DESCRIPTION
+       Compiled terminfo descriptions are placed under the direc-
+       tory /usr/lib/terminfo.	In order to avoid a linear search
+       of  a  huge  UNIX  directory,  a two level scheme is used:
+       /usr/lib/terminfo/c/name where name is  the  name  of  the
+       terminal,  and  c  is  the first character of name.  Thus,
+       act4 can  be found in the file `/usr/lib/terminfo/a/act4'.
+       Synonyms for the same terminal are implemented by multiple
+       links to the same compiled file.
+
+       The  format has been chosen so that it will be the same on
+       all hardware.  An 8 or more bit byte is	assumed,  but  no
+       assumptions  about  byte  ordering or  sign extension  are
+       made.
+
+       The compiled file is created with  the  tic  program,  and
+       read  by	the  routine setupterm.   Both of these pieces of
+       software are part of ncurses(3).	 The file is divided into
+       six parts: the header, terminal names, boolean flags, num-
+       bers, strings, and string table.
+
+       The header section begins the file.  This section contains
+       six  short  integers in the format described below.  These
+       integers are (1) the magic number (octal	0432);   (2)  the
+       size,  in  bytes,  of the names section; (3) the number of
+       bytes in the boolean section;  (4)  the	number	of  short
+       integers in the numbers section; (5) the number of offsets
+       (short integers) in the strings section; (6) the size,  in
+       bytes, of the string table.
+
+       Short  integers	are stored in two 8 bit bytes.	The first
+       byte contains the least significant 8 bits of  the  value,
+       and  the second byte contains the most significant 8 bits.
+       (Thus, the value represented  is	256*second+first.)   The
+       value  -1  is  represented  by  0377, 0377, other negative
+       value are illegal.  -1 generally means that  a  capability
+       is missing from this terminal.  Note that this format cor-
+       responds to the hardware of the VAX and PDP-11.   Machines
+       where  this  does  not correspond to the hardware read the
+       integers as two bytes and compute the result.
+
+       The terminal names section comes next.	It  contains  the
+       first  line of the terminfo description, listing the vari-
+       ous names for the terminal, separated by the  `|'  charac-
+       ter.   The section is terminated with an ASCII NUL charac-
+       ter.
+
+       The boolean flags have one byte for each flag.  This  byte
+       is  either  0  or 1 as the flag is present or absent.  The
+       capabilities are in the same order as the file <term.h>.
+
+       Between the boolean section and the number section, a null
+       byte  will  be  inserted, if necessary, to ensure that the
+       number section begins on an even byte.  All short integers
+       are aligned on a short word boundary.
+
+       The numbers section is similar to the flags section.  Each
+       capability takes up two bytes,  and is stored  as a  short
+       integer.  If  the value represented is -1,  the capability
+       is taken to be missing.
+
+       The strings section is also similar.  Each  capability  is
+       stored  as  a short integer, in the format above.  A value
+       of -1 means  the capability  is  missing.  Otherwise,  the
+       value  is  taken	as  an	offset from  the beginning of the
+       string table.  Special characters in ^X or \c notation are
+       stored  in their interpreted form, not the printing repre-
+       sentation.  Padding information $<nn> and parameter infor-
+       mation %x are stored intact in uninterpreted form.
+
+       The  final  section  is the string table.  It contains all
+       the values of string capabilities referenced in the string
+       section.	Each string is null terminated.
+
+       Note that it is possible for setupterm to expect a differ-
+       ent set of capabilities than are actually present  in  the
+       file.   Either  the  database  may have been updated since
+       setupterm has been recompiled (resulting in extra unrecog-
+       nized  entries  in  the file) or the program may have been
+       recompiled more recently than  the  database  was  updated
+       (resulting  in  missing	entries).  setupterm must be pre-
+       pared for both possibilities - this is why the numbers and
+       sizes are included.  Also, new capabilities must always be
+       added at the end of the	lists  of  boolean,  number,  and
+       string capabilities.
+
+       As  an  example,	an octal dump of the description for the
+       Microterm ACT 4 is included:
+
+       microterm|act4|microterm act iv,
+	   cr=^M, cud1=^J, ind=^J, bel=^G, am, cub1=^H,
+	   ed=^_, el=^^, clear=^L, cup=^T%p1%c%p2%c,
+	   cols#80, lines#24, cuf1=^X, cuu1=^Z, home=^],
+
+000 032 001	\0 025	\0  \b	\0 212	\0   "	\0   m	i   c	r
+020   o	t   e	r   m	|   a	c   t	4   |	m   i	c   r	o
+040   t	e   r	m	a   c	t	i   v	\0  \0 001  \0	\0
+060  \0	\0  \0	\0  \0	\0  \0	\0  \0	\0  \0	\0  \0	\0  \0	\0
+100  \0	\0   P	\0 377 377 030	\0 377 377 377 377 377 377 377 377
+120 377 377 377 377  \0	\0 002	\0 377 377 377 377 004	\0 006	\0
+140  \b	\0 377 377 377 377  \n	\0 026	\0 030	\0 377 377 032	\0
+160 377 377 377 377 034	\0 377 377 036	\0 377 377 377 377 377 377
+200 377 377 377 377 377 377 377 377 377 377 377 377 377 377 377 377
+*
+520 377 377 377 377	\0 377 377 377 377 377 377 377 377 377 377
+540 377 377 377 377 377 377 007	\0  \r	\0  \f	\0 036	\0 037	\0
+560 024	%   p	1   %	c   %	p   2	%   c	\0  \n	\0 035	\0
+600  \b	\0 030	\0 032	\0  \n	\0
+
+       Some limitations: total	compiled  entries  cannot  exceed
+       4096 bytes.  The name field cannot exceed 128 bytes.
+
+FILES
+       /usr/lib/terminfo/*/*	compiled terminal capability data
+       base
+
+SEE ALSO
+       terminfo(5), ncurses(3)
+
+
+

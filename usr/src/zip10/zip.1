@@ -1,0 +1,574 @@
+.\" Copyright (C) 1990,1991 Mark Adler, Richard B. Wales, and Jean-loup Gailly.
+.\" Permission is granted to any individual or institution to use, copy, or
+.\" redistribute this software so long as all of the original files are included
+.\" unmodified, that it is not sold for profit, and that this copyright notice
+.\" is retained.
+.\"
+.\" zip.1 by Mark Adler.
+.\"
+.TH ZIP 1
+.SH NAME
+zip \- package and compress (archive) files
+.SH SYNOPSIS
+.B zip
+[
+.B \-cdefghijklmnoqrsuwyz
+] [
+.B \-b
+path ] [
+.B \-t
+mmddyy ] zipfile list [
+.B \-x
+list ]
+.br
+.SH DESCRIPTION
+.I Zip
+is a compression and file packaging utility for Unix, MSDOS, OS/2, and VMS.
+It is
+analogous to a combination of tar and compress and is compatible with PKZIP
+(Phil Katz ZIP) for MSDOS systems.
+.PP
+There is a companion to
+.I Zip
+called
+.I UnZip
+(of course) which you should be able
+to find the same place you got
+.I Zip.  Zip
+and
+.I UnZip
+can work with files
+produced by PKZIP under MSDOS, and PKZIP and PKUNZIP can work with files
+produced by
+.I Zip.
+.PP
+.I Zip
+puts one or more compressed files into a single "zip file" along with
+information about the files, including the name, path if requested, date
+and time last modified, protection, and check information to verify the
+fidelity of each entry.
+.I Zip
+can pack an entire directory structure in a
+zip file with a single command.  Compression ratios of 2:1 to 3:1 are
+common for text files.
+.I Zip
+has two compression methods, implosion and
+shrinking, and automatically chooses the better of the two for each file
+to be compressed.
+.PP
+.I Zip
+is useful for packaging a set of files to send to someone or for
+distribution; for archiving or backing up files; and for saving disk space by temporarily
+compressing unused files or directories.
+.SH "HOW TO INSTALL ZIP"
+.I Zip
+is distributed as C source code that can be compiled on a wide range of
+Unix machines, VAXes running VMS, and MSDOS machines using
+Microsoft or Borland C++, and OS/2 machines using Microsoft C.
+You will
+need Unzip (under Unix, MSDOS, or VMS) or PKUNZIP (under MSDOS) to unpack the
+distribution file, zip10.zip.
+.PP
+First, unpack the source as follows, assuming that you
+have zip10.zip in the current directory:
+.PP
+.ti+5n
+mkdir zipsrc
+.ti+5n
+cd zipsrc
+.ti+5n
+unzip ../zip10
+.PP
+This extracts all source files and documentation in the directory called
+"zipsrc". You then do:
+.PP
+.ti+5n
+make system
+.PP
+where "system" is one of: bsd, bsdold, sysv, next, next10, sun, hpux, dnix,
+cray, 3b1, zilog, aux, convex, aix, or minix.  If you are using a NeXT
+running version
+2.0 or greater, then make next.  If you are using 1.0, then make
+next10.  If you
+are using Sun OS 4.x, then make sun.  If you are using HPUX, then make hpux.
+The other special systems are DNIX 5.2 or 5.3, Cray Unicos,
+AT&T 3B1 (also known as Unix PC or PC 7300), Zilog Zeus, A/UX, Convex, AIX,
+and MINIX.
+Otherwise, if you are using BSD Unix, try bsd.  If the linker cannot find
+_memset or _memcpy, try bsdold.  If you are using System V Unix or SCO Unix,
+try sysv.  Also use sysv on a Silicon Graphics (SGI) machine.
+You can also cross-compile
+.I Zip
+for MSDOS under SCO 386 Unix using "make scodos".
+.PP
+If none of these compiles, links, and functions properly on your Unix system,
+see the section BUGS below for how to get help.
+.PP
+If the appropriate system was selected, then the executable "zip" will be
+created.  You can move the executable "zip" to an appropriate directory
+in the search path using a command like:
+.PP
+.ti+5n
+mv zip ~/bin
+.PP
+or
+.PP
+.ti+5n
+mv zip /usr/local/bin
+.PP
+You can use the command "set" to see the current search path.  If you are
+using the C-Shell (csh), enter the command:
+.PP
+.ti+5n
+rehash
+.PP
+so csh can find the new command in the path.  You are now ready to use
+.I Zip.
+.PP
+You can also move the manual page (the raw form of what you're reading)
+to where the Unix man command can find it (assuming you have the necessary
+privileges):
+.PP
+.ti+5n
+mv zip.1 /usr/man/man1
+.PP
+You can get rid of the now unnecessary source and object files with:
+.PP
+.ti+5n
+cd ..
+.ti+5n
+rm -r zipsrc
+.PP
+This will remove the directory zip and its contents created by unzip.
+You should keep the zip10.zip file around though, in case you
+need to build it again or want to give it to a colleague.
+.PP
+The steps for installation under MSDOS, OS/2, and VMS are similar to the above:
+first unzip the distribution files into their own directory.  Then under
+MSDOS do one of:
+.PP
+.ti+5n
+make makefile.msc
+.ti+5n
+make -fmakefile.bor
+.PP
+for Microsoft or Borland C++, respectively.  Under OS/2:
+.PP
+.ti+5n
+nmake -f makefile.os2
+.PP
+for Microsoft C 6.00.  Under VAX VMS:
+.PP
+.ti+5n
+@makevms
+.PP
+The installation process will also compile and link several
+other utilities.  They are zipcloak for encrypting and decrypting zip files,
+zipnote for editing zip file comments, zipsplit for splitting a zip file
+into several zip files, and ship for sending zip files or any other binary
+file via electronic mail.  For command help on any of the zip* utilities,
+simply enter the name with no arguments.  For help with ship, enter "ship -h".
+.SH "HOW TO USE ZIP"
+The simplest use of
+.I Zip
+is as follows:
+.PP
+.ti+5n
+zip stuff *
+.PP
+This will create the file "stuff.zip" (assuming it does not exist) and put
+all the files in the current directory in stuff.zip in a compressed form.
+The .zip suffix is added automatically, unless that file name given contains
+a dot already.  This allows specifying suffixes other than ".zip".
+.PP
+Because of the way the shell does filename substitution, files that start
+with a "." are not included.  To include those as well, you can:
+.PP
+.ti+5n
+zip stuff .* *
+.PP
+Even this will not include any subdirectories that are in the current
+directory.  To zip up an entire directory, the command:
+.PP
+.ti+5n
+zip -r foo foo
+.PP
+will create the file "foo.zip" containing all the files and directories in
+the directory "foo" that is in the current directory.  The "r" option means
+recurse through the directory structure.  In this case, all the
+files and directories in foo are zipped, including the ones that start with
+a ".", since the recursion does not use the shell's file-name substitution.
+You should not use -r with the name ".*", since that matches ".." which will
+attempt to zip up the parent directory--probably not what was intended.
+.PP
+You may want to make a zip file that contains the files in foo, but not record
+the directory name, foo.  You can use the -j (junk path) option to leave off
+the path:
+.PP
+.ti+5n
+zip -j foo foo/*
+.PP
+The -y option (only under Unix) will store symbolic links as such in the
+zip file, instead of compressing and storing the file referred to in the link.
+.PP
+You might be zipping to save disk space, in which case you could:
+.PP
+.ti+5n
+zip -rm foo foo
+.PP
+where the "m" option means "move".  This will delete foo and its contents
+after making foo.zip.  No deletions will be done until the zip has completed
+with no errors.  This option is obviously more dangerous and should be
+used with care.
+.PP
+If the zip file already exists, these commands will replace existing or add
+new entries to the zip file.  For example, if you were really short on disk
+space, you might not have enough room simultaneously to hold the directory
+foo and the compressed foo.zip.  In this case, you could do it in steps.  If
+foo contained the subdirectories tom, dick, and harry, then you could:
+.PP
+.ti+5n
+zip -rm foo foo/tom
+.ti+5n
+zip -rm foo foo/dick
+.ti+5n
+zip -rm foo foo/harry
+.PP
+where the first command would create foo.zip, and the next two would add to
+it.  At the completion of each zip command, the directory just zipped would
+be deleted, making room in which the next
+.I Zip
+command could work.
+.SH "MODIFYING EXISTING ZIP FILES"
+When given the name of an existing zip file with the above commands,
+.I Zip
+will replace identically named entries in the
+.I Zip
+file or add entries for
+new names.  For example, if foo.zip exists and contains foo/file1 and
+foo/file2, and the directory foo contains the files foo/file1 and foo/file3,
+then:
+.PP
+.ti+5n
+zip -r foo foo
+.PP
+will replace foo/file1 in foo.zip and add foo/file3 to foo.zip.  After
+this, foo.zip contains foo/file1, foo/file2, and foo/file3, with foo/file2
+unchanged from before.
+.PP
+When changing an existing zip file,
+.I Zip
+will write a temporary file with
+the new contents, and only replace the old one when the zip has completed
+with no errors.  Also, the two methods, shrink and implode, create
+temporary files that are deleted after each file is zipped.  You can use
+the -b option to specify a different path (usually a different device) to
+put the temporary files in.  For example:
+.PP
+.ti+5n
+zip -b /tmp stuff *
+.PP
+will put the temporary zip file and the temporary compression files in the
+directory "/tmp", copying over stuff.zip in the current directory when
+done.
+.PP
+If you are only adding entries to a zip file, not replacing, and the
+-g option is given, then
+.I Zip
+grows (appends to) the file instead of copying it.  The danger of this is that
+if the operation fails, the original zip file is corrupted and lost.
+.PP
+There are two other ways to change or add entries in a zip file that are
+restrictions of simple addition or replacement.  The first is -u (update)
+which will add new entries to the zip file as before but will replace
+existing entries only if the modified date of the file is more recent than
+the date recorded for that name in the zip file.  For example:
+.PP
+.ti+5n
+zip -u stuff *
+.PP
+will add any new files in the current directory, and update any changed files
+in the zip file stuff.zip.  Note that
+.I Zip
+will not try to pack stuff.zip into
+itself when you do this. 
+.I Zip
+will always exclude the zip file from the files on which to be operated.
+.PP
+The second restriction is -f (freshen) which, like update, will only replace
+entries with newer files; unlike update, will not add files that are not
+already in the zip file.  For this option, you may want to simply freshen all
+of the files that are in the specified zip file.  To do this you would simply:
+.PP
+.ti+5n
+zip -f foo
+.PP
+Note that the -f option with no arguments freshens all the entries in the
+zip file.  The same is true of -u, and hence "zip -u foo" and "zip -f foo"
+both do the same thing.
+.PP
+This command should
+be run from the same directory from which the original zip command was run,
+since paths stored in zip files are always relative.
+.PP
+Another restriction that can be used with adding, updating, or freshening is
+-t (time), which will not operate on files modified earlier than the specified
+date.  For example:
+.PP
+.ti+5n
+zip -rt 120791 infamy foo
+.PP
+will add all the files in foo and its subdirectories that were last modified
+on December 7, 1991, or later to the zip file infamy.zip.
+.PP
+Also, files can be explicitly excluded using the -x option:
+.PP
+.ti+5n
+zip -r foo foo -x \\*.o
+.PP
+which will zip up the contents of foo into foo.zip but exclude all the
+files that end in ".o".  Here the backslash causes
+.I Zip
+to match file names
+that were found when foo was searched.
+.PP
+The last operation is -d (delete) which will remove entries from a zip file.
+An example might be:
+.PP
+.ti+5n
+zip -d foo foo/tom/junk foo/harry/\\* \\*.o
+.PP
+which will remove the entry foo/tom/junk, all of the files that start with
+"foo/harry/", and all of the files that end with ".o" (in any path).  Note
+that once again, the shell expansion has been inhibited with backslashes, so
+that
+.I Zip
+can see the asterisks.  
+.I Zip
+can then match on the contents of the zip
+file instead of the contents of the current directory.
+.PP
+Under MSDOS, -d is case sensitive when it matches names in the zip file.
+This allows deleting names that were zipped on other systems, but requires
+that the names be entered in upper case if they were zipped on an MSDOS
+system, so that the names can be found in the zip file and deleted.
+.SH "MORE OPTIONS"
+As mentioned before,
+.I Zip
+will use the best of two methods: shrink or implode.
+Usually implode is better, but sometimes shrink is better, especially for
+smaller files.  Sometimes neither method produces a packed version smaller
+than the original file, in which case it is stored in the zip file with no
+compression (called the "store" method).
+.PP
+The option -s (shrink) will force
+.I Zip
+always to use shrink or store, and the
+-i (implode) option forces
+.I Zip
+to use implode or store.  Shrinking is faster
+than imploding, and so -s might be used when speed is more important than
+optimal compression.  Implode only (-i) might be used when the unzipper 
+for which the
+zip file is destined can only handle implosion.  An example of this is
+the PKSFXjr program that comes with PKZIP.  Also, -i is slightly faster
+than imploding and shrinking at the same time.  For example:
+.PP
+.ti+5n
+zip -rs foo foo
+.PP
+will zip up the directory foo into foo.zip using only shrink or store.
+The speed of implosion can also be controlled with options -0 (fastest
+method but less compression) to -9 (best compression but slower). The
+default value is -5. For example:
+.PP
+.ti+5n
+zip -r0 foo foo
+.PP
+In nearly all cases, a file that is already compressed cannot be compressed
+further by
+.I Zip,
+or if it can, the effect is minimal.  The -n option prevents
+.I Zip
+from trying to compress files that have the suffixes: .Z, .zip, .zoo,
+or .arc.  Such files are simply stored (0% compression) in the output zip file,
+so that
+.I Zip
+doesn't waste its time trying to compress them.
+If the environment variable NOZIP is set, then the suffixes listed
+there are used instead of the default list.  The suffixes are separated by
+either colons or semicolons.  For example, in Unix csh:
+.PP
+.ti+5n
+setenv NOZIP .Z:.zip:.tiff:.gif:.snd
+.ti+5n
+zip -rn foo foo
+.PP
+will put everything in foo into foo.zip, but will store any files that end
+in .Z, .zip, .tiff, .gif, or .snd without trying to compress them.  (Image
+and sound files often have their own specialized compression methods.)  If
+the environment variable NOZIP exists but is empty or contains just a colon
+or semicolon, then zip -n will store all the entries and do no compression.
+.PP
+Under Unix and under OS/2 (if files from a HPFS are stored),
+.I Zip
+will store the full path (relative to the current path) and name of the
+file (or just the name if -j is specified) in the zip file along with the
+Unix attributes, and it will mark
+the entry as made under Unix.  If the zip file is intended for PKUNZIP under
+MSDOS, then the -k (Katz) option should be used to attempt to convert the
+names and paths to conform to MSDOS, store only the MSDOS attribute (just
+the user write attribute from Unix), and mark the entry as made under MSDOS
+(even though it wasn't).
+.PP
+The -o (older) option will set the "last modified" time of the zip file to
+the latest "last modified" time of the entries in the zip file.  This can
+be used without any other operations, if desired.  For example:
+.PP
+.ti+5n
+zip -o foo
+.PP
+will change the last modified time of foo.zip to the latest time of the
+entries in foo.zip.
+.PP
+The -e and -c options operate on all files updated or added to the zip file.
+Encryption (-e) will prompt for a password on the terminal and will
+not echo the password as it is typed (if stderr is not a TTY, Zip will exit
+with an error).  New zip entries will be encrypted using that password.  For
+added peace of mind, you can use -ee, which will prompt for the password
+twice, checking that the two are the same before using it.
+.PP
+One-line comments can be added for each file with the -c option.  The zip
+file operations (adding or updating) will be done first, and you will then be
+prompted for a one-line comment for each file.  You can then enter the comment
+followed by return, or just return for no comment.
+.PP
+The -z option will prompt you for a multi-line comment for the entire zip
+file.  This option can be used by itself, or in combination with other
+options.  The comment is ended by a line containing just a period, or an end
+of file condition (^D on Unix, ^Z on MSDOS, OS/2, and VAX/VMS).
+Since -z reads the
+lines from stdin, you can simply take the comment from a file:
+.PP
+.ti+5n
+zip -z foo < foowhat
+.PP
+The -q (quiet) option eliminates the informational messages and comment prompts
+while
+.I Zip
+is operating.  This might be used in shell scripts, for example, or if the
+zip operation is being performed as a background task ("zip -q foo *.c &").
+.PP
+.I Zip
+can take a list of file names to operate on from stdin using the - option.
+In Unix, this option can be used with the find command to extend greatly
+the functionality of
+.I Zip.
+For example, to zip up all the C source files in the current directory and
+its subdirectories, you can:
+.PP
+.ti+5n
+find . -type f -name "*.[ch]" -print | zip source -
+.PP
+Note that the pattern must be quoted to keep the shell from expanding it.
+.PP
+Under VMS only, the -w option will append the version number of the files to
+the name and zip up multiple versions of files.  Without -w,
+.I Zip
+will only use the most recent version of the specified file(s).
+.PP
+If
+.I Zip
+is run with no arguments or with the -h option, the license and the
+command-argument and option help is shown.  The -l option just shows the
+license.
+.SH "ABOUT PATTERN MATCHING"
+(Note: this section applies to Unix.  Watch this space for details on MSDOS
+and VMS operation.)
+.PP
+The Unix shell (sh or csh) does filename substitution on command arguments.
+The special characters are ?, which matches any single character; * which
+matches any number of characters (including none); and [] which matches any
+character in the range inside the brackets (like [a\-f] or [0\-9]).  When
+these characters are encountered (and not escaped with a backslash or
+quotes), the
+shell will look for files relative to the current path that match the
+pattern, and replace the argument with a list of the names that matched.
+.PP
+.I Zip
+can do the same matching on names that are in the zip file being
+modified or, in the case of the -x (exclude) option, on the list of
+files to be operated on, by using backslashes or quotes
+to tell the shell not to do the name expansion.  In general, when
+.I Zip
+encounters a name in the list
+of files to do, it first looks for the name in the file system.  If it
+finds it, it then adds it to the list of files to do.  If it does not
+find it, it will look for the name in the zip file being modified (if it
+exists), using the pattern matching characters above, if any.  For each
+match, it will add that name to the list of files to do.  After -x
+(exclude), the names are removed from the to-do list instead of added.
+.PP
+The pattern matching includes the path, and so patterns like \\*.o match
+names that end in ".o", no matter what the path prefix is.  Note that the
+backslash must precede every special character (i.e. ?*[]), or the entire
+argument must be enclosed in double quotes ("").
+.PP
+In general, using backslash to make
+.I Zip
+do the pattern matching is used
+with the -f (freshen) and -d (delete) options, and sometimes after the
+-x (exclude) option when used with any operation (add, -u, -f, or -d).
+.I Zip
+will never use pattern matching to search the file system.  If
+.I Zip
+has recursed into a directory, all files (and all directories) in there
+are fair game.
+.SH COPYRIGHT
+Copyright (C) 1990,1991 Mark Adler, Richard B. Wales, and Jean-loup Gailly.
+Permission is granted to any individual or institution to use, copy, or
+redistribute this software so long as all of the original files are included
+unmodified, that it is not sold for profit, and that this copyright notice
+is retained.
+.SH ACKNOWLEDGEMENTS
+Thanks to R. P. Byrne for his Shrink.Pas program which inspired this project,
+and from which the shrink algorithm was stolen; to Phil Katz for making the zip
+file format, compression format, and .ZIP filename extension all public domain;
+to Keith Petersen for providing a mailing list and ftp site for the INFO-ZIP
+group to use; and most importantly, to the INFO-ZIP group itself (listed in
+the file infozip.who) without whose tireless testing and bug-fixing efforts
+a portable
+.I Zip
+would not have been possible.  Finally we should thank (blame) the INFO-ZIP
+moderator, David Kirschbaum for getting us into this mess in the first place.
+.SH "SEE ALSO"
+unzip(1), tar(1), compress(1)
+.SH BUGS
+Versions of PKUNZIP before 1.1 have a bug that on rare occasions will prevent
+it from unzipping files produced by
+.I Zip
+or PKZIP 1.1.  If you experience such problems, we recommend that you get
+PKUNZIP 1.1 or the portable
+.I Unzip,
+neither of which have this problem.
+.PP
+Under MSDOS, Zip will find hidden and system files, but not set the
+attributes appropriately in the zip file so that Unzip can restore them.
+This will be fixed in the next version.
+.PP
+Under VMS, not all of the odd file formats are treated properly.  Only
+stream-LF format zip files are expected to work with Zip.  Others can be
+converted using Rahul Dhesi's BILF program.  The next version of Zip will
+handle some of the conversion internally.
+.PP
+LIKE ANYTHING ELSE THAT'S FREE, ZIP AND ITS ASSOCIATED UTILITIES ARE
+PROVIDED AS IS AND COME WITH NO WARRANTY OF ANY KIND, EITHER EXPRESSED OR
+IMPLIED. IN NO EVENT WILL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DAMAGES
+RESULTING FROM THE USE OF THIS SOFTWARE.
+.PP
+That having been said, please send any problems or comments via email to
+the Internet address
+zip\-bugs@cs.ucla.edu.  For bug reports, please include the
+version of Zip, the make options you used to compile it, the machine and
+operating system you are using, and as much additional information as
+possible.  Thank you for your support.

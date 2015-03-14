@@ -1,0 +1,355 @@
+.na
+.fz 1 +1
+.po 1i
+.fo 'Ideal Gas Simulation''%'
+
+.ce 3
+Ideal Gas Simulation
+Larry Medwin
+April 1991
+.\"   xgas: Copyright 1991 Larry Medwin: @(#)doc.n	1.4 91/04/15
+.sp 3
+
+.sh 1 "The Physical Model"
+
+This is physical simulation of the behavior of an Ideal Gas.
+The gas is represented by molecules in a chamber,
+which consists of two boxes separated by a wall with a hole.
+Gas molecules move around with velocities
+determined by their temperature:
+.(l
+Kinetic energy = Thermal energy, or
+   1  2
+   - m v  = K  T
+   2         b
+.)l
+Molecular trajectories are linear (inertial) until a collision
+with a wall.
+These collisions are inelastic;
+that is, energy is not conserved.
+For example,
+if the wall temperature is greater than
+the molecule temperature,
+the molecule emerges from the collision
+with increased velocity.
+In addition,
+the angle of reflection is only approximately
+equal to the angle of incidence;
+a random component
+added to the trajectories
+allows the molecules to approach equilibrium.
+
+Since the gas is ideal,
+collisions between molecules are not considered.
+
+.sh 1 "The Implementation"
+
+As shown in Figure 1,
+the Ideal Gas Demo consists of the chamber
+consisting of two boxes,
+which contain the molecules,
+two temperature controls,
+and the temperature readings under the
+two separately heated portions of the chamber.
+There is a wall with a hole separating
+the two boxes of the chamber.
+
+.sh 2 "Widget Hierarchy"
+
+The HP Widget set was used in the original version;
+a port to the Athena Widget set was implemented
+by Dave Sternlicht, of the X Consortium.
+The widget hierarchy is described in Figure 1.
+
+.(z
+.hl
+.sp
+toplevel (applicationShell)
+    frame (form)
+	quit (command)
+	run (toggle)
+	pause (toggle)
+	step (command)
+	help (command)
+	    helpShell (toplevelShell)
+		helpFrame (form)
+		    helpQuit (command)
+		    helpQuick (command)
+		    helpMan (command)
+		    helpDoc (command)
+		helpText (asciiText)
+	chamber[].control (scrollbar)
+	chamber[].display (label)
+	clock (label)
+	lab (gas)
+.sp
+.ce
+Figure 1. Widget Hierarchy
+.hl
+.)z
+
+The widget hierarchy includes two shell widgets accessible
+to the window manager.
+One is the toplevel widget, the parent all widgets.
+It contains a form widget
+which, in turn, contains
+all the controls, displays, and the simulation area.
+The top edge of the frame has a row of command buttons.
+Two of these buttons,
+run and pause,
+form a radio group,
+to indicate whether the simulation is
+in run mode or pause mode.
+There are two scrollbars,
+one on each side of the lab area.
+The scrollbar is used to set the temperature,
+which is displayed in the label below it.
+Also below the lab is the clock display,
+which reports the simulated time.
+
+The other shell is a help popup.
+It contains a text widget which can scroll through
+the man page,
+quick-help (a list of the mouse button actions),
+and this document.
+
+Two Graphics Contexts (GC) are used in the gas widget.
+One describes
+the walls of the chamber,
+and the other describes
+the molecules, which are filled rectangles.
+Since the molecules move,
+and must be erased before shown in their new position,
+they are drawn using the XOR function.
+This allows them to be erased by drawing them twice
+in the same position.
+
+A trick is used to speed up the drawing of the molecules.
+The plural XFillRectangles call is passed
+an XRectangles array which contains two entries for each molecule.
+These entries contain the old position and the new position.
+On alternate timesteps,
+either the odd or even elements of this array are updated
+with the new molecule positions.
+The result is that the old positions are redrawn and erased,
+while the new positions are drawn for the first time
+and remain visible.
+This reduces the annoying "flicker" that results from
+two separate calls to XDrawRectangles
+using a single array,
+in which the no molecules are visible,
+while the XRectangle array is being updated.
+Care must be taken to properly update this array
+in the addMolecule and expose event callbacks.
+
+A bitmap was created with bitmap(1),
+and compiled into the program to be
+used as an icon.
+
+.sh 2 "The Data Structures"
+
+There are two main data structures:
+the molecules
+and the chamber (boxes).
+These are defined
+in the "gas.h" header file.
+
+An array of molecule data structures
+contains the equation of motion of the molecule,
+the time of its next collision,
+and its kinetic energy (expressed as a temperature).
+
+The chamber is an array of two boxes.
+Each box consists of an array of 6 walls,
+one of which is an opening to the other box.
+The temperature is associated with each box;
+this temperature is updated by scrollbar callbacks.
+
+Each wall and corner in the box has an enumerated "type."
+This type,
+TOP, BOTTOM, LEFT, or RIGHT,
+NW, SW, SE, NE,
+is used as an index into a WallParam array.
+The WallParam array contains the coefficients of
+the reflection and rotation matrices used in the
+computation of collisions with the walls.
+
+.sh 2 "Physics and Algorithms"
+
+Calculations of molecule positions are repeated
+every timestep.
+The simulation begins by calculating
+the new positions of each molecules.
+After each time step,
+the value of the variable "labData.time" is incremented
+by the value "labData.timestepSize."
+
+At each timestep,
+the "dynamics" routine is called
+for each molecule.
+The time of next collision of a given molecule
+is contained in molecule[i].collisionTime.
+This is compared with the current time (labData.time)
+to determine if a molecule
+will collide with a wall during this timestep.
+In this case,
+the "collide" routine is called;
+otherwise the "inertia" routine is called.
+Note that knowing the time of the next collision
+allows the timestep routines to ignore the walls
+until the collision actually occurs.
+
+The inertia routine just solves for
+the molecule's location using the equations of motion
+associated with the molecule.
+
+The collision is much more complicated.
+First,
+the trajectory is reflected by the wall or corner.
+A molecule that hits corner has both its x and y velocity components
+multiplied by -1.
+A molecule that hits a wall has either its x or y velocity component
+multiplied by -1, depending on which way it would bounce
+in a completely elastic collision (billiard balls).
+
+The reflection angle deviates from an exact reflection
+by a random component,
+which is determined by the X resource "randomBounce."
+At the same time,
+the temperature of the molecule approaches the wall temperature
+at a rate determined by the X resource "equilibrium."
+Now that the new "temperature" and angle of trajectory
+have been determined,
+the new equations of motion are calculated.
+Using these equations of motion,
+the next wall collision is found,
+including the possibility of moving to the other chamber.
+This process is repeated
+until the next collision time is after the end of this timestep,
+Then the inertia routine is called to compute
+the position of the molecule at the end of the timestep.
+
+.sh 2 "Run/Pause/Step control"
+
+The main computations are performed at regular intervals
+(every "delay" milliseconds, using the X resources)
+via the timeout mechanism.
+The intrinsics call XtAddTimeOut causes a callback to be called
+after a given delay.
+In "run" mode,
+XtAddTimeOut is automatically called at the end of each timestep.
+Switching to "pause" mode removes this callback
+using XtRemoveTimeOut.
+In "pause" mode,
+the "step" button will perform a timestep calculation
+without calling XtAddTimeOut.
+
+.sh 2 "Performance and accuracy"
+
+100 molecules were simulated with a timestep of 3 microseconds.
+The computation of 2.0 simulated milliseconds required about 75 CPU seconds.
+
+The physical conditions of this simulation represent very high vacuum
+(very low density of molecules per cm squared -- this is a two
+dimensional simulation).
+The approach to equilibrium occurs only through wall collisions.
+Because of the line of sight trajectories,
+and the large aperture between the chambers,
+equilibrium is never reached.
+However, the approach towards equilibrium
+is evident from the migration of molecules
+from the warm to the cold chamber.
+
+.sh 2 "Bugs, enhancements, and Numerical Considerations"
+
+Doubles are used for the coefficients of
+the equations of motion and the collision times.
+Originally floats were used for these numbers,
+but the equations of motion are numerically unstable,
+and would cause errors after some 10,000 to 15,000 timesteps.
+Using doubles allows some 375,000 timesteps to be computed
+before this instability causes an error.
+
+A better solution was to compute the trajectories using
+integer arithmetic.
+The endpoints (collision positions) of each trajectory
+are integer locations on the walls.
+The actual coefficients of the trajectory
+and the time until the next collision
+are floating point numbers, but they are recomputed
+from new integer endpoints at each collision.
+Using this new scheme, xgas has simulated 100 molecules
+for more than a million timesteps.
+
+.sh 1 "Appendix"
+
+Figure 2
+is a list of X resources which were created especially
+for controlling some of the physical aspects of the simulation,
+and a typical value.
+Figure 3
+is a schematic of the chamber which identifies the
+array indices of the points and lines making up the walls.
+
+.bp
+.(l
+.hl
+#
+#   timestepSize in microseconds
+XGas*timestepSize:               3.0
+#
+# delay in milliseconds
+#   Real time between timestep computations.
+#   This doesn't overload my XR4 server running on a Sun 3/110.
+XGas*delay:                      30
+#
+# randomBounce
+#   0.0:    Angle of reflection equals angle of incidence.
+#   1.0:    The two angles are unrelated.
+XGas*randomBounce:               0.2
+#
+#   0.0:    No kinetic energy is exchanged with the wall
+#             during a collision
+#   1.0:    The molecule emerges with a kinetic energy
+#             corresponding to the wall temperature.
+XGas*equilibrium:                0.9
+#
+#   maxMolecules
+#           maximum number of molecules that can be created
+#             with the mouse
+XGas*maxMolecules:               100
+#
+.sp
+.hl
+.sp
+.ce
+Figure 2. Controlling Simulation Parameters with X Resources
+.)l
+.bp
+.(l
+.hl
+     p[0]                 p[2]                  p[4]
+       +--------------------+--------------------+
+       |        w2          |        w2          |
+       |                    |                    |
+       |                  w1|w1                  |
+       |                    |                    |
+       |                    |                    |
+       |                    +p[6]                |
+       |                                         |
+       |w3                w0 w0                w3|
+       |                                         |
+       |                    +p[7]                |
+       |                    |                    |
+       |                    |                    |
+       |                  w5|w5                  |
+       |                    |                    |
+       |        w4          |         w4         |
+       +--------------------+--------------------+
+     p[1]                 p[3]                  p[5]
+.sp 2
+.hl
+.ce
+.sp
+Figure 3. Assignment of walls and points
+.)l

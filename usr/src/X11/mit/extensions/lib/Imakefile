@@ -1,0 +1,83 @@
+XCOMM $XConsortium: Imakefile,v 1.33 91/07/22 22:56:37 rws Exp $
+#define DoNormalLib NormalLibXext
+#define DoSharedLib SharedLibXext
+#define DoDebugLib DebugLibXext
+#define DoProfileLib ProfileLibXext
+#include <Library.tmpl>
+
+#ifdef RsArchitecture
+REQUIREDLIBS = $(XLIBSRC)/libX11.a
+#endif
+
+#if BuildXInputLib || BuildPexClients
+#define IHaveSubdirs
+#define PassCDebugFlags 'CDEBUGFLAGS=$(CDEBUGFLAGS)'
+#if BuildXInputLib
+      XINPUTDIRS = xinput
+#endif
+#if BuildPexClients
+      PEXDIRS = PEX
+#endif
+      SUBDIRS = $(XINPUTDIRS) $(PEXDIRS)
+#endif
+
+#if HasShm
+      SHMSRCS = XShm.c
+      SHMOBJS = XShm.o
+#endif
+#if Malloc0ReturnsNull
+ALLOC_DEFINES = -DMALLOC_0_RETURNS_NULL
+#endif
+      DEFINES = ExtensionDefines $(ALLOC_DEFINES)
+     INCLUDES = -I$(XLIBSRC) -I../include
+         SRCS = globals.c extutil.c XMultibuf.c XShape.c $(SHMSRCS)  \
+		MITMisc.c XTestExt1.c
+         OBJS = globals.o extutil.o XMultibuf.o XShape.o $(SHMOBJS) \
+		MITMisc.o XTestExt1.o 
+     LINTLIBS = $(LINTXLIB)
+
+LibraryObjectRule()
+
+#if DoSharedLib
+#if DoNormalLib
+SharedLibraryTarget(Xext,$(SOXEXTREV),$(OBJS),shared,..)
+#else
+SharedLibraryTarget(Xext,$(SOXEXTREV),$(OBJS),.,.)
+#endif
+InstallSharedLibrary(Xext,$(SOXEXTREV),$(USRLIBDIR))
+#endif
+#if DoNormalLib
+NormalLibraryTarget(Xext,$(OBJS))
+InstallLibrary(Xext,$(USRLIBDIR))
+#if DoInstallExtensionsIntoXlib
+MergeIntoInstalledLibrary($(USRLIBDIR)/libX11.a,libXext.a)
+#endif
+#endif
+#if DoProfileLib
+ProfiledLibraryTarget(Xext,$(OBJS))
+InstallLibrary(Xext_p,$(USRLIBDIR))
+#if DoInstallExtensionsIntoXlib
+MergeIntoInstalledLibrary($(USRLIBDIR)/libX11_p.a,libXext_p.a)
+#endif
+#endif
+#if DoDebugLib
+DebuggedLibraryTarget(Xext,$(OBJS))
+InstallLibrary(Xext_d,$(USRLIBDIR))
+#if DoInstallExtensionsIntoXlib
+MergeIntoInstalledLibrary($(USRLIBDIR)/libX11_d.a,libXext_d.a)
+#endif
+#endif
+
+LintLibraryTarget(Xext,$(SRCS))
+InstallLintLibrary(Xext,$(LINTLIBDIR))
+
+DependTarget()
+
+#ifdef IHaveSubdirs
+MakeSubdirs($(SUBDIRS))
+DependSubdirs($(SUBDIRS))
+MakeLintLibSubdirs($(SUBDIRS))
+MakeLintSubdirs($(SUBDIRS),install.ln,install.ln)
+#endif
+
+NormalLintTarget($(SRCS))

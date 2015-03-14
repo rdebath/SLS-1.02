@@ -1,0 +1,198 @@
+#!/usr/bin/perl
+
+$perlincl = '/usr/local/lib/perl';
+
+chdir '/usr/include' || die "Can't cd /usr/include";
+
+@isatype    =    split('   ',<<END);        char uchar     u_char
+     short     ushort    u_short                  int  uint u_int
+     long ulong     u_long      FILE END
+
+@isatype{@isatype} = (1) x @isatype;
+
+@ARGV = ('-') unless @ARGV;
+
+foreach $file (@ARGV) {
+    if ($file eq '-') {      open(IN, "-");      open(OUT, ">-");
+    }
+    else  {       ($outfile  =  $file)  =~  s/.h$/.ph/  ||  next;
+     print  "$file  ->  $outfile0;      if ($file =~ m|^(.*)/|) {
+          $dir  =  $1;            if  (!-d  "$perlincl/$dir")   {
+          mkdir("$perlincl/$dir",0777);                }        }
+     open(IN,"$file") || ((warn "Can't  open  $file:  $!0),next);
+     open(OUT,">$perlincl/$outfile")  ||  die "Can't create $out-
+file: $!0;
+    }
+    while (<IN>) {      chop;      while (/\$/) {           chop;
+          $_  .= <IN>;          chop;      }      if (s:/200:g) {
+         s::201:g;          s/200[^201]*201//g;  # delete  single
+line  comments           if (s/200.*//) {          # begin multi-
+line  comment?             $_  .=  '/*';            $_  .=  <IN>;
+          redo;           }      }      if (s/^#//) {          if
+(s/^define4            $name   =   $1;             $new   =   '';
+          s/;            if  (s/^120                 $args  = $1;
+              if ($args  ne  '')  {                 foreach  $arg
+(split(/,/,$args))  {                      $arg  =~ s/^([^^$/$1/;
+                     $curarg1s{$arg}   =    1;                   }
+               $args  =~ s/2                $args = "local($args)
+= @_;0t    ";              0  }                 s/^/;
+do expr();               $new =~ s/(["\])/\$1/g;               if
+($t   ne   '')   {                  $new    =~    s/(['\])/\$1/g;
+               print  OUT  $t,                   "eval 'sub $name
+{0t     ${args}eval                  }                   else   {
+               print  OUT  "sub  $name {   ${args}eval
+}                %curargs  =  ();            }            else  {
+              s/^/;               do expr();               $new =
+1  if   $new   eq   '';                   if   ($t   ne   '')   {
+               $new  =~  s/(['\])/\$1/g;                print OUT
+$t,"eval 'sub $name {",$new,";}';0;                 }
+else  {                 print  OUT  $t,"sub  $name  {",$new,";}0;
+              }           }            }            elsif  (/^in-
+clude(.*)>/)    {             ($incl   =   $1)   =~   s/.h$/.ph/;
+          print  OUT  $t,"require  '$incl';0;            }
+elsif  (/^ifdef0            print  OUT  $t,"if  (defined &$1) {0;
+          $tab += 4;           $t = "" x ($tab / 8) . ' ' x ($tab
+%  8);            }          elsif (/^ifndef0           print OUT
+$t,"if (!defined &$1) {0;           $tab += 4;           $t =  ""
+x  ($tab  /  8)  .  '  '  x ($tab % 8);          }          elsif
+(s/^if/)   {             $new   =   '';             do    expr();
+          print  OUT  $t,"if  ($new)  {0;            $tab  +=  4;
+          $t = "" x ($tab / 8) . ' ' x ($tab  %  8);            }
+         elsif (s/^elif/) {           $new = '';           do ex-
+pr();           $tab -= 4;           $t = "" x ($tab / 8) . ' ' x
+($tab   %  8);            print  OUT  $t,"}0{t}elsif  ($new)  {0;
+          $tab += 4;           $t = "" x ($tab / 8) . ' ' x ($tab
+%  8);          }          elsif (/^else/) {           $tab -= 4;
+          $t  =  ""  x  ($tab  /  8)  .  '  '  x  ($tab   %   8);
+          print   OUT  $t,"}0{t}else  {0;            $tab  +=  4;
+          $t = "" x ($tab / 8) . ' ' x ($tab  %  8);            }
+          elsif  (/^endif/) {           $tab -= 4;           $t =
+"" x ($tab / 8) . ' ' x ($tab % 8);           print  OUT  $t,"}0;
+         }      }
+    }
+    print OUT "1;0; }
+
+sub expr {
+    while  ($_  ne  '') {      s/^(//         && do {$new .= ' ';
+next;};      s/^(0x[0-9a-fA-F]+)//    && do {$new .= $1;  next;};
+     s/^(+)//       &&     do     {$new     .=     $1;    next;};
+     s/^("(\"|[^"])*")// &&   do    {$new    .=    $1;    next;};
+     s/^'((\"|[^"])*)'// &&  do  {            if ($curargs{$1}) {
+          $new  .=  "ord('1')";            }             else   {
+          $new  .= "ord('$1')";          }          next;      };
+     s/^sizeof^)]+)/{$1}/ && do {            $new  .=  '$sizeof';
+          next;       };      s/^([_a-zA-Z]288          $id = $1;
+         if ($id eq 'struct') {           s/^           $id .=  '
+'  .  $1;            $isatype{$id} = 1;          }          elsif
+($id eq 'unsigned') {           s/^           $id .= '  '  .  $1;
+          $isatype{$id}   =  1;            }            if  ($cu-
+rargs{$id}) {           $new .=  '$'  .  $id;            }
+elsif  ($id  eq  'defined')  {           $new .= 'defined';
+}            elsif  (/^  {            s/^w),/("$1",/  if  $id  =~
+/^_IO[WR]*$/i; #  cheat            $new  .=  "  &$id";          }
+         elsif ($isatype{$id}) {           if ($new  =~  /{$/)  {
+               $new .= "'$id'";           }           elsif ($new
+=~ /*$/ && /^[]*/) {                $new  =~  s/*$//;
+s/^[]*//;           }           else {               $new .= $id;
+          }          }          else {           $new .= '  &'  .
+$id;                      }                    next;           };
+     s/^(.)//            && do {$new .= $1; next;};
+    }                                                           }
+##############################################################################
+
+     # These next few lines are legal in both Perl and nroff.
+
+
+
+NNAAMMEE
+       h2ph - convert .h C header files to .ph Perl header files
+
+SSYYNNOOPPSSIISS
+       hh22pphh [[hheeaaddeerrffiilleess]]
+
+DDEESSCCRRIIPPTTIIOONN
+       _h_2_p_h converts any C header files specified to  the  corre-
+       sponding  Perl  header file format.  It is most easily run
+       while in /usr/include:
+
+            cd /usr/include; h2ph * sys/*
+
+       If run with no arguments, filters standard input to  stan-
+       dard output.
+
+EENNVVIIRROONNMMEENNTT
+       No environment variables are used.
+
+
+
+
+
+                                                                0
+
+
+
+
+
+H2PH(1)                                                   H2PH(1)
+
+
+FFIILLEESS
+       /usr/include/*.h
+       /usr/include/sys/*.h
+       etc.
+
+AAUUTTHHOORR
+       Larry Wall
+
+SSEEEE AALLSSOO
+       perl(1)
+
+DDIIAAGGNNOOSSTTIICCSS
+       The  usual  warnings  if  it can't read or write the files
+       involved.
+
+BBUUGGSS
+       Doesn't construct the %sizeof array for you.
+
+       It doesn't handle all C constructs, but it does attempt to
+       isolate  definitions  inside  evals so that you can get at
+       the definitions that it can translate.
+
+       It's only intended as a  rough  tool.   You  may  need  to
+       dicker with the files produced.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                          August 8, 1990                        1
+
+

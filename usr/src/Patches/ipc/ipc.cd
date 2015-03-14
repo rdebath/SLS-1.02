@@ -1,0 +1,202 @@
+*** kernel/fork.c.orig	Sun Nov 29 22:31:33 1992
+--- kernel/fork.c	Mon Dec 21 02:53:29 1992
+***************
+*** 108,113 ****
+--- 108,114 ----
+  	struct task_struct *p;
+  	int i,nr;
+  	struct file *f;
++ 	extern int ipc_fork (struct task_struct *, struct task_struct *);
+  
+  	p = (struct task_struct *) get_free_page(GFP_KERNEL);
+  	if (!p)
+***************
+*** 163,169 ****
+  	if (last_task_used_math == current)
+  		__asm__("clts ; fnsave %0 ; frstor %0"::"m" (p->tss.i387));
+  	p->kernel_stack_page = get_free_page(GFP_KERNEL);
+! 	if (!p->kernel_stack_page || copy_mem(nr,p)) {
+  		task[nr] = NULL;
+  		REMOVE_LINKS(p);
+  		free_page(p->kernel_stack_page);
+--- 164,170 ----
+  	if (last_task_used_math == current)
+  		__asm__("clts ; fnsave %0 ; frstor %0"::"m" (p->tss.i387));
+  	p->kernel_stack_page = get_free_page(GFP_KERNEL);
+! 	if (!p->kernel_stack_page || copy_mem(nr,p) || ipc_fork (current, p)) {
+  		task[nr] = NULL;
+  		REMOVE_LINKS(p);
+  		free_page(p->kernel_stack_page);
+*** kernel/exit.c.orig	Sun Dec 13 13:17:11 1992
+--- kernel/exit.c	Mon Dec 21 02:45:56 1992
+***************
+*** 325,332 ****
+--- 325,334 ----
+  {
+  	struct task_struct *p;
+  	int i;
++ 	extern int ipc_exit (void);
+  
+  fake_volatile:
++ 	ipc_exit ();
+  	free_page_tables(current);
+  	for (i=0 ; i<NR_OPEN ; i++)
+  		if (current->filp[i])
+*** fs/exec.c.orig	Fri Dec  4 00:50:32 1992
+--- fs/exec.c	Mon Dec 21 02:45:41 1992
+***************
+*** 414,419 ****
+--- 414,420 ----
+  	int sh_bang = 0;
+  	unsigned long p=PAGE_SIZE*MAX_ARG_PAGES-4;
+  	int ch;
++ 	extern int ipc_exec (struct task_struct *);
+  
+  	if ((0xffff & eip[1]) != 0x000f)
+  		panic("execve called from supervisor mode");
+***************
+*** 563,568 ****
+--- 564,571 ----
+  		}
+  	}
+  /* OK, This is the point of no return */
++ 	if (current->vipc)
++ 	    ipc_exec(current);
+  	current->dumpable = 1;
+  	for (i=0; (ch = get_fs_byte(filename++)) != '\0';)
+  		if (ch == '/')
+*** mm/memory.c.orig	Thu Dec 10 20:52:50 1992
+--- mm/memory.c	Mon Dec 21 03:42:37 1992
+***************
+*** 212,218 ****
+  				*new_page_table = pg;
+  				continue;
+  			}
+! 			pg &= ~2;
+  			*new_page_table = pg;
+  			if (mem_map[MAP_NR(pg)] & MAP_PAGE_RESERVED)
+  				continue;
+--- 212,219 ----
+  				*new_page_table = pg;
+  				continue;
+  			}
+! 			if (!(mem_map[MAP_NR(pg)] & MAP_PAGE_SHARED))
+! 			        pg &= ~2;
+  			*new_page_table = pg;
+  			if (mem_map[MAP_NR(pg)] & MAP_PAGE_RESERVED)
+  				continue;
+***************
+*** 495,500 ****
+--- 496,508 ----
+  	if (!(old_page & PAGE_PRESENT)) {
+  		if (new_page)
+  			free_page(new_page);
++ 		return;
++ 	}
++ 	if (mem_map[MAP_NR(old_page&0xfffff000)] & MAP_PAGE_SHARED) {
++ 		if (new_page)
++ 			free_page(new_page);
++ 		if (user_esp)
++ 			send_sig(SIGSEGV, tsk, 1);
+  		return;
+  	}
+  	if (old_page >= high_memory) {
+*** include/linux/sched.h.orig	Fri Dec  4 01:50:50 1992
+--- include/linux/sched.h	Fri Dec 18 01:46:49 1992
+***************
+*** 67,72 ****
+--- 67,73 ----
+  #include <linux/resource.h>
+  #include <linux/vm86.h>
+  #include <linux/math_emu.h>
++ #include <linux/ipc.h>
+  
+  #define TASK_RUNNING		0
+  #define TASK_INTERRUPTIBLE	1
+***************
+*** 195,200 ****
+--- 196,202 ----
+  	struct inode * root;
+  	struct inode * executable;
+  	struct vm_area_struct * mmap;
++ 	struct sysv_ipc *vipc;
+  	struct {
+  		struct inode * library;
+  		unsigned long start;
+***************
+*** 241,247 ****
+  /* rss */	2, \
+  /* comm */	"swapper", \
+  /* vm86_info */	NULL, 0, \
+! /* fs info */	0,-1,0022,NULL,NULL,NULL,NULL, \
+  /* libraries */	{ { NULL, 0, 0, 0}, }, 0, \
+  /* filp */	{NULL,}, \
+  /* cloe */	{{ 0, }}, \
+--- 243,249 ----
+  /* rss */	2, \
+  /* comm */	"swapper", \
+  /* vm86_info */	NULL, 0, \
+! /* fs info */	0,-1,0022,NULL,NULL,NULL,NULL, NULL,\
+  /* libraries */	{ { NULL, 0, 0, 0}, }, 0, \
+  /* filp */	{NULL,}, \
+  /* cloe */	{{ 0, }}, \
+*** include/linux/sys.h.orig	Mon Nov 16 20:24:04 1992
+--- include/linux/sys.h	Fri Dec 18 01:46:49 1992
+***************
+*** 119,124 ****
+--- 119,125 ----
+  extern int sys_wait4();
+  extern int sys_swapoff();
+  extern int sys_sysinfo();
++ extern int sys_ipc();
+  
+  fn_ptr sys_call_table[] = { sys_setup, sys_exit, sys_fork, sys_read,
+  sys_write, sys_open, sys_close, sys_waitpid, sys_creat, sys_link,
+***************
+*** 141,147 ****
+  sys_setpriority, sys_profil, sys_statfs, sys_fstatfs, sys_ioperm,
+  sys_socketcall, sys_syslog, sys_setitimer, sys_getitimer, sys_newstat,
+  sys_newlstat, sys_newfstat, sys_newuname, sys_iopl, sys_vhangup,
+! sys_idle, sys_vm86, sys_wait4, sys_swapoff, sys_sysinfo };
+  
+  /* So we don't have to do any more manual updating.... */
+  int NR_syscalls = sizeof(sys_call_table)/sizeof(fn_ptr);
+--- 142,148 ----
+  sys_setpriority, sys_profil, sys_statfs, sys_fstatfs, sys_ioperm,
+  sys_socketcall, sys_syslog, sys_setitimer, sys_getitimer, sys_newstat,
+  sys_newlstat, sys_newfstat, sys_newuname, sys_iopl, sys_vhangup,
+! sys_idle, sys_vm86, sys_wait4, sys_swapoff, sys_sysinfo, sys_ipc };
+  
+  /* So we don't have to do any more manual updating.... */
+  int NR_syscalls = sizeof(sys_call_table)/sizeof(fn_ptr);
+*** include/linux/mm.h.orig	Fri Dec 18 05:00:02 1992
+--- include/linux/mm.h	Fri Dec 18 05:00:25 1992
+***************
+*** 112,117 ****
+--- 112,118 ----
+  
+  #define MAP_NR(addr) ((addr) >> PAGE_SHIFT)
+  #define MAP_PAGE_RESERVED (1<<15)
++ #define MAP_PAGE_SHARED (1<<14)
+  
+  extern unsigned short * mem_map;
+  
+***************
+*** 127,129 ****
+--- 128,131 ----
+  #define GFP_KERNEL	0x03
+  
+  #endif
++ 
+*** include/linux/unistd.h.orig	Mon Nov 16 20:24:04 1992
+--- include/linux/unistd.h	Fri Dec 18 01:46:49 1992
+***************
+*** 123,128 ****
+--- 123,129 ----
+  #define __NR_wait4		114
+  #define __NR_swapoff		115
+  #define __NR_sysinfo		116
++ #define __NR_ipc		117
+  
+  extern int errno;
+  

@@ -1,0 +1,637 @@
+#!/bin/sh
+# This is a shell archive (shar 3.24)
+# made 09/21/1991 00:18 UTC by stolcke@icsib30
+# Source directory /tmp/pack
+#
+# existing files WILL be overwritten
+#
+# This shar contains:
+# length  mode       name
+# ------ ---------- ------------------------------------------
+#  14840 -rw-r--r-- ICSI.diffs
+#   1435 -rw-r--r-- NeXT.cf
+#    887 -rw-r--r-- README.next
+#
+if touch 2>&1 | fgrep '[-amc]' > /dev/null
+ then TOUCH=touch
+ else TOUCH=true
+fi
+# ============= ICSI.diffs ==============
+echo "x - extracting ICSI.diffs (Text)"
+sed 's/^X//' << 'SHAR_EOF' > ICSI.diffs &&
+X*** mit/config/sun.cf.dist	Sun Sep 15 09:07:15 1991
+X--- mit/config/sun.cf	Sun Sep 15 14:33:30 1991
+X***************
+X*** 1,4 ****
+X--- 1,5 ----
+X  XCOMM platform:  $XConsortium: sun.cf,v 1.69 91/09/09 18:23:59 rws Exp $
+X+ XCOMM InstKmemFlags customized -- stolcke 9/13/91
+X  
+X  #define OSName            SunOS 4.1.1
+X  XCOMM operating system:  OSName
+X***************
+X*** 11,16 ****
+X--- 12,21 ----
+X  #define StandardDefines   -DNOSTDHDRS
+X  #endif
+X  
+X+ #ifndef InstKmemFlags
+X+ #define InstKmemFlags -m 2755 -g kmem
+X+ #endif
+X+ 
+X  #define HasSaberC	  YES
+X  #define HasNdbm		  YES
+X  #define HasShm		  YES
+X***************
+X*** 34,39 ****
+X--- 39,52 ----
+X  
+X  #if HasGcc
+X  
+X+ #if mc68000
+X+ #define CcCmd gcc -fstrength-reduce -fpcc-struct-return -msoft-float
+X+ #endif
+X+ 
+X+ #ifndef StandardDefines
+X+ #define StandardDefines -DX_NOT_POSIX	/* gcc screws up POSIX compatibility */
+X+ #endif
+X+ 
+X  #define SharedLibraryCcCmd cc
+X  #define ExtraLoadFlags -B/usr/bin/
+X  #define AllocateLocalDefines /**/
+X***************
+X*** 46,52 ****
+X  #define AllocateLocalDefines -DINCLUDE_ALLOCA_H
+X  
+X  #ifdef mc68000
+X! #define DefaultCCOptions -f68881 -pipe
+X  #else
+X  #define DefaultCCOptions -pipe
+X  #endif
+X--- 59,65 ----
+X  #define AllocateLocalDefines -DINCLUDE_ALLOCA_H
+X  
+X  #ifdef mc68000
+X! #define DefaultCCOptions /* -f68881 */ -pipe
+X  #else
+X  #define DefaultCCOptions -pipe
+X  #endif
+X*** mit/config/Imake.rules.dist	Thu Aug 22 14:04:24 1991
+X--- mit/config/Imake.rules	Tue Sep 10 16:17:48 1991
+X***************
+X*** 2,7 ****
+X--- 2,10 ----
+X  XCOMM Imake rules for building libraries, programs, scripts, and data files
+X  XCOMM rules:  $XConsortium: Imake.rules,v 1.121 91/08/22 16:32:50 rws Exp $
+X  
+X+ /* replaced 'exit 0' with 'true', and enclosed 'cd' commands in subshells
+X+  * to avoid pmake abort of multi-command targets -- stolcke 9/10/91
+X+  */
+X  /*
+X   *		   MACHINE-INDEPENDENT RULES; DO NOT MODIFY
+X   *
+X***************
+X*** 344,355 ****
+X  #define	ServerTarget(server,subdirs,objects,libs,syslibs)		@@\
+X  server: subdirs objects libs						@@\
+X  	-@if [ -f server ]; then set -x; \				@@\
+X! 		$(MV) server server.bak; else exit 0; fi		@@\
+X  	$(CC) $(CDEBUGFLAGS) $(CCOPTIONS) -o server objects libs $(EXTRA_LIBRARIES) syslibs $(EXTRA_LOAD_FLAGS) @@\
+X  									@@\
+X  Concat(load,server):							@@\
+X  	-@if [ -f server ]; then set -x; \				@@\
+X! 		$(MV) server server.bak; else exit 0; fi		@@\
+X  	$(CC) $(CDEBUGFLAGS) $(CCOPTIONS) -o server objects libs $(EXTRA_LIBRARIES) syslibs $(EXTRA_LOAD_FLAGS)
+X  #endif /* ServerTarget */
+X  
+X--- 347,358 ----
+X  #define	ServerTarget(server,subdirs,objects,libs,syslibs)		@@\
+X  server: subdirs objects libs						@@\
+X  	-@if [ -f server ]; then set -x; \				@@\
+X! 		$(MV) server server.bak; else true; fi			@@\
+X  	$(CC) $(CDEBUGFLAGS) $(CCOPTIONS) -o server objects libs $(EXTRA_LIBRARIES) syslibs $(EXTRA_LOAD_FLAGS) @@\
+X  									@@\
+X  Concat(load,server):							@@\
+X  	-@if [ -f server ]; then set -x; \				@@\
+X! 		$(MV) server server.bak; else true; fi			@@\
+X  	$(CC) $(CDEBUGFLAGS) $(CCOPTIONS) -o server objects libs $(EXTRA_LIBRARIES) syslibs $(EXTRA_LOAD_FLAGS)
+X  #endif /* ServerTarget */
+X  
+X***************
+X*** 637,643 ****
+X  									@@\
+X  $(DEPEND):								@@\
+X  	@echo "checking $@ over in $(DEPENDSRC) first..."; \		@@\
+X! 	cd $(DEPENDSRC); $(MAKE); \					@@\
+X  	echo "okay, continuing in $(CURRENT_DIR)"
+X  
+X  #endif /* UseInstalled */
+X--- 640,646 ----
+X  									@@\
+X  $(DEPEND):								@@\
+X  	@echo "checking $@ over in $(DEPENDSRC) first..."; \		@@\
+X! 	(cd $(DEPENDSRC); $(MAKE)); \					@@\
+X  	echo "okay, continuing in $(CURRENT_DIR)"
+X  
+X  #endif /* UseInstalled */
+X***************
+X*** 729,735 ****
+X  Makefile:: 								@@\
+X  	-@if [ -f Makefile ]; then set -x; \				@@\
+X  		$(RM) Makefile.bak; $(MV) Makefile Makefile.bak; \	@@\
+X! 	else exit 0; fi							@@\
+X  	$(IMAKE_CMD) -DTOPDIR=$(TOP) -DCURDIR=$(CURRENT_DIR) imakeflags
+X  
+X  #endif /* BuildMakefileTarget */
+X--- 732,738 ----
+X  Makefile:: 								@@\
+X  	-@if [ -f Makefile ]; then set -x; \				@@\
+X  		$(RM) Makefile.bak; $(MV) Makefile Makefile.bak; \	@@\
+X! 	else true; fi							@@\
+X  	$(IMAKE_CMD) -DTOPDIR=$(TOP) -DCURDIR=$(CURRENT_DIR) imakeflags
+X  
+X  #endif /* BuildMakefileTarget */
+X***************
+X*** 748,754 ****
+X   * LibMkdir - helper for creating library object subdirectories
+X   */
+X  #ifndef LibMkdir
+X! #define LibMkdir(dir) DirFailPrefix@if [ -d dir ]; then exit 0; else set -x; mkdir dir; fi
+X  #endif
+X  
+X  /*
+X--- 751,757 ----
+X   * LibMkdir - helper for creating library object subdirectories
+X   */
+X  #ifndef LibMkdir
+X! #define LibMkdir(dir) DirFailPrefix@if [ -d dir ]; then true; else set -x; mkdir dir; fi
+X  #endif
+X  
+X  /*
+X***************
+X*** 756,762 ****
+X   */
+X  #ifndef LibCleanDir
+X  #define LibCleanDir(dir) -@if [ -d dir ]; then \			@@\
+X! 		(set -x; cd dir; $(RM) *.o); else exit 0; fi
+X  #endif
+X  
+X  /*
+X--- 759,765 ----
+X   */
+X  #ifndef LibCleanDir
+X  #define LibCleanDir(dir) -@if [ -d dir ]; then \			@@\
+X! 		(set -x; cd dir; $(RM) *.o); else true; fi
+X  #endif
+X  
+X  /*
+X***************
+X*** 939,945 ****
+X  									@@\
+X  Concat3(lib,libname,_p.a): objlist					@@\
+X  	$(RM) $@							@@\
+X! 	cd profiled; $(AR) ../$@ objlist				@@\
+X  	RanLibrary($@)
+X  
+X  #endif /* ProfiledLibraryTarget */
+X--- 942,948 ----
+X  									@@\
+X  Concat3(lib,libname,_p.a): objlist					@@\
+X  	$(RM) $@							@@\
+X! 	(cd profiled; $(AR) ../$@ objlist)				@@\
+X  	RanLibrary($@)
+X  
+X  #endif /* ProfiledLibraryTarget */
+X***************
+X*** 954,960 ****
+X  									@@\
+X  Concat3(lib,libname,_d.a): objlist					@@\
+X  	$(RM) $@							@@\
+X! 	cd debugger; $(AR) ../$@ objlist				@@\
+X  	RanLibrary($@)
+X  
+X  #endif /* DebuggedLibraryTarget */
+X--- 957,963 ----
+X  									@@\
+X  Concat3(lib,libname,_d.a): objlist					@@\
+X  	$(RM) $@							@@\
+X! 	(cd debugger; $(AR) ../$@ objlist)				@@\
+X  	RanLibrary($@)
+X  
+X  #endif /* DebuggedLibraryTarget */
+X***************
+X*** 1090,1096 ****
+X  clean::									@@\
+X  	@-(if [ -d dir ]; then \					@@\
+X  		list=`echo srclist | sed -e 's/[^ ]*\///g'`; \		@@\
+X! 		set -x; cd dir; $(RM) $$list; else exit 0; fi)
+X  #endif
+X  
+X  
+X--- 1093,1099 ----
+X  clean::									@@\
+X  	@-(if [ -d dir ]; then \					@@\
+X  		list=`echo srclist | sed -e 's/[^ ]*\///g'`; \		@@\
+X! 		set -x; cd dir; $(RM) $$list; else true; fi)
+X  #endif
+X  
+X  
+X***************
+X*** 1274,1280 ****
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else exit 0; fi							@@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles 					@@\
+X  									@@\
+X--- 1277,1283 ----
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else true; fi							@@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles 					@@\
+X  									@@\
+X***************
+X*** 1282,1288 ****
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else exit 0; fi							@@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles 					@@\
+X  									@@\
+X--- 1285,1291 ----
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else true; fi							@@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles 					@@\
+X  									@@\
+X***************
+X*** 1290,1296 ****
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else exit 0; fi @@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(UPPREFIX)$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles 					@@\
+X  									@@\
+X--- 1293,1299 ----
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else true; fi @@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(UPPREFIX)$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles 					@@\
+X  									@@\
+X***************
+X*** 1298,1304 ****
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else exit 0; fi 						@@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(UPPREFIX)$(UPPREFIX)$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles
+X  #endif /* MakeNsubdirMakefiles */
+X--- 1301,1307 ----
+X  	$(RM) $(MAKEFILE_SUBDIR)/Makefile.bak				@@\
+X  	-@if [ -f $(MAKEFILE_SUBDIR)/Makefile ]; then set -x; \		@@\
+X  	$(MV) $(MAKEFILE_SUBDIR)/Makefile $(MAKEFILE_SUBDIR)/Makefile.bak; \ @@\
+X! 	else true; fi 						@@\
+X  	cd $(MAKEFILE_SUBDIR); $(IMAKE_CMD) -DTOPDIR=$(UPPREFIX)$(UPPREFIX)$(UPPREFIX)$(UPPREFIX)$(TOP) -DCURDIR=$(NEW_CURRENT_DIR); \	@@\
+X  	$(MAKE) $(MFLAGS) Makefiles
+X  #endif /* MakeNsubdirMakefiles */
+X*** mit/config/Imake.tmpl.dist	Tue Jul 30 12:00:17 1991
+X--- mit/config/Imake.tmpl	Thu Sep 12 23:11:04 1991
+X***************
+X*** 245,250 ****
+X--- 245,257 ----
+X  # define ConvexArchitecture
+X  #endif
+X  
+X+ #ifdef NeXT
+X+ #define MacroIncludeFile <NeXT.cf>
+X+ #define MacroFile NeXT.cf
+X+ #undef NeXT
+X+ #define NeXTArchitecture
+X+ #endif /* NeXT */
+X+ 
+X  #ifndef MacroIncludeFile
+X  XCOMM WARNING:  Imake.tmpl not configured; guessing at definitions!!!
+X  XCOMM This might mean that BOOTSTRAPCFLAGS was not set when building imake.
+X*** mit/config/imakemdep.h.dist	Sun Aug 25 12:39:59 1991
+X--- mit/config/imakemdep.h	Fri Sep 13 00:31:46 1991
+X***************
+X*** 87,92 ****
+X--- 87,96 ----
+X  #define imake_ccflags "-DX_NOT_POSIX"
+X  #endif
+X  
+X+ #ifdef NeXT
+X+ #define imake_ccflags "-DX_NOT_POSIX"
+X+ #endif
+X+ 
+X  #else /* not CCIMAKE */
+X  #ifndef MAKEDEPEND
+X  /*
+X***************
+X*** 245,250 ****
+X--- 249,258 ----
+X  	"-DDELL",
+X  #endif
+X  #endif
+X+ #ifdef NeXT
+X+ 	"-DNeXT",
+X+ 	"-traditional",
+X+ #endif
+X  };
+X  #else /* else MAKEDEPEND */
+X  /*
+X***************
+X*** 313,318 ****
+X--- 321,335 ----
+X  #endif
+X  #ifdef CMU
+X  	{"CMU", "1"},
+X+ #endif
+X+ #ifdef NeXT
+X+ /*	{"NeXT", "1"}, */
+X+ # ifdef __MACH__
+X+ 	{"__MACH__", "1"},
+X+ # endif
+X+ # ifdef __STRICT_BSD__
+X+ 	{"__STRICT_BSD__", "1"},
+X+ # endif
+X  #endif
+X  #ifdef luna
+X  	{"luna", "1"},
+X*** mit/lib/X/globals.c.dist	Fri Jul 12 12:54:43 1991
+X--- mit/lib/X/globals.c	Sun Sep 15 14:59:03 1991
+X***************
+X*** 1,5 ****
+X--- 1,6 ----
+X  /*
+X   * $XConsortium: globals.c,v 1.13 91/07/12 15:54:41 gildea Exp $
+X+  * Bug fix: first declaration of _qfree removed -- stolcke 9/14/91
+X   *
+X   * Copyright 1989 Massachusetts Institute of Technology
+X   *
+X***************
+X*** 67,73 ****
+X  typedef int (*funcptr)();
+X  ZEROINIT (funcptr, _XErrorFunction, NULL);
+X  ZEROINIT (funcptr, _XIOErrorFunction, NULL);
+X- ZEROINIT (_XQEvent *, _qfree, NULL);
+X  
+X  
+X  /*
+X--- 68,73 ----
+X*** mit/util/makedepend/main.c.dist	Thu Jul 25 08:51:49 1991
+X--- mit/util/makedepend/main.c	Thu Sep 12 23:51:49 1991
+X***************
+X*** 360,365 ****
+X--- 360,369 ----
+X  {
+X  	register int	i;
+X  
+X+ 	/* hack to treat #import like #include */
+X+ 	if (strcmp(str, "import") == 0)
+X+ 		return INCLUDE;
+X+ 
+X  	for (i=0; *list; i++, list++)
+X  		if (strcmp(str, *list) == 0)
+X  			return(i);
+X*** mit/server/Imakefile.dist	Fri Jul 26 17:56:32 1991
+X--- mit/server/Imakefile	Tue Sep 10 16:03:13 1991
+X***************
+X*** 226,231 ****
+X--- 226,233 ----
+X  SUNSYSLIBS = $(SYSLIBS) $(SUNWINDOWSLIBS)
+X  
+X  ServerTarget(Xsun,$(SUNDIRS),$(SUNOBJS),$(SUNLIBS),$(SUNSYSLIBS))
+X+ 
+X+ $(SUNOBJS):	FRC
+X  #endif /* XsunServer */
+X  
+X  
+X***************
+X*** 244,249 ****
+X--- 246,253 ----
+X  SUNSYSLIBS = $(SYSLIBS) $(SUNWINDOWSLIBS)
+X  
+X  ServerTarget(XsunMono,$(SUNMDIRS),$(SUNMOBJS),$(SUNMLIBS),$(SUNSYSLIBS))
+X+ 
+X+ $(SUNMOBJS):	FRC
+X  #endif /* XsunMonoServer */
+X  
+X  
+X*** mit/clients/xterm/Imakefile.dist	Sat Sep 14 16:25:50 1991
+X--- mit/clients/xterm/Imakefile	Mon Sep 16 17:05:53 1991
+X***************
+X*** 1,4 ****
+X--- 1,5 ----
+X  XCOMM $XConsortium: Imakefile,v 1.52 91/09/10 11:12:25 rws Exp $
+X+ XCOMM Bug fix: install target now uses $(CC)
+X  XCOMM
+X  XCOMM                         Attention xterm porters
+X  XCOMM
+X***************
+X*** 71,77 ****
+X  install:: xterm
+X  	MakeDir($(DESTDIR)$(BINDIR))
+X  	$(RM) xterm.inst
+X! 	cc -o xterm.inst $(OBJS1) $(LDOPTIONS) $(LDOVERRIDE) -lXaw -lXmu -lXt -lXext -lX11 $(LDLIBS) $(TERMCAPLIB) $(PTYLIB)
+X  	$(INSTALL) -c $(INSTPGMFLAGS) $(INSTUIDFLAGS) xterm.inst $(DESTDIR)$(BINDIR)/xterm
+X  	$(RM) xterm.inst
+X  #else
+X--- 72,78 ----
+X  install:: xterm
+X  	MakeDir($(DESTDIR)$(BINDIR))
+X  	$(RM) xterm.inst
+X! 	$(CC) -o xterm.inst $(OBJS1) $(LDOPTIONS) $(LDOVERRIDE) -lXaw -lXmu -lXt -lXext -lX11 $(LDLIBS) $(TERMCAPLIB) $(PTYLIB) $(EXTRA_LOAD_FLAGS)
+X  	$(INSTALL) -c $(INSTPGMFLAGS) $(INSTUIDFLAGS) xterm.inst $(DESTDIR)$(BINDIR)/xterm
+X  	$(RM) xterm.inst
+X  #else
+X*** mit/clients/xload/get_load.c.dist	Thu Jul 25 11:21:17 1991
+X--- mit/clients/xload/get_load.c	Sat Sep 14 14:16:45 1991
+X***************
+X*** 56,61 ****
+X--- 56,65 ----
+X  #    endif /* i386 */
+X  #endif
+X  
+X+ #ifdef __MACH__
+X+ #include <sys/param.h>
+X+ #endif
+X+ 
+X  #if defined(umips) || (defined(ultrix) && defined(mips))
+X  #include <sys/fixpoint.h>
+X  #endif
+X***************
+X*** 381,386 ****
+X--- 385,394 ----
+X  #endif
+X  #endif /* MOTOROLA */
+X  
+X+ #ifdef __MACH__
+X+ #define KERNEL_FILE "/mach"
+X+ #endif
+X+ 
+X  /*
+X   * provide default for everyone else
+X   */
+X***************
+X*** 477,484 ****
+X--- 485,497 ----
+X  #else /* not macII */
+X  static struct nlist namelist[] = {	    /* namelist for vmunix grubbing */
+X  #define LOADAV 0
+X+ #ifdef __MACH__
+X+     {{KERNEL_LOAD_VARIABLE}},
+X+     {{0}}
+X+ #else
+X      {KERNEL_LOAD_VARIABLE},
+X      {0}
+X+ #endif /* __MACH__ */
+X  };
+X  #endif /* macII */
+X  
+X***************
+X*** 561,567 ****
+X  	(void) lseek(kmem, loadavg_seek, 0);
+X  #endif
+X  
+X! #if defined(sun) || defined (UTEK) || defined(sequent) || defined(alliant) || defined(SVR4) || defined(sgi) || defined(hcx)
+X  	{
+X  		long temp;
+X  		(void) read(kmem, (char *)&temp, sizeof(long));
+X--- 574,580 ----
+X  	(void) lseek(kmem, loadavg_seek, 0);
+X  #endif
+X  
+X! #if defined(sun) || defined (UTEK) || defined(sequent) || defined(alliant) || defined(SVR4) || defined(sgi) || defined(hcx) || defined(__MACH__)
+X  	{
+X  		long temp;
+X  		(void) read(kmem, (char *)&temp, sizeof(long));
+SHAR_EOF
+$TOUCH -am 0916182891 ICSI.diffs &&
+chmod 0644 ICSI.diffs ||
+echo "restore of ICSI.diffs failed"
+set `wc -c ICSI.diffs`;Wc_c=$1
+if test "$Wc_c" != "14840"; then
+	echo original size 14840, current size $Wc_c
+fi
+# ============= NeXT.cf ==============
+echo "x - extracting NeXT.cf (Text)"
+sed 's/^X//' << 'SHAR_EOF' > NeXT.cf &&
+XXCOMM platform:  $Header: $
+X
+X#define OSName            NeXT Release 2.1
+XXCOMM operating system:  OSName
+X#define OSMajorVersion    2
+X#define OSMinorVersion    1
+X
+X#define InstKmemFlags -m 2755 -g kmem
+X
+X#define HasSaberC	  NO		/* for machines that have it */
+X#define HasNdbm		  YES
+X#define SetTtyGroup	  YES
+X#define HasBsearch	  NO
+X
+X#define NeedConstPrototypes		YES
+X#define NeedVarargsPrototypes		YES
+X#define NeedFunctionPrototypes          YES
+X#define NeedWidePrototypes              NO
+X
+X/* Build Der Mouse's NeXT server */
+X#define BuildServer	  YES
+X#define XnextServer       Xnext
+X
+X#undef BuildServer
+X#define BuildServer   	  NO
+X#define BuildPexExt	  BuildServers
+X
+X#define BuildExamples     NO
+X
+X#define StandardDefines	  -DX_NOT_POSIX		/* definitely not */ \
+X			  -DX_NOT_STDC_ENV 	/* compiling with -bsd */
+X#define HasVoidSignalReturn NO		/* when compiling with -bsd */
+X
+X#ifndef CcCmd
+X#define CcCmd cc -fstrength-reduce -bsd
+X#endif
+X
+X#ifndef StandardCppDefines
+X#define StandardCppDefines -traditional
+X#endif
+X
+X#ifndef InstallCmd
+X#define InstallCmd	install -u	/* unlink old */
+X#endif
+X
+X#ifndef RanlibCmd
+X#define RanlibCmd	ranlib -c -s	/* so I was told ... */
+X#endif
+X
+X/* see below for ServerDefines */
+X#define PrimaryScreenResolution 95	/* I think */
+X#define DefaultFontPath	$(FONTDIR)/misc/,$(FONTDIR)/75dpi/,$(FONTDIR)/100dpi/
+X
+X#define ServerCCOptions		-g DefaultCCOptions
+X#define ServerDefines		StandardDefines ExtensionDefines -DXDMCP
+X
+SHAR_EOF
+$TOUCH -am 0920171891 NeXT.cf &&
+chmod 0644 NeXT.cf ||
+echo "restore of NeXT.cf failed"
+set `wc -c NeXT.cf`;Wc_c=$1
+if test "$Wc_c" != "1435"; then
+	echo original size 1435, current size $Wc_c
+fi
+# ============= README.next ==============
+echo "x - extracting README.next (Text)"
+sed 's/^X//' << 'SHAR_EOF' > README.next &&
+X
+XThese files are all you need to compile X11R5 (client side only) on
+Xa NeXT machine running Release 2.1 (or so thinks the person writing this).
+XThey require the MIT R5 distribution and public patch #1.
+X
+XICSI.diffs	patches to the MIT distribution
+XNeXT.cf		configuration file for NeXT platform
+XREADME.next	this file
+X
+XApply the patches with
+X
+X	patch -p < ICSI.diffs
+X
+Xat the root of the X11R5 source tree.
+X
+XAdd the NeXT.cf file to the mit/config directory.
+X
+XThen, in the mit directory,
+X
+X	make BOOTSTRAPCFLAGS=-DX_NOT_POSIX World >& world.log
+X
+X
+XNOTE: the patches fix some problems not directly related to the NeXT platform,
+Xsuch as gcc compile on a Sun and imake rules for a parallel make version we
+Xhave here at ICSI.  Nothing should break on generic system.
+X
+XNow all I'm waiting for is der Mouse to come up with a R5 port of his server...
+X
+XAndreas Stolcke
+Xstolcke@icsi.berkeley.edu
+X9/16/91
+X
+SHAR_EOF
+$TOUCH -am 0916184191 README.next &&
+chmod 0644 README.next ||
+echo "restore of README.next failed"
+set `wc -c README.next`;Wc_c=$1
+if test "$Wc_c" != "887"; then
+	echo original size 887, current size $Wc_c
+fi
+exit 0

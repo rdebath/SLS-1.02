@@ -1,0 +1,1233 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Word Motion,  Next: Buffer End Motion,  Prev: Character Motion,  Up: Motion
+
+Motion by Words
+---------------
+
+   These functions for parsing words use the syntax table to decide
+whether a given character is part of a word.  *Note Syntax Tables::.
+
+ * Command: forward-word COUNT
+     This function moves point forward COUNT words (or backward if
+     COUNT is negative).  Normally it returns `t'.  If this motion
+     encounters the beginning or end of the buffer, or the limits of
+     the accessible portion when narrowing is in effect, point stops
+     there and the value is `nil'.
+
+     In an interactive call, COUNT is set to the numeric prefix
+     argument.
+
+ * Command: backward-word COUNT
+     This function just like `forward-word', except that it moves
+     backward until encountering the front of a word, rather than
+     forward.
+
+     In an interactive call, COUNT is set to the numeric prefix
+     argument.
+
+     This function is rarely used in programs, as it is more
+     efficient to call `forward-word' with negative argument.
+
+
+
+File: elisp,  Node: Buffer End Motion,  Next: Text Lines,  Prev: Word Motion,  Up: Motion
+
+Motion to an End of the Buffer
+------------------------------
+
+   To move point to the beginning of the buffer, write:
+
+     (goto-char (point-min))
+
+Likewise, to move to the end of the buffer, use:
+
+     (goto-char (point-max))
+
+   Here are two commands which users use to do these things.  They
+are documented here to warn you not to use them in Lisp programs,
+because they set the mark and display messages in the echo area.
+
+ * Command: beginning-of-buffer &optional N
+     This function moves point to the beginning of the buffer (or the
+     limits of the accessible portion, when narrowing is in effect),
+     setting the mark at the previous position.  If N is non-`nil',
+     then it puts point N tenths of the way from the beginning of the
+     buffer.
+
+     In an interactive call, N is the numeric prefix argument, if
+     provided; otherwise N defaults to `nil'.
+
+     Don't use this function in Lisp programs!
+
+ * Command: end-of-buffer &optional N
+     This function moves point to the end of the buffer (or the
+     limits of the accessible portion, when narrowing is in effect),
+     setting the mark at the previous position.  If N is non-`nil',
+     then it puts point N tenths of the way from the end.
+
+     In an interactive call, N is the numeric prefix argument, if
+     provided; otherwise N defaults to `nil'.
+
+     Don't use this function in Lisp programs!
+
+
+
+File: elisp,  Node: Text Lines,  Next: Screen Lines,  Prev: Buffer End Motion,  Up: Motion
+
+Motion by Text Lines
+--------------------
+
+   Text lines are portions of the buffer delimited by newline
+characters, which are regarded as part of the previous line.  The
+first text line begins at the beginning of the buffer, and the last
+text line ends at the end of the buffer whether or not the last
+character is a newline.  The division of the buffer into text lines
+is not affected by the width of the window, or by how tabs and
+control characters are displayed.
+
+ * Command: goto-line LINE
+     This function moves point to the front of the LINEth line,
+     counting from line 1 at beginning of buffer.  If LINE is less
+     than 1, then point is set to the beginning of the buffer.  If
+     LINE is greater than the number of lines in the buffer, then
+     point is set to the *end of the last line* of the buffer.
+
+     If narrowing is in effect, then LINE still counts from the
+     beginning of the buffer, but point cannot go outside the
+     accessible portion.  So point is set at the beginning or end of
+     the accessible portion of the text if the line number specifies
+     a position that is inaccessible.
+
+     The return value of `goto-line' is the difference between LINE
+     and the line number of the line to which point actually was able
+     move (before taking account of any narrowing).  Thus, the value
+     is positive if the scan encounters the end of the buffer.
+
+     In an interactive call, LINE is the numeric prefix argument if
+     one has been provided.  Otherwise LINE is read in the minibuffer.
+
+ * Command: beginning-of-line &optional COUNT
+     This function moves point to the beginning of the current line. 
+     With an argument COUNT not `nil' or 1, it moves forward COUNT-1
+     lines and then to the beginning of the line.
+
+     If this function reaches the end of the buffer (or of the
+     accessible portion, if narrowing is in effect), it positions
+     point at the beginning of the last line.  No error is signaled.
+
+ * Command: end-of-line &optional COUNT
+     This function moves point to the end of the current line.  With
+     an argument COUNT not `nil' or 1, it moves forward COUNT-1 lines
+     and then to the end of the line.
+
+     If this function reaches the end of the buffer (or of the
+     accessible portion, if narrowing is in effect), it positions
+     point at the end of the last line.  No error is signaled.
+
+ * Command: forward-line &optional COUNT
+     This function moves point forward COUNT lines, to the beginning
+     of the line.  If COUNT is negative, it moves point -COUNT lines
+     backward, to the beginning of the line.
+
+     If the beginning or end of the buffer (or of the accessible
+     portion) is encountered before that many lines are found, then
+     point stops at the beginning or end.  No error is signaled.
+
+     `forward-line' returns the difference between COUNT and the
+     number of lines actually moved.  If you attempt to move down
+     five lines from the beginning of a buffer that has only three
+     lines, point will positioned at the end of the last line, and
+     the value will be 2.
+
+     In an interactive call, COUNT is the numeric prefix argument.
+
+ * Function: count-lines START END
+     This function returns the number of lines between the positions
+     START and END in the current buffer.  If START and END are
+     equal, then it returns 0.  Otherwise it returns at least 1, even
+     if START and END are on the same line.  This is because the text
+     between them, considered in isolation, must contain at least one
+     line unless it is empty.
+
+     Here is an example of using `count-lines':
+
+          (defun current-line ()
+            "Return the vertical position of point in the selected window.  
+          Top line is 0.  Counts each text line only once, even if it wraps."
+            (+ (count-lines (window-start) (point))
+               (if (= (current-column) 0) 1 0)
+               -1))
+
+   Also see the functions `bolp' and `eolp' in *Note Near Point::. 
+These functions do not move point, but test whether it is already at
+the beginning or end of a line.
+
+
+
+File: elisp,  Node: Screen Lines,  Next: Vertical Motion,  Prev: Text Lines,  Up: Motion
+
+Motion by Screen Lines
+----------------------
+
+   The line functions in the previous section count text lines,
+delimited only by newline characters.  By contrast, these functions
+count screen lines, which are defined by the way the text appears on
+the screen.  A text line is a single screen line if it is short
+enough to fit the width of the selected window, but otherwise it may
+occupy several screen lines.
+
+   In some cases, text lines are truncated on the screen rather than
+continued onto additional screen lines.  Then `vertical-motion' moves
+point just like `forward-line'.  *Note Truncation::.
+
+   Because the width of a given string depends on the flags which
+control the appearance of certain characters, `vertical-motion' will
+behave differently on a given piece of text found in different
+buffers.  It will even act differently in different windows showing
+the same buffer, because the width may differ and so may the
+truncation flag.  *Note Control Char Display::.
+
+ * Function: vertical-motion COUNT
+     This function moves point to the start of the screen line COUNT
+     screen lines down from the screen line containing point.  If
+     COUNT is negative, it moves up instead.
+
+     This function returns the number of lines moved.  The value may
+     be less in absolute value than COUNT if the beginning or end of
+     the buffer was reached.
+
+ * Command: move-to-window-line COUNT
+     This function moves point with respect to the text currently
+     displayed in the selected window.  Point is moved to the
+     beginning of the screen line COUNT screen lines from the top of
+     the window.  If COUNT is negative, point moves either to the
+     beginning of the line -COUNT lines from the bottom or else to
+     the last line of the buffer if the buffer ends above the
+     specified screen position.
+
+     If COUNT is `nil', then point moves to the beginning of the line
+     in the middle of the window.  If the absolute value of COUNT is
+     greater than the size of the window, then point moves to the
+     place which would appear on that screen line if the window were
+     tall enough.  This will probably cause the next redisplay to
+     scroll to bring that location onto the screen.
+
+     In an interactive call, COUNT is the numeric prefix argument.
+
+     The value returned is the window line number, with the top line
+     in the window numbered 0.
+
+
+
+File: elisp,  Node: Vertical Motion,  Next: List Motion,  Prev: Screen Lines,  Up: Motion
+
+The User-Level Vertical Motion Commands
+---------------------------------------
+
+   A goal column is useful if you want to edit text such as a table
+in which you want to move point to a certain column on each line. 
+The goal column affects the vertical text line motion commands,
+`next-line' and `previous-line'.  *Note : (emacs)Basic.
+
+ * User Option: goal-column
+     This variable holds an explicitly specified goal column for
+     vertical line motion commands.  If it is an integer, it
+     specifies a column, and these commands try to move to that
+     column on each line.  If it is `nil', then the commands set
+     their own goal columns.  Any other value is invalid.
+
+ * Variable: temporary-goal-column
+     This variable holds the temporary goal column during a sequence
+     of consecutive vertical line motion commands.  It is overridden
+     by `goal-column' if that is non-`nil'.  It is set each time a
+     vertical motion command is invoked, unless the previous command
+     was also a vertical motion command.
+
+ * User Option: track-eol
+     This variable controls how the vertical line motion commands
+     operate when starting at the end of a line.  If `track-eol' is
+     non-`nil', then vertical motion starting at the end of a line
+     will keep to the ends of lines.  This means moving to the end of
+     each line moved onto.  The value of `track-eol' has no effect if
+     point is not at the end of a line when the first vertical motion
+     command is given.
+
+     `track-eol' has its effect by causing `temporary-goal-column' to
+     be set to 9999 instead of to the current column.
+
+ * Command: set-goal-column UNSET
+     This command sets the variable `goal-column' to specify a
+     permanent goal column for the vertical line motion commands.  If
+     UNSET is `nil', then `goal-column' is set to the current column
+     of point.  If UNSET is non-`nil', then `goal-column' is set to
+     `nil'.
+
+     This function is intended for interactive use; and in an
+     interactive call, UNSET is the raw prefix argument.
+
+
+
+File: elisp,  Node: List Motion,  Next: Skipping Characters,  Prev: Vertical Motion,  Up: Motion
+
+Moving over Lists and Other Balanced Expressions
+------------------------------------------------
+
+   Here are several functions concerned with balanced-parenthesis
+expressions (also called "sexps" in connection with moving across
+them in Emacs).  The syntax table controls how these functions
+interpret various characters; see *Note Syntax Tables::.  *Note
+Parsing Expressions::, for lower-level primitives for scanning sexps
+or parts of sexps.  For user-level commands, see *Note : (emacs)Lists
+and Sexps.
+
+ * Command: forward-list ARG
+     Move forward across ARG balanced groups of parentheses.  (Other
+     syntatic entities such as words or paired string quotes are
+     ignored.)
+
+ * Command: backward-list ARG
+     Move backward across ARG balanced groups of parentheses.  (Other
+     syntatic entities such as words or paired string quotes are
+     ignored.)
+
+ * Command: up-list ARG
+     Move forward out of ARG levels of parentheses.  A negative
+     argument means move backward but still to a less deep spot.
+
+ * Command: down-list ARG
+     Move forward down ARG levels of parentheses.  A negative
+     argument means move backward but still go down ARG level.
+
+ * Command: forward-sexp ARG
+     Move forward across ARG balanced expressions.  Balanced
+     expressions include both those delimited by parentheses and
+     other kinds, such as words and string constants.  For example,
+
+          ---------- Buffer: foo ----------
+          (concat-!- "foo " (car x) y z)
+          ---------- Buffer: foo ----------
+          
+          (forward-sexp 3)
+               => nil
+          
+          ---------- Buffer: foo ----------
+          (concat "foo " (car x) y-!- z)
+          ---------- Buffer: foo ----------
+
+ * Command: backward-sexp ARG
+     Move backward across ARG balanced expressions.
+
+
+
+File: elisp,  Node: Skipping Characters,  Prev: List Motion,  Up: Motion
+
+Skipping Characters
+-------------------
+
+   The following two functions move point over a specified set of
+characters.  For example, they are often used to skip whitespace.
+
+ * Function: skip-chars-forward CHARACTER-SET &optional LIMIT
+     This function moves point in the current buffer forward,
+     skipping over a given set of characters.  Emacs first examines
+     the character following point; if it matches CHARACTER-SET, then
+     point is advanced and the next character is examined.  This
+     continues until a character is found that does not match.  The
+     function returns `nil'.
+
+     The argument CHARACTER-SET is like the inside of a `[...]' in a
+     regular expression except that `]' is never special and `\'
+     quotes `^', `-' or `\'.  Thus, `"a-zA-Z"' skips over all
+     letters, stopping before the first nonletter, and `"^a-zA-Z'"
+     skips nonletters stopping before the first letter.  *Note
+     Regular Expressions::.
+
+     If LIMIT is supplied (it must be a number or a marker), it
+     specifies the maximum position in the buffer that point can be
+     skipped to.  Point will stop at or before LIMIT.
+
+     In the following example, point is initially located directly
+     before the `T'.  After the form is evaluated, point is located
+     at the end of that line (between the `t' of `hat' and the
+     newline).  The function skips all letters and spaces, but not
+     newlines.
+
+          ---------- Buffer: foo ----------
+          I read "-!-The cat in the hat
+          comes back" twice.
+          ---------- Buffer: foo ----------
+          
+          (skip-chars-forward "a-zA-Z ")
+               => nil
+          
+          ---------- Buffer: foo ----------
+          I read "The cat in the hat-!-
+          comes back" twice.
+          ---------- Buffer: foo ----------
+
+ * Function: skip-chars-backward CHARACTER-SET &optional LIMIT
+     This function moves point backward, skipping characters that
+     match CHARACTER-SET.  It just like `skip-chars-forward' except
+     for the direction of motion.
+
+
+
+File: elisp,  Node: Excursions,  Next: Narrowing,  Prev: Motion,  Up: Positions
+
+Excursions
+==========
+
+   It is often useful to move point "temporarily" within a localized
+portion of the program, or to switch buffers temporarily.  This is
+called an "excursion", and it is done with the `save-excursion'
+special form.  This construct saves the current buffer and its values
+of point and the mark so they can be restored after the completion of
+the excursion.
+
+   The forms for saving and restoring the configuration of windows
+are described elsewhere (*note Window Configurations::.).
+
+ * Special Form: save-excursion FORMS...
+     The `save-excursion' special form saves the identity of the
+     current buffer and the values of point and the mark in it,
+     evaluates FORMS, and finally restores the buffer and its saved
+     values of point and the mark.  All three saved values are
+     restored even in case of an abnormal exit via throw or error
+     (*note Nonlocal Exits::.).
+
+     The `save-excursion' special form is the standard way to switch
+     buffers or move point within one part of a program and avoid
+     affecting the rest of the program.  It is used more than 500
+     times in the Lisp sources of Emacs.
+
+     The values of point and the mark for other buffers are not saved
+     by `save-excursion', so any changes made to point and the mark
+     in the other buffers will remain in effect after
+     `save-excursion' exits.
+
+     Likewise, `save-excursion' does not restore window-buffer
+     correspondences altered by functions such as `switch-to-buffer'.
+     One way to restore these correspondences, and the selected
+     window, is to use `save-window-excursion' inside
+     `save-excursion' (*note Window Configurations::.).
+
+     The value returned by `save-excursion' is the result of the last
+     of FORMS, or `nil' if no FORMS are given.
+
+          (save-excursion
+            FORMS)
+          ==      
+          (let ((old-buf (current-buffer))
+                (old-pnt (point-marker))
+                (old-mark (copy-marker (mark-marker))))
+            (unwind-protect
+                (progn FORMS)
+              (set-buffer old-buf)
+              (goto-char old-pnt)
+              (set-marker (mark-marker) old-mark)))
+
+
+
+File: elisp,  Node: Narrowing,  Prev: Excursions,  Up: Positions
+
+Narrowing
+=========
+
+   "Narrowing" means limiting the text addressable by Emacs editing
+commands to a limited range of characters in a buffer.  The text that
+remains addressable is called the "accessible portion" of the buffer.
+
+   Narrowing is specified with two buffer positions which become the
+beginning and end of the accessible portion.  For most editing
+commands these positions replace the values of the beginning and end
+of the buffer.  While narrowing is in effect, no text outside the
+accessible portion is displayed, and point cannot move outside the
+accessible portion.
+
+   Values such as positions or line numbers which usually count from
+the beginning of the buffer continue to do so, but the functions
+which use them will refuse to operate on text that is inaccessible.
+
+   The commands for saving buffers are unaffected by narrowing; the
+entire buffer is saved regardless of the any narrowing.
+
+ * Command: narrow-to-region START END
+     This function sets the accessible portion of the current buffer
+     to start at START and end at END.  Both arguments should be
+     character positions.
+
+     In an interactive call, START and END are set to the bounds of
+     the current region (point and the mark, with the smallest first).
+
+ * Command: narrow-to-page MOVE-COUNT
+     This function sets the accessible portion of the current buffer
+     to include just the current page.  An optional first argument
+     MOVE-COUNT non-`nil' means to move forward or backward by
+     MOVE-COUNT pages and then narrow.
+
+     In an interactive call, MOVE-COUNT is set to the numeric prefix
+     argument.
+
+ * Command: widen
+     This function cancels any narrowing in the current buffer, so
+     that the entire contents are accessible.  This is called
+     "widening".  It is equivalent to the following expression:
+
+          (narrow-to-region 1 (1+ (buffer-size)))
+
+ * Special Form: save-restriction FORMS...
+     This special form saves the current bounds of the accessible
+     portion, evaluates FORMS, and finally restores the saved bounds,
+     thus restoring the same state of narrowing (or absence thereof)
+     formerly in effect.  The state of narrowing is restored even in
+     the event of an abnormal exit via throw or error (*note Nonlocal
+     Exits::.).  Therefore, this construct is a clean way to narrow a
+     buffer temporarily.
+
+     The value returned by `save-restriction' is that returned by the
+     last of FORMS, or `nil' if no forms were given.
+
+     *Note:* it is easy to make a mistake when using
+     `save-restriction'.  Read the entire description here before you
+     try it.
+
+     Point and the mark are *not* restored by this special form; use
+     `save-excursion' for that.  If you use both `save-restriction'
+     and `save-excursion' together, `save-excursion' should come
+     first (on the outside).  Otherwise, the old point value would be
+     restored with temporary narrowing still in effect.  If the old
+     point value were outside the limits of the temporary narrowing,
+     this would fail to restore it accurately.
+
+     The `save-restriction' special form records the values of the
+     beginning and end of the accessible portion as distances from
+     the beginning and end of the buffer.  In other words, it records
+     the amount of inaccessible text before and after the accessible
+     portion.
+
+     This technique yields correct results if the body of the form
+     does further narrowing.  However, `save-restriction' can become
+     confused if the body widens and then makes changes outside the
+     area of the saved narrowing.  When this is what you want to do,
+     `save-restriction' is not the right tool for the job.  Here is
+     what you must do instead:
+
+          (let ((beg (point-min-marker))
+                (end (point-max-marker)))
+            (unwind-protect
+                (progn BODY)
+              (narrow-to-region beg end)))
+
+     Here is a simple example of correct use of `save-restriction':
+
+          ---------- Buffer: foo ----------
+          This is the contents of foo
+          This is the contents of foo
+          This is the contents of foo-!-
+          ---------- Buffer: foo ----------
+          
+          (save-excursion
+            (save-restriction
+              (goto-char 1)
+              (forward-line 2)
+              (narrow-to-region 1 (point))
+              (goto-char (point-min))
+              (replace-string "foo" "bar")))
+          
+          ---------- Buffer: foo ----------
+          This is the contents of bar
+          This is the contents of bar
+          This is the contents of foo-!-
+          ---------- Buffer: foo ----------
+
+
+
+File: elisp,  Node: Markers,  Next: Text,  Prev: Positions,  Up: Top
+
+Markers
+*******
+
+   A "marker" is a Lisp object used to specify a position in a buffer
+relative to the surrounding text.  A marker changes its offset from
+the beginning of the buffer automatically whenever text is inserted
+or deleted, so that it stays with the two characters on either side
+of it.
+
+* Menu:
+
+* Overview of Markers::      The components of a marker, and how it relocates.
+* Predicates on Markers::    Testing whether an object is a marker.
+* Creating Markers::         Making empty markers or markers at certain places.
+* Information from Markers:: Finding the marker's buffer or character position.
+* Changing Markers::         Moving the marker to a new buffer or position.
+* The Mark::                 How "the mark" is implemented with a marker.
+* The Region::               How to access "the region".
+
+ 
+
+File: elisp,  Node: Overview of Markers,  Next: Predicates on Markers,  Prev: Markers,  Up: Markers
+
+Overview of Markers
+===================
+
+   A marker specifies a buffer and a position in that buffer.  The
+marker can be used to represent a position in the functions that
+require one, just as an integer could be used.  *Note Positions::,
+for a complete description of positions.
+
+   A marker has two attributes: the marker position, and the marker
+buffer.  The marker position is an integer which is equivalent (at
+the moment) to the marker as a position in that buffer; however, as
+text is inserted or deleted in the buffer, the marker is relocated,
+so that its integer equivalent changes.  The idea is that a marker
+positioned between two characters in a buffer will remain between
+those two characters despite any changes made to the contents of the
+buffer; thus, a marker's offset from the beginning of a buffer may
+change often during the life of the marker.
+
+   If the text around a marker is deleted, the marker is repositioned
+between the characters immediately before and after the deleted text.
+If text is inserted at the position of a marker, the marker remains
+in front of the new text unless it is inserted with
+`insert-before-markers' (*note Insertion::.).  When text is inserted
+or deleted somewhere before the marker position (not next to the
+marker), the marker moves back and forth with the two neighboring
+characters.
+
+   When a buffer is modified, all of its markers must be checked so
+that they can be relocated if necessary.  This slows processing in a
+buffer with a large number of markers.  For this reason, it is a good
+idea to make a marker point nowhere if you are sure you don't need it
+any more.  Unreferenced markers will eventually be garbage collected,
+but until then will continue to be updated if they do point somewhere.
+
+   Because it is quite common to perform arithmetic operations on a
+marker position, most of the arithmetic operations (including `+' and
+`-') accept markers as arguments.  In such cases, the current
+position of the marker is used.
+
+   Here are examples of creating markers, setting markers, and moving
+point to markers:
+
+     ;; Make a new marker that initially does not point anywhere:
+     (setq m1 (make-marker))
+          => #<marker in no buffer>
+     
+     ;; Set `m1' to point between the 100th and 101st characters.
+     ;; in the current buffer:
+     (set-marker m1 100)
+          => #<marker at 100 in markers.texi>
+     
+     ;; Now insert one character at the beginning of the buffer:
+     (goto-char (point-min))
+          => 1
+     (insert "Q")
+          => nil
+     
+     ;; `m1' is updated appropriately.
+     m1
+          => #<marker at 101 in markers.texi>
+     
+     ;; Two markers that point to the same position
+     ;; are not `eq', but they are `equal'.
+     (setq m2 (copy-marker m1))
+          => #<marker at 101 in markers.texi>
+     (eq m1 m2)
+          => nil
+     (equal m1 m2)
+          => t
+     
+     ;; When you are finished using a marker, make it point nowhere.
+     (set-marker m1 nil)
+          => #<marker in no buffer>
+
+
+
+File: elisp,  Node: Predicates on Markers,  Next: Creating Markers,  Prev: Overview of Markers,  Up: Markers
+
+Predicates on Markers
+=====================
+
+   You can test an object to see whether it is a marker, or whether
+it is either an integer or a marker.  The latter test is useful when
+you are using the arithmetic functions that work with both markers
+and integers.
+
+ * Function: markerp OBJECT
+     This function returns `t' if OBJECT is a marker, `nil'
+     otherwise.  In particular, integers are not markers, even though
+     many functions will accept either a marker or an integer.
+
+ * Function: integer-or-marker-p OBJECT
+     This function returns `t' if OBJECT is an integer or a marker,
+     `nil' otherwise.
+
+
+
+File: elisp,  Node: Creating Markers,  Next: Information from Markers,  Prev: Predicates on Markers,  Up: Markers
+
+Functions That Create Markers
+=============================
+
+   When you create a new marker, you can make it point nowhere, or
+point to the present position of point, or to the beginning or end of
+the accessible portion of the buffer, or to the same place as another
+given marker.
+
+ * Function: make-marker
+     This functions returns a newly allocated marker that does not
+     point anywhere.
+
+          (make-marker)
+               => #<marker in no buffer>
+
+ * Function: point-marker
+     This function returns a new marker that points to the present
+     position of point in the current buffer.  *Note Point::.  For an
+     example, see `copy-marker', below.
+
+ * Function: point-min-marker
+     This function returns a new marker that points to the beginning
+     of the accessible portion of the buffer.  This will be the
+     beginning of the buffer unless narrowing is in effect.  *Note
+     Narrowing::.
+
+ * Function: point-max-marker
+     This function returns a new marker that points to the end of the
+     accessible portion of the buffer.  This will be the end of the
+     buffer unless narrowing is in effect.  *Note Narrowing::.
+
+     Here are examples of this function and `point-min-marker', shown
+     in a buffer containing a version of the source file for the text
+     of this chapter.
+
+          (point-min-marker)
+               => #<marker at 1 in markers.texi>
+          (point-max-marker)
+               => #<marker at 15573 in markers.texi>
+          
+          (narrow-to-region 100 200)
+               => nil
+          (point-min-marker)
+               => #<marker at 100 in markers.texi>
+
+             (point-max-marker)
+               => #<marker at 200 in markers.texi>
+
+ * Function: copy-marker MARKER-OR-INTEGER
+     If passed a marker as its argument, `copy-marker' returns a new
+     marker that points to the same place and the same buffer as does
+     MARKER-OR-INTEGER.  If passed an integer as its argument,
+     `copy-marker' returns a new marker that points to position
+     MARKER-OR-INTEGER in the current buffer.
+
+     If passed an argument that is an integer whose value is less
+     than 1, `copy-marker' returns a new marker that points to the
+     beginning of the current buffer.  If passed an argument that is
+     an integer whose value is greater than the length of the buffer,
+     then `copy-marker' returns a new marker that points to the end
+     of the buffer.
+
+     An error is signaled if MARKER is neither a marker nor an integer.
+
+          (setq p (point-marker))
+               => #<marker at 2139 in markers.texi>
+          
+          (setq q (copy-marker p))
+               => #<marker at 2139 in markers.texi>
+          
+          (eq p q)
+               => nil
+          
+          (equal p q)
+               => t
+          
+          (copy-marker 0)
+               => #<marker at 1 in markers.texi>
+          
+          (copy-marker 20000)
+               => #<marker at 7572 in markers.texi>
+
+
+
+File: elisp,  Node: Information from Markers,  Next: Changing Markers,  Prev: Creating Markers,  Up: Markers
+
+Information from Markers
+========================
+
+   This section describes the functions for accessing the components
+of a marker object.
+
+ * Function: marker-position MARKER
+     This function returns the position that MARKER points to, or
+     `nil' if it points nowhere.
+
+ * Function: marker-buffer MARKER
+     This function returns the buffer that MARKER points into, or
+     `nil' if it points nowhere.
+
+          (setq m (make-marker))
+               => #<marker in no buffer>
+          (marker-position m)
+               => nil
+          (marker-buffer m)
+               => nil
+          
+          (set-marker m 3770 (current-buffer))
+               => #<marker at 3770 in markers.texi>
+          (marker-buffer m)
+               => #<buffer markers.texi>
+          (marker-position m)
+               => 3770
+
+   Two distinct markers will be found `equal' (even though not `eq')
+to each other if they have the same position and buffer, or if they
+both point nowhere.
+
+
+
+File: elisp,  Node: Changing Markers,  Next: The Mark,  Prev: Information from Markers,  Up: Markers
+
+Changing Markers
+================
+
+   This section describes how to change the position of an existing
+marker.  When you do this, be sure you know whether the marker is
+used outside of your program, and, if so, what effects will result
+from moving it--otherwise, confusing things may happen in other parts
+of Emacs.
+
+ * Function: set-marker MARKER POSITION &optional BUFFER
+     This function moves MARKER to POSITION in BUFFER.  If BUFFER is
+     not provided, it defaults to the current buffer.
+
+     If POSITION is less than 1, `set-marker' moves marker to the
+     beginning of the buffer.  If the value of POSITION is greater
+     than the size of the buffer, `set-marker' moves marker to the
+     end of the buffer.  If POSITION is `nil' or a marker that points
+     nowhere, then MARKER is set to point nowhere.
+
+     The value returned is MARKER.
+
+          (setq m (point-marker))
+               => #<marker at 4714 in markers.texi>
+          (set-marker m 55)
+               => #<marker at 55 in markers.texi>
+          (setq b (get-buffer "foo"))
+               => #<buffer foo>
+          (set-marker m 0 b)
+               => #<marker at 1 in foo>
+
+ * Function: move-marker MARKER POSITION &optional BUFFER
+     This is another name for `set-marker'.
+
+
+
+File: elisp,  Node: The Mark,  Next: The Region,  Prev: Changing Markers,  Up: Markers
+
+The Mark
+========
+
+   A special marker in each buffer is designated "the mark".  It
+records a position for the user for the sake of commands such as
+`C-w' and `C-x TAB'.  Lisp programs should set the mark only to
+values that have a potential use to the user, and never for their own
+internal purposes.  For example, the `replace-regexp' command sets
+the mark to the value of point before doing any replacements, because
+this enables the user to move back there conveniently after the
+replace is finished.
+
+   Many commands are designed so that when called interactively they
+operate on the text between point and the mark.  If you are writing
+such a command, don't examine the mark directly; instead, use
+`interactive' with the `r' specification.  This will provide the
+values of point and the mark as arguments to the command in an
+interactive call, but will permit other Lisp programs to specify
+arguments explicitly.  *Note Interactive Codes::.
+
+   Each buffer has its own value of the mark that is independent of
+the value of the mark in other buffers.  When a buffer is created,
+the mark exists but does not point anywhere.  We consider this state
+as "the absence of a mark in that buffer".
+
+   In addition to the mark, each buffer has a "mark ring" which is a
+list of markers that are the previous values of the mark.  When
+editing commands change the mark, they should normally save the old
+value of the mark on the mark ring.  The mark ring may contain no
+more than the maximum number of entries specified by the variable
+`mark-ring-max'; excess entries are discarded on a first-in-first-out
+basis.
+
+ * Function: mark
+     This function returns the position of the current buffer's mark
+     as an integer.  `nil' is returned if the mark is not yet set for
+     this buffer.
+
+ * Function: mark-marker
+     This function returns the current buffer's mark.  This the very
+     marker which records the mark location inside Emacs, not a copy.
+     Therefore, changing this marker's position will directly affect
+     the position of the mark.  Don't do it unless that is the effect
+     you want.
+
+          (setq m (mark-marker))
+               => #<marker at 3420 in markers.texi>
+          (set-marker m 100)
+               => #<marker at 100 in markers.texi>
+          (mark-marker)
+               => #<marker at 100 in markers.texi>
+
+     Like any marker, this marker can be set to point at any buffer
+     you like.  We don't recommend that you make it point at any
+     buffer other than the one of which it is the mark.  If you do,
+     it will yield perfectly consistent, if rather odd, results.
+
+ * Command: set-mark-command JUMP
+     If JUMP is `nil', this command sets the mark to the value of
+     point and pushes the previous value of the mark on the mark
+     ring.  The message `Mark set' is also displayed in the echo area.
+
+     If JUMP is not `nil', this command sets point to the value of
+     the mark, and sets the mark to the previous saved mark value,
+     which is popped off the mark ring.
+
+     This function is *only* intended for interactive use.
+
+ * Function: set-mark POSITION
+     This function sets the mark to POSITION.  The old value of the
+     mark is *not* pushed onto the mark ring.
+
+     *Note:* use this function only if you want the user to see that
+     the mark has moved, and you want the previous mark position to
+     be lost.  Normally, when a new mark is set, the old one should
+     go on the `mark-ring', which is why most applications should use
+     `push-mark' and `pop-mark', not `set-mark'.
+
+     Novice Emacs Lisp programmers often try to use the mark for the
+     wrong purposes.  The mark saves a location for the user's
+     convenience.  An editing command should not alter the mark
+     unless altering the mark is part of the user-level functionality
+     of the command.  (And, in that case, this effect should be
+     documented.)  To remember a location for internal use in the
+     Lisp program, store it in a Lisp variable.  For example:
+
+             (let ((beg (point)))
+                (forward-line 1)
+                (delete-region beg (point))).
+
+  * Variable: mark-ring
+     The value of this buffer-local variable is the list of saved
+     former marks of the current buffer, most recent first.
+
+          mark-ring
+          => (#<marker at 11050 in markers.texi> 
+              #<marker at 10832 in markers.texi>
+              ...)
+
+ * User Option: mark-ring-max
+     The value of this variable is the maximum size of `mark-ring'. 
+     If more marks than this are pushed onto the `mark-ring', it
+     discards marks on a first-in, first-out basis.
+
+ * Function: push-mark &optional POSITION NOMSG
+     This function sets the current buffer's mark to POSITION, and
+     pushes a copy of the previous mark onto `mark-ring'.  If
+     POSITION is `nil', then the value of point is used.  `push-mark'
+     returns `nil'.
+
+     A `Mark set' message is displayed unless NOMSG is non-`nil'.
+
+ * Function: pop-mark
+     This function pops off the top element of `mark-ring' and makes
+     that mark become the buffer's actual mark.  This does not change
+     the buffer's point and does nothing if `mark-ring' is empty.
+
+     The return value is not useful.
+
+
+
+File: elisp,  Node: The Region,  Prev: The Mark,  Up: Markers
+
+The Region
+==========
+
+   The text between point and the mark is known as "the region". 
+Various functions operate on text delimited by point and the mark,
+but only those functions specifically related to the region itself
+are described here.
+
+ * Function: region-beginning
+     This function returns the position of the beginning of the
+     region (as an integer).  This is the position of either point or
+     the mark, whichever is smaller.
+
+     If the mark does not point anywhere, an error is signaled.
+
+ * Function: region-end
+     This function returns the position of the end of the region (as
+     an integer).  This is the position of either point or the mark,
+     whichever is larger.
+
+     If the mark does not point anywhere, an error is signaled.
+
+   Few programs need to use the `region-beginning' and `region-end'
+functions.  A command designed to operate on a region should instead
+use `interactive' with the `r' specification, so that the same
+function can be called with explicit bounds arguments from programs. 
+(*Note Interactive Codes::.)
+
+
+
+File: elisp,  Node: Text,  Next: Searching and Matching,  Prev: Markers,  Up: Top
+
+Text
+****
+
+   This chapter describes the functions that deal with the text in a
+buffer.  Most examine, insert or delete text in the current buffer,
+often in the vicinity of point.  Many are interactive.  All the
+functions that change the text provide for undoing the changes (*note
+Undo::.).
+
+   Many text-related functions operate on a region of text defined by
+two buffer positions passed in arguments named START and END.  These
+arguments should be either markers (*note Markers::.) or or numeric
+character positions (*note Positions::.).  The order of these
+arguments does not matter; it is all right for START to be the end of
+the region and END the beginning.  For example, `(delete-region 1
+10)' and `(delete-region 10 1)' perform identically.  An
+`args-out-of-range' error is signaled if either START or END is
+outside the accessible portion of the buffer.  In an interactive
+call, point and the mark are used for these arguments.
+
+   Throughout this chapter, "text" refers to the characters in the
+buffer.
+
+* Menu:
+
+* Near Point::       Examining text in the vicinity of point.
+* Buffer Contents::  Examining text in a general fashion.
+* Insertion::        Adding new text to a buffer.
+* Commands for Insertion::  User-level commands to insert text.
+* Deletion::         Removing text from a buffer.
+* User-Level Deletion::     User-level commands to delete text.
+* The Kill Ring::    Where removed text sometimes is saved for later use.
+* Undo::             Undoing changes to the text of a buffer.
+* Auto Filling::     How auto-fill mode is implemented to break lines.
+* Filling::          Functions for explicit filling.
+* Sorting::          Functions for sorting parts of the buffer.
+* Indentation::      Functions to insert or adjust indentation.
+* Columns::          Computing horizontal positions, and using them.
+* Case Changes::     Case conversion of parts of the buffer.
+* Substitution::     Replacing a given character wherever it appears.
+* Underlining::      Inserting or deleting underlining-by-overstrike.
+* Registers::        How registers are implemented.  Accessing the text or
+                       position stored in a register.
+
+ 
+
+File: elisp,  Node: Near Point,  Next: Buffer Contents,  Prev: Text,  Up: Text
+
+Examining Text Near Point
+=========================
+
+   Many functions are provided to look at the characters around point.
+Several simple functions are described here.  See also `looking-at'
+in *Note Searching and Matching::.
+
+ * Function: char-after POSITION
+     This function returns the character in the current buffer at
+     (i.e., immediately after) position POSITION.  If POSITION is out
+     of range for this purpose, either before the beginning of the
+     buffer, or at or beyond the end, than the value is `nil'.
+
+     Remember that point is always between characters, and the
+     terminal cursor normally appears over the character following
+     point.  Therefore, the character returned by `char-after' is the
+     character the cursor is over.
+
+     In the following example, assume that the first character in the
+     buffer is `@':
+
+          (char-to-string (char-after 1))
+               => "@"
+
+ * Function: following-char
+     This function returns the character following point in the
+     current buffer.  This is similar to `(char-after (point))'. 
+     However, point is at the end of the buffer, then the result of
+     `following-char' is 0.
+
+     In this example, point is between the `a' and the `c'.
+
+          ---------- Buffer: foo ----------
+          Gentlemen may cry ``Pea-!-ce! Peace!,'' but there is no peace.
+          ---------- Buffer: foo ----------
+          
+          (char-to-string (preceding-char))
+               => "a"
+          (char-to-string (following-char))
+               => "c"
+
+ * Function: preceding-char
+     This function returns the character preceding point in the
+     current buffer.  See above, under `following-char', for an
+     example.  If point is at the beginning of the buffer, then the
+     result of `preceding-char' is 0.
+
+ * Function: bobp
+     This function returns `t' if point is at the beginning of the
+     buffer.  If narrowing is in effect, this means the beginning of
+     the accessible portion of the text.  See also `point-min' in
+     *Note Point::.
+
+ * Function: eobp
+     This function returns `t' if point is at the end of the buffer. 
+     If narrowing is in effect, this means the end of accessible
+     portion of the text.  See also `point-max' in *Note Point::.
+
+ * Function: bolp
+     This function returns `t' if point is at the beginning of a line.
+     *Note Text Lines::.
+
+ * Function: eolp
+     This function returns `t' if point is at the end of a line.  The
+     end of the buffer is always considered the end of a line.
+
+
+
+File: elisp,  Node: Buffer Contents,  Next: Insertion,  Prev: Near Point,  Up: Text
+
+Examining Buffer Contents
+=========================
+
+   This section describes two functions that allow a Lisp program to
+convert any portion of the text in the buffer into a string.
+
+ * Function: buffer-substring START END
+     This function returns a string containing a copy of the text of
+     the region defined by positions START and END in the current
+     buffer.  If the arguments are not positions in the accessible
+     portion of the buffer, Emacs signals an `args-out-of-range' error.
+
+     It is not necessary for START to be less than END; the arguments
+     can be given in either order.  But most often the smaller
+     argument is written first.
+
+          ---------- Buffer: foo ----------
+          This is the contents of buffer foo
+          
+          ---------- Buffer: foo ----------
+          
+          (buffer-substring 1 10)
+          => "This is t"
+          (buffer-substring (point-max) 10)
+          => "he contents of buffer foo
+          "
+
+ * Function: buffer-string
+     This function returns the contents of the accessible portion of
+     the current buffer as a string.  This is the portion between
+     `(point-min)' and `(point-max)' (*note Narrowing::.).
+
+          ---------- Buffer: foo ----------
+          This is the contents of buffer foo
+          
+          ---------- Buffer: foo ----------
+          
+          (buffer-string)
+               => "This is the contents of buffer foo
+          "
+
+
+
+File: elisp,  Node: Insertion,  Next: Commands for Insertion,  Prev: Buffer Contents,  Up: Text
+
+Insertion
+=========
+
+   Insertion takes place at point.  Markers pointing at positions
+after the insertion point are relocated with the surrounding text
+(*note Markers::.).  When a marker points at the place of insertion,
+it is normally not relocated, so that it points to the beginning of
+the inserted text; however, when `insert-before-markers' is used, all
+such markers are relocated to point after the inserted text.
+
+   Point may end up either before or after inserted text, depending
+on the function used.  If point is left after the inserted text, we
+speak of insertion "before point".
+
+   Each of these functions signals an error if the current buffer is
+read-only.
+
+ * Function: insert &rest ARGS
+     This function inserts the strings and/or characters ARGS into
+     the current buffer, at point, moving point forward.  An error is
+     signaled unless all ARGS are either strings or characters.  The
+     value is `nil'.
+
+ * Function: insert-before-markers &rest ARGS
+     This function inserts the strings and/or characters ARGS into
+     the current buffer, at point, moving point forward.  An error is
+     signaled unless all ARGS are either strings or characters.  The
+     value is `nil'.
+
+     This function is unlike the other insertion functions in that a
+     marker whose position initially equals point is relocated to
+     come after the newly inserted text.
+
+ * Function: insert-char CHARACTER COUNT
+     This function inserts COUNT instances of CHARACTER into the
+     current buffer before point.  COUNT must be a number, and
+     CHARACTER must be a character.  The value is `nil'.
+
+ * Function: insert-buffer-substring FROM-BUFFER-OR-NAME START END
+     This function inserts a substring of the contents of buffer
+     FROM-BUFFER-OR-NAME (which must already exist) into the current
+     buffer before point.  The text inserted consists of the
+     characters in the region defined by START and END.  The value is
+     `nil'.
+
+     In this example, the form is executed with buffer `bar' as the
+     current buffer.  We assume that buffer `bar' is initially empty.
+
+          ---------- Buffer: foo ----------
+          We hold these truths to be self-evident, that all
+          ---------- Buffer: foo ----------
+          
+          (insert-buffer-substring "foo" 1 20)
+               => nil
+          
+          ---------- Buffer: bar ----------
+          We hold these truth
+          ---------- Buffer: bar ----------
+
+

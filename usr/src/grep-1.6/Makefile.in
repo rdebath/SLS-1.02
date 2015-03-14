@@ -1,0 +1,134 @@
+# Makefile for GNU e?grep
+# Copyright (C) 1992 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+SHELL = /bin/sh
+
+#### Start of system configuration section. ####
+
+srcdir = @srcdir@
+@VPATH@
+
+CC = @CC@
+
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+
+# Things you might add to DEFS:
+# -DSTDC_HEADERS	If you have ANSI C headers and libraries.
+# -DHAVE_UNISTD_H	If you have unistd.h.
+# -DUSG			If you have System V/ANSI C string
+#			and memory functions and headers.
+# -D__CHAR_UNSIGNED__	If type `char' is unsigned.
+#			gcc defines this automatically.
+
+DEFS = @DEFS@
+
+# Any libraries that are needed, such as to get alloca.
+LIBS = @LIBS@
+
+CDEBUG = -g
+CFLAGS = $(CDEBUG) -I$(srcdir) $(DEFS)
+LDFLAGS = -g
+
+prefix = /usr/local
+exec_prefix = $(prefix)
+
+# Prefix for installed program, normally empty or `g'.
+binprefix = 
+# Prefix for installed man page, normally empty or `g'.
+manprefix = 
+
+# Where to install executables.
+bindir = $(exec_prefix)/bin
+
+# Where to put Unix-style manual pages.
+mandir = $(prefix)/man/man1
+# Extension (not including `.') for the Unix-style manual page filenames.
+manext = 1
+
+#### End of system configuration section. ####
+
+MISC = README INSTALL grep.man COPYING Makefile.in configure configure.in \
+ README.cray README.sunos4
+SRCS = grep.c dfa.c regex.c getopt.c alloca.c
+HDRS = dfa.h getopt.h regex.h
+DISTFILES = $(MISC) $(SRCS) $(HDRS)
+TESTFILES = khadafy.lines khadafy.regexp regress.sh scriptgen.awk spencer.tests
+
+OBJS = dfa.o regex.o getopt.o @ALLOCA@
+GOBJ = ggrep.o
+EOBJ = egrep.o
+
+all: grep egrep check.done
+
+install: all
+	$(INSTALL_PROGRAM) grep $(bindir)/$(binprefix)grep
+	$(INSTALL_PROGRAM) egrep $(bindir)/$(binprefix)egrep
+	-$(INSTALL_DATA) $(srcdir)/grep.man $(mandir)/$(manprefix)grep.$(manext)
+
+check:
+	builddir=`pwd`; cd $(srcdir)/tests; sh regress.sh $$builddir
+	touch check.done
+
+check.done: grep egrep
+	builddir=`pwd`; cd $(srcdir)/tests; sh regress.sh $$builddir
+	touch check.done
+
+grep: $(OBJS) $(GOBJ)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(GOBJ) $(LIBS)
+
+egrep: $(OBJS) $(EOBJ)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(EOBJ) $(LIBS)
+
+ggrep.o: grep.c
+	$(CC) $(CFLAGS) -c $(srcdir)/grep.c
+	mv grep.o ggrep.o
+
+egrep.o: grep.c
+	$(CC) $(CFLAGS) -DEGREP -c $(srcdir)/grep.c
+	mv grep.o egrep.o
+
+TAGS: $(SRCS)
+	etags $(SRCS)
+
+clean:
+	rm -f grep egrep check.done *.o core tests/core tests/tmp.script \
+	tests/khadafy.out
+
+mostlyclean: clean
+
+distclean: clean
+	rm -f Makefile config.status
+
+realclean: distclean
+	rm -f TAGS
+
+dfa.o egrep.o ggrep.o: dfa.h
+egrep.o ggrep.o regex.o: regex.h
+egrep.o ggrep.o: getopt.h
+regex.o: regex.c regex.h
+getopt.o: getopt.h
+
+dist:
+	echo grep-`sed -e '/char version/!d' -e 's/[^0-9.]*\([0-9a-zA-Z.]*\).*/\1/' -e q < grep.c` > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`  `cat .fname`/tests
+	ln $(DISTFILES) `cat .fname`
+	cd tests; ln $(TESTFILES) ../`cat ../.fname`/tests
+	tar chZf `cat .fname`.tar.Z `cat .fname`
+	rm -rf `cat .fname` .fname

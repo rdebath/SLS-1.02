@@ -1,0 +1,123 @@
+#!/bin/sh
+
+PATH=/usr/local/MetaMail:/bin:/usr/bin:/usr/ucb:/usr/sbin
+export PATH
+
+fname=/tmp/audio-out.$$
+fnameraw=/tmp/audio-raw.$$
+
+trap 'kill -9 $recordpid; rm -f /tmp/audio.$$ $fname $fnameraw; exit' 2
+
+hosttype=`uname`
+case $hosttype in
+IRIX|SunOS|News)
+	;;
+*)
+	cat <<\+
+There is currently no way in which you can record audio on this type of
+workstation.  If you log into an appropriate machine (currently a
+SPARCstation, Sony News workstation, or Silicon Graphics Personal Iris or
+Iris Indigo), you should be able to record a message.
++
+	exit 1
+	;;
+esac
+
+case `echo -n x` in
+-n*)	n= c='\c';;
+*)	n=-n c=;;
+esac
+
+echo $n "To: $c"
+read to
+echo $n "Subject: $c"
+read subject
+echo $n "Cc: $c"
+read cc
+
+while :
+do
+	echo $n "Press RETURN when you are ready to start recording: $c"
+	read answer
+
+	cat > $fname << +
+To: $to
+Subject: $subject
+Cc: $cc
+MIME-Version: 1.0
+Content-Type: audio/basic
+Content-Transfer-Encoding: base64
+
++
+
+	if [ "${RECORD_AUDIO+defined}" = defined ]
+	then
+		$RECORD_AUDIO > $fnameraw &
+	else
+		case $hosttype in
+		IRIX)
+			recordaiff -n 1 -s 16 -r 8000 /tmp/audio.$$ &
+			;;
+		SunOS)
+			cat /dev/audio > $fnameraw &
+			;;
+		News)	# XXX Is this Sony News?
+			cat /dev/sb0 > $fnameraw &
+			;;
+		esac
+	fi
+
+	recordpid=$!
+
+	echo $n "Press RETURN when you are done recording: $c"
+	read answer
+
+	echo "One moment please..."
+	sleep 1
+	echo "Killing recording job..."
+	kill -2 $recordpid
+	wait
+	if [ $hosttype = IRIX ]
+	then
+		sfconvert /tmp/audio.$$ $fnameraw -o mulaw >/dev/null
+		rm -f /tmp/audio.$$
+	fi
+	mmencode -b < $fnameraw >> $fname
+	rm $fnameraw
+
+	while :
+	do
+		cat << \+
+
+What do you want to do?
+
+1 -- Send mail
+2 -- Listen to recorded message
+3 -- Replace with a new recording
+4 -- Quit
++
+
+		read answer
+		case $answer in
+		1)
+			echo $n "Sending mail, please wait...  $c"
+			if /usr/lib/sendmail $to $cc < $fname
+			then
+				echo "Done."
+				rm $fname
+				exit 0
+			fi
+			echo "Mail delivery failed, draft mail is in $fname"
+			;;
+		2)
+			metamail -d $fname
+			;;
+		3)
+			break
+			;;
+		4)
+			exit
+			;;
+		esac
+	done
+done

@@ -1,0 +1,2840 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+What's New with XView:
+
+
+Version 3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Questions
+
+
+
+
+
+&
+
+
+
+
+
+Answers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sun Microsystems, Inc
+
+
+2550 Garcia Avenue, MS 14-01
+
+
+Mountain View, California   94043
+
+
+ATTN: XView Engineering
+
+
+-OR-
+
+
+ EMAIL: xviewbugs@sun.com (...!sun!xviewbugs)
+
+
+
+Before
+
+
+o What's New?	
+
+
+
+
+
+	o Binary compatible with Version 2.
+
+
+
+
+
+	o Incorporates hundreds of bug fixes and improvements.
+
+
+
+
+
+	o ANSI C compliant source and header files.
+
+
+
+
+
+	o Complete C++ binding for all public interfaces.
+
+
+
+
+
+	o Complete drag and drop API.
+
+
+
+
+
+	o I18N support through level 3.
+
+
+
+o New Selection Pkg
+
+
+
+
+
+	o Old selection package
+
+
+
+
+
+		o Ported from SunView selection service.
+
+
+		o Allowed easy migration from SunView to XView.
+
+
+		o Was powerful but not extensible.
+
+
+		o Tough to understand and difficult to use.
+
+
+		o Did not follow the XView API.
+
+
+		o Will continue to exist.
+
+
+
+
+
+
+
+
+
+
+
+	o New selection package
+
+
+
+
+
+		o Consistent with the rest of XView's API.
+
+
+		o Much simpler to use.
+
+
+		o Similar to the model Xt uses.
+
+
+		o Extensible and powerful.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	o Simplistic view of the selection model:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o Two main components of selections:
+
+
+
+
+
+	o Owner/holder
+
+
+ 		o Holds the selection data.
+
+
+		o Answers questions/requests about the selection.
+
+
+			o length,
+
+
+			o hostname,
+
+
+       			o etc.
+
+
+		o Preforms requested side effects.
+
+
+			o Delete the selection
+
+
+			o Use ATM (alternate transport mechanism)
+
+
+
+
+
+	o Requestor
+
+
+		o Asks questions to the holder about the selection.
+
+
+		o Asks the holder for the contents of the selection.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o New XView selection class Hierarchy:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o How to create an ``owner'' object:
+
+
+
+
+
+	o Create a SELECTION_OWNER object (xv_create).
+
+
+	o Specify the selection rank.
+
+
+	o Specify a data conversion procedure.
+
+
+	o Specify a transaction done procedure.
+
+
+	o Specify a selection lose procedure.
+
+
+
+
+
+	sel_owner = (Selection_owner) xv_create(window,  SELECTION_OWNER,
+
+
+					SEL_RANK_NAME, 		"PRIMARY",
+
+
+					SEL_CONVERT_PROC,		ConvertProc,
+
+
+					SEL_DONE_PROC,		DoneProc,
+
+
+                                                	 				SEL_LOSE_PROC,         		LoseProc,
+
+
+					NULL);
+
+
+
+
+
+	o Selection is not acquired until told to do so:
+
+
+
+
+
+	xv_set(sel_owner,
+
+
+				SEL_OWN,       	True,
+
+
+				SEL_TIME,       	event_time(event),
+
+
+				NULL);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o The data conversion procedure:
+
+
+
+
+
+	o The conversion procedure is called when a request arrives.
+
+
+
+
+
+	int
+
+
+	ConvertProc(selection, type, replyData, length, format)
+
+
+		Selection_owner		  selection;
+
+
+		Atom		*type;		/* Input/Return	*/
+
+
+		Xv_opaque		*replyData;		/* Return    	*/
+
+
+		unsigned long		*length;		/* Return     	*/
+
+
+		int		*format;     	     	/* Return	*/
+
+
+
+
+
+		``selection'' 		is the previously created Selection_owner object.
+
+
+		``type'' 		is the target to be converted	
+
+
+		``replyData'' 		holds the owner's response.
+
+
+		``length''		is the number of elements in the owner's response.
+
+
+		``format''    		is the size of an element. (8, 16 or 32)
+
+
+
+
+
+	o The owner should respond by converting the data	 to the appropriate type.
+
+
+
+
+
+	o The owner can reject the request by returning 0.
+
+
+
+
+
+	o The owner can pass the request on to the default data conversion
+
+
+	  procedure:
+
+
+
+
+
+	    sel_convert_proc(selection, type, replyData, length, format)
+
+
+o The transaction done procedure:
+
+
+
+
+
+	o Called after each reply to a request.
+
+
+
+
+
+	o Allows owner to free up reply buffer used in the conversion procedure.
+
+
+
+
+
+	void
+
+
+	DoneProc(selection, replyData, target)
+
+
+		Selection_owner		selection;
+
+
+		XV_opaque		replyData; 
+
+
+		Atom		target;
+
+
+
+
+
+	``selection'' 		 is the selection object that owns the data.
+
+
+	``replyData'  		is the data to be freed.
+
+
+	``target''       is the target that was just passed into the ConvertProc.
+
+
+
+
+
+o The selection lose procedure:
+
+
+
+
+
+	o Called when the selection object loses ownership of a selection.
+
+
+
+
+
+	void
+
+
+	LoseProc(selection)
+
+
+		Selection_owner		selection;
+
+
+
+
+
+	``selection'' is the selection object that owns the data.
+
+
+
+
+
+	o Can dehighlight text and free up internal structures.
+
+
+o How to make requests to a selection owner:
+
+
+
+
+
+
+
+
+	o Create a SELECTION_REQUESTOR object.
+
+
+	o Specify the selection rank. (SEL_RANK)
+
+
+	o Specify the request. (target)
+
+
+	o Specify a request reply procedure. (for non-blocking requests)
+
+
+
+
+
+
+
+
+	sel_requestor =	 (Selection_requestor) xv_create(window, SELECTION_REQUESTOR,
+
+
+					SEL_RANK_NAME,		"PRIMARY",
+
+
+					SEL_TYPE_NAME,		"STRING",
+
+
+					SEL_REPLY_PROC,		ReplyProc,
+
+
+					NULL);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o Two ways to send the request:
+
+
+	
+
+
+	o Blocking
+
+
+
+
+
+		o Blocks the thread of execution while it waits for response.
+
+
+		o Does not require a call-back.
+
+
+		o Ideal under certain circumstances. (e.g. DELETE)
+
+
+		o Easy to use.
+
+
+
+
+
+		data =(char *)xv_get(sel_requestor, SEL_DATA, &length, &format);
+
+
+
+
+
+
+
+
+	o Non-blocking
+
+
+
+
+
+		o Does not block the thread of execution.
+
+
+		o Requires a call-back (SEL_REPLY_PROC) for the response.
+
+
+		o Can deal with MULTIPLE and INCR requests and responses.
+
+
+
+
+
+		error_code = sel_post_req(sel_requestor);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o The selection request reply procedure
+
+
+
+
+
+	o Called when a selection owner replies to a request.
+
+
+	o Used mainly in non-blocking requests.
+
+
+
+
+
+	void
+
+
+	ReplyProc(selection, target, type, data, length, format)
+
+
+		Selection_requestor			selection;
+
+
+		Atom			target;
+
+
+		Atom			type;
+
+
+		Xv_opaque			data;
+
+
+		unsigned long			length;
+
+
+		int			format;
+
+
+
+
+
+	``selection'' 		is the selection requestor object that made the request.
+
+
+	``target''    		  is the request that was made. (SEL_TYPE)
+
+
+	``type''        is the type of the data returned.
+
+
+	``data''        is the actual data.
+
+
+	``length''     is the number of elements in the response.
+
+
+	``format''    is the size of an element. (8, 16 or 32)
+
+
+
+
+
+	o The ``data'' should be freed by the application.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o A typical selection transaction:
+
+
+
+
+
+	1) Application acquires selection ownership:
+
+
+
+
+
+	    xv_set(sel_owner,
+
+
+				SEL_RANK,	XA_PRIMARY,
+
+
+				SEL_OWN, 	True,
+
+
+				NULL);
+
+
+
+
+
+	2) Another client makes a request for the selection:
+
+
+
+
+
+	    xv_set(sel_requestor,
+
+
+				SEL_RANK,	XA_PRIMARY,
+
+
+				SEL_TYPE,	XA_STRING,
+
+
+				NULL);
+
+
+	    status = sel_post_req(sel_requestor);
+
+
+	
+
+
+	3) The owner's data conversion procedure is called:
+
+
+	    
+
+
+	    selection == sel_owner                  *type == XA_STRING
+
+
+
+
+
+	    ConvertProc(selection, type, replyData, length, format)
+
+
+		[...]
+
+
+	    {
+
+
+		if (*type == XA_STRING) {
+
+
+		    *format = 8;
+
+
+		    *length = strlen("This is a string.");
+
+
+		    *data = (Xv_opaque)strdup("This is a string.");
+
+
+		    *type = XA_STRING;
+
+
+		    return(True);
+
+
+		}
+
+
+	    }
+
+
+	4) The requestor's reply procedure is called:
+
+
+
+
+
+	    ReplyProc(selection, target, type, data, length, format)
+
+
+
+
+
+		selection 		== sel_requestor;
+
+
+		target    		== XA_STRING;
+
+
+		type     		== XA_STRING;
+
+
+		data      		== "This is a string."
+
+
+		length    		== 17;
+
+
+		format    		== 8;
+
+
+
+
+
+	5) The owner's transaction done procedure is called:
+
+
+	
+
+
+	    DoneProc(selection, replyData, target)
+
+
+		[...]
+
+
+	    {
+
+
+		if (target == XA_STRING)
+
+
+		    free(replyData);
+
+
+	    }
+
+
+
+
+
+	6) If another client acquires the PRIMARY selection the owner's
+
+
+	     lose procedure is called:
+
+
+	   
+
+
+	    LoseProc(selection)
+
+
+		[Dehighlight text]
+
+
+
+
+
+o Selection Items
+
+
+
+
+
+	o Used by selection owners to pre-register responses to requests.
+
+
+	o Avoids the need for a conversion procedure.
+
+
+	o The selection package will automatically respond to the request.
+
+
+
+
+
+	o How to create a selection item:
+
+
+
+
+
+	    o Create a SELECTION_ITEM object.
+
+
+	    o Specify the item's type.
+
+
+	    o Specify the item's format.
+
+
+	    o Specify the item's length.
+
+
+	    o Specify the item's data.
+
+
+
+
+
+	    sel_item = (Selection_item) xv_create(sel_owner, SELECTION_ITEM
+
+
+				SEL_TYPE,		XA_STRING;
+
+
+				SEL_FORMAT,		8,
+
+
+				SEL_LENGTH,		strlen("This is a string."),
+
+
+				SEL_DATA,		(Xv_opaque)"This is a string",
+
+
+				NULL);
+
+
+
+
+
+	o Once the item is created, any requests to sel_owner of type
+
+
+	  XA_STRING will automatically be responded to by the toolkit.
+
+
+
+
+
+
+
+
+o Incremental responses (The INCR target)
+
+
+
+
+
+	o The size of a reply is limited (~16k)
+
+
+
+
+
+	o Replies greater than the limit must be sent incrementally or refused.
+
+
+
+
+
+	o The selection package will reply incrementally as needed.
+
+
+
+
+
+	o The holder can choose to send the reply incrementally.
+
+
+
+
+
+		type		== INCR atom
+
+
+		data		== lower bound on the # bytes in the response.
+
+
+		length		== 1
+
+
+		format		== 32
+
+
+
+
+
+	  The conversation procedure will be called back repetitively
+
+
+	  until "length" is set to 0.
+
+
+
+
+
+	o The requestor's reply procedure will be called back repetitively:
+
+
+
+
+
+		o First with type == INCR.
+
+
+		o Then with buffers of data.
+
+
+		o Finally with length == 0 to indicate the transfer is complete.
+
+
+
+o Simplistic view of the selection model:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Holder
+
+Requestor
+
+X Server
+
+
+
+
+Generic
+
+
+
+
+SELECTION
+
+SELECTION
+
+
+REQUESTOR
+
+SELECTION
+
+
+OWNER
+
+
+
+DROP_SITE
+
+
+ITEM
+
+DRAGDROP
+
+
+
+
+
+
+Generic Object
+
+
+
+
+Selection
+
+
+Image
+
+
+
+
+Fullscreen
+
+
+Image
+
+
+
+
+(Drawable)
+
+
+Image
+
+
+
+
+Screen
+
+
+Image
+
+
+
+
+Cursor
+
+
+Image
+
+
+
+
+Font
+
+
+Imag
+e
+
+
+
+
+Menu
+
+
+Image
+
+
+
+
+Server
+
+
+Image
+
+
+
+
+Menu Item
+
+
+Image
+
+
+
+
+Panel Item
+
+
+Image
+
+
+
+
+Generic Object
+
+
+
+
+Server Image
+
+
+Image
+
+
+
+
+Window
+
+
+Image
+
+
+
+
+Canvas
+
+
+Image
+
+
+
+
+Text
+
+
+Image
+
+
+
+
+Term
+
+
+Image
+
+
+
+
+Scrollable Panel
+
+
+Image
+
+
+
+
+Selection
+
+
+Owner
+
+
+
+
+Drag'n 
+Drop
+
+
+
+
+CMS
+
+
+Image
+
+
+
+
+Drop Site
+
+
+Image
+
+
+
+
+Panel
+
+
+Image
+
+
+
+
+Tty
+
+
+Image
+
+
+
+
+Frame
+
+
+Image
+
+
+
+
+(Openwin)
+
+
+Image
+
+
+
+
+Scrollbar
+
+
+Image
+
+
+
+
+Icon
+
+
+Image
+
+
+
+
+Selection
+
+
+Requestor
+
+
+
+
+Notice
+
+
+Image
+
+
+
+
+Sel  Item
+
+
+Image
+
+         XSetSelectionOwner()
+
+
+
+
+
+
+     XConvertSelection()
+
+
+
+
+           SelectionRequest
+
+
+
+
+
+
+
+           ChangeProperty() &
+
+
+           XSendEvent()
+
+
+
+
+
+
+
+     SelectionNotify
+
+
+
+
+     GetProperty()
+
+
+
+
+
+      
+
+
+
+
+       (Reply)
+
+
+
+
+
+
+
+    XDeleteProperty()
+
+
+
+
+           PropertyNotify
+
+Time
+
+
+
+
+SELECTION
+
+SELECTION
+
+
+REQUESTOR
+
+SELECTION
+
+
+OWNER
+
+
+
+SELECTION
+
+
+ITEM
+
+
+
+
+Generic
+
+o Multi-visual support 
+
+
+
+
+
+	o Support creating windows and cms with arbitrary visuals
+
+
+	o Any visual that the X11 server supports.
+
+
+
+
+
+	o XV_VISUAL
+
+
+
+
+
+		o Specify the exact visual to use.
+
+
+		o (Visual *) from XMatchVisualInfo() or XGetVisualInfo().
+
+
+
+
+
+	o XV_VISUAL_CLASS
+
+
+
+
+
+		o Specify the class of the visual to use:
+
+
+
+
+
+			StaticGray
+
+
+			GrayScale
+
+
+			StaticColor
+
+
+			PseudoColor
+
+
+			TrueColor
+
+
+			DirectColor
+
+
+
+
+
+		o Default visual is used if requested visual not available.
+
+
+o Multi-visual support (continued)
+
+
+
+
+
+	o WIN_DEPTH
+
+
+
+
+
+		o Specify the depth of the window to create.
+
+
+		o If depth not available, default depth used instead.
+
+
+		o Applies only to windows.
+
+
+
+
+
+	o A CMS that applies to a window, must have the same visual. 
+
+
+
+
+
+		cms = (Cms) xv_create(screen, CMS,
+
+
+				XV_VISUAL, (Visual *)xv_get(window, XV_VISUAL),
+
+
+				...
+
+
+				NULL);
+
+
+					
+
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o Drag and Drop
+
+
+
+
+
+	o V2 drag and drop
+
+
+
+
+
+		o No API for sourcing a drag
+
+
+		o No drop previewing or drag feedback.
+
+
+		o Prone to race conditions. (Used PRIMARY selection)
+
+
+		o xv_decode_drop() still supported.
+
+
+
+
+
+	o New drag and drop
+
+
+
+
+
+		o In next release.
+
+
+		o Uses the XView API.
+
+
+		o New drag and drop pkg.
+
+
+		o Provides support for drop previewing and drag feedback.
+
+
+		o Uses the selection model for data transfer.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o Drag and Drop (continued)
+
+
+
+
+
+	o V2 vs. V3  Dnd
+
+
+
+
+
+		o New protocol is not compatible with the old.
+
+
+
+
+
+			o Registry of interest.
+
+
+			o Trigger message acknowledgment.
+
+
+			o Event format.
+
+
+
+
+
+		o xv_decode_drop()  is used to migrate applications.
+
+
+
+
+
+			o Supports drops from V2 or V3 sources.
+
+
+			o V2 application must be dynamically link and running w/V3 libs.
+
+
+			o If V2 application is recompiled all bets are off.
+
+
+
+
+
+		o No migration for V2 drag sources.
+
+
+
+
+
+			o No API in V2.
+
+
+			o Not documented.
+
+
+
+
+
+	o Consortium standard
+
+
+	
+
+
+
+
+
+o Three main components to drag and drop.
+
+
+		o Registry of interest
+
+
+		o Sourcing drags
+
+
+		o Receiving drops
+
+
+
+
+
+	o Registry of interest
+
+
+
+
+
+		o Create a DROP_SITE_ITEM
+
+
+		o Specify a list of rectangles that represent the drop site.
+
+
+		o Specify a site id
+
+
+		o Specify an event mask for animation purposes. (only a hint)
+
+
+
+
+
+		/* Make the entire window a drop site */
+
+
+		drop_site = (Drop_site_item)xv_create(window, DROP_SITE_ITEM,
+
+
+				DROP_SITE_ID,		1234,
+
+
+				DROP_SITE_REGION,		xv_get(window, WIN_RECT),
+
+
+				DROP_SITE_EVENT_MASK,	DND_ENTERLEAVE,
+
+
+				DROP_SITE_DEFAULT,		True,
+
+
+				NULL);
+
+
+
+
+
+		o A site can be made up of a single rectangle or multiple rects.
+
+
+		o A window can own a single drop site or multiple drop sites.
+
+
+		o The drop site information should be kept up to date by the
+
+
+		  application.
+
+
+o Drag and Drop (continued)
+
+
+
+
+
+	o Sourcing drags
+
+
+
+
+
+		o Create a DRAGDROP object.
+
+
+		o Specify the type of drag. (copy or move)
+
+
+		o Specify a cursor to use during the drag.
+
+
+		o Specify a cursor to use when over a drop site.
+
+
+		o Specify a selection conversion procedure.
+
+
+
+
+
+		dnd = (Xv_drag_drop)xv_create(window, DRAGDROP,
+
+
+				DND_TYPE,		DND_COPY,
+
+
+				DND_X_CURSOR,		arrow_cursor,
+
+
+				DND_ACCEPT_CURSOR,		drop_here_cursor,
+
+
+				SEL_CONVERT_PROC,		SelectionConvert,
+
+
+				NULL);
+
+
+
+
+
+		o Can use selection owner attributes.
+
+
+
+
+
+		o Can specify a rank or let the dnd package do it.
+
+
+		
+
+
+		o No more PRIMARY selection race conditions!
+
+
+
+
+
+
+
+
+o Drag and Drop (continued)
+
+
+
+
+
+		o To begin the drag operation, call dnd_send_drop(dnd).
+
+
+		o dnd_send_drop() will:
+
+
+
+
+
+			o Create a unique selection if required.
+
+
+			o Grab the pointer and change the cursor.
+
+
+			o Send preview events to drop sites.
+
+
+			o Send the ``kicker'' message to the drop site.
+
+
+			o Insure that the recipient acknowledges the drop.
+
+
+			o Returns a status.
+
+
+
+
+
+		o After dnd_send_drop() returns, the transaction becomes a
+
+
+		  selection operation.
+
+
+
+
+
+	o Receiving drops
+
+
+
+
+
+		o An application that has registered a drop site may receive a drop.
+
+
+		o The event procedure of the window that owns the drop site item
+
+
+		  will receive an ACTION_DRAG_COPY or an ACTION_DRAG_MOVE.
+
+
+
+
+
+
+
+
+
+
+
+		o In response, the client should call dnd_decode_drop().
+
+
+
+
+
+		  Xv_drop_site
+
+
+		  dnd_decode_drop(sel_object, drop_event)
+
+
+		   	Selection_requestor		 sel_object;
+
+
+		   	Event		*drop_event;
+
+
+
+
+
+		o The dnd_decode_drop() function will:
+
+
+
+
+
+			o Send an ``ack'' to the source of the drag
+
+
+			o Associate the selection rank in the drop event with the sel_object.
+
+
+			o Will return the drop site item that received the drop.
+
+
+
+
+
+		o After dnd_decode_drop() returns, becomes normal selection transaction.
+
+
+		o Client should call dnd_done(sel_object) when the dnd 
+
+
+		  operation is complete.
+
+
+
+
+
+	o Drop site animation
+
+
+
+
+
+		o DROP_SITE_EVENT_MASK
+
+
+		o event_action(event) == ACTION_DRAG_PREVIEW
+
+
+		o event_id(event) == {LOC_WINENTER, LOC_WINEXIT, LOC_DRAG}
+
+
+
+
+
+
+
+
+o Panel Drop Item
+
+
+
+
+
+	o New panel item called PANEL_DROP_TARGET.
+
+
+	o Supports sourcing and receiving drops.
+
+
+	o Can associate a DRAGDROP object to the PANEL_DROP_TARGET.
+
+
+		
+
+
+		PANEL_DROP_DND,			dnd,
+
+
+
+
+
+	o Can associate a SELECTION_REQUESTOR object to the
+
+
+	  PANEL_DROP_TARGET.
+
+
+
+
+
+		PANEL_DROP_SEL_REQ,			sel_requestor,
+
+
+
+
+
+	o PANEL_NOTIFY_PROC provides status about the operation.
+
+
+
+
+
+		o Return value from dnd_send_drop().
+
+
+		o Return value from dnd_decode_drop().
+
+
+
+
+
+	o Resources:
+
+
+
+
+
+		o OpenWindows.DragThreshold:	     5
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+o Notices
+
+
+
+
+
+	o Now a first class XView pkg.
+
+
+
+
+
+	o Consistent with the XView API. (xv_create, xv_set, etc)
+
+
+
+
+
+	o notice_prompt() still supported.
+
+
+
+
+
+	o Two types of notices 
+
+
+
+
+
+		o Screen locking
+
+
+			o Lock the screen.
+
+
+			o Block the thread of execution.
+
+
+
+
+
+		o Non screen locking
+
+
+			o Busy only the frames specified.
+
+
+			o May or may not block the thread of execution.
+
+
+
+
+
+	o Multiple notices can now be active at once.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	o Example:
+
+
+
+
+
+		notice = xv_create(frame, NOTICE,
+
+
+			NOTICE_LOCK_SCREEN,			FALSE, /* Default = False */
+
+
+			NOTICE_BLOCK_THREAD,			FALSE, /* Default = True */
+
+
+			NOTICE_BUTTON,			"YES",	100,
+
+
+			NOTICE_BUTTON,			"NO",	101,
+
+
+			NOTICE_MESSAGE_STRINGS,
+
+
+						"Are you ready to quit?",
+
+
+						NULL,
+
+
+			NOTICE_EVENT_PROC,	notice_event_proc,
+
+
+			NOTICE_BUSY_FRAMES,
+
+
+						sub_frame1,
+
+
+						sub_frame2,
+
+
+						NULL,
+
+
+			NULL);
+
+
+
+
+
+		[...]
+
+
+
+
+
+		xv_set(notice, XV_SHOW, True);
+
+
+
+
+
+	o NOTICE_EVENT_PROC
+
+
+
+
+
+		notice_event_proc(notice, value, event)
+
+
+			Xv_Notice		 notice;
+
+
+			int		 value;
+
+
+			Event		*event;
+
+
+o SunView's window_loop()
+
+
+
+
+
+	o xv_window_loop(frame);
+
+
+
+
+
+		o Maps the frame.
+
+
+		o Input is only available to the ``window_loop'' frame.
+
+
+		o All other frames/windows of the *application* will be ``deaf''.
+
+
+
+
+
+	o xv_window_return(return_value);
+
+
+
+
+
+		o Will cause xv_window_loop() to return with ``return_value''
+
+
+		o return_value is Xv_opaque.
+
+
+
+
+
+	o Features:
+
+
+
+
+
+		o xv_window_loop() is reentrant.
+
+
+		o Can have more than one subwindow in the frame.
+
+
+		o Not limited to only canvas' and panels.
+
+
+
+
+
+	o Restrictions:
+
+
+
+
+
+		o Do not set XV_SHOW or FRAME_CLOSED.
+
+
+		
+
+
+o Mouseless
+
+
+
+
+
+	o Enables users to operate without a mouse.
+
+
+	o Keyboard commands for navigating the UI and manipulating elements.
+
+
+
+
+
+		o Moving between control items:
+
+
+			
+
+
+			NEXT ELEMENT,  PREVIOUS ELEMENT,  NEXT AREA, 
+
+
+			PREVIOUS AREA
+
+
+
+
+
+		o Moving between windows:
+
+
+		 
+
+
+			NEXT WINDOW,  PREVIOUS WINDOW,
+
+
+			NEXT APPLICATION,  LAST WINDOW VISTED
+
+
+
+
+
+		o Operating control items:
+
+
+
+
+
+			UP, DOWN, LEFT, RIGHT, ROW START, ROW END,
+
+
+			DATA START, DATA END
+
+
+
+
+
+
+
+
+
+
+
+o Mouseless (continued)
+
+
+
+
+
+	o Application is informed of user actions through semantic events:
+
+
+
+
+
+		ACTION_NEXT_ELEMENT, ACTION_PREVIOUS_ELEMENT, etc
+
+
+			
+
+
+	o Includes keyboard accelerators for quick access to functionality.
+
+
+
+
+
+		o Frame level accelerators
+
+
+		o Menu level accelerators
+
+
+
+
+
+	o Three modes:
+
+
+		
+
+
+		SunView1
+
+
+		Basic
+
+
+		Full
+
+
+
+
+
+	o Key mappings can be redefined to fit the user's preference.
+
+
+
+
+
+	o Transparent to the application.
+
+
+
+
+
+
+
+
+o Soft Function Keys
+
+
+
+
+
+	o Allows applications to label function keys.
+
+
+
+
+
+	o User can select ``Show Soft Function Keys'' from workspace menu.
+
+
+
+
+
+	o When an application gets the input focus, the labels are updated.
+
+
+
+
+
+	o Simple API:
+
+
+
+
+
+		xv_set(window,
+
+
+			WIN_SOFT_FNKEY_LABELS, "Label1\nLabel2\n..."
+
+
+			NULL);
+
+
+
+
+
+	o Currently only works in click-to-type mode.
+
+
+
+
+
+
+
+
+o Virtual Keyboards
+
+
+
+
+
+	o Supports switching between international keyboards.
+
+
+	o Graphically depicts the symbols bound to each key sequence.
+
+
+	o Currently support 15 different keyboards.
+
+
+	o Language key is defined by OpenWindows.KeyboardCommands.Translate
+
+
+	  resource.
+
+
+	o Currently only works in click-to-type mode.
+
+
+
+
+
+o Atom management
+
+
+
+
+
+	o Atoms are unique names that clients can use to communicate
+
+
+	  information to each other.
+
+
+
+
+
+		WM_ICON_NAME
+
+
+		WM_COMMAND
+
+
+
+
+
+	o Passed as a 32 bit value in X requests and events. 
+
+
+
+
+
+	o Two new attributes for managing atoms have been added:
+
+
+
+
+
+		o SERVER_ATOM
+
+
+			o xv_get only
+
+
+			o Returns an Atom
+
+
+			o Equivalent to XInternAtom() but caches results
+
+
+
+
+
+		o SERVER_ATOM_NAME
+
+
+			o xv_get only
+
+
+			o Returns a char *. (Do not free)
+
+
+			o Equivalent to XGetAtomName() except that it caches
+
+
+			  the results.
+
+
+	o Example:
+
+
+		atom = (Atom) xv_get(server, SERVER_ATOM, "TIMESTAMP");
+
+
+
+
+
+o Miscellaneous
+
+
+
+
+
+	o Panel Item Extensions -- template
+
+
+
+
+
+	o Multiple fonts per panel
+
+
+
+
+
+	o Documentation.
+
+
+
+
+
+		o O'Reilly
+
+
+			o New release of XView Programmer's Manual.
+
+
+			o New XView Reference Manual.
+
+
+
+
+
+		o SunView Porting Guide
+
+
+
+
+
+	o XView on Export
+
+
+
+
+
+		o The next release of XView will be placed on export.
+
+
+		o Would like to buy back ports.
+
+
+		o Would like to have faster turn around on expo updates.
+
+
+
+
+
+
+During
+
+...and after
+

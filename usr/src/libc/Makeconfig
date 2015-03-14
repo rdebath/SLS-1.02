@@ -1,0 +1,261 @@
+#
+# Makefile for the Linux C library
+#
+
+.EXPORT_ALL_VARIABLES:
+
+GCCVERSION=-V 2.3.3
+GCCVERSION=-V 2.3.3.old
+
+# where do you build this?
+HOST_MACHINE=i386-att-sysv
+HOST_MACHINE=linux
+HOST_MACHINE=decstation-3100
+
+TARGET_MACHINE=i386-linux
+
+GNU_MAKE=gmake
+
+ifdef LITE
+WHICH=lite
+SHARED=true
+endif
+
+ifdef STATIC
+WHICH=static
+endif
+
+ifdef SHARED
+WHICH=shared
+endif
+
+ifdef DEBUG
+WHICH=debug
+endif
+
+ifdef PROFILE
+WHICH=profile
+endif
+
+ifdef MATH
+WHICH=math
+endif
+
+ifndef WHICH
+WHICH=static
+STATIC=true
+endif
+
+ifeq "$(HOST_MACHINE)" "linux"
+
+CROSSINCDIR=/usr/include
+
+CROSSBINDIR=/usr/bin
+
+DLLDIR=/usr/dll/bin
+
+JUMPASDIR=/usr/dll/jump
+
+TARGET_LIB_DIR=/usr/lib
+TARGET_LIBEXTRA_DIR=/usr/lib
+
+TARGET_SO_DIR=/lib
+
+# Host root directory, maybe /usr for Linux
+HOSTROOTDIR=/usr
+
+HOSTBINDIR=$(HOSTROOTDIR)/bin
+
+MAKE=make
+
+else
+
+ifeq "$(HOST_MACHINE)" "decstation-3100"
+
+HOSTROOTDIR=/net/irl/users/hlu/local
+HOSTBINDIR=$(HOSTROOTDIR)/decstation-3100/bin
+
+ifdef I486
+
+# Host root directory, maybe /usr for Linux
+TARGETROOTDIR=/net/irl/users/hlu/linux/pkg/486
+
+# where to put libc_p.a, libg.a
+TARGET_ROOTEXTRA_DIR=/net/irl/users/hlu/linux/pkg/486/extra
+
+else
+
+# Host root directory, maybe /usr for Linux
+TARGETROOTDIR=/net/irl/users/hlu/linux/pkg
+
+# where to put libc_p.a, libg.a
+TARGET_ROOTEXTRA_DIR=/net/irl/users/hlu/linux/pkg/extra
+
+endif
+
+else
+
+ifeq "$(HOST_MACHINE)" "i386-att-sysv"
+
+HOSTROOTDIR=/local
+
+HOSTBINDIR=$(HOSTROOTDIR)/bin
+
+ifdef I486
+
+TARGETROOTDIR=/usr2/linux/486/lib
+TARGET_ROOTEXTRA_DIR=/usr2/linux/486/extra
+
+else
+
+TARGETROOTDIR=/usr2/linux/disk2
+TARGET_ROOTEXTRA_DIR=/usr2/linux/disk3
+
+endif
+
+endif
+
+endif
+
+CROSSINCDIR=$(HOSTROOTDIR)/$(TARGET_MACHINE)/include
+
+CROSSBINDIR=$(HOSTROOTDIR)/$(TARGET_MACHINE)/bin
+
+DLLDIR=$(HOSTROOTDIR)/$(TARGET_MACHINE)/dll/bin
+
+JUMPASDIR=$(HOSTROOTDIR)/$(TARGET_MACHINE)/dll/jump
+
+# normal static libraries.
+TARGET_LIB_DIR =$(TARGETROOTDIR)/usr/lib
+
+# libc_p.a, libg.a
+TARGET_LIBEXTRA_DIR =$(TARGET_ROOTEXTRA_DIR)/usr/lib
+
+TARGET_SO_DIR=/$(TARGETROOTDIR)/lib
+
+MAKE=$(GNU_MAKE)
+
+endif
+
+#
+# Don't change anything below unless you know what you are doing.
+#
+
+# Where we are now.
+SRCDIR:=$(shell pwd)
+
+MKDIR=mkdir -p
+
+
+AR	=$(CROSSBINDIR)/ar
+AR_FLAGS=ucv
+
+AS	=$(CROSSBINDIR)/as
+NM	=$(CROSSBINDIR)/nm
+STRIP	=$(CROSSBINDIR)/strip
+REALRANLIB	=$(CROSSBINDIR)/ranlib
+
+RANLIB	=true
+
+ifdef I486
+
+LDFLAGS	=-r -x -m486
+
+else
+
+LDFLAGS	=-r -x
+
+endif
+
+ifdef DEBUG
+
+MV	=true
+LD	=true
+OPTFLAGS=-O -g
+REALLIBC= libg.a
+REALLIBALIAS=
+
+endif # debug
+
+ifdef PROFILE
+
+MV	=true
+LD	=true
+OPTFLAGS=-O -pg
+REALLIBC= libc_p.a
+REALLIBALIAS=
+
+endif # profile
+
+ifdef STATIC
+
+MV	=/bin/mv
+LD	=$(CROSSBINDIR)/ld
+
+REALLIBC= libc.a
+REALLIBALIAS=
+
+endif
+
+ifdef SHARED
+
+MV	=/bin/mv
+LD	=$(CROSSBINDIR)/ld
+
+REALLIBC= libc.a
+
+ifdef MATH
+REALLIBALIAS= libmalias.a
+else
+REALLIBALIAS= libalias.a
+endif
+
+JUMFLAGS=-B$(JUMPASDIR)/
+
+MKIMAGE=$(DLLDIR)/mkimage
+VERIFY=$(DLLDIR)/verify-shlib
+MKSTUBS=$(DLLDIR)/mkstubs
+
+endif
+
+ifdef I486
+
+I486FLAGS=-m486
+
+endif
+
+ifdef PIC
+
+PICFLAGS=-fPIC
+
+endif
+
+ifdef LITE
+
+# Where we get those dll files.
+SHLIB=libc.lite
+
+else
+
+# Where we get those dll files.
+SHLIB=libc
+
+endif
+
+ifdef MATH
+SHLIB=libm
+endif
+
+WFLAGS=-Wall -Wstrict-prototypes -Wmissing-prototypes
+
+CC	=$(HOSTBINDIR)/gcc $(GCCVERSION) -b $(TARGET_MACHINE) \
+		$(I486FLAGS) $(JUMFLAGS) $(PICFLAGS)
+
+XCFLAGS = -D_GNU_SOURCE -DSTDC_HEADERS -DUSG -DDIRENT -DSYSV \
+	-DUSE_BSD_REGEX -DHAVE_GNU_LD # -D__USE_BSD_SIGNAL
+
+MINUS_G=
+XTRAFLAGS=$(XCFLAGS)
+
+CPP	=$(CC) -E $(INC) # $(XCFLAGS)
+RM	=/bin/rm

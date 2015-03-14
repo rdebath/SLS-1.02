@@ -1,0 +1,1373 @@
+This is Info file /usr/local/info/libg++, produced by Makeinfo-1.43
+from the input file libg++.texinfo.
+
+START-INFO-DIR-ENTRY
+* Libg++: (libg++).		The g++ library.
+END-INFO-DIR-ENTRY
+
+   This file documents the features and implementation of The GNU C++
+library
+
+   Copyright (C) 1988, 1991, 1992 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   All copyright conditions applying to GNU CC also apply to GNU C++
+libraries.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided also
+that the section entitled "GNU CC General Public License" is included
+exactly as in the original, and provided that the entire resulting
+derived work is distributed under the terms of a permission notice
+identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that the section entitled "GNU CC General Public
+License" and this permission notice may be included in translations
+approved by the Free Software Foundation instead of in the original
+English.
+
+
+File: libg++,  Node: Obstack,  Next: AllocRing,  Prev: Stream,  Up: Top
+
+The Obstack class
+*****************
+
+   The `Obstack' class is a simple rewrite of the C obstack macros and
+functions provided in the GNU CC compiler source distribution.
+
+   Obstacks provide a simple method of creating and maintaining a
+string table, optimized for the very frequent task of building strings
+character-by-character, and sometimes keeping them, and sometimes not.
+They seem especially useful in any parsing application. One of the
+test files demonstrates usage.
+
+   A brief summary:
+`grow'
+     places something on the obstack without committing to wrap it up
+     as a single entity yet.
+
+`finish'
+     wraps up a constructed object as a single entity, and returns the
+     pointer to its start address.
+
+`copy'
+     places things on the obstack, and *does* wrap them up.  `copy' is
+     always equivalent to first grow, then finish.
+
+`free'
+     deletes something, and anything else put on the obstack since its
+     creation.
+
+   The other functions are less commonly needed:
+`blank'
+     is like grow, except it just grows the space by size units
+     without placing anything into this space
+
+`alloc'
+     is like `blank', but it wraps up the object and returns its
+     starting address.
+
+`chunk_size, base, next_free, alignment_mask, size, room'
+     returns the appropriate class variables.
+
+`grow_fast'
+     places a character on the obstack without checking if there is
+     enough room.
+
+`blank_fast'
+     like `blank', but without checking if there is enough room.
+
+`shrink(int n)'
+     shrink the current chunk by n bytes.
+
+`contains(void* addr)'
+     returns true if the Obstack holds the address addr.
+
+   Here is a lightly edited version of the original C documentation:
+
+   These functions operate a stack of objects.  Each object starts life
+small, and may grow to maturity.  (Consider building a word syllable
+by syllable.)  An object can move while it is growing.  Once it has
+been "finished" it never changes address again.  So the "top of the
+stack" is typically an immature growing object, while the rest of the
+stack is of mature, fixed size and fixed address objects.
+
+   These routines grab large chunks of memory, using the GNU C++ `new'
+operator.  On occasion, they free chunks, via `delete'.
+
+   Each independent stack is represented by a Obstack.
+
+   One motivation for this package is the problem of growing char
+strings in symbol tables.  Unless you are a "fascist pig with a
+read-only mind" [Gosper's immortal quote from HAKMEM item 154, out of
+context] you would not like to put any arbitrary upper limit on the
+length of your symbols.
+
+   In practice this often means you will build many short symbols and a
+few long symbols.  At the time you are reading a symbol you don't know
+how long it is.  One traditional method is to read a symbol into a
+buffer, `realloc()'ating the buffer every time you try to read a
+symbol that is longer than the buffer.  This is beaut, but you still
+will want to copy the symbol from the buffer to a more permanent
+symbol-table entry say about half the time.
+
+   With obstacks, you can work differently.  Use one obstack for all
+symbol names.  As you read a symbol, grow the name in the obstack
+gradually.  When the name is complete, finalize it.  Then, if the
+symbol exists already, free the newly read name.
+
+   The way we do this is to take a large chunk, allocating memory from
+low addresses.  When you want to build a symbol in the chunk you just
+add chars above the current "high water mark" in the chunk.  When you
+have finished adding chars, because you got to the end of the symbol,
+you know how long the chars are, and you can create a new object. 
+Mostly the chars will not burst over the highest address of the chunk,
+because you would typically expect a chunk to be (say) 100 times as
+long as an average object.
+
+   In case that isn't clear, when we have enough chars to make up the
+object, *they are already contiguous in the chunk* (guaranteed) so we
+just point to it where it lies.  No moving of chars is needed and this
+is the second win: potentially long strings need never be explicitly
+shuffled. Once an object is formed, it does not change its address
+during its lifetime.
+
+   When the chars burst over a chunk boundary, we allocate a larger
+chunk, and then copy the partly formed object from the end of the old
+chunk to the beginning of the new larger chunk.  We then carry on
+accreting characters to the end of the object as we normally would.
+
+   A special version of grow is provided to add a single char at a time
+to a growing object.
+
+   Summary:
+
+   * We allocate large chunks.
+
+   * We carve out one object at a time from the current chunk.
+
+   * Once carved, an object never moves.
+
+   * We are free to append data of any size to the currently growing
+     object.
+
+   * Exactly one object is growing in an obstack at any one time.
+
+   * You can run one obstack per control block.
+
+   * You may have as many control blocks as you dare.
+
+   * Because of the way we do it, you can `unwind' a obstack back to a
+     previous state. (You may remove objects much as you would with a
+     stack.)
+
+   The obstack data structure is used in many places in the GNU C++
+compiler.
+
+   Differences from the the GNU C version
+  1. The obvious differences stemming from the use of classes and
+     inline functions instead of structs and macros. The C `init' and
+     `begin' macros are replaced by constructors.
+
+  2. Overloaded function names are used for grow (and others), rather
+     than the C `grow', `grow0', etc.
+
+  3. All dynamic allocation uses the the built-in `new' operator. 
+     This restricts flexibility by a little, but maintains
+     compatibility with usual C++ conventions.
+
+  4. There are now two versions of finish:
+
+       1. finish() behaves like the C version.
+
+       2. finish(char terminator) adds `terminator', and then calls
+          `finish()'.  This enables the normal invocation of
+          `finish(0)' to wrap up a string being grown
+          character-by-character.
+
+  5. There are special versions of grow(const char* s) and copy(const
+     char* s) that add the null-terminated string `s' after computing
+     its length.
+
+  6. The shrink and contains functions are provided.
+
+
+
+File: libg++,  Node: AllocRing,  Next: String,  Prev: Obstack,  Up: Top
+
+The AllocRing class
+*******************
+
+   An AllocRing is a bounded ring (circular list), each of whose
+elements contains a pointer to some space allocated via `new
+char[some_size]'. The entries are used cyclicly.  The size, n, of the
+ring is fixed at construction. After that, every nth use of the ring
+will reuse (or reallocate) the same space. AllocRings are needed in
+order to temporarily hold chunks of space that are needed transiently,
+but across constructor-destructor scopes. They mainly useful for
+storing strings containing formatted characters to print acrosss
+various functions and coercions. These strings are needed across
+routines, so may not be deleted in any one of them, but should be
+recovered at some point. In other words, an AllocRing is an extremely
+simple minded garbage collection mechanism. The GNU C++ library used
+to use one AllocRing for such formatting purposes, but it is being
+phased out, and is now only used by obsolete functions.  These days,
+AllocRings are probably not very useful.
+
+   Support includes:
+
+`AllocRing a(int n)'
+     constructs an Alloc ring with n entries, all null.
+
+`void* mem = a.alloc(sz)'
+     moves the ring pointer to the next entry, and reuses the space if
+     their is enough, also allocates space via new char[sz].
+
+`int present = a.contains(void* ptr)'
+     returns true if ptr is held in one of the ring entries.
+
+`a.clear()'
+     deletes all space pointed to in any entry. This is called
+     automatically upon destruction.
+
+`a.free(void* ptr)'
+     If ptr is one of the entries, calls delete of the pointer, and
+     resets to entry pointer to null.
+
+
+File: libg++,  Node: String,  Next: Integer,  Prev: AllocRing,  Up: Top
+
+The String class
+****************
+
+   The `String' class is designed to extend GNU C++ to support string
+processing capabilities similar to those in languages like Awk.  The
+class provides facilities that ought to be convenient and efficient
+enough to be useful replacements for `char*' based processing via the
+C string library (i.e., `strcpy, strcmp,' etc.) in many applications.
+Many details about String representations are described in the
+Representation section.
+
+   A separate `SubString' class supports substring extraction and
+modification operations. This is implemented in a way that user
+programs never directly construct or represent substrings, which are
+only used indirectly via String operations.
+
+   Another separate class, `Regex' is also used indirectly via String
+operations in support of regular expression searching, matching, and
+the like.  The Regex class is based entirely on the GNU emacs regex
+functions.  Refer to the GNU Emacs documentation for details about
+regular expression syntax, etc. See the internal documentation in
+files `regex.h' and `regex.c' for implementation details.
+
+Constructors
+============
+
+   Strings are initialized and assigned as in the following examples:
+
+`String x;  String y = 0; String z = "";'
+     Set x, y, and z to the nil string. Note that either 0 or "" may
+     always be used to refer to the nil string.
+
+`String x = "Hello"; String y("Hello");'
+     Set x and y to a copy of the string "Hello".
+
+`String x = 'A'; String y('A');'
+     Set x and y to the string value "A"
+
+`String u = x; String v(x);'
+     Set u and v to the same string as String x
+
+`String u = x.at(1,4); String v(x.at(1,4));'
+     Set u and v to the length 4 substring of x starting at position 1
+     (counting indexes from 0).
+
+`String x("abc", 2);'
+     Sets x to "ab", i.e., the first 2 characters of "abc".
+
+`String x = dec(20);'
+     Sets x to "20". As here, Strings may be initialized or assigned
+     the results of any `char*' function.
+
+   There are no directly accessible forms for declaring SubString
+variables.
+
+   The declaration `Regex r("[a-zA-Z_][a-zA-Z0-9_]*");' creates a
+compiled regular expression suitable for use in String operations
+described below. (In this case, one that matches any C++ identifier).
+The first argument may also be a String.  Be careful in distinguishing
+the role of backslashes in quoted GNU C++ char* constants versus those
+in Regexes. For example, a Regex that matches either one or more tabs
+or all strings beginning with "ba" and ending with any number of
+occurrences of "na" could be declared as `Regex r =
+"\\(\t+\\)\\|\\(ba\\(na\\)*\\)"' Note that only one backslash is
+needed to signify the tab, but two are needed for the parenthesization
+and virgule, since the GNU C++ lexical analyzer decodes and strips
+backslashes before they are seen by Regex.
+
+   There are three additional optional arguments to the Regex
+constructor that are less commonly useful:
+
+`fast (default 0)'
+     `fast' may be set to true (1) if the Regex should be
+     "fast-compiled". This causes an additional compilation step that
+     is generally worthwhile if the Regex will be used many times.
+
+`bufsize (default max(40, length of the string))'
+     This is an estimate of the size of the internal compiled
+     expression. Set it to a larger value if you know that the
+     expression will require a lot of space. If you do not know, do
+     not worry: realloc is used if necessary.
+
+`transtable (default none == 0)'
+     The address of a byte translation table (a char[256]) that
+     translates each character before matching.
+
+   As a convenience, several Regexes are predefined and usable in any
+program. Here are their declarations from `String.h'.
+
+     extern Regex RXwhite;      // = "[ \n\t]+"
+     extern Regex RXint;        // = "-?[0-9]+"
+     extern Regex RXdouble;     // = "-?\\(\\([0-9]+\\.[0-9]*\\)\\|
+                                //    \\([0-9]+\\)\\|
+                                //    \\(\\.[0-9]+\\)\\)
+                                //    \\([eE][---+]?[0-9]+\\)?"
+     extern Regex RXalpha;      // = "[A-Za-z]+"
+     extern Regex RXlowercase;  // = "[a-z]+"
+     extern Regex RXuppercase;  // = "[A-Z]+"
+     extern Regex RXalphanum;   // = "[0-9A-Za-z]+"
+     extern Regex RXidentifier; // = "[A-Za-z_][A-Za-z0-9_]*"
+
+Examples
+========
+
+   Most `String' class capabilities are best shown via example.  The
+examples below use the following declarations.
+
+         String x = "Hello";
+         String y = "world";
+         String n = "123";
+         String z;
+         char*  s = ",";
+         String lft, mid, rgt;
+         Regex  r = "e[a-z]*o";
+         Regex  r2("/[a-z]*/");
+         char   c;
+         int    i, pos, len;
+         double f;
+         String words[10];
+         words[0] = "a";
+         words[1] = "b";
+         words[2] = "c";
+
+Comparing, Searching and Matching
+=================================
+
+   The usual lexicographic relational operators (`==, !=, <, <=, >,
+>=') are defined. A functional form `compare(String, String)' is also
+provided, as is `fcompare(String, String)', which compares Strings
+without regard for upper vs. lower case.
+
+   All other matching and searching operations are based on some form
+of the (non-public) `match' and `search' functions.  `match' and
+`search' differ in that `match' attempts to match only at the given
+starting position, while `search' starts at the position, and then
+proceeds left or right looking for a match.  As seen in the following
+examples, the second optional `startpos' argument to functions using
+`match' and `search' specifies the starting position of the search: If
+non-negative, it results in a left-to-right search starting at
+position `startpos', and if negative, a right-to-left search starting
+at position `x.length() + startpos'. In all cases, the index returned
+is that of the beginning of the match, or -1 if there is no match.
+
+   Three String functions serve as front ends to `search' and `match'. 
+`index' performs a search, returning the index, `matches' performs a
+match, returning nonzero (actually, the length of the match) on
+success, and `contains' is a boolean function performing either a
+search or match, depending on whether an index argument is provided:
+
+`x.index("lo")'
+     returns the zero-based index of the leftmost occurrence of
+     substring "lo" (3, in this case).  The argument may be a String,
+     SubString, char, char*, or Regex.
+
+`x.index("l", 2)'
+     returns the index of the first of the leftmost occurrence of "l"
+     found starting the search at position x[2], or 2 in this case.
+
+`x.index("l", -1)'
+     returns the index of the rightmost occurrence of "l", or 3 here.
+
+`x.index("l", -3)'
+     returns the index of the rightmost occurrence of "l" found by
+     starting the search at the 3rd to the last position of x,
+     returning 2 in this case.
+
+`pos = r.search("leo", 3, len, 0)'
+     returns the index of r in the `char*' string of length 3,
+     starting at position 0, also placing the  length of the match in
+     reference parameter len.
+
+`x.contains("He")'
+     returns nonzero if the String x contains the substring "He". The
+     argument may be a String, SubString, char, char*, or Regex.
+
+`x.contains("el", 1)'
+     returns nonzero if x contains the substring "el" at position 1. 
+     As in this example, the second argument to `contains', if
+     present, means to match the substring only at that position, and
+     not to search elsewhere in the string.
+
+`x.contains(RXwhite);'
+     returns nonzero if x contains any whitespace (space, tab, or
+     newline). Recall that `RXwhite' is a global whitespace Regex.
+
+`x.matches("lo", 3)'
+     returns nonzero if x starting at position 3 exactly matches "lo",
+     with no trailing characters (as it does in this example).
+
+`x.matches(r)'
+     returns nonzero if String x as a whole matches Regex r.
+
+`int f = x.freq("l")'
+     returns the number of distinct, nonoverlapping matches to the
+     argument (2 in this case).
+
+Substring extraction
+====================
+
+   Substrings may be extracted via the `at', `before', `through',
+`from', and `after' functions.  These behave as either lvalues or
+rvalues.
+
+`z = x.at(2, 3)'
+     sets String z to be equal to the length 3 substring of String x
+     starting at zero-based position 2, setting z to "llo" in this
+     case. A nil String is returned if the arguments don't make sense.
+
+`x.at(2, 2) = "r"'
+     Sets what was in positions 2 to 3 of x to "r", setting x to
+     "Hero" in this case. As indicated here, SubString assignments may
+     be of different lengths.
+
+`x.at("He") = "je";'
+     x("He") is the substring of x that matches the first occurrence of
+     it's argument. The substitution sets x to "jello". If "He" did
+     not occur, the substring would be nil, and the assignment would
+     have no effect.
+
+`x.at("l", -1) = "i";'
+     replaces the rightmost occurrence of "l" with "i", setting x to
+     "Helio".
+
+`z = x.at(r)'
+     sets String z to the first match in x of Regex r, or "ello" in
+     this case. A nil String is returned if there is no match.
+
+`z = x.before("o")'
+     sets z to the part of x to the left of the first occurrence of
+     "o", or "Hell" in this case. The argument may also be a String,
+     SubString, or Regex.
+
+`x.before("ll") = "Bri";'
+     sets the part of x to the left of "ll" to "Bri", setting x to
+     "Brillo".
+
+`z = x.before(2)'
+     sets z to the part of x to the left of x[2], or "He" in this case.
+
+`z = x.after("Hel")'
+     sets z to the part of x to the right of "Hel", or "lo" in this
+     case.
+
+`z = x.through("el")'
+     sets z to the part of x up and including "el", or "Hel" in this
+     case.
+
+`z = x.from("el")'
+     sets z to the part of x from "el" to the end, or "ello" in this
+     case.
+
+`x.after("Hel") = "p";'
+     sets x to "Help";
+
+`z = x.after(3)'
+     sets z to the part of x to the right of x[3] or "o" in this case.
+
+`z = "  ab c"; z = z.after(RXwhite)'
+     sets z to the part of its old string to the right of the first
+     group of whitespace, setting z to "ab c"; Use gsub(below) to
+     strip out multiple occurrences of whitespace or any pattern.
+
+`x[0] = 'J';'
+     sets the first element of x to 'J'. x[i] returns a reference to
+     the ith element of x, or triggers an error if i is out of range.
+
+`common_prefix(x, "Help")'
+     returns the String containing the common prefix of the two Strings
+     or "Hel" in this case.
+
+`common_suffix(x, "to")'
+     returns the String containing the common suffix of the two Strings
+     or "o" in this case.
+
+Concatenation
+=============
+
+`z = x + s + ' ' + y.at("w") + y.after("w") + ".";'
+     sets z to "Hello, world."
+
+`x += y;'
+     sets x to "Helloworld"
+
+`cat(x, y, z)'
+     A faster way to say z = x + y.
+
+`cat(z, y, x, x)'
+     Double concatenation; A faster way to say x = z + y + x.
+
+`y.prepend(x);'
+     A faster way to say y = x + y.
+
+`z = replicate(x, 3);'
+     sets z to "HelloHelloHello".
+
+`z = join(words, 3, "/")'
+     sets z to the concatenation of the first 3 Strings in String
+     array words, each separated by "/", setting z to "a/b/c" in this
+     case.  The last argument may be "" or 0, indicating no separation.
+
+Other manipulations
+===================
+
+`z = "this string has five words"; i = split(z, words, 10, RXwhite);'
+     sets up to 10 elements of String array words to the parts of z
+     separated by whitespace, and returns the number of parts actually
+     encountered (5 in this case). Here, words[0] = "this", words[1] =
+     "string", etc.  The last argument may be any of the usual.  If
+     there is no match, all of z ends up in words[0]. The words array
+     is *not* dynamically created by split.
+
+`int nmatches x.gsub("l","ll")'
+     substitutes all original occurrences of "l" with "ll", setting x
+     to "Hellllo". The first argument may be any of the usual,
+     including Regex.  If the second argument is "" or 0, all
+     occurrences are deleted. gsub returns the number of matches that
+     were replaced.
+
+`z = x + y;  z.del("loworl");'
+     deletes the leftmost occurrence of "loworl" in z, setting z to
+     "Held".
+
+`z = reverse(x)'
+     sets z to the reverse of x, or "olleH".
+
+`z = upcase(x)'
+     sets z to x, with all letters set to uppercase, setting z to
+     "HELLO"
+
+`z = downcase(x)'
+     sets z to x, with all letters set to lowercase, setting z to
+     "hello"
+
+`z = capitalize(x)'
+     sets z to x, with the first letter of each word set to uppercase,
+     and all others to lowercase, setting z to "Hello"
+
+`x.reverse(), x.upcase(), x.downcase(), x.capitalize()'
+     in-place, self-modifying versions of the above.
+
+Reading, Writing and Conversion
+===============================
+
+`cout << x'
+     writes out x.
+
+`cout << x.at(2, 3)'
+     writes out the substring "llo".
+
+`cin >> x'
+     reads a whitespace-bounded string into x.
+
+`x.length()'
+     returns the length of String x (5, in this case).
+
+`s = (const char*)x'
+     can be used to extract the `char*' char array. This coercion is
+     useful for sending a String as an argument to any function
+     expecting a `const char*' argument (like `atoi', and
+     `File::open'). This operator must be used with care, since the
+     conversion returns a pointer to `String' internals without
+     copying the characters: The resulting `(char*)' is only valid
+     until the next String operation,  and you must not modify it. 
+     (The conversion is defined to return a const value so that GNU
+     C++ will produce warning and/or error messages if changes are
+     attempted.)
+
+
+File: libg++,  Node: Integer,  Next: Rational,  Prev: String,  Up: Top
+
+The Integer class.
+******************
+
+   The `Integer' class provides multiple precision integer arithmetic
+facilities. Some representation details are discussed in the
+Representation section.
+
+   `Integers' may be up to `b * ((1 << b) - 1)' bits long, where `b'
+is the number of bits per short (typically 1048560 bits when `b =
+16').  The implementation assumes that a `long' is at least twice as
+long as a `short'. This assumption hides beneath almost all primitive
+operations, and would be very difficult to change. It also relies on
+correct behavior of *unsigned* arithmetic operations.
+
+   Some of the arithmetic algorithms are very loosely based on those
+provided in the MIT Scheme `bignum.c' release, which is Copyright (c)
+1987 Massachusetts Institute of Technology. Their use here falls
+within the provisions described in the Scheme release.
+
+   Integers may be constructed in the following ways:
+`Integer x;'
+     Declares an uninitialized Integer.
+
+`Integer x = 2; Integer y(2);'
+     Set x and y to the Integer value 2;
+
+`Integer u(x); Integer v = x;'
+     Set u and v to the same value as x.
+
+   `Integers' may be coerced back into longs via the `long' coercion
+operator. If the Integer cannot fit into a long, this returns MINLONG
+or MAXLONG (depending on the sign) where MINLONG is the most negative,
+and MAXLONG is the most positive representable long.  The member
+function `fits_in_long()' may be used to test this.  `Integers' may
+also be coerced into `doubles', with potential loss of precision.
+`+/-HUGE' is returned if the Integer cannot fit into a double.
+`fits_in_double()' may be used to test this.
+
+   All of the usual arithmetic operators are provided (`+, -, *, /, %,
++=, ++, -=, --, *=, /=, %=, ==, !=, <, <=, >, >=').  All operators
+support special versions for mixed arguments of Integers and regular
+C++ longs in order to avoid useless coercions, as well as to allow
+automatic promotion of shorts and ints to longs, so that they may be
+applied without additional Integer coercion operators.  The only
+operators that behave differently than the corresponding int or long
+operators are `++' and `--'.  Because C++ does not distinguish prefix
+from postfix application, these are declared as `void' operators, so
+that no confusion can result from applying them as postfix.  Thus, for
+Integers x and y, ` ++x; y = x; ' is correct, but ` y = ++x; ' and ` y
+= x++; ' are not.
+
+   Bitwise operators (`~', `&', `|', `^', `<<', `>>', `&=', `|=',
+`^=', `<<=', `>>=') are also provided.  However, these operate on
+sign-magnitude, rather than two's complement representations. The sign
+of the result is arbitrarily taken as the sign of the first argument.
+For example, `Integer(-3) & Integer(5)' returns `Integer(-1)', not -3,
+as it would using two's complement. Also, `~', the complement
+operator, complements only those bits needed for the representation. 
+Bit operators are also provided in the BitSet and BitString classes.
+One of these classes should be used instead of Integers when the
+results of bit manipulations are not interpreted numerically.
+
+   The following utility functions are also provided. (All arguments
+are Integers unless otherwise noted).
+
+`void divide(x, y, q, r);'
+     Sets q to the quotient and r to the remainder of x and y.  (q and
+     r are returned by reference).
+
+`Integer pow(Integer x, Integer p)'
+     returns x raised to the power p.
+
+`Integer Ipow(long x, long p)'
+     returns x raised to the power p.
+
+`Integer gcd(x, y)'
+     returns the greatest common divisor of x and y.
+
+`Integer lcm(x, y)'
+     returns the least common multiple of x and y.
+
+`Integer abs(x);'
+     returns the absolute value of x.
+
+`void x.negate();'
+     negates x.
+
+`Integer sqr(x)'
+     returns x * x;
+
+`Integer sqrt(x)'
+     returns the floor of the  square root of x.
+
+`long lg(x);'
+     returns the floor of the base 2 logarithm of abs(x)
+
+`int sign(x)'
+     returns -1 if x is negative, 0 if zero, else +1.  Using `if
+     (sign(x) == 0)' is a generally faster method of testing for zero
+     than using relational operators.
+
+`int even(x)'
+     returns true if x is an even number
+
+`int odd(x)'
+     returns true if x is an odd number.
+
+`void setbit(Integer& x, long b)'
+     sets the b'th bit (counting right-to-left from zero) of x to 1.
+
+`void clearbit(Integer& x, long b)'
+     sets the b'th bit of x to 0.
+
+`int testbit(Integer x, long b)'
+     returns true if the b'th bit of x is 1.
+
+`Integer atoI(char* asciinumber, int base = 10);'
+     converts the base base char* string into its Integer form.
+
+`char* Itoa(x, int base = 10, int width = 0);'
+     returns a pointer to the ascii string value of x as a base `base'
+     number, in field width at least `width'.
+
+`ostream << x;'
+     prints x in base ten format.
+
+`istream >> x;'
+     reads x as a base ten number.
+
+`int compare(Integer x, Integer y)'
+     returns a negative number if x<y, zero if x==y, or positive if
+     x>y.
+
+`int ucompare(Integer x, Integer y)'
+     like compare, but performs unsigned comparison.
+
+`add(x, y, z)'
+     A faster way to say z = x + y.
+
+`sub(x, y, z)'
+     A faster way to say z = x - y.
+
+`mul(x, y, z)'
+     A faster way to say z = x * y.
+
+`div(x, y, z)'
+     A faster way to say z = x / y.
+
+`mod(x, y, z)'
+     A faster way to say z = x % y.
+
+`and(x, y, z)'
+     A faster way to say z = x & y.
+
+`or(x, y, z)'
+     A faster way to say z = x | y.
+
+`xor(x, y, z)'
+     A faster way to say z = x ^ y.
+
+`lshift(x, y, z)'
+     A faster way to say z = x << y.
+
+`rshift(x, y, z)'
+     A faster way to say z = x >> y.
+
+`pow(x, y, z)'
+     A faster way to say z = pow(x, y).
+
+`complement(x, z)'
+     A faster way to say z = ~x.
+
+`negate(x, z)'
+     A faster way to say z = -x.
+
+
+File: libg++,  Node: Rational,  Next: Complex,  Prev: Integer,  Up: Top
+
+The Rational Class
+******************
+
+   Class `Rational' provides multiple precision rational number
+arithmetic. All rationals are maintained in simplest form (i.e., with
+the numerator and denominator relatively prime, and with the
+denominator strictly positive).  Rational arithmetic and relational
+operators are provided (`+, -, *, /, +=, -=, *=, /=, ==, !=, <, <=, >,
+>=').  Operations resulting in a rational number with zero denominator
+trigger an exception.
+
+   Rationals may be constructed and used in the following ways:
+
+`Rational x;'
+     Declares an uninitialized Rational.
+
+`Rational x = 2; Rational y(2);'
+     Set x and y to the Rational value 2/1;
+
+`Rational x(2, 3);'
+     Sets x to the Rational value 2/3;
+
+`Rational x = 1.2;'
+     Sets x to a Rational value close to 1.2. Any double precision
+     value may be used to construct a Rational. The Rational will
+     possess exactly as much precision as the double. Double values
+     that do not have precise floating point equivalents (like 1.2)
+     produce similarly imprecise rational values.
+
+`Rational x(Integer(123), Integer(4567));'
+     Sets x to the Rational value 123/4567.
+
+`Rational u(x); Rational v = x;'
+     Set u and v to the same value as x.
+
+`double(Rational x)'
+     A Rational may be coerced to a double with potential loss of
+     precision. +/-HUGE is returned if it will not fit.
+
+`Rational abs(x)'
+     returns the absolute value of x.
+
+`void x.negate()'
+     negates x.
+
+`void x.invert()'
+     sets x to 1/x.
+
+`int sign(x)'
+     returns 0 if x is zero, 1 if positive, and -1 if negative.
+
+`Rational sqr(x)'
+     returns x * x.
+
+`Rational pow(x, Integer y)'
+     returns x to the y power.
+
+`Integer x.numerator()'
+     returns the numerator.
+
+`Integer x.denominator()'
+     returns the denominator.
+
+`Integer floor(x)'
+     returns the greatest Integer less than x.
+
+`Integer ceil(x)'
+     returns the least Integer greater than x.
+
+`Integer trunc(x)'
+     returns the Integer part of x.
+
+`Integer round(x)'
+     returns the nearest Integer to x.
+
+`int compare(x, y)'
+     returns a negative, zero, or positive number signifying whether x
+     is less than, equal to, or greater than y.
+
+`ostream << x;'
+     prints x in the form num/den, or just num if the denominator is
+     one.
+
+`istream >> x;'
+     reads x in the form num/den, or just num in which case the
+     denominator is set to one.
+
+`add(x, y, z)'
+     A faster way to say z = x + y.
+
+`sub(x, y, z)'
+     A faster way to say z = x - y.
+
+`mul(x, y, z)'
+     A faster way to say z = x * y.
+
+`div(x, y, z)'
+     A faster way to say z = x / y.
+
+`pow(x, y, z)'
+     A faster way to say z = pow(x, y).
+
+`negate(x, z)'
+     A faster way to say z = -x.
+
+
+File: libg++,  Node: Complex,  Next: Fix,  Prev: Rational,  Up: Top
+
+The Complex class.
+******************
+
+   Class `Complex' is implemented in a way similar to that described
+by Stroustrup. In keeping with libg++ conventions, the class is named
+`Complex', not `complex'.  Complex arithmetic and relational operators
+are provided (`+, -, *, /, +=, -=, *=, /=, ==, !=').  Attempted
+division by (0, 0) triggers an exception.
+
+   Complex numbers may be constructed and used in the following ways:
+
+`Complex x;'
+     Declares an uninitialized Complex.
+
+`Complex x = 2; Complex y(2.0);'
+     Set x and y to the Complex value (2.0, 0.0);
+
+`Complex x(2, 3);'
+     Sets x to the Complex value (2, 3);
+
+`Complex u(x); Complex v = x;'
+     Set u and v to the same value as x.
+
+`double real(Complex& x);'
+     returns the real part of x.
+
+`double imag(Complex& x);'
+     returns the imaginary part of x.
+
+`double abs(Complex& x);'
+     returns the magnitude of x.
+
+`double norm(Complex& x);'
+     returns the square of the magnitude of x.
+
+`double arg(Complex& x);'
+     returns the argument (amplitude) of x.
+
+`Complex polar(double r, double t = 0.0);'
+     returns a Complex with abs of r and arg of t.
+
+`Complex conj(Complex& x);'
+     returns the complex conjugate of x.
+
+`Complex cos(Complex& x);'
+     returns the complex cosine of x.
+
+`Complex sin(Complex& x);'
+     returns the complex sine of x.
+
+`Complex cosh(Complex& x);'
+     returns the complex hyperbolic cosine of x.
+
+`Complex sinh(Complex& x);'
+     returns the complex hyperbolic sine of x.
+
+`Complex exp(Complex& x);'
+     returns the exponential of x.
+
+`Complex log(Complex& x);'
+     returns the natural log of x.
+
+`Complex pow(Complex& x, long p);'
+     returns x raised to the p power.
+
+`Complex pow(Complex& x, Complex& p);'
+     returns x raised to the p power.
+
+`Complex sqrt(Complex& x);'
+     returns the square root of x.
+
+`ostream << x;'
+     prints x in the form (re, im).
+
+`istream >> x;'
+     reads x in the form (re, im), or just (re) or re in which case the
+     imaginary part is set to zero.
+
+
+File: libg++,  Node: Fix,  Next: Bit,  Prev: Complex,  Up: Top
+
+Fixed precision numbers
+***********************
+
+   Classes `Fix16', `Fix24', `Fix32', and `Fix48' support operations
+on 16, 24, 32, or 48 bit quantities that are considered as real
+numbers in the range [-1, +1).  Such numbers are often encountered in
+digital signal processing applications. The classes may be be used in
+isolation or together.  Class `Fix32' operations are entirely
+self-contained.  Class `Fix16' operations are self-contained except
+that the multiplication operation `Fix16 * Fix16' returns a `Fix32'.
+`Fix24' and `Fix48' are similarly related.
+
+   The standard arithmetic and relational operations are supported
+(`=', `+', `-', `*', `/', `<<', `>>', `+=', `-=', `*=', `/=', `<<=',
+`>>=', `==', `!=', `<', `<=', `>', `>=').  All operations include
+provisions for special handling in cases where the result exceeds +/-
+1.0. There are two cases that may be handled separately: "overflow"
+where the results of addition and subtraction operations go out of
+range, and all other "range errors" in which resulting values go
+off-scale (as with division operations, and assignment or
+initialization with off-scale values). In signal processing
+applications, it is often useful to handle these two cases
+differently. Handlers take one argument, a reference to the integer
+mantissa of the offending value, which may then be manipulated.  In
+cases of overflow, this value is the result of the (integer) arithmetic
+computation on the mantissa; in others it is a fully saturated (i.e.,
+most positive or most negative) value. Handling may be reset to any of
+several provided functions or any other user-defined function via
+`set_overflow_handler' and `set_range_error_handler'. The provided
+functions for `Fix16' are as follows (corresponding functions are also
+supported for the others).
+
+`Fix16_overflow_saturate'
+     The default overflow handler. Results are "saturated": positive
+     results are set to the largest representable value (binary
+     0.111111...), and negative values to -1.0.
+
+`Fix16_ignore'
+     Performs no action. For overflow, this will allow addition and
+     subtraction operations to "wrap around" in the same manner as
+     integer arithmetic, and for saturation, will leave values
+     saturated.
+
+`Fix16_overflow_warning_saturate'
+     Prints a warning message on standard error, then saturates the
+     results.
+
+`Fix16_warning'
+     The default range_error handler. Prints a warning message on
+     standard error; otherwise leaving the argument unmodified.
+
+`Fix16_abort'
+     prints an error message on standard error, then aborts execution.
+
+   In addition to arithmetic operations, the following are provided:
+
+`Fix16 a = 0.5;'
+     Constructs fixed precision objects from double precision values. 
+     Attempting to initialize to a value outside the range invokes the
+     range_error handler, except, as a convenience, initialization to
+     1.0 sets the variable to the most positive representable value
+     (binary 0.1111111...) without invoking the handler.
+
+`short& mantissa(a); long& mantissa(b);'
+     return a * pow(2, 15) or b * pow(2, 31) as an integer. These are
+     returned by reference, to enable "manual" data manipulation.
+
+`double value(a); double value(b);'
+     return a or b as floating point numbers.
+
+
+File: libg++,  Node: Bit,  Next: Random,  Prev: Fix,  Up: Top
+
+Classes for Bit manipulation
+****************************
+
+   libg++ provides several different classes supporting the use and
+manipulation of collections of bits in different ways.
+
+   * Class `Integer' provides "integer" semantics. It supports
+     manipulation of bits in ways that are often useful when treating
+     bit arrays as numerical (integer) quantities.  This class is
+     described elsewhere.
+
+   * Class `BitSet' provides "set" semantics. It supports operations
+     useful when treating collections of bits as representing
+     potentially infinite sets of integers.
+
+   * Class `BitSet32' supports fixed-length BitSets holding exactly 32
+     bits.
+
+   * Class `Bitset256'supports fixed-length BitSets holding exactly
+     256 bits.
+
+   * Class `BitString' provides "string" (or "vector") semantics.  It
+     supports operations useful when treating collections of bits as
+     strings of zeros and ones.
+
+   These classes also differ in the following ways:
+
+   * BitSets are logically infinite. Their space is dynamically
+     altered to adjust to the smallest number of consecutive bits
+     actually required to represent the sets. Integers also have this
+     property. BitStrings are logically finite, but their sizes are
+     internally dynamically managed to maintain proper length. This
+     means that, for example, BitStrings are concatenatable while
+     BitSets and Integers are not.
+
+   * BitSet32 and BitSet256 have precisely the same properties as
+     BitSets, except that they use constant fixed length bit vectors.
+
+   * While all classes support basic unary and binary operations `~, &,
+     |, ^, -', the semantics differ. BitSets perform bit operations
+     that precisely mirror those for infinite sets. For example,
+     complementing an empty BitSet returns one representing an
+     infinite number of set bits.  Operations on BitStrings and
+     Integers operate only on those bits actually present in the
+     representation.  For BitStrings and Integers, the the `&'
+     operation returns a BitString with a length equal to the minimum
+     length of the operands, and `|, ^' return one with length of the
+     maximum.
+
+   * Only BitStrings support substring extraction and bit pattern
+     matching.
+
+BitSet
+======
+
+   Bitsets are objects that contain logically infinite sets of
+nonnegative integers.  Representational details are discussed in the
+Representation chapter. Because they are logically infinite, all
+BitSets possess a trailing, infinitely replicated 0 or 1 bit, called
+the "virtual bit", and indicated via 0* or 1*.
+
+   BitSet32 and BitSet256 have they same properties, except they are
+of fixed length, and thus have no virtual bit.
+
+   BitSets may be constructed as follows:
+
+`BitSet a;'
+     declares an empty BitSet.
+
+`BitSet a = atoBitSet("001000");'
+     sets a to the BitSet 0010*, reading left-to-right. The "0*"
+     indicates that the set ends with an infinite number of zero
+     (clear) bits.
+
+`BitSet a = atoBitSet("00101*");'
+     sets a to the BitSet 00101*, where "1*" means that the set ends
+     with an infinite number of one (set) bits.
+
+`BitSet a = longtoBitSet((long)23);'
+     sets a to the BitSet 111010*, the binary representation of
+     decimal 23.
+
+`BitSet a = utoBitSet((unsigned)23);'
+     sets a to the BitSet 111010*, the binary representation of
+     decimal 23.
+
+   The following functions and operators are provided (Assume the
+declaration of BitSets a = 0011010*, b = 101101*, throughout, as
+examples).
+
+`~a'
+     returns the complement of a, or 1100101* in this case.
+
+`a.complement()'
+     sets a to ~a.
+
+`a & b; a &= b;'
+     returns a intersected with b, or 0011010*.
+
+`a | b; a |= b;'
+     returns a unioned with b, or 1011111*.
+
+`a - b; a -= b;'
+     returns the set difference of a and b, or 000010*.
+
+`a ^ b; a ^= b;'
+     returns the symmetric difference of a and b, or 1000101*.
+
+`a.empty()'
+     returns true if a is an empty set.
+
+`a == b;'
+     returns true if a and b contain the same set.
+
+`a <= b;'
+     returns true if a is a subset of b.
+
+`a < b;'
+     returns true if a is a proper subset of b;
+
+`a != b; a >= b; a > b;'
+     are the converses of the above.
+
+`a.set(7)'
+     sets the 7th (counting from 0) bit of a, setting a to 001111010*
+
+`a.clear(2)'
+     clears the 2nd bit bit of a, setting a to 00011110*
+
+`a.clear()'
+     clears all bits of a;
+
+`a.set()'
+     sets all bits of a;
+
+`a.invert(0)'
+     complements the 0th bit of a, setting a to 10011110*
+
+`a.set(0,1)'
+     sets the 0th through 1st bits of a, setting a to 110111110* The
+     two-argument versions of clear and invert are similar.
+
+`a.test(3)'
+     returns true if the 3rd bit of a is set.
+
+`a.test(3, 5)'
+     returns true if any of bits 3 through 5 are set.
+
+`int i = a[3]; a[3] = 0;'
+     The subscript operator allows bits to be inspected and changed
+     via standard subscript semantics, using a friend class BitSetBit. 
+     The use of the subscript operator a[i] rather than a.test(i)
+     requires somewhat greater overhead.
+
+`a.first(1) or a.first()'
+     returns the index of the first set bit of a (2 in this case), or
+     -1 if no bits are set.
+
+`a.first(0)'
+     returns the index of the first clear bit of a (0 in this case),
+     or -1 if no bits are clear.
+
+`a.next(2, 1) or a.next(2)'
+     returns the index of the next bit after position 2 that is set (3
+     in this case) or -1. `first' and `next' may be used as iterators,
+     as in `for (int i = a.first(); i >= 0; i = a.next(i))...'.
+
+`a.last(1)'
+     returns the index of the rightmost set bit, or -1 if there or no
+     set bits or all set bits.
+
+`a.previous(3, 0)'
+     returns the index of the previous clear bit before position 3.
+
+`a.count(1)'
+     returns the number of set bits in a, or -1 if there are an
+     infinite number.
+
+`a.virtual_bit()'
+     returns the trailing (infinitely replicated) bit of a.
+
+`a = atoBitSet("ababX", 'a', 'b', 'X');'
+     converts the char* string into a bitset, with 'a' denoting false,
+     'b' denoting true, and 'X' denoting infinite replication.
+
+`char* s = BitSettoa(a, '-', '.', 0)'
+     returns a pointer to a (static) location holding a represented
+     with '-' for falses, '.' for trues, and no replication marker.
+
+`diff(x, y, z)'
+     A faster way to say z = x - y.
+
+`and(x, y, z)'
+     A faster way to say z = x & y.
+
+`or(x, y, z)'
+     A faster way to say z = x | y.
+
+`xor(x, y, z)'
+     A faster way to say z = x ^ y.
+
+`complement(x, z)'
+     A faster way to say z = ~x.
+
+BitString
+=========
+
+   BitStrings are objects that contain arbitrary-length strings of
+zeroes and ones. BitStrings possess some features that make them
+behave like sets, and others that behave as strings. They are useful
+in applications (such as signature-based algorithms) where both
+capabilities are needed.  Representational details are discussed in
+the Representation chapter.  Most capabilities are exact analogs of
+those supported in the BitSet and String classes.  A BitSubString is
+used with substring operations along the same lines as the String
+SubString class.  A BitPattern class is used for masked bit pattern
+searching.
+
+   Only a default constructor is supported.  The declaration
+`BitString a;' initializes a to be an empty BitString.  BitStrings may
+often be initialized via `atoBitString' and `longtoBitString'.
+
+   Set operations (` ~, complement, &, &=, |, |=, -, ^, ^=') behave
+just as the BitSet versions, except that there is no "virtual bit":
+complementing complements only those bits in the BitString, and all
+binary operations across unequal length BitStrings assume a virtual
+bit of zero. The `&' operation returns a BitString with a length equal
+to the minimum length of the operands, and `|, ^' return one with
+length of the maximum.
+
+   Set-based relational operations (`==, !=, <=, <, >=, >') follow the
+same rules. A string-like lexicographic comparison function,
+`lcompare', tests the lexicographic relation between two BitStrings.
+For example, lcompare(1100, 0101) returns 1, since the first BitString
+starts with 1 and the second with 0.
+
+   Individual bit setting, testing, and iterator operations (`set,
+clear, invert, test, first, next, last, previous') are also like those
+for BitSets. BitStrings are automatically expanded when setting bits
+at positions greater than their current length.
+
+   The string-based capabilities are just as those for class String. 
+BitStrings may be concatenated (`+, +='), searched (`index, contains,
+matches'), and extracted into BitSubStrings (`before, at, after')
+which may be assigned and otherwise manipulated. Other string-based
+utility functions (`reverse, common_prefix, common_suffix') are also
+provided.  These have the same capabilities and descriptions as those
+for Strings.
+
+   String-oriented operations can also be performed with a mask via
+class BitPattern. BitPatterns consist of two BitStrings, a pattern and
+a mask. On searching and matching, bits in the pattern that correspond
+to 0 bits in the mask are ignored. (The mask may be shorter than the
+pattern, in which case trailing mask bits are assumed to be 0). The
+pattern and mask are both public variables, and may be individually
+subjected to other bit operations.
+
+   Converting to char* and printing (`(atoBitString, BitStringtoa,
+atoBitPattern, BitPatterntoa, ostream <<)') are also as in BitSets,
+except that no virtual bit is used, and an 'X' in a BitPattern means
+that the pattern bit is masked out.
+
+   The following features are unique to BitStrings.
+
+   Assume declarations of BitString a = atoBitString("01010110") and b
+= atoBitSTring("1101").
+
+`a = b + c;'
+     Sets a to the concatenation of b and c;
+
+`a = b + 0; a = b + 1;'
+     sets a to b, appended with a zero (one).
+
+`a += b;'
+     appends b to a;
+
+`a += 0; a += 1;'
+     appends a zero (one) to a.
+
+`a << 2; a <<= 2'
+     return a with 2 zeros prepended, setting a to 0001010110. (Note
+     the necessary confusion of << and >> operators. For consistency
+     with the integer versions, << shifts low bits to high, even though
+     they are printed low bits first.)
+
+`a >> 3; a >>= 3'
+     return a with the first 3 bits deleted, setting a to 10110.
+
+`a.left_trim(0)'
+     deletes all 0 bits on the left of a, setting a to 1010110.
+
+`a.right_trim(0)'
+     deletes all trailing 0 bits of a, setting a to 0101011.
+
+`cat(x, y, z)'
+     A faster way to say z = x + y.
+
+`diff(x, y, z)'
+     A faster way to say z = x - y.
+
+`and(x, y, z)'
+     A faster way to say z = x & y.
+
+`or(x, y, z)'
+     A faster way to say z = x | y.
+
+`xor(x, y, z)'
+     A faster way to say z = x ^ y.
+
+`lshift(x, y, z)'
+     A faster way to say z = x << y.
+
+`rshift(x, y, z)'
+     A faster way to say z = x >> y.
+
+`complement(x, z)'
+     A faster way to say z = ~x.
+
+

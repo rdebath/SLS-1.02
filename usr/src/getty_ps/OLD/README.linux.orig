@@ -1,0 +1,254 @@
+[ this file appeared in the getty_ps 2.0.4 package.
+  many things in this file are not correct under the
+  new package.  Please see README.linux and the man
+  pages for more current information.  Also, Steve
+  Robbins is no longer maintaining the package, so
+  please don't bug him with problems... bug me in-
+  stead :) ]
+
+------------------------------------------------------------------------------
+
+                     Paul Sutcliffe's Getty for Linux
+
+
+This is getty_ps for linux version 2.0.4: my fourth release of Mr. Sutcliffe's
+version 2.0 kit.  This one will not dump core with linux 0.98pl5.
+
+This kit came from volume 11 of the comp.sources.misc archives.
+
+This file gives a step-by-step guide to using getty, and lists the changes I
+made to the source code.  If you run into problems, PLEASE read the "Trouble-
+shooting" section after the installation instructions.
+
+Thanks go to Michael Haardt for the changes to make this work with SYSV init.
+If you are using it, take out the -DSIMPLEINIT from the CFLAGS in Makefile.
+
+Steve Robbins
+steve@nyongwa.cam.org
+1 December 1992
+
+
+		Recipe for Installing Getty
+
+NOTE:  The *only* difference between getty and uugetty is that the latter
+creates and checks lockfiles.  So whatever I say about 'getty' applies to
+uugetty, and vice versa (except for lockfiles).
+
+1.  Compile
+You can compile everything as is (with gcc 2.1 or better).  Just do a make.
+This gives you getty and uugetty, which you can copy into /bin.  But
+before you do the copy, I strongly suggest you save the old getty as
+/bin/getty.old or something.
+
+
+2.  Edit /etc/inittab
+At the very least you have to swap the two arguments given to getty.  The 
+device comes first, and the gettydefs label (the first entry on a line in 
+/etc/gettydefs) second.  For the modem ports that you want to be able to call 
+out on, use 'uugetty' instead of getty.  Also note that some systems may have
+still ttys1 for DOS' COM1; most use ttys0 (do 'ls -l /dev/ttys? and check the 
+second number before the date -- 64 is COM1, 65 is COM2, etc).
+
+Here's my /etc/inittab:
+-----------------
+tty1:console:/bin/getty tty1 vc
+[ ... etc. tty1 through tty8 are identical ... ]
+tty8:console:/bin/getty tty8 vc
+ttys1:vt100:/bin/uugetty ttys1 38400
+ttys2:vt100:/bin/uugetty ttys2 2400
+-----------------
+
+I strongly recommend you change one of your virtual consoles to use the
+old getty (/bin/getty.old -- remember not to change the arguments for this
+one!) until you are content that this new getty is working.
+
+
+3.  Create the setup files under /etc
+You need to have /etc/gettydefs and some files in a directory called
+/etc/default.  The ones I use are in the etc/ directory of this archive.
+
+The files in this directory are used to set some variables for getty at
+runtime.  The way it works is that when getty starts up on line ttys3:
+	if /etc/default/getty.ttys3 exists, we use it
+	else if /etc/default/getty exists, we use it
+If uugetty starts up, it looks for /etc/default/uugetty[.ttys3] in the same
+order.
+
+Things that connect to a getty come in two flavours:
+-  modems whose speed matches the connect speed
+-  anything else
+
+The example etc/default/uugetty.ttys2 is one I use for a 2400 bps modem that
+autobauds with the connect speed.
+
+The example etc/default/uugetty.ttys1 is one I use for a high speed modem locked
+at 38400 bps.
+
+Most anything else can get away without a default file.
+
+
+The general form of these files is a bunch of lines like VARIABLE=value.  There
+are a number of variables that can be set (see man/getty.m4 for full 
+explanations).
+
+Here's what's going on for the autobauding line; the fixed one is similar.
+The variables INIT and CONNECT are chat strings (just like uucp uses), which
+are of the form 'expect send expect send...', meaning at the appropriate time,
+getty will wait until it reads the first 'expect string' from the modem, then 
+it will write the first 'send string', and wait for the second expect...
+A bunch of quoted characters are used (see getty.m4 for full list) among which
+are \r=return \n=newline \s=space \d=delay for a bit, and '""' means nothing.
+
+To make things more flexible, you are allowed alternate-send/expects.  Normally,
+if getty times in expect mode, the chat fails.  If the expect string is like
+'expect-altsend-altexpect send' (i.e. separated by '-') then if getty finds
+'expect', it continues on with 'send'; but if it times out, it sends 'altsend',
+and looks for 'altexpect', before continuing on with 'send' (if sucessful) or
+failing.  You can use as many multiple send/expect alternates as you patience
+allows.
+
+Decoding the INIT string, then what happens is that getty waits for nothing,
+sends out "+++[delay]AT<RETURN>", and waits for the modem to say "OK".  (If it
+doesn't work, it will try the sequence again before giving up)  Then it sends
+out "ATM0S0=0" and waits for acknowledgement.  As you see, you can use this
+string to reset any modem parameters you want.
+
+Now, when does getty use these strings?  
+
+When getty starts up, it runs the INIT chat.  A failure here means that getty 
+dies, and will be restarted by init.  This has always worked for me whenever 
+my modem gets into a weird state.  You may want to put 'ATZ' at the beginning 
+of the INIT chat to make sure the modem is in a known state.  However, this 
+means that if someone unplugs your modem power or it gets some hardware fault
+somehow, getty will be continuously respawning.  A check should be made for
+the number of chat failures to stop this, but I haven't had any trouble yet.
+
+If INIT succeeds, getty listens at the port for the WAITFOR string (not a
+chat -- just a plain string).  When it sees this, it runs the CONNECT chat.
+As you see, the one I use sends ATA to pick up the phone and then waits for
+a CONNECT message from the modem.  The special quoted character \A stands for
+the autobauding digits.  If for example the call comes in at 2400 bps, my
+modems sends "CONNECT 2400", which getty detects and sets the port to 2400.
+If the call came in at 1200, getty would set the port to that speed.
+
+There seems to be trouble using MNP5 modems with the simple scheme above.  I 
+don't have one, so I don't know anything about them, but Thomas Ziegler sent 
+me the following:
+
+MNP5 can be switched to a different connect string. I think for speed adjust
+it has to be a different one, because the line has to be set to 4800 baud.
+----------------------------
+INIT="" \r+++\dAT\r OK\r\n-\r+++\dAT\r-OK\r ATL0S0=0\\j0\\n3\\v1\r OK\r
+#	\j0 -disable bps adjust
+#	\n3 -enable MNP5
+#	\v1 -enable modified MNP5 CONNECTstring
+----------------------------
+
+With that initialisation the CONNECT string changes to CONNECT 2400/REL. So a
+minor change to gettydefaults was succesful.
+
+----------------------------
+2400/REL# B4800 ISTRIP CS8 # B4800 SANE -ISTRIP HUPCL #login: #2400
+
+2400# B2400 ISTRIP CS8 # B2400 SANE -ISTRIP HUPCL #login: #1200
+
+1200# B1200 ISTRIP CS8 # B1200 SANE -ISTRIP HUPCL #login: #300
+
+300# B300 ISTRIP CS8 CR1 # B300 HUPCL SANE CR1 #login: #2400/REL 
+----------------------------
+
+
+Smartmodems at fixed baudrate:
+
+Everything in the preceeding section applies.  The small but CRUCIAL difference
+is that since your modem's port rate is fixed, you don't care what the incoming
+speed is, and you certainly don't want getty resetting the port rate to match
+the line rate!  Thus, simply omit the autobauding special character \A:
+----------------------------
+CONNECT="" ATA\r CONNECT
+----------------------------
+Getty flushes the line after the connect chat, so you don't have to worry about
+the speed messing up the username entry.
+
+
+Dumb modems and dedicated terminals:
+
+For the terminals, you could do the same as for virtual consoles, i.e. nothing,
+or you could use dumb modem settings.
+
+For dumb modems, obviously INIT, WAITFOR, and CONNECT are useless.  Instead,
+set WAITCHAR=YES, and getty will wait for one character before locking the
+line (uugetty) and giving the login: prompt.  Getty will cycle through the
+baud rates specified in the gettydefs when the user logging in sends a 
+break character (or maybe carriage return?).
+
+
+			Troubleshooting
+
+If getty is failing in some weird way, the best thing to do is enable
+debugging.  This is done with -D <num> switch on the commandline.  The number
+is octal, and 377 gets you everything.  To do this for gettys started by
+init, put it on the commandline in inittab, then do "kill -hup 1", and kill
+the old getty process.  Now ps should show the debug switch for the getty
+process.  The debug output all shows up in a file in /tmp (the name will
+be obvious).  Check through the output, especially for lockfile and chat
+debugging.
+
+			Changing the settings
+
+If you want to tinker a bit with the settings, you shouldn't have to do 
+anything more drastic than edit three files: tune.h, config.h, and mytermio.h.
+Read Paul's README through for details on the first two.  The latter has a
+few defines for default characters for KILL, QUIT, START etc.
+
+For the tune.h file I would recommend leaving SETTERM undefined.  If you 
+define it, you have to specify the terminal type on the command line, or it 
+will be set to 'unknown'.  If left undefined, the terminal type comes from 
+the inittab line.  All you should want to change is the Telebit stuff, should 
+you possess such a beast.
+
+
+			What I did to the source code
+
+Changes required to make it work under linux:
+
+- stuck in #ifndef __STDC__ around some declarations of stuff in header files
+- cast AUTOBD definition to (char), because gcc's are signed
+- sets the VMIN entry in struct termio to 1 after login, because I found
+  that things like 'more' didn't work otherwise
+- fflush(stdout) after "login:"
+- created 'mytermio.h' to hold all the CKILL, CNULL, etc definitions,
+  included by 'getty.h'
+- removed the code to check for an INIT_PROCESS in the wtmp file, because
+  linux's init doesn't put one there
+- put it back in, because SYS V init does and getty crashes due to a null
+  pointer reference. (u31b3hs)
+- added a few #ifdef DEBUG to make #undef DEBUG work. (u31b3hs)
+- getty doesn't change init id if any (u31b3hs)
+
+There were also a bunch of bugs which I fixed.  Very briefly they are:
+
+- changed the handling of gettdefs so that it would ignore comment lines
+  properly
+- fixed a debug output, so that the username is printed, rather than the
+  pointer
+- moved a line so that one-character WAITFOR strings work
+- fixed default file reading so that it handled comment lines properly
+- escaped the '\'s in DEF_CONNECT string
+- multiple expect/send strings didn't work
+- moved the utmp/wtmp update ahead of WAITFOR stuff
+- changing chat delay should work
+- debug output no longer goes to stdout before the debug file is open
+- fixed omission of "r:" in getopt() call
+
+A few behaviours that I changed:
+
+- changed the @D date style from '28/5/92' to '28 May 92'
+- removed the code to display the system name if no default file is present
+- if BOTHPID is defined, a binary read of lockfiles is attempted after an
+  ascii read fails
+- added option of turning off stty bits in /etc/gettydefs, by using '-',
+  so SANE -ISTRIP turns on the SANE things, but then turns off ISTRIP
+- changed to termios instead of termio, and put all the flags from <termios.h>
+  into table.c
+

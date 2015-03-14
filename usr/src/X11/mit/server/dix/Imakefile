@@ -1,0 +1,66 @@
+XCOMM $Header: /home/x_cvs/mit/server/dix/Imakefile,v 1.5 1992/09/01 12:23:53 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.37 91/07/16 22:54:10 gildea Exp $
+#include <Server.tmpl>
+
+SRCS = atom.c colormap.c cursor.c devices.c dispatch.c dixutils.c events.c \
+	extension.c gc.c globals.c glyphcurs.c grabs.c \
+	main.c property.c resource.c swaprep.c swapreq.c \
+	tables.c window.c initatoms.c dixfonts.c dixfonts_m.c
+OBJS = atom.o colormap.o cursor.o devices.o dispatch.o dixutils.o events.o \
+	extension.o gc.o globals.o glyphcurs.o grabs.o \
+	main.o property.o resource.o swaprep.o swapreq.o \
+	tables.o window.o initatoms.o
+
+    INCLUDES = -I. -I../include -I$(INCLUDESRC) -I$(FONTSRC)/include
+    LINTLIBS = ../os/llib-los.ln
+
+/*
+ * The following configuration parameters may be set in the appropriate
+ * .macros files or site.def in the directory util/imake.includes/:
+ *
+ *     DefaultFontPath                COMPILEDDEFAULTFONTPATH
+ *     DefaultRGBDatabase             RGB_DB
+ *
+ * The sample util/imake.includes/Imake.tmpl will provide generic defaults.
+ * The values in site.h are simply a last line of defense and should not be
+ * changed.
+ */
+
+#ifdef DefaultFontPath
+DEFAULTFONTPATH = DefaultFontPath
+SITE_FONT_PATH = -DCOMPILEDDEFAULTFONTPATH=\"$(DEFAULTFONTPATH)\"
+#endif
+
+#ifdef DefaultRGBDatabase
+DEFAULTRGBDATABASE = DefaultRGBDatabase
+   SITE_RGB_DB = -DRGB_DB=\"$(DEFAULTRGBDATABASE)\"
+#endif
+
+#ifdef DefaultDisplayClass
+DEFAULTDISPLAYCLASS = DefaultDisplayClass
+   SITE_DISPLAY_CLASS = -DCOMPILEDDISPLAYCLASS=\"$(DEFAULTDISPLAYCLASS)\"
+#endif
+
+SITE_DEFINES = $(SITE_FONT_PATH) $(SITE_RGB_DB) $(SITE_DISPLAY_CLASS)
+
+
+NormalLibraryObjectRule()
+NormalLibraryTarget(dix,$(OBJS))
+LintLibraryTarget(dix,$(SRCS))
+NormalLintTarget($(SRCS))
+
+all:: dixfonts.o dixfonts_m.o
+
+SpecialObjectRule(globals.o, $(ICONFIGFILES), $(SITE_DEFINES))
+ObjectFromSpecialSource(dixfonts_m,dixfonts,-DX386MONOVGA)
+
+InstallLinkKitLibrary(dix,$(LINKKITDIR)/lib)
+InstallLinkKitNonExecFile(dixfonts.o,$(LINKKITDIR)/lib)
+InstallLinkKitNonExecFile(dixfonts_m.o,$(LINKKITDIR)/lib)
+
+#if HasSaberC
+saber_src:
+	XCOMM load $(CFLAGS) $(SITE_DEFINES) $(SRCS)
+#endif
+
+DependTarget()

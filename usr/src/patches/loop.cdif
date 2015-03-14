@@ -1,0 +1,463 @@
+diff -cr --new-file linux/fs/Makefile linux/fs/Makefile
+*** linux/fs/Makefile	Sun Mar  7 16:21:10 1993
+--- linux/fs/Makefile	Fri Mar 19 21:06:39 1993
+***************
+*** 44,50 ****
+  
+  OBJS=	open.o read_write.o inode.o devices.o file_table.o buffer.o super.o \
+  	block_dev.o stat.o exec.o pipe.o namei.o fcntl.o ioctl.o \
+! 	select.o fifo.o locks.o filesystems.o
+  
+  all: fs.o filesystems.a
+  
+--- 47,53 ----
+  
+  OBJS=	open.o read_write.o inode.o devices.o file_table.o buffer.o super.o \
+  	block_dev.o stat.o exec.o pipe.o namei.o fcntl.o ioctl.o \
+! 	select.o fifo.o locks.o filesystems.o loop.o
+  
+  all: fs.o filesystems.a
+  
+diff -cr --new-file linux/fs/buffer.c linux/fs/buffer.c
+*** linux/fs/buffer.c	Sat Mar 13 16:02:50 1993
+--- linux/fs/buffer.c	Sun Mar 21 02:55:31 1993
+***************
+*** 23,29 ****
+--- 23,30 ----
+  #include <linux/kernel.h>
+  #include <linux/string.h>
+  #include <linux/locks.h>
++ #include <linux/loop.h>
+  #include <linux/errno.h>
+  
+  #include <asm/system.h>
+  #include <asm/io.h>
+***************
+*** 311,316 ****
+--- 312,323 ----
+  	int buffers;
+  	static int grow_size = 0;
+  
++ #if 0
++ 	if (MAJOR(dev) == LOOP_MAJOR || MAJOR(dev) == 3)
++ 		printk("getblk 0x%04X, %d, size=%d\n",dev,block,size);
++ #endif
++ 	while (MAJOR(dev) == LOOP_MAJOR)
++ 		if (loop_trans(&dev,&block)) break;
+  repeat:
+  	bh = get_hash_table(dev, block, size);
+  	if (bh) {
+diff -cr --new-file linux/fs/ext/inode.c linux/fs/ext/inode.c
+*** linux/fs/ext/inode.c	Sun Feb 14 12:47:43 1993
+--- linux/fs/ext/inode.c	Sun Mar 21 04:25:04 1993
+***************
+*** 265,271 ****
+  repeat:
+  	tmp = *p;
+  	if (tmp) {
+! 		result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
+  		if (tmp == *p) {
+  			brelse(bh);
+  			return result;
+--- 265,271 ----
+  repeat:
+  	tmp = *p;
+  	if (tmp) {
+! 		result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
+  		if (tmp == *p) {
+  			brelse(bh);
+  			return result;
+***************
+*** 282,288 ****
+  		brelse(bh);
+  		return NULL;
+  	}
+! 	result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
+  	if (*p) {
+  		ext_free_block(inode->i_sb,tmp);
+  		brelse(result);
+--- 282,288 ----
+  		brelse(bh);
+  		return NULL;
+  	}
+! 	result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
+  	if (*p) {
+  		ext_free_block(inode->i_sb,tmp);
+  		brelse(result);
+diff -cr --new-file linux/fs/ext2/inode.c linux/fs/ext2/inode.c
+*** linux/fs/ext2/inode.c	Sat Mar  6 20:41:05 1993
+--- linux/fs/ext2/inode.c	Sun Mar 21 04:25:17 1993
+***************
+*** 456,462 ****
+  repeat:
+  	tmp = *p;
+  	if (tmp) {
+! 		result = getblk (bh->b_dev, tmp, blocksize);
+  		if (tmp == *p) {
+  			brelse (bh);
+  			return result;
+--- 456,462 ----
+  repeat:
+  	tmp = *p;
+  	if (tmp) {
+! 		result = getblk (inode->i_dev, tmp, blocksize);
+  		if (tmp == *p) {
+  			brelse (bh);
+  			return result;
+***************
+*** 476,482 ****
+  		brelse (bh);
+  		return NULL;
+  	}
+! 	result = getblk (bh->b_dev, tmp, blocksize);
+  	if (*p) {
+  		ext2_free_block (inode->i_sb, tmp);
+  		brelse (result);
+--- 476,482 ----
+  		brelse (bh);
+  		return NULL;
+  	}
+! 	result = getblk (inode->i_dev, tmp, blocksize);
+  	if (*p) {
+  		ext2_free_block (inode->i_sb, tmp);
+  		brelse (result);
+diff -cr --new-file linux/fs/loop.c linux/fs/loop.c
+*** linux/fs/loop.c
+--- linux/fs/loop.c	Sat Mar 20 15:53:47 1993
+***************
+*** 0 ****
+--- 1,95 ----
++ /* Loop devices. They're used to mount regular files as file systems. */
++ 
++ /* Written 1992,1993 by Werner Almesberger */
++ 
++ #include <asm/segment.h>
++ #include <linux/kernel.h>
++ #include <linux/sched.h>
++ #include <linux/fs.h>
++ #include <linux/loop.h>
++ #include <linux/errno.h>
++ 
++ 
++ static struct loop {
++ 	struct inode *inode;
++ 	unsigned long last_error;
++ } loops[MAX_LOOPS];
++ 
++ 
++ static struct file_operations loop_fops = { NULL, NULL, NULL, NULL, NULL, NULL,
++     NULL, NULL, NULL };
++ 
++ 
++ void loop_init(void)
++ {
++ 	int i;
++ 
++ 	for (i = 0; i < MAX_LOOPS; i++) loops[i].inode = NULL;
++ 	if (register_blkdev(LOOP_MAJOR,"loop",&loop_fops)) {
++ 		printk("Unable to get major %d for loop\n",LOOP_MAJOR);
++ 		return;
++ 	}
++ }
++ 
++ 
++ int loop_getdev(struct inode *inode)
++ {
++ 	int i;
++ 
++ 	if (!inode->i_op || !inode->i_op->bmap) return -EINVAL;
++ 	for (i = 0; i < MAX_LOOPS; i++)
++ 		if (loops[i].inode == inode) return -EBUSY;
++ 	for (i = 0; i < MAX_LOOPS; i++)
++ 		if (!loops[i].inode) {
++ 			loops[i].inode = inode;
++ 			loops[i].last_error = 0;
++ 			return (LOOP_MAJOR << 8) | i;
++ 		}
++ 	return -ENODEV;
++ }
++ 
++ 
++ int loop_finddev(struct inode *inode)
++ {
++ 	int i;
++ 
++ 	for (i = 0; i < MAX_LOOPS; i++)
++ 		if (loops[i].inode == inode) return (LOOP_MAJOR << 8) | i;
++ 	return -EINVAL;
++ }
++ 
++ 
++ void loop_putdev(dev_t dev)
++ {
++ 	int loop;
++ 
++ 	if (MAJOR(dev) != LOOP_MAJOR) panic("loop_dropdev: bad major number");
++ 	loop = MINOR(dev);
++ 	if (loop < 0 || loop >= MAX_LOOPS || !loops[loop].inode)
++ 		panic("loop_dropdev: bad minor number");
++ 	iput(loops[loop].inode);
++ 	loops[loop].inode = NULL;
++ }
++ 
++ 
++ int loop_trans(dev_t *dev,int *block)
++ {
++ 	int loop,this;
++ 
++ 	if (MAJOR(*dev) != LOOP_MAJOR) panic("loop_trans: bad major number");
++ 	loop = MINOR(*dev);
++ 	if (loop < 0 || loop >= MAX_LOOPS || !loops[loop].inode)
++ 		panic("loop_trans: bad minor number");
++ 	if (*block < 0 || *block >= ((loops[loop].inode->i_size+BLOCK_SIZE-1) >>
++ 	    BLOCK_SIZE_BITS)) {
++ 		if (loops[loop].last_error+HZ >= jiffies) {
++ 			printk("loop: access to invalid block %d\n",*block);
++ 			loops[loop].last_error = jiffies;
++ 		}
++ 		return -1;
++ 	}
++ 	if (!(this = bmap(loops[loop].inode,*block))) return -1;
++ 	*block = this;
++ 	*dev = loops[loop].inode->i_dev;
++ 	return 0;
++ }
+diff -cr --new-file linux/fs/minix/inode.c linux/fs/minix/inode.c
+*** linux/fs/minix/inode.c	Sun Feb 28 16:50:43 1993
+--- linux/fs/minix/inode.c	Sun Mar 21 04:25:34 1993
+***************
+*** 239,245 ****
+  repeat:
+  	tmp = *p;
+  	if (tmp) {
+! 		result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
+  		if (tmp == *p) {
+  			brelse(bh);
+  			return result;
+--- 239,245 ----
+  repeat:
+  	tmp = *p;
+  	if (tmp) {
+! 		result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
+  		if (tmp == *p) {
+  			brelse(bh);
+  			return result;
+***************
+*** 256,262 ****
+  		brelse(bh);
+  		return NULL;
+  	}
+! 	result = getblk(bh->b_dev, tmp, BLOCK_SIZE);
+  	if (*p) {
+  		minix_free_block(inode->i_sb,tmp);
+  		brelse(result);
+--- 256,262 ----
+  		brelse(bh);
+  		return NULL;
+  	}
+! 	result = getblk(inode->i_dev, tmp, BLOCK_SIZE);
+  	if (*p) {
+  		minix_free_block(inode->i_sb,tmp);
+  		brelse(result);
+diff -cr --new-file linux/fs/super.c linux/fs/super.c
+*** linux/fs/super.c	Sat Mar 13 10:05:45 1993
+--- linux/fs/super.c	Sat Mar 20 03:03:53 1993
+***************
+*** 10,15 ****
+--- 10,16 ----
+  #include <linux/config.h>
+  #include <linux/sched.h>
+  #include <linux/kernel.h>
++ #include <linux/loop.h>
+  #include <linux/stat.h>
+  #include <linux/errno.h>
+  #include <linux/string.h>
+***************
+*** 255,263 ****
+  		memset(&dummy_inode, 0, sizeof(dummy_inode));
+  		dummy_inode.i_rdev = dev;
+  		inode = &dummy_inode;
+! 	} else {
+  		iput(inode);
+  		return -EINVAL;
+  	}
+  	if (MAJOR(dev) >= MAX_BLKDEV) {
+  		iput(inode);
+--- 256,269 ----
+  		memset(&dummy_inode, 0, sizeof(dummy_inode));
+  		dummy_inode.i_rdev = dev;
+  		inode = &dummy_inode;
+! 	} else if (!S_ISREG(inode->i_mode)) {
+  		iput(inode);
+  		return -EINVAL;
++ 	} else if ((retval = loop_finddev(inode)) >= 0)
++ 		dev = retval;
++ 	else {
++ 		iput(inode);
++ 		return retval;
+  	}
+  	if (MAJOR(dev) >= MAX_BLKDEV) {
+  		iput(inode);
+***************
+*** 275,280 ****
+--- 281,287 ----
+  	if (retval)
+  		return retval;
+  	sync_dev(dev);
++ 	if (MAJOR(dev) == LOOP_MAJOR) loop_putdev(dev);
+  	return 0;
+  }
+  
+***************
+*** 388,405 ****
+  		retval = namei(dev_name,&inode);
+  		if (retval)
+  			return retval;
+! 		if (!S_ISBLK(inode->i_mode)) {
+  			iput(inode);
+  			return -ENOTBLK;
+! 		}
+! 		if (IS_NODEV(inode)) {
+! 			iput(inode);
+! 			return -EACCES;
+! 		}
+! 		dev = inode->i_rdev;
+! 		if (MAJOR(dev) >= MAX_BLKDEV) {
+  			iput(inode);
+! 			return -ENXIO;
+  		}
+  	} else {
+  		if (!(dev = get_unnamed_dev()))
+--- 395,419 ----
+  		retval = namei(dev_name,&inode);
+  		if (retval)
+  			return retval;
+! 		if (S_ISBLK(inode->i_mode)) {
+! 			if (IS_NODEV(inode)) {
+! 				iput(inode);
+! 				return -EACCES;
+! 			}
+! 			dev = inode->i_rdev;
+! 			if (MAJOR(dev) >= MAX_BLKDEV) {
+! 				iput(inode);
+! 				return -ENXIO;
+! 			}
+! 		} else if (!S_ISREG(inode->i_mode)) {
+  			iput(inode);
+  			return -ENOTBLK;
+! 		} else if ((retval = loop_getdev(inode)) < 0) {
+  			iput(inode);
+! 			return retval;
+! 		} else {
+! 			dev = retval;
+! 			retval = 0;
+  		}
+  	} else {
+  		if (!(dev = get_unnamed_dev()))
+***************
+*** 428,438 ****
+  			memcpy_fromfs((void *) page,data,i);
+  		}
+  	}
+! 	retval = do_mount(dev,dir_name,t,flags,(void *) page);
+  	free_page(page);
+  	if (retval && fops && fops->release)
+  		fops->release(inode,NULL);
+! 	iput(inode);
+  	return retval;
+  }
+  
+--- 442,453 ----
+  			memcpy_fromfs((void *) page,data,i);
+  		}
+  	}
+! 	if ((retval = do_mount(dev,dir_name,t,flags,(void *) page)) &&
+! 	    MAJOR(dev) == LOOP_MAJOR) loop_putdev(dev);
+  	free_page(page);
+  	if (retval && fops && fops->release)
+  		fops->release(inode,NULL);
+! 	if (MAJOR(dev) != LOOP_MAJOR) iput(inode);
+  	return retval;
+  }
+  
+diff -cr --new-file linux/fs/xiafs/inode.c linux/fs/xiafs/inode.c
+*** linux/fs/xiafs/inode.c	Sat Mar  6 00:41:39 1993
+--- linux/fs/xiafs/inode.c	Sun Mar 21 04:25:45 1993
+***************
+*** 260,266 ****
+      lp = nr + (u_long *) bh->b_data;
+  repeat:
+      if ((tmp=*lp)) {
+!         result = getblk(bh->b_dev, tmp, XIAFS_ZSIZE(inode->i_sb));
+  	if (tmp == *lp) {
+  	    brelse(bh);
+  	    return result;
+--- 260,266 ----
+      lp = nr + (u_long *) bh->b_data;
+  repeat:
+      if ((tmp=*lp)) {
+!         result = getblk(inode->i_dev, tmp, XIAFS_ZSIZE(inode->i_sb));
+  	if (tmp == *lp) {
+  	    brelse(bh);
+  	    return result;
+***************
+*** 277,283 ****
+          brelse(bh);
+  	return NULL;
+      }
+!     result = getblk(bh->b_dev, tmp, XIAFS_ZSIZE(inode->i_sb));
+      if (*lp) {
+          xiafs_free_zone(inode->i_sb,tmp);
+  	brelse(result);
+--- 277,283 ----
+          brelse(bh);
+  	return NULL;
+      }
+!     result = getblk(inode->i_dev, tmp, XIAFS_ZSIZE(inode->i_sb));
+      if (*lp) {
+          xiafs_free_zone(inode->i_sb,tmp);
+  	brelse(result);
+diff -cr --new-file linux/include/linux/loop.h linux/include/linux/loop.h
+*** linux/include/linux/loop.h
+--- linux/include/linux/loop.h	Sat Mar 20 01:43:32 1993
+***************
+*** 0 ****
+--- 1,13 ----
++ #ifndef _LOOP_H
++ #define _LOOP_H
++ 
++ #define LOOP_MAJOR 13 /* loop device major number */
++ #define MAX_LOOPS   8 /* max. number of loop devices */
++ 
++ void loop_init(void);
++ int loop_getdev(struct inode *inode); /* create loop device */
++ int loop_finddev(struct inode *inode); /* find loop device */
++ void loop_putdev(dev_t dev); /* remove loop device */
++ int loop_trans(dev_t *dev,int *block); /* translate to real params */
++ 
++ #endif
+diff -cr --new-file linux/init/main.c linux/init/main.c
+*** linux/init/main.c	Sat Mar 13 10:06:12 1993
+--- linux/init/main.c	Fri Mar 19 21:29:14 1993
+***************
+*** 64,69 ****
+--- 64,70 ----
+  extern void floppy_init(void);
+  extern void sock_init(void);
+  extern long rd_init(long mem_start, int length);
++ extern void loop_init(void);
+  extern long kernel_mktime(struct mktime * time);
+  extern unsigned long simple_strtoul(const char *cp,char **endp,unsigned int
+      base);
+***************
+*** 253,259 ****
+--- 254,261 ----
+  	time_init();
+  	floppy_init();
+  	sock_init();
++ 	loop_init();
+  	ipc_init();
+  	sti();
+  	/*
+  	 * check if exception 16 works correctly.. This is truly evil
+

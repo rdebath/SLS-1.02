@@ -1,0 +1,43 @@
+#!/bin/csh -f
+set HOSTNAME=thumper.bellcore.com
+set DIRNAME=pub/nsb
+set PREFIX="mm.patch."
+
+if ($#argv < 2 || $#argv > 5) then
+	echo Usage:  patch-metamail source-tree-root patch-number [hostname [dirname [prefix]]]
+	exit -1
+endif
+
+set TREEROOT=$1
+set PATCHNUMBER=$2
+if ($#argv > 2) set HOSTNAME=$3
+if ($#argv > 3) set DIRNAME=$4
+if ($#argv > 4) set PREFIX=$5
+	
+echo WARNING:  This program, if allowed to do so, will attempt to 
+echo install a PATCH file for your metamail sources which are rooted 
+echo in the directory $TREEROOT.
+echo ""
+echo It will use a patch file that it retrieves via anonymous ftp
+echo from the host $HOSTNAME, in the directory $DIRNAME, 
+echo with filenames starting with ${PREFIX}.
+echo ""
+echo -n "Do you want to install the patch in directory $TREEROOT [y/n] ? "
+set ans=$<
+if ($ans == "y" || $ans == "Y") then
+    cd $TREEROOT
+    set ident=`whoami`@`hostname`
+    echo Using anonymous ftp with password $ident
+    ftp -n <<!
+open $HOSTNAME
+user anonymous $ident
+cd $DIRNAME
+binary
+get ${PREFIX}${PATCHNUMBER}
+quit
+!
+    patch -p < ${PREFIX}${PATCHNUMBER}
+else
+	echo Patch not installed
+endif
+

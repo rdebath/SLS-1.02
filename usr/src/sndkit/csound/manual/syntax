@@ -1,0 +1,65 @@
+.TL
+2. SYNTAX OF THE ORCHESTRA
+.PP
+An orchestra statement in \fBCsound\fR has the format:
+.i
+label:   result    opcode    argument1, argument2,...	    ;comments
+.e
+The label is optional and identifies the basic statement that follows as
+the potential target of a go-to operation (see Program Control Statements).
+A label has no effect on the statement per se.
+
+Comments are optional and are for the purpose of letting the user
+document his orchestra code.  Comments always begin with a semicolon (;)
+and extend to the end of the line.
+
+The remainder (result, opcode, and arguments) form the \fIbasic statement\fR.
+This also is optional, i.e. a line may have only a label or comment or be
+entirely blank.  If present, the basic statement must be complete on one line.
+The opcode determines the operation to be performed; 
+it usually takes some number of input values (arguments);
+and it usually has a result field variable to which it sends output values
+at some fixed rate.  There are four possible rates:
+.i
+1) once only, at orchestra setup time (effectively a permanent assignment);
+2) once at the beginning of each note (at initialization (init) time:  \fII-rate\fR);
+3) once every performance-time control loop (perf time control rate, or \fIK-rate\fR);
+4) once each sound sample of every control loop (perf time audio rate, or \fIA-rate\fR).
+.e
+.sp 2
+STATEMENT TYPES
+
+An orchestra program in \fBCsound\fR is comprised of
+\fIorchestra header statements\fR which set various global parameters,
+followed by a number of \fIinstrument blocks\fR
+representing different instrument types.
+An instrument block, in turn, is comprised of \fIordinary statements\fR
+that set values, control the logical flow, or invoke the various
+signal processing subroutines that lead to audio output.
+
+An \fIorchestra header statement\fR operates once only, at orchestra setup time.
+It is most commonly an assignment of some value to a
+\fIglobal reserved symbol\fR, e.g.  sr = 20000.
+All orchestra header statements belong to a pseudo instrument 0,
+an \fIinit\fR pass of which is run prior to all other instruments
+at score time 0.  Any \fIordinary statement\fR can serve as an orchestra
+header statement, eg. gifreq = cpspch(8.09), provided it is an init-time only
+operation.
+
+An \fIordinary statement\fR
+runs at either init time or performance time or both.
+Operations which produce a result formally run at the rate of that result
+(that is, at init time for I-rate results; at performance time for K- and
+A-rate results), with the sole exception of the \fBinit\fR opcode (q.v.).
+Most \fBgenerators\fR and \fBmodifiers\fR, however, produce signals that
+depend not only on the instantaneous value of their arguments but also on
+some preserved internal state.  These performance-time units therefore have
+an implicit init-time component to set up that state.  The run time of an
+operation which produces no result is apparent in the opcode.
+
+Arguments are values that are sent to an operation.  Most arguments will
+accept arithmetic expressions composed of constants, variables,
+reserved globals, value converters,
+arithmetic operations and conditional values; these are
+described below.
+.bp

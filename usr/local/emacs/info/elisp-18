@@ -1,0 +1,1198 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Commands for Insertion,  Next: Deletion,  Prev: Insertion,  Up: Text
+
+User-Level Insertion Commands
+=============================
+
+   This section describes higher-level commands for inserting text,
+commands intended primarily for the user but useful also in Lisp
+programs.
+
+ * Command: insert-buffer FROM-BUFFER-OR-NAME
+     This function inserts the entire contents of FROM-BUFFER-OR-NAME
+     (which must exist) into the current buffer after point.  It
+     leaves the mark after the inserted text.  The value is
+     unpredictable.
+
+ * Command: quoted-insert COUNT
+     This function reads the next input character verbatim and
+     inserts it.  It is primarily useful for inserting control
+     characters.  You may also type up to 3 octal digits, to insert a
+     character with that code.
+
+     The argument COUNT is the number of these characters to insert. 
+     An error is signaled if COUNT is not a number.
+
+     This function is primarily for interactive use; there is no
+     reason to use it in a program except for installing it on a
+     keymap.  It returns `nil'.
+
+ * Command: self-insert-command COUNT
+     This function inserts the last character typed COUNT times and
+     returns `nil'.  This is the function that most printing
+     characters are bound to.  In routine use, `self-insert-command'
+     is the most frequently called function in Emacs, but programs
+     rarely use it except to install it on a keymap.
+
+     In an interactive call, COUNT is the numeric prefix argument.
+
+     This function calls `auto-fill-hook' if the current column
+     number is greater than the value of `fill-column' and the
+     character inserted is a space (*note Auto Filling::.).
+
+     This function performs abbrev expansion if Abbrev mode (*note
+     Abbrevs::.) is enabled and the inserted character does not have
+     word-constituent syntax (*note Syntax Class Table::.).
+
+     This function is also responsible for calling the
+     `blink-paren-hook' when the inserted character has close
+     parenthesis syntax (*note Blinking::.).
+
+ * Command: newline &optional NUMBER-OF-NEWLINES
+     This function inserts newlines into the current buffer before
+     point.  If NUMBER-OF-NEWLINES is supplied, that many newline
+     characters are inserted.
+
+     In Auto Fill mode, `newline' can break the preceding line if
+     NUMBER-OF-NEWLINES is not supplied.  When this happens, it
+     actually inserts two newlines at different places: one at point,
+     and another earlier in the line.  `newline' does not auto-fill
+     if NUMBER-OF-NEWLINES is non-`nil'.
+
+     The value returned is `nil'.  In an interactive call, COUNT is
+     the numeric prefix argument.
+
+ * Command: split-line
+     This function splits the current line, moving the portion of the
+     line after point down vertically, so that it is on the next line
+     directly below where it was before.  Whitespace is inserted as
+     needed at the beginning of the lower line, using the `indent-to'
+     function.  `split-line' returns the position of point.
+
+     Programs hardly ever use this function.
+
+ * Command: open-line COUNT
+     This function inserts COUNT newlines into the current buffer
+     after point, leaving point where it was.
+
+     In an interactive call, COUNT is the numeric prefix argument. 
+     Programs hardly ever use this function.  The value is
+     unpredictable.
+
+ * Command: overwrite-mode ARGUMENT
+     This function turns Overwrite mode on or off.  If ARGUMENT is
+     `nil' then the mode is toggled.  Otherwise, if ARGUMENT is a
+     positive number (greater than zero), then the mode is turned on;
+     any other argument turns it off.
+
+     When Overwrite mode is on, self-inserting graphic characters
+     replace existing text character for character, and do not push
+     the existing text to the right.
+
+     This function affects primarily `self-insert-command'.
+
+     In an interactive call, ARGUMENT is set to the raw prefix
+     argument.  The return value of `overwrite-mode' is unpredictable.
+
+ * Variable: overwrite-mode
+     Overwrite mode is in effect when this variable is non-`nil'.  It
+     is automatically made buffer-local when set in any fashion.
+
+
+
+File: elisp,  Node: Deletion,  Next: User-Level Deletion,  Prev: Commands for Insertion,  Up: Text
+
+Deletion of Text
+================
+
+   All of the deletion functions operate on the current buffer, and
+all return a value of `nil'.  In addition to these functions, you can
+also delete text using the "kill" functions that save it in the kill
+ring for the user; some of these functions save text in the kill ring
+in some cases but not in the usual case.  *Note The Kill Ring::.
+
+ * Function: erase-buffer
+     This function deletes the entire text of the current buffer,
+     leaving it empty.  If the buffer is read-only, it signals a
+     `buffer-read-only' error.  Otherwise the text is deleted with no
+     confirmation required.  The value is always `nil'.
+
+     As a safety measure, this function is not interactively callable.
+
+ * Command: delete-region START END
+     This function deletes the text in the current buffer in the
+     region defined by START and END.  The value is `nil'.
+
+ * Command: delete-char COUNT &optional KILLP
+     This function deletes COUNT characters directly after point, or
+     before point if COUNT is negative.  If KILLP is non-`nil', then
+     it saves the deleted characters in the kill ring.
+
+     In an interactive call, COUNT is the numeric prefix argument,
+     and KILLP is the unprocessed prefix argument.  Therefore, if a
+     prefix argument is supplied, the text is saved in the kill ring.
+     If no prefix argument is supplied, then one character is
+     deleted, but not saved in the kill ring.
+
+     The value returned is always `nil'.
+
+ * Command: delete-backward-char COUNT &optional KILLP
+     This function deletes COUNT characters directly before point, or
+     after point if COUNT is negative.  If KILLP is non-`nil', then
+     it saves the deleted characters in the kill ring.
+
+     In an interactive call, COUNT is the numeric prefix argument,
+     and KILLP is the unprocessed prefix argument.  Therefore, if a
+     prefix argument is supplied, the text is saved in the kill ring.
+     If no prefix argument is supplied, then one character is
+     deleted, but not saved in the kill ring.
+
+     The value returned is always `nil'.
+
+ * Command: backward-delete-char-untabify COUNT &optional KILLP
+     This function deletes COUNT characters backward, changing tabs
+     into spaces.  When the next character to be deleted is a tab, it
+     is first replaced with the proper number of spaces to preserve
+     alignment and then one of those spaces is deleted instead of the
+     tab.  If KILLP is non-`nil', then the command saves the deleted
+     characters in the kill ring.
+
+     If COUNT is negative, then tabs are not changed to spaces, and
+     the characters are deleted by calling `delete-backward-char'
+     with COUNT.
+
+     In an interactive call, COUNT is the numeric prefix argument,
+     and KILLP is the unprocessed prefix argument.  Therefore, if a
+     prefix argument is supplied, the text is saved in the kill ring.
+     If no prefix argument is supplied, then one character is
+     deleted, but not saved in the kill ring.
+
+     The value returned is always `nil'.
+
+
+
+File: elisp,  Node: User-Level Deletion,  Next: The Kill Ring,  Prev: Deletion,  Up: Text
+
+User-Level Deletion Commands
+============================
+
+   This section describes higher-level commands for deleting text,
+commands intended primarily for the user but useful also in Lisp
+programs.
+
+ * Command: delete-horizontal-space
+     This function deletes all spaces and tabs around point.  It
+     returns `nil'.
+
+     In the following examples, assume that `delete-horizontal-space'
+     is called four times, once on each line, with point between the
+     second and third characters on the line.
+
+          ---------- Buffer: foo ----------
+          I -!-thought
+          I -!-     thought
+          We-!- thought
+          Yo-!-u thought
+          ---------- Buffer: foo ----------
+          
+          (delete-horizontal-space)   ; Four times.
+               => nil
+          
+          ---------- Buffer: foo ----------
+          Ithought
+          Ithought
+          Wethought
+          You thought
+          ---------- Buffer: foo ----------
+
+ * Command: delete-indentation &optional JOIN-FOLLOWING-P
+     This function joins the line point is on to the previous line,
+     deleting any whitespace at the join and in some cases replacing
+     it with one space.  If JOIN-FOLLOWING-P is non-`nil',
+     `delete-indentation' joins this line to following line instead. 
+     The value is `nil'.
+
+     In the example below, point is located on the line starting
+     `events', and it makes no difference if there are trailing
+     spaces in the preceding line.
+
+          ---------- Buffer: foo ----------
+          When in the course of human
+          -!-    events, it becomes necessary
+          ---------- Buffer: foo ----------
+          
+          (delete-indentation)
+               => nil
+          
+          ---------- Buffer: foo ----------
+          When in the course of human-!- events, it becomes necessary
+          ---------- Buffer: foo ----------
+
+     After the lines are joined, the function `fixup-whitespace' is
+     responsible for deciding whether to leave a space at the junction.
+
+ * Function: fixup-whitespace
+     This function replaces white space between the objects on either
+     side of point with either one space or no space as appropriate. 
+     It returns `nil'.
+
+     The appropriate amount of space is none at the beginning or end
+     of the line.  Otherwise, it is one space except when point is
+     before a character with close parenthesis syntax or after a
+     character with open parenthesis or expression-prefix syntax. 
+     *Note Syntax Class Table::.
+
+     In the example below, point is at the beginning of the second
+     line when `fixup-whitespace' is called the first time.  It is
+     located directly after the `(' for the second invocation.
+
+          ---------- Buffer: foo ----------
+          This has too many spaces
+          -!-     at the front of this line
+          This has too many spaces at the start of (-!-   this list)
+          ---------- Buffer: foo ----------
+          
+          (fixup-whitespace)
+               => nil
+          (fixup-whitespace)
+               => nil
+          
+          ---------- Buffer: foo ----------
+          This has too many spaces
+          at the front of this line
+          This has too many spaces at the start of (this list)
+          ---------- Buffer: foo ----------
+
+ * Command: just-one-space
+     This command replaces any spaces and tabs around point with a
+     single space.  It returns `nil'.
+
+ * Command: delete-blank-lines
+     This function deletes blank lines surrounding point.  If point
+     is on a blank line with one or more blank lines before or after
+     it, then all but one of them are deleted.  If point is on an
+     isolated blank line, then it is deleted.  If point is on a
+     nonblank line, the command deletes all blank lines following it.
+
+     A blank line is defined as a line containing only tabs and spaces.
+
+     `delete-blank-lines' returns `nil'.
+
+
+
+File: elisp,  Node: The Kill Ring,  Next: Undo,  Prev: User-Level Deletion,  Up: Text
+
+The Kill Ring
+=============
+
+   "Kill" functions delete text like the deletion functions, but save
+it so that the user can reinsert it by "yanking".  Most of these
+functions have `kill-' in their name.  By contrast, the functions
+whose names start with `delete-' normally do not save text for
+yanking (though they can still be undone); these are "deletion"
+functions.
+
+   Most of the kill commands are primarily for interactive use, and
+are not described here.  What we do describe are the functions
+provided for use in writing such commands.  When deleting text for
+internal purposes within a Lisp function, you should normally use
+deletion functions, so as not to disturb the kill ring contents. 
+*Note Deletion::.
+
+   Emacs saves the last several batches of killed text in a list.  We
+call it the "kill ring" because, in yanking, the elements are
+considered to be in a cyclic order.  The list is kept in the variable
+`kill-ring', and can be operated on with the usual functions for
+lists; there are also specialized functions, described in this
+section, which treat it as a ring.
+
+   Some people think use of the word "kill" in Emacs is unfortunate,
+since it refers to processes which specifically *do not* destroy the
+entities "killed".  This is in sharp contrast to ordinary life, in
+which death is permanent and "killed" entities do not come back to
+life.  Therefore, other metaphors have been proposed.  For example,
+the term "cut ring" makes sense to people who, in pre-computer days,
+used scissors and paste to cut up and rearrange manuscripts. 
+However, it would be difficult to change now.
+
+* Menu:
+
+* Data in Kill Ring::   What text looks like in the kill ring.
+* Kill Functions::      Functions that kill text.
+* Yank Commands::       Commands that access the kill ring.
+* Kill Ring Internals:: Variables that hold kill-ring data.
+
+ 
+
+File: elisp,  Node: Data in Kill Ring,  Next: Kill Functions,  Prev: The Kill Ring,  Up: The Kill Ring
+
+Data Structures in the Kill Ring
+--------------------------------
+
+   Killed text is kept as strings in a list.  A short kill ring, for
+example, might look like this:
+
+     ("some text" "a different piece of text" "yet more text")
+
+   Functions that push more text into the list make the text in
+question into a string (using `buffer-substring'), add the string to
+the front of the list, and then look at the length of the list.  If
+the length is longer than the value of `kill-ring-max', the last
+entry in the list is dropped off when the new entry is put on.
+
+   The `kill-ring-yank-pointer' global variable points to the kill
+ring entry that a "yank" function will copy.  Several functions move
+this pointer from one entry to another, and a user can thereby
+specify which entry to copy.
+
+   Here is a diagram that shows the variable `kill-ring-yank-pointer'
+pointing to the second entry in the kill ring `("some text" "a
+different piece of text" "yet more text")'.
+
+     kill-ring       kill-ring-yank-pointer
+       |               |
+       |     ___ ___    --->  ___ ___      ___ ___
+        --> |___|___|------> |___|___|--> |___|___|--> nil
+              |                |            |            
+              |                |            |            
+              |                |             -->"yet more text" 
+              |                |
+              |                 --> "a different piece of text" 
+              |
+               --> "some text"
+
+(This circumstance occurs after `C-y' (`yank') is immediately
+followed by `M-y' (`yank-pop').)
+
+   Both `kill-ring' and `kill-ring-yank-pointer' are Lisp variables
+whose values are normally lists.  The word "pointer" in the name of
+the `kill-ring-yank-pointer' indicates that the variable's purpose is
+to identify one element of the list that will be used by default by
+the next yank command.  The value of `kill-ring-yank-pointer' is
+always `eq' to one of the links in the kill ring list.  The element
+it identifies is the CAR of that link.
+
+   Moving `kill-ring-yank-pointer' to a different link is called
+"rotating the kill ring".  The functions that do this treat the kill
+ring (which is a list) as ring; that is to say, a change that would
+otherwise move the pointer past the end of the list (which would be
+useless) instead moves the pointer to the first link on the list. 
+Likewise, moving back from the first link goes to the last one.
+
+   `kill-region' is the primitive method of killing text.  Any
+command that calls this function is a "kill command" (and should
+probably have the word "kill" in its name).  `kill-region' puts the
+newly killed text in a new element at the beginning of the
+`kill-ring' list, and then sets `kill-ring-yank-pointer' to point to
+the first link of the list, which contains the first element. 
+Consequently, the next `yank' command will yank the text just killed.
+In this situation, `kill-ring' and `kill-ring-yank-pointer' are `eq'
+to each other.
+
+   When kill commands are interwoven with other commands, the killed
+portions of text are put into separate entries in the kill ring.  But
+when two or more kill commands are executed in sequence, the text
+killed by the second (or third, etc.) kill command is appended to the
+text killed by the first command so as to make one entry in the kill
+ring.  The `kill-region' function uses the `last-command' variable to
+keep track of whether the previous was a kill command, and in such
+cases appends the killed text to the most recent entry.
+
+
+
+File: elisp,  Node: Kill Functions,  Next: Yank Commands,  Prev: Data in Kill Ring,  Up: The Kill Ring
+
+Functions for Killing
+---------------------
+
+ * Command: kill-region START END
+     This function kills the text in the region defined by START and
+     END.  The text is deleted but saved in the kill ring.  The value
+     is always `nil'.
+
+     In an interactive call, START and END are point and the mark.
+
+ * Command: kill-line &optional COUNT
+     This function kills the rest of the line following point, not
+     including the newline.  If point is directly before a newline,
+     or if there is only whitespace between point and the newline,
+     then it kills the whitespace and newline.
+
+     If COUNT is supplied, then the command kills that many lines
+     (*including* the newline).  (This makes executing `(kill-line
+     2)' different from executing `(kill-line)' twice.)  If COUNT is
+     negative, then `kill-line' kills lines backwards.
+
+     In an interactive call, COUNT is the raw prefix argument (which
+     then gets converted to a number if non-`nil').  The value is
+     always `nil'.
+
+ * Command: zap-to-char COUNT CHARACTER
+     In Emacs version 18, this function kills the text from point up
+     to *but not including* the specified character.  Thus, if the
+     cursor is at the beginning of this sentence and the character is
+     `s', `Thu' is deleted.  If the argument is 2, `Thus, if the cur'
+     is deleted, up to but not including the `s' in `cursor'.
+
+     In Emacs version 19, this function will kill all text in the
+     region from point up to and including the next COUNT occurrences
+     of CHARACTER.  Thus, in the example shown in the previous
+     paragraph, the terminating `s' *will* be removed.
+
+     The version 18 implementation kills text to the end of the
+     buffer if the specified character is not found, but the version
+     19 implementation will simply signal an error.
+
+     The function scans backward from point if COUNT is negative. 
+     The value is always `nil'.
+
+ * Command: copy-region-as-kill START END
+     This function saves the region defined by START and END on the
+     kill ring, but does not delete the text from the buffer.  It
+     returns `nil'.
+
+     In an interactive call, START and END are point and the mark.
+
+
+
+File: elisp,  Node: Yank Commands,  Next: Kill Ring Internals,  Prev: Kill Functions,  Up: The Kill Ring
+
+Functions for Yanking
+---------------------
+
+ * Command: yank &optional ARG
+     This function inserts the text in the first entry in the kill
+     ring directly before point.  After the yank, the mark is
+     positioned at the beginning and point is positioned after the
+     end of the inserted text.
+
+     If ARG is a list (which occurs interactively when the user types
+     `C-u' with no digits), then `yank' inserts the text as described
+     above, but puts point before the yanked text and puts the mark
+     after it.  If ARG is a number, then `yank' inserts the ARGth
+     most recently killed text.
+
+     `yank' does not alter the contents of the kill ring or rotate it.
+     It returns `nil'.
+
+ * Command: yank-pop ARG
+     This function replaces the just-yanked text with another batch
+     of killed text--another element of the kill ring.
+
+     This command is allowed only immediately after a `yank' or a
+     `yank-pop'.  At such a time, the region contains text that was
+     just inserted by the previous `yank'.  `yank-pop' deletes that
+     text and inserts in its place a different stretch of killed
+     text.  The text that is deleted is not inserted into the kill
+     ring, since it is already in the kill ring somewhere.
+
+     If ARG is `nil', then the existing region contents are replaced
+     with the previous element of the kill ring.  If ARG is numeric,
+     then the ARG'TH previous kill is the replacement.  If ARG is
+     negative, a more recent kill is the replacement.
+
+     The sequence of kills in the kill ring wraps around, so that
+     after the oldest one comes the newest one, and before the newest
+     one goes the oldest.
+
+     The value is always `nil'.
+
+
+
+File: elisp,  Node: Kill Ring Internals,  Prev: Yank Commands,  Up: The Kill Ring
+
+Internals of the Kill Ring
+--------------------------
+
+   This section describes the lower levels of the kill ring.
+
+ * Variable: kill-ring
+     List of killed text sequences, most recently killed first.
+
+ * Variable: kill-ring-yank-pointer
+     This variable's value indicates which element of the kill ring
+     is the "front" of the ring.  More precisely, the value is a
+     sublist of the value of `kill-ring', and its CAR is the kill
+     string at the front of the ring.  Rotating the ring works by
+     changing `kill-ring-yank-pointer', and does not actually change
+     the value of `kill-ring'.
+
+     Commands which do change the kill ring also copy the new kill
+     ring value into this variable.  The effect is to rotate the ring
+     so that the newly killed text is at front.
+
+ * Command: rotate-yank-pointer COUNT
+     This function rotates the kill ring COUNT positions, which means
+     setting `kill-ring-yank-pointer' to some other link in the kill
+     ring list.  It returns the new value of `kill-ring-yank-pointer'.
+
+ * User Option: kill-ring-max
+     The value of this variable is the maximum length to which the
+     kill ring can grow, before elements are thrown away on a
+     first-in, first-out basis.  The default value for
+     `kill-ring-max' is 30.
+
+
+
+File: elisp,  Node: Undo,  Next: Filling,  Prev: The Kill Ring,  Up: Text
+
+Undo
+====
+
+   Most buffers have an "undo stack" which records all changes made
+to the buffer's text so that they can be undone.  (In general, all
+buffers have undo stacks except special-purpose buffers for which
+Emacs assumes that undoing is not useful.)  The size of an undo stack
+is limited, so large changes or a large number of changes cannot be
+undone.
+
+   Undoing an old change is itself a change, and is added to the undo
+stack.  However, you are not limited to undoing just the single most
+recent change; you can keep undoing older and older changes, even as
+the undo's themselves are being added to the stack.
+
+ * Command: undo &optional ARG
+     This is a user-level command to undo some previous changes.  It
+     uses `undo-more' and `undo-start'.  By repeating this command
+     you can undo earlier and earlier changes, until the information
+     in the undo stack is used up.  A numeric argument serves as a
+     repeat count.  The value is unpredictable.
+
+ * Function: undo-boundary
+     This function places a boundary between units of undo.  The undo
+     command stops at such a boundary, and successive undo commands
+     will undo to earlier and earlier boundaries.  The return value
+     is `nil'.
+
+     The editor command loop automatically creates an undo boundary
+     between keystroke commands.  Thus, each undo normally undoes the
+     effects of one command.  Calling this function explicitly is
+     useful for splitting the effects of a command into more than one
+     unit.  For example, `query-replace' calls this function after
+     each replacement so that the user can undo individual
+     replacements one by one.
+
+ * Function: undo-more COUNT
+     This function is used to undo COUNT additional units of undo. 
+     It is not safe if the buffer has been changed in any fashion
+     other than undo since the last call to `undo-start'.  Multiple
+     calls to `undo-more' have a cumulative effect, undoing farther
+     back in time.  The return value is `nil'.
+
+ * Function: undo-start
+     This function prepares to undo one or more units of undo
+     describing the most recent changes to the current buffer.  It
+     does not actually undo anything (or change the buffer at all);
+     only `undo-more' does that.  It returns `nil'.
+
+     One use of this function is to break a sequence of undo's, so a
+     subsequent call to `undo-more' will undo the recent run of
+     undoing, rather than extend it into the past.
+
+     The command `undo' calls `undo-start' whenever the previous
+     command was not an `undo'.
+
+ * Command: buffer-enable-undo &optional BUFFER-OR-NAME
+     This function assigns an undo stack for buffer BUFFER-OR-NAME,
+     so that subsequent changes can be undone.  If no argument is
+     supplied, then the current buffer is used.  If the buffer
+     already has an undo stack, nothing is changed.  This function
+     returns `nil'.
+
+     In an interactive call, BUFFER-OR-NAME is the current buffer. 
+     You cannot specify any other buffer.
+
+ * Function: buffer-flush-undo BUFFER
+     This function deassigns the undo stack of the buffer BUFFER, so
+     that it will not take up space.  As a result, it is no longer
+     possible to undo either previous changes or any subsequent
+     changes.  If the buffer already has no undo stack, then this
+     function has no effect.
+
+     This function returns `nil'.  It cannot be called interactively.
+
+
+
+File: elisp,  Node: Filling,  Next: Auto Filling,  Prev: Undo,  Up: Text
+
+Filling
+=======
+
+   "Filling" means adjusting the lengths of lines (by moving words
+between them) so that they are nearly (but no greater than) a
+specified maximum width.  Additionally, lines can be "justified",
+which means that spaces are inserted between words to make the line
+exactly the specified width.  The width is controlled by the variable
+`fill-column'.  For ease of reading, lines should be no longer than
+70 or so columns.
+
+   You can use Auto Fill mode (*note Auto Filling::.) to fill text
+automatically as you insert it, but changes to existing text may
+leave it improperly filled.  Then you must fill the text explicitly.
+
+   Most of the functions in this section return values that are not
+meaningful.
+
+ * Command: fill-paragraph JUSTIFY-FLAG
+     This function fills the paragraph at or after point.  If
+     JUSTIFY-FLAG is non-`nil', each line is justified as well.
+
+ * Command: fill-region START END &optional JUSTIFY-FLAG
+     This function fills each of the paragraphs in the region from
+     start to end.  It justifies as well if JUSTIFY-FLAG is
+     non-`nil'.  (In an interactive call, this is true if there is a
+     prefix argument.)
+
+     The variable `paragraph-separate' controls how to distinguish
+     paragraphs.
+
+ * Command: fill-individual-paragraphs START END &optional
+          JUSTIFY-FLAG MAIL-FLAG
+     This function fills each paragraph in the region according to
+     its individual fill prefix.  Thus, if the lines of a paragraph
+     are indented with spaces, the filled paragraph will continue to
+     be indented in the same fashion.
+
+     The first two arguments, START and END, are the beginning and
+     end of the region that will be filled.  The third and fourth
+     arguments, JUSTIFY-FLAG and MAIL-FLAG, are optional.  If
+     JUSTIFY-FLAG is non-`nil', the paragraphs are justified as well
+     as filled.  If MAIL-FLAG is non-`nil', the function is told that
+     it is operating on a mail message and therefore should not fill
+     the header lines.
+
+ * Command: fill-region-as-paragraph START END &optional JUSTIFY-FLAG
+     This function considers a region of text as a paragraph and
+     fills it.  If the region was made up of many paragraphs, the
+     blank lines between paragraphs are removed.  This function
+     justifies as well as filling when JUSTIFY-FLAG is non-`nil'.  In
+     an interactive call, any prefix argument requests justification.
+
+ * Command: justify-current-line
+     This function inserts spaces between the words of the current
+     line so that the line ends exactly at `fill-column'.  It returns
+     `nil'.
+
+ * User Option: fill-column
+     This buffer-local variable specifies the maximum width of filled
+     lines.  Its value should be an integer, which is a number of
+     columns.  All the filling, justification and centering commands
+     are affected by this variable, including Auto Fill mode (*note
+     Auto Filling::.).
+
+     As a practical matter, if you are writing text for other people
+     to read, you should set `fill-column' to no more than 70. 
+     Otherwise the line will be too long for people to read
+     comfortably, and this can make the text seem clumsy.
+
+ * Variable: default-fill-column
+     The value of this variable is the default value for
+     `fill-column' in buffers that do not override it.  This is the
+     same as `(default-value 'fill-column)'.
+
+     The default value for `default-fill-column' is 70.
+
+
+
+File: elisp,  Node: Auto Filling,  Next: Sorting,  Prev: Filling,  Up: Text
+
+Auto Filling
+============
+
+   "Filling" breaks text into lines that are no more than a specified
+number of columns wide.  Filled lines end between words, and
+therefore may have to be shorter than the maximum width.
+
+   Auto Fill mode is a minor mode in which Emacs fills lines
+automatically as text as inserted.  This section describes the hook
+and the two variables used by Auto Fill mode.  For a description of
+functions that you can call manually to fill and justify text, see
+*Note Filling::.
+
+ * Variable: auto-fill-hook
+     The value of this variable should be a function (of no
+     arguments) to be called after self-inserting a space at a column
+     beyond `fill-column'.  It may be `nil', in which case nothing
+     special is done.
+
+     The default value for `auto-fill-hook' is `do-auto-fill', a
+     function whose sole purpose is to implement the usual strategy
+     for breaking a line.
+
+     Since `auto-fill-hook' is not called by the `run-hooks'
+     function, it will be renamed `auto-fill-function' in Version 19.
+
+
+
+File: elisp,  Node: Sorting,  Next: Indentation,  Prev: Auto Filling,  Up: Text
+
+Sorting Text
+============
+
+   The sorting commands described in this section all rearrange text
+in a buffer.  This is in contrast to the function `sort', which
+rearranges the order of the elements of a list (*note
+Rearrangement::.).  The values returned by these commands are not
+meaningful.
+
+ * Command: sort-regexp-fields REVERSE RECORD-REGEXP KEY-REGEXP START
+          END
+     This command sorts the region between START and END
+     alphabetically as specified by RECORD-REGEXP and KEY-REGEXP.  If
+     REVERSE is a negative integer, then sorting is in reverse order.
+
+     Alphabetical sorting means that two sort keys are compared by
+     comparing the first characters of each, the second characters of
+     each, and so on.  If a mismatch is found, it means that the sort
+     keys are unequal; the sort key whose character is less at the
+     point of first mismatch is the lesser sort key.  The individual
+     characters are compared according to their numerical values. 
+     Since Emacs uses the ASCII character set, the ordering in that
+     set determines alphabetical order.
+
+     The value of the RECORD-REGEXP argument specifies the textual
+     units or "records" that should be sorted.  At the end of each
+     record, a search is done for this regular expression, and the
+     text that matches it is the next record.  For example, the
+     regular expression `^.+$', which matches lines with at least one
+     character besides a newline, would make each such line into a
+     sort record.  *Note Regular Expressions::, for a description of
+     the syntax and meaning of regular expressions.
+
+     The value of the KEY-REGEXP argument specifies what part of each
+     record is to be compared against the other records.  The
+     KEY-REGEXP could match the whole record, or only a part.  In the
+     latter case, the rest of the record has no effect on the sorted
+     order of records, but it is carried along when the record moves
+     to its new position.
+
+     The KEY-REGEXP argument can refer to the text matched by a
+     subexpression of RECORD-REGEXP, or it can be a regular
+     expression on its own.
+
+     If KEY-REGEXP is:
+
+    `\DIGIT'
+          then the text matched by the DIGITth `\(...\)' parenthesis
+          grouping in RECORD-REGEXP is used for sorting.
+
+    `\&'
+          then the whole record is used for sorting.
+
+    a regular expression
+          then the function searches for a match for the regular
+          expression within the record.  If such a match is found, it
+          is used for sorting.  If a match for KEY-REGEXP is not
+          found within a record then that record is ignored, which
+          means its position in the buffer is not changed.  (The
+          other records may move around it.)
+
+     For example, if you plan to sort all the lines in the region by
+     the first word on each line starting with the letter `f', you
+     should set RECORD-REGEXP to `^.*$' and set KEY-REGEXP to
+     `\<f\w*\>'.  The resulting expression looks like this:
+
+          (sort-regexp-fields nil "^.*$" "\\<f\\w*\\>"
+                              (region-beginning)
+                              (region-end))
+
+     If you call `sort-regexp-fields' interactively, you are prompted
+     for RECORD-REGEXP and KEY-REGEXP in the minibuffer.
+
+ * Command: sort-subr REVERSE NEXTRECFUN ENDRECFUN &optional
+          STARTKEYFUN ENDKEYFUN
+     This command is the general text sorting routine that divides a
+     buffer into records and sorts them.  The functions `sort-lines',
+     `sort-paragraphs', `sort-pages', `sort-fields',
+     `sort-regexp-fields' and `sort-numeric-fields' all use
+     `sort-subr'.
+
+     To understand how `sort-subr' works, consider the whole
+     accessible portion of the buffer as being divided into disjoint
+     pieces called "sort records".  A portion of each sort record
+     (perhaps all of it) is designated as the sort key.  The records
+     are rearranged in the buffer in order by their sort keys.  The
+     records may or may not be contiguous.
+
+     Usually, the records are rearranged in order of ascending sort
+     key.  If the first argument to the `sort-subr' function,
+     REVERSE, is non-`nil', the sort records are rearranged in order
+     of descending sort key.
+
+     The next four arguments to `sort-subr' are functions that are
+     called to move point across a sort record.  They are called many
+     times from within `sort-subr'.
+
+       1. NEXTRECFUN is called with point at the end of a record. 
+          This function moves point to the start of the next record. 
+          The first record is assumed to start at the position of
+          point when `sort-subr' is called.  (Therefore, you should
+          usually move point to the beginning of the buffer before
+          calling `sort-subr'.)
+
+       2. ENDRECFUN is called with point within a record.  It moves
+          point to the end of the record.
+
+       3. STARTKEYFUN is called to move point from the start of a
+          record to the start of the sort key.  This argument is
+          optional.  If supplied, the function should either return a
+          non-`nil' value to be used as the sort key, or return `nil'
+          to indicate that the sort key is in the buffer starting at
+          point.  In the latter case, and ENDKEYFUN will be called to
+          find the end of the sort key.
+
+       4. ENDKEYFUN is called to move point from the start of the
+          sort key to the end of the sort key.  This argument is
+          optional.  If STARTKEYFUN returns `nil' and this argument
+          is omitted (or `nil'), then the sort key extends to the end
+          of the record.  There is no need for ENDKEYFUN if
+          STARTKEYFUN returns a non-`nil' value.
+
+     As an example of `sort-subr', here is the complete function
+     definition for `sort-lines':
+
+          (defun sort-lines (reverse beg end)
+            "Sort lines in region alphabetically; arg means reverse order.
+          Called from a program, there are three arguments:
+          REVERSE (non-nil means reverse order),
+          and BEG and END (the region to sort)."
+            (interactive "P\nr")
+            (save-restriction
+              (narrow-to-region beg end)
+              (goto-char (point-min))
+              (sort-subr reverse 'forward-line 'end-of-line)))
+
+     Here `forward-line' moves point to the start of the next record,
+     and `end-of-line' moves point to the end of record.  We do not
+     pass the arguments STARTKEYFUN and ENDKEYFUN, because the entire
+     record is used as the sort key.
+
+     The `sort-paragraphs' function is very much the same, except
+     that its `sort-subr' call looks like this:
+
+          (sort-subr reverse
+                     (function (lambda () (skip-chars-forward "\n \t\f")))
+                     'forward-paragraph)))
+
+ * Command: sort-lines REVERSE START END
+     This command sorts lines in the region between START and END
+     alphabetically.  If REVERSE is non-`nil', the sort is in reverse
+     order.
+
+ * Command: sort-paragraphs REVERSE START END
+     This command sorts paragraphs in the region between START and
+     END alphabetically.  If REVERSE is non-`nil', the sort is in
+     reverse order.
+
+ * Command: sort-pages REVERSE START END
+     This command sorts pages in the region between START and END
+     alphabetically.  If REVERSE is non-`nil', the sort is in reverse
+     order.
+
+ * Command: sort-fields FIELD START END
+     This command sorts lines in the region between START and END,
+     comparing them alphabetically by the FIELDth field of each line.
+     Fields are separated by whitespace and numbered starting from 1.
+     If FIELD is negative, sorting is by the -FIELDth field from the
+     end of the line.  This command is useful for sorting tables.
+
+ * Command: sort-numeric-fields FIELD START END
+     This command sorts lines in the region between START and END,
+     comparing them numerically by the FIELDth field of each line. 
+     Fields are separated by whitespace and numbered starting from 1.
+     The specified field must contain a number in each line of the
+     region.  If FIELD is negative, sorting is by the -FIELDth field
+     from the end of the line.  This command is useful for sorting
+     tables.
+
+ * Command: sort-columns REVERSE &optional BEG END
+     This command sorts the lines in the region between BEG and END,
+     comparing them alphabetically by a certain range of columns. 
+     For the purpose of this command, the region includes the entire
+     line that point is in and the entire line containing END.  The
+     column positions of BEG and END bound the range of columns to
+     sort on.
+
+     If REVERSE is non-`nil', the sort is in reverse order.
+
+     One unusual thing about this command is that the entire line
+     containing point, and the entire line containing the mark, are
+     included in the region sorted.
+
+     Note that `sort-columns' uses the `sort' utility program, and so
+     cannot work properly on text containing tab characters.  Use
+     `M-x `untabify'' to convert tabs to spaces before sorting.  The
+     `sort-columns' function doesn't work in VMS, because the
+     subprocess facilities are lacking.
+
+
+
+File: elisp,  Node: Indentation,  Next: Columns,  Prev: Sorting,  Up: Text
+
+Indentation
+===========
+
+   The indentation functions are used to examine, move to, and change
+whitespace that is at the beginning of a line.  Some of the functions
+can also change whitespace elsewhere on a line.  Indentation always
+counts from zero at the left margin.
+
+* Menu:
+
+* Primitive Indent::      Functions used to count and insert indentation.
+* Mode-Specific Indent::  Customize indentation for different modes.
+* Region Indent::         Indent all the lines in a region.
+* Relative Indent::       Indent the current line based on previous lines.
+* Indent Tabs::           Adjustable, typewriter-like tab stops.
+* Motion by Indent::      Move to first non-blank character.
+
+ 
+
+File: elisp,  Node: Primitive Indent,  Next: Mode-Specific Indent,  Prev: Indentation,  Up: Indentation
+
+Indentation Primitives
+----------------------
+
+   This section describes the primitive functions used to count and
+insert indentation.  The functions in the following sections use
+these primitives.
+
+ * Function: current-indentation
+     This function returns the indentation of the current line, which
+     is the horizontal position of the first nonblank character.  If
+     the contents are entirely blank, then this is the horizontal
+     position of the end of the line.
+
+ * Command: indent-to COLUMN &optional MINIMUM
+     This function indents from point with tabs and spaces until
+     COLUMN is reached.  If MINIMUM is specified and non-`nil', then
+     at least that many spaces are inserted even if this requires
+     going beyond COLUMN.  The value is the column at which the
+     inserted indentation ends.
+
+ * User Option: indent-tabs-mode
+     If this variable is non-`nil', indentation functions can insert
+     tabs as well as spaces.  Otherwise, they insert only spaces. 
+     Setting this variable automatically makes it local to the
+     current buffer.
+
+
+
+File: elisp,  Node: Mode-Specific Indent,  Next: Region Indent,  Prev: Primitive Indent,  Up: Indentation
+
+Indentation Controlled by Major Mode
+------------------------------------
+
+   An important function of each major mode is to customize the TAB
+key to indent properly for the language being edited.  This section
+describes the mechanism of the TAB key and how to control it.  The
+functions in this section return unpredictable values.
+
+ * Variable: indent-line-function
+     This variable's value is the function to be used by TAB (and
+     various commands) to indent the current line.  The command
+     `indent-according-to-mode' does no more than call this function.
+
+     In Lisp mode, the value is the symbol `lisp-indent-line'; in C
+     mode, `c-indent-line'; in Fortran mode, `fortran-indent-line'. 
+     In Fundamental mode, Text mode, and many other modes with no
+     standard for indentation, the value is `indent-to-left-margin'
+     (which is the default value).
+
+ * Command: indent-according-to-mode
+     This command calls the function in `indent-line-function' to
+     indent the current line in a way appropriate for the current
+     major mode.
+
+ * Command: indent-for-tab-command
+     This command calls the function in `indent-line-function' to
+     indent the current line, except that if that function is
+     `indent-to-left-margin', `insert-tab' is called instead.
+
+ * Variable: left-margin
+     This variable is the column to which the default
+     `indent-line-function' will indent.  (That function is
+     `indent-to-left-margin'.)  In Fundamental mode, LFD indents to
+     this column.  This variable automatically becomes buffer-local
+     when set in any fashion.
+
+ * Function: indent-to-left-margin
+     This is the default `indent-line-function', used in Fundamental
+     mode, Text mode, etc.  Its effect is to adjust the indentation
+     at the beginning of the current line to the value specified by
+     the variable `left-margin'.  This may involve either inserting
+     or deleting whitespace.
+
+ * Command: newline-and-indent
+     This function inserts a newline, then indents the new line (the
+     one following the newline just inserted) according to the major
+     mode.
+
+     Indentation is done using the current `indent-line-function'. 
+     In programming language modes, this is the same thing TAB does,
+     but in some text modes, where TAB inserts a tab,
+     `newline-and-indent' indents to the column specified by
+     `left-margin'.
+
+ * Command: reindent-then-newline-and-indent
+     This command reindents the current line, inserts a newline at
+     point, and then reindents the new line (the one following the
+     newline just inserted).
+
+     Indentation of both lines is done according to the current major
+     mode; this means that the current value of
+     `indent-line-function' is called.  In programming language
+     modes, this is the same thing TAB does, but in some text modes,
+     where TAB inserts a tab, `reindent-then-newline-and-indent'
+     indents to the column specified by `left-margin'.
+
+
+
+File: elisp,  Node: Region Indent,  Next: Relative Indent,  Prev: Mode-Specific Indent,  Up: Indentation
+
+Indenting an Entire Region
+--------------------------
+
+   This section describes commands which indent all the lines in the
+region.  They return unpredictable values.
+
+ * Command: indent-region START END TO-COLUMN
+     This command indents each nonblank line starting between START
+     (inclusive) and END (exclusive).  If TO-COLUMN is `nil',
+     `indent-region' indents each nonblank line by calling the
+     current mode's indentation function, the value of
+     `indent-line-function'.
+
+     If TO-COLUMN is non-`nil', it should be an integer specifying
+     the number of columns of indentation; then this function gives
+     each line exactly that much indentation, by either adding or
+     deleting whitespace.
+
+ * Variable: indent-region-function
+     The value of this variable is a function that can be used by
+     `indent-region' as a short cut.  You should design the function
+     so that it will produce the same results as indenting the lines
+     of the region one by one (but presumably faster).
+
+     If the value is `nil', there is no short cut, and
+     `indent-region' actually works line by line.
+
+     A short cut function is useful in modes such as C mode and Lisp
+     mode, where the `indent-line-function' must scan from the
+     beginning of the function: applying it to each line would be
+     quadratic in time.  The short cut can update the scan
+     information as it moves through the lines indenting them; this
+     takes linear time.  If indenting a line individually is fast,
+     there is no need for a short cut.
+
+     `indent-region' with a non-`nil' argument has a different
+     definition and does not use this variable.
+
+ * Command: indent-rigidly START END COUNT
+     This command indents all lines starting between START
+     (inclusive) and END (exclusive) sideways by `count' columns. 
+     This "preserves the shape" of the affected region, moving it as
+     a rigid unit.  Consequently, this command is useful not only for
+     indenting regions of unindented text, but also for indenting
+     regions of formatted code.
+
+     For example, if COUNT is 3, this command adds 3 columns of
+     indentation to each of the lines beginning in the region
+     specified.
+
+     In Mail mode, `C-c C-y' (`mail-yank-original') uses
+     `indent-rigidly' to indent the text copied from the message
+     being replied to.
+
+
+
+File: elisp,  Node: Relative Indent,  Next: Indent Tabs,  Prev: Region Indent,  Up: Indentation
+
+Indentation Relative to Previous Lines
+--------------------------------------
+
+   This section describes two commands which indent the current line
+based on the contents of previous lines.
+
+ * Command: indent-relative &optional UNINDENTED-OK
+     This function inserts whitespace at point, extending to the same
+     column as the next "indent point" of the previous nonblank line.
+     An indent point is a non-whitespace character following
+     whitespace.  The next indent point is the first one at a column
+     greater than the current column of point.  For example, if point
+     is underneath and to the left of the first non-blank character
+     of a line of text, it moves to that column by inserting
+     whitespace.
+
+     If the previous nonblank line has no next indent point (i.e.,
+     none at a great enough column position), this function either
+     does nothing (if UNINDENTED-OK is non-`nil') or calls
+     `tab-to-tab-stop'.  Thus, if point is underneath and to the
+     right of the last column of a short line of text, this function
+     moves point to the next tab stop by inserting whitespace.
+
+     This command returns an unpredictable value.
+
+     In the following example, point is at the beginning of the
+     second line:
+
+                      This line is indented twelve spaces.
+          -!-The quick brown fox jumped over the lazy dog.
+
+      Evaluation of the expression `(indent-relative nil)' produces
+     the following:
+
+                      This line is indented twelve spaces.
+                      -!-The quick brown fox jumped over the lazy dog.
+
+      In this example, point is between the `m' and `p' of `jumped':
+
+                      This line is indented twelve spaces.
+          The quick brown fox jum-!-ped over the lazy dog.
+
+      Evaluation of the expression `(indent-relative nil)' produces
+     the following:
+
+                      This line is indented twelve spaces.
+          The quick brown fox jum  -!-ped over the lazy dog.
+
+  * Command: indent-relative-maybe
+     This command indents the current line like the previous nonblank
+     line.  The function consists of a call to `indent-relative' with
+     a non-`nil' value passed to the UNINDENTED-OK optional argument.
+     The value is unpredictable.
+
+     If the previous line has no indentation, the current line is
+     given no indentation (any existing indentation is deleted); if
+     the previous nonblank line has no indent points beyond the
+     column at which point starts, nothing is changed.
+
+

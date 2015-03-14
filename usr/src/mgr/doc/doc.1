@@ -1,0 +1,973 @@
+'\"                        Copyright (c) 1988 Bellcore
+'\"                            All Rights Reserved
+'\"       Permission is granted to copy or use this program, EXCEPT that it
+'\"       may not be sold for profit, the copyright notice must be reproduced
+'\"       on copies, and credit should be given to Bellcore where it is due.
+'\"       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+'\"
+.TL
+\*M - C Language Application Interface
+.AU
+Stephen A. Uhler
+.AI
+Bell Communications Research
+.Sh nopage Introduction
+.FS
+.ce 2
+Copyright (c) 1988 Bellcore
+All Rights Reserved
+.br
+Permission is granted to copy or use this program, EXCEPT that it
+may not be sold for profit, the copyright notice must be reproduced
+on copies, and credit should be given to Bellcore where it is due.
+BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+.FE
+\*M
+(\fBm\fPana\fBg\fPe\fBr\fP)
+is a window system for Unix that currently runs on Sun Workstations.
+\*M manages asynchronous updates of overlapping windows
+and provides application support for a heterogeneous network
+environment, i.e.,
+many different types of computers connected by various 
+communications media.
+The application interface enables applications (called client programs) to be
+written in a variety of programming languages, and run on different
+operating systems.
+The client program can take full 
+advantage of the windowing capabilities 
+regardless of the
+type of connection to the workstation running \*M.
+.LP
+Client programs communicate with \*M via
+.I pseudo-terminals 
+over a reliable byte stream.
+Each client program can create and manipulate one or more windows
+on the display, with commands and data to the various windows multiplexed over 
+the same connection.
+\*M provides
+.SM
+ASCII
+.LG
+terminal emulation and takes responsibility for
+maintaining the integrity of the window contents when parts of windows become 
+obscured and subsequently uncovered.
+This permits naive applications to work without modification
+by providing a default environment that appears to be an ordinary terminal.
+.LP
+In addition to terminal emulation, \*M provides each client window with:
+graphics primitives such as line and circle drawing; facilities for 
+manipulating bitmaps, fonts, icons, and pop-up menus;
+commands to reshape
+and position windows; and a message passing
+facility enabling client programs
+to rendezvous and exchange messages.
+Client programs may ask to be informed when a change in the window system
+occurs, such as a reshaped window, a pushed mouse button,
+or a message sent from another client program.
+These changes are called events.
+\*M notifies a client program of an event by sending
+it an
+.SM
+ASCII
+.LG
+character string in a format specified by the client program.
+Existing applications can be integrated into the
+windowing environment without modification by having \*M
+imitate keystrokes in response to user defined menus or
+other events.
+.LP
+The user interface provides a simple point-and-select model of 
+interaction using the mouse with pop-up menus and
+quick access to system functions through meta-keys on the keyboard.
+\*M also provides a 
+.I cut
+and
+.I  paste
+.R
+function that permits a user to sweep out and copy text from any window
+and paste it into any other.
+.LP
+This document describes the low level 
+C interface library for \*M.
+The 
+.I
+C Interface library
+.R
+provides a set of macros and functions which implement the stream protocol
+and provide clients written in
+.B C
+with a function call interface to \*M.
+This library provides the lowest level access to \*M functions
+and represents a direct mapping to the underlying protocol.
+It is expected that a higher level interface will evolve to support
+application development at a higher level.
+The library requires only the
+.SM
+UNIX
+.LG
+.I "Standard I/O Library"
+for its operation and access to a byte sequential I/O
+interface from the underlying operating system.
+.Sh page Model of Interaction
+The basic unit within \*M is the window.
+A window is a rectangular region on the display, surrounded by a
+border, with a single connection to other processes.
+All interactions among the client program, the user and \*M are
+defined entirely in terms of the state
+of a client's window or windows.
+\*M has no concept of window types; there are no separate
+.I "graphics windows" ,
+.I "text windows" ,
+or
+.I "edit windows" .
+Every window supports exactly the same set of capabilities as
+every other window.
+In addition, all windows act independently.
+Client programs need not know or care about the existence of other
+clients or windows that happen to coexist on the same display.
+The management of overlapping windows is handled entirely by \*M.
+For example,
+when a window is partially or totally obscured by another window,
+then subsequently uncovered, \*M restores the integrity of the
+window's contents.
+There are no
+.I sub-windows ,
+windows whose size or position are in some
+way restricted by a parent window.
+A client may create and manipulate many windows, each of which
+may be positioned and sized independently on the display.
+.LP
+At any given time there is one special window on the display,
+the
+.I active
+window.
+This is the window that receives keystrokes and mouse data.
+It is distinguishable to the user from the other windows on the
+display by its emboldened border.
+The active window, in addition to receiving all mouse and keyboard
+data, is also logically in front of the other windows
+on the display.
+The active window is, therefore, always completely exposed.
+Any window can become the active window, but there can only be one 
+active window at a time.
+.LP
+A client program may change its window at any time, write text into it,
+draw lines, anything, so long as the change is
+.I local ,
+that is the change affects just its window.
+Only the active window may effect 
+.I global
+changes
+to the display,
+such as changing its shape or position.
+The only global action a
+.I non-active
+window may perform is to become the active window.
+This window model provides both the user and
+application developer with a simple,
+consistent model of interaction.
+.Sh nopage Coordinate Systems
+\*M uses four different coordinate systems,
+.I display
+coordinates ,
+.I "absolute window"
+coordinates,
+.I "relative window"
+coordinates,
+and
+.I character
+coordinates.
+The entire display is represented by
+.I "display coordinates"
+whereas each window has its own
+.I "absolute window" ,
+.I "relative window" ,
+and
+.I character
+coordinate systems.
+.LP  
+.I "Display coordinates"
+are in units of pixels.
+The coordinate
+.Fr "" 0 0
+is the top left
+pixel on the display.  The
+.B X
+coordinate increases to the right, the
+.B Y
+coordinate
+increases down.
+The maximum
+.B X
+and
+.B Y
+coordinate depend upon the particular display in use,
+for the SUN-3 they are
+.Fi 1152
+by
+.Fi 900 .
+Commands that operate on the context of the entire display, such as
+reshaping a window are specified in 
+.I display
+coordinates.
+Windows, when measured
+in
+.I display
+coordinates include their borders.
+.LP
+.I "Absolute window coordinates" ,
+as with
+.I "display coordinates" ,
+are measured in units of pixels.
+The
+.Fi X
+and
+.Fi Y
+values increase to the right and down respectively.
+The origin, coordinate
+.Fr "" 0 0
+is at the top left corner of the window, just inside the window border.
+.LP
+.I "Relative window coordinates"
+are measured as a fraction of the window's size and shape.
+As with
+.I "absolute window coordinates" ,
+each window has its origin, 
+.Fr "" 0 0
+, at the top left corner of the window just inside the border,
+however the lower right corner of the window is always at 
+coordinate
+.Fr "" 999 999
+\&.
+Graphics commands to a window in 
+.I "relative window coordinates"
+are automatically scaled to the size of the window.
+.LP
+.I "Character coordinates"
+are measured in rows and columns in the current
+font, just like an ordinary terminal.
+The coordinate
+.Fr "" 0 0 
+is the top left character
+position in the window.
+The maximum
+.I row
+and
+.I column
+in the window
+depends on both the window and font size.
+.Sh nopage Functional Overview
+The types of commands a client program may issue \*M
+are divided into 14
+categories:
+.I "terminal emulation" ,
+.I graphics ,
+.I bit-blts ,
+.I "window positioning" ,
+.I "font changes" ,
+.I "state inquiry" ,
+.I "saved contexts" ,
+.I menus ,
+.I events ,
+.I "sweep functions" ,
+.I "multiple window manipulation" ,
+.I "cut and paste" ,
+.I messages ,
+and
+.I "window modes" .
+What follows is a brief description of those command categories,
+and some examples of specific functions within the category.
+A detailed description of each command is provided in the following
+section.
+.LP
+.B
+Terminal Emulation
+.R
+.br
+At its basic level, every \*M window emulates a
+.I \s-2CRT\s+2
+terminal.
+It provides functions for
+.I inserting
+and
+.I deleting
+lines and characters, highlighting text, clearing areas and windows, and
+arbitrary cursor motion capabilities.
+Sample \*M 
+.I \s-2TERMCAP\s+2
+and
+.I \s-2TERMINFO\s+2
+descriptions are given in the tables below.
+No entries are provided for keyboard key values,
+as they depend upon the particular keyboard in use.
+.Mk	\" mark vertical baseline or later return
+.TS
+box;
+c s
+l s
+l lflrp-2.
+Sample \*M \fIT\s-2ERMCAP\fP\s+2 Entry
+_
+Px \(br \*M \(br \*M terminal:\e
+  :am:bs:im=:ta=^I:\e
+  :AL=\eE%da:al=\eEa:\e
+  :cd=\eEC:ce=\eEc:cl=^L:\e
+  :cm=\eE%r%d,%dM:\e
+  :co#80:li#24:\e
+  :cs=\eE%d,%dt:\e
+  :DC=\eE%dE:dc=\eEE:\e
+  :DL=\eE%dd:dl=\eEd:\e
+  :do=\eEf:up=\eEu:nd=\eEr:\e
+  :IC=\eE%dA:ic=\eEA:\e
+  :se=\eEn:so=\eEi:\e
+  :ve=\eEv:vs=\eEV:
+.TE
+.Go 3.1i	\" return to baseline shifted right
+.TS
+box;
+c s
+l s
+l lflrp-2.
+Sample \*M \fIT\s-2ERMINFO\s+2\fP Entry
+_
+Px \(br \*M \(br \*M Terminal,
+  cols#80, lines#24,
+  am, msgr, ht=^I,
+  clear=^L, cr=^M, bel=^G, 
+  cub1=^H, cud1=\eEf, cuf1=\eEr,
+  cuu1=\eEu, ind=^J,
+  cup=\eE%p2%d;%p1%dM,
+  csr=\eE%p1%d;%p2%dt,
+  wind=\eE%p2%d;%p2%p4%+%d;%p1;%p1%p3%+%d;t,
+  el=\eEc, ed=\eEC,
+  il1=\eEa, dl1=\eEd,
+  il=\eE%p1%da, dl=\eE%p1%dd,
+  smso=\eEi, rmso=\eEn,
+  smcup=\eE1664P, rmcup=\eEt\eEp,
+.TE
+.Rs	\" restore baseline stuff
+.LP
+\*M permits the client program to restrict the terminal emulator
+to an arbitrary subrectangle within the window,
+called a
+.I "text region" .
+For example, a text editor wishing to provide scroll bars or banner lines
+can still let \*M do the terminal emulation by specifying a text
+region that excludes the top and sides of the window.
+This text region may be redefined or moved around at will, permitting
+multiple terminal sub regions in the same window.
+.LP
+.B Graphics
+.br
+In addition to terminal emulation, \*M provides a suite of pen plotter style
+graphics primitives.
+A client program may draw lines, circles, ellipses, and elliptical arcs
+on a window.
+The graphics objects may either be completely positioned, or located 
+relative to an internal
+.I "graphics point" ,
+maintained by \*M.
+The objects may also be drawn into undisplayed or
+.I scratchpad
+areas, then copied to the window as a single unit.
+The
+.I "graphics point"
+may be aligned with the character cursor,
+for locating graphic objects relative to character text.
+Conversely, the character cursor may be aligned with the graphics cursor, 
+permitting character text to be placed at arbitrary positions on the window.
+.LP
+.B Bit-blts
+.br
+\*M provides a complete set of functions for dealing with bitmaps, or
+rectangular arrays of pixels.
+Bitmaps may be combined with any of the 16 possible
+.I bit-blt
+operations.
+Non-displayed
+bitmaps of arbitrary size may be created and destroyed, and
+.I bit-blts
+may be performed on the window, within a scratch-pad bitmap,
+between two scratch-pad  bitmaps,
+or between a scratch-pad bitmap and the window.
+Bitmap images may be down-loaded from client programs to \*M, 
+or up-loaded from \*M to the client program.
+In addition, bitmaps may be saved in files by \*M, or loaded 
+into \*M from files.
+These last two capabilities permit client programs to manipulate large
+amounts of bitmap data without the need to send the bits
+over the communication channel.
+.LP
+.B "Window Positioning"
+.br
+Either the user or client program may move the 
+.I active
+window
+around on the display.
+Windows may be moved with their size retained, reshaped but remain at the
+same location, or be both moved and shaped anywhere on the display.
+If the window is the 
+.I active
+window,
+it may be
+.I buried
+(shoved to the back on the display).
+If the window is not the
+.I active
+window,
+it can become the active window and then moved about on the display.
+.LP
+.B "Font Changes"
+.br
+Client programs may change character fonts at any time, even on a
+character by character basis.
+\*M comes with scores of different fonts, 
+ranging in size from microscopic to viewgraph size.
+Client programs are
+free to create and down-load their own fonts.
+The fonts supplied by \*M are constant width, that is
+.I i 's
+take up the same amount of room as
+.I m 's
+do.  There are commands to aid client programs that wish to use 
+proportional fonts.
+.LP
+.B "State Inquiry"
+.br
+A client program may ask \*M about the state of its current window,
+such as its size and position on the display,
+the name and size of the current font,
+the position and extent of the text region, and the state of
+various mode settings.
+The client may also inquire about the state of the window system as a whole.
+That includes the position and state of the mouse, the number and sizes
+of the available fonts, and
+the organization of windows on the display.
+The display organization may include the position, size, name,
+ownership, and spatial ordering for all windows on the display.
+.LP
+.B "Saved Contexts"
+.br
+Certain parts of the current window environment may be pushed on a stack,
+then restored at some later time.
+Client programs rarely need to know the context in which they are called.
+They simply push those aspects of the environment they will change, then
+restore them before exiting.
+About a dozen different parts of the window environment, such as menus,
+character fonts, window position, etc. may be stacked independently, or in
+any combination.
+.LP
+.B Menus
+.br
+\*M has built in support for pop-up menus.
+Clients may arrange for menus to pop-up in response to mouse button
+hits.
+Up to 50 menus may be down-loaded at once for each window.
+The client
+.I selects
+which menu will pop-up when a mouse button is pushed.
+When an item of a pop-up menu is chosen, \*M returns the string
+previously put into the menu by the client program.
+The client program may arrange
+for different menus to pop up depending upon the
+current mouse position.
+Menus may also be linked together as a pop-up menu tree.
+Sliding off to the right of a menu (called a
+.I parent
+menu) while an item is selected
+can cause another menu (called a
+.I child
+menu)
+to pop up.
+Any item of the
+.I parent
+menu may be specified as the entry item for a child menu.
+Upon selecting an item of a
+.I child
+menu,
+the client program may arrange for \*M to return
+ether the action string associated with just the
+.I child
+menu item,
+or the action strings for the selected items of all the menus.
+Similar to 
+.I sliding
+menus,
+\*M supports 
+.I paging
+menus as well.
+Long menus may be broken into several pages by the client program.
+\*M manages the paging automatically, popping up the next page as
+the user slides off the bottom of a paged menu.
+.LP
+.B Events
+.br
+Client programs may arrange to be informed by \*M when some change,
+called an event,
+happens to the state of the window system.
+As with menus, the message informing the client program of a change
+is formated as specified by the client program.
+Examples of events include mouse buttons being depressed or released,
+windows changing shape or moving, and the window becoming the
+.I active
+window or being covered by another window.
+Window state information, such as the current cursor position,
+may be returned as part of an event string.
+.LP
+.B "Sweep Functions"
+.br
+It is often convenient for client programs to
+.I sweep ,
+or
+.I rubber-band
+simple objects, such as lines or boxes, in response to moving the mouse.
+\*M provides client programs with a mouse activated sweep function.
+\*M tracks an edge of the line or box with the mouse and reports 
+the coordinates to the client at the conclusion of the sweep
+operation, when the user releases the mouse.
+As usual, the client program specifies the format of the data returned by
+\*M.
+.LP
+.B "Multiple Window Manipulation"
+.br
+A single client program may create and manipulate additional windows, called
+.I alternate
+windows.
+The data destined for, or to be received from, an
+.I alternate 
+window is multiplexed on the same channel as the main window.
+The client program selects a window to receive output, and all output
+goes to the selected window until a different window is selected.
+For input, the client program uses the
+.I event
+mechanism to determine from which window input arrived.
+Alternate windows have the same capabilities as the main window.
+There is currently no limit to the number of alternate windows a
+client program may have.
+Up to 100 windows may exist on the display at one time
+before performance begins to degrade seriously.
+.LP
+.B "Cut and Paste"
+.br
+\*M provides a globally accessible 
+.I snarf
+buffer shared among all client programs.
+Any client program
+may put data into or read data from this buffer.
+\*M provides a user initiated 
+.I cut
+and
+.I paste
+function from the command menu.
+\*M extracts character text from the window and places its
+\s-2ASCII\s+2
+representation into the 
+.I snarf 
+buffer.
+.I Paste
+copies the contents of the
+.I snarf 
+buffer to the input stream of the active
+window.
+Client programs, by manipulating the data in the 
+.I snarf
+buffer,
+can interact with the system
+.I cut
+and
+.I paste
+functions.
+.LP
+.B Messages
+.br
+Although the 
+.I snarf
+buffer gives client programs a simple asynchronous interprocess
+communication mechanism, \*M has a more general synchronous interprocess
+message passing scheme.
+A client program may send a message
+to another client program, or broadcast the message to all client programs.
+As a message recipient, the client program may elect to receive messages
+as an
+.I event
+and encapsulate the message and sender name in the format of its choice.
+\*M provides the primitives needed to implement 
+.I server
+clients
+by permitting 
+.I servers
+to register their names, services and protocols with \*M.
+Client
+programs may query \*M for a list of active
+.I servers .
+.I Server
+messages may be associated with windows by the
+.I server
+client programs in such a way that the message is automatically
+received by a client
+program as part of a 
+.I "mouse button"
+event whenever the mouse button is 
+pressed on the
+.I server 's
+window.
+Using this mechanism, client programs can interact with
+.I server
+clients without any advance knowledge of which 
+.I server s
+are available or what services they are providing.
+.br
+.LP
+.B "Window Modes"
+.br
+Client programs may select various combinations of window modes.
+These modes tailor the behavior of the macros described above.
+Examples of window modes include
+.I "auto line wrap"
+and
+.I "character overstrike"
+that affect the terminal emulation,
+different coordinate system settings that affect
+.I graphics
+commands, or
+flags that set a window to
+.I activate 
+automatically upon receiving input, 
+ignore all keyboard input, 
+or suspend output while a window is obscured.
+.Sh nopage Underlying Protocol
+The purpose of this library package is both to provide a function call
+interface to the stream protocol, and to document each command understood
+by \*M.
+There are two types of \*M commands, as summarized in the table below.
+.TS
+center box;
+c
+l.
+\*M command protocol
+_
+T{
+.B ESC
+.Sb X 1 ,
+.Sb X 2 , ... ,
+.Sb X n
+.B command
+T}
+T{
+.B ESC
+.Sb X 1 ,
+.Sb X 2 , ... ,
+.Sb X n
+.I length
+.B command
+.I data
+T}
+.sp 0.5v
+.TE
+In both cases, 
+.SM
+.B ESC
+.LG
+is the
+.SM
+ASCII
+.LG
+escape character or '\e033',
+whereas the word
+.B command
+represents a single character command identifier.
+The 
+.I X 's
+are optional integers,  there can be as few as zero, as in the command
+.TS
+center box;
+c.
+\fBESC\fP\fIa\fP
+.TE
+which inserts a blank line in the window, or
+as many as eight, as would be used by the command
+.TS
+center box;
+c.
+\fBESC\fP0,0,50,100,10,20,3,2\fIb\fP
+.TE
+which is an example of a command to copy images between bitmaps.
+No spaces may be included between the
+.B ESC
+character and the command identifier character, but the argument
+separators may be either commas (,) or semicolons (;).
+.LP
+The function of the command is determined both
+by the command identifier character
+and
+.I n ,
+the number of numeric arguments preceding the command identifier character.
+All of the commands with the same command identifier character are closely
+related in function.
+For example, all the commands
+in the following table have the same command character,
+.B 'o' ,
+and all draw ellipses, but have different effects based upon the
+number of arguments.
+.TS
+center box;
+c s
+l|l.
+Commands that draw \fIellipses\fP
+_
+1	\fBESC\fP100,200\fBo\fP
+2	\fBESC\fP100,200,300,400\fBo\fP
+3	\fBESC\fP100,200,300,400,2\fBo\fP
+.TE
+All of the ellipses have major and minor axis lengths of 
+.I 100
+and
+.I 200 
+units respectively.
+Command 1 draws the ellipse at the current graphics location.
+Command 2 draws the ellipse at the location specified by the
+third and forth arguments, at
+.Fr "" 300 400
+\&.
+Command 3 draws the ellipse into scratchpad bitmap number
+.I 2 .
+.LP
+The second form of \*M commands,
+which is a special case of the first form,
+is used for downloading data from the
+client program to \*M.
+The integer
+.I length
+specifies the number of bytes of data to be downloaded, and
+.I data
+are the
+.I length
+number of data values downloaded.
+An example of the second type of \*M command is
+.TS
+center box;
+c.
+\fBESC\fP11,7\fBb\fP\fII-moved\fP
+.TE
+which instructs \*M to send the client program the string
+.I "I-moved"
+any time the client's window is moved to a different location
+on the display.
+The
+.I 11
+refers to the number of the
+.I move
+event and the
+.I 7
+is the number of characters in the event string, which in this case is
+.I "I-moved" .
+.LP
+All of the command identifier characters are listed in
+.I "window.h" .
+The command actions, determined by the command identifier and number
+of command arguments, are described by the macros in this document.
+.Sh page Conventions and Notation
+All functions and macros and programming examples are shown
+.ft \*(Ff
+in a typewriter font
+.ft
+to distinguish them from ordinary text.
+Similarly, function and macro arguments are shown in a 
+.ft \*(Fn
+bold typewriter font.
+.ft
+.LP
+The names of often used
+arguments passed to macros indicate their function,
+and are defined below.
+.Ad column , row
+The integers
+.Fa column
+and
+.Fa row
+refer to a character position in
+.I character
+coordinates even though characters may be placed at arbitrary pixel
+locations within a window
+and need not fall on
+.Fa column
+or
+.Fa row
+boundaries.
+.Ad Dwidth , Dheight
+The integers
+.Fa Dwidth
+and
+.Fa Dheight
+represent a width and height in
+.B display
+coordinates.
+.Ad mode
+The positive integer
+.Fa mode ,
+represents the bit combination 
+of window modes.
+.Fa Mode
+is usually an
+.I or ed
+list of constants in
+.I term.h .
+A typical use of
+.Fa mode
+is the argument to 
+.Fr m_push mode
+ as in
+.Fr m_push "P_FLAGS \(br P_EVENT \(br P_MENU"
+\&.
+.Ad n
+The small non-negative integer
+.Fi n
+represents a resource descriptor
+when describing objects such as windows, fonts, or menus.
+.Ad name
+.Fa Name
+is the file name of a bitmap image on the 
+.I \*M-host
+machine.
+File names given with no directory prefix are referenced relative to
+the
+.I icon
+subdirectory of
+\*M's 
+home directory.
+The home directory is installation dependent, and may be determined with
+the command
+.I "\*M -V" .
+.Ad parent , child
+The small positive integers
+.Fa parent
+and
+.Fa child
+represent menus.
+A
+.I child
+menu is linked
+to a
+.I parent 
+menu forming a tree of menus.
+.Ad radius
+The positive integer
+.Fa radius
+along with
+.Fa radius1
+and 
+.Fa radius2
+signifies a radius when referring to circles or 
+major and minor axis when referring to ellipses.
+They are only referenced in respect to
+.I window
+coordinates.
+.Ad string
+An array of characters,
+.Fi string
+is a null terminated
+.SM
+ASCII
+.LG
+character string.
+Except where noted, several
+.SM
+ASCII
+.LG
+control characters can be included in
+strings by escaping them with \e\fIX\fP, where
+.I X
+is one of the  characters shown in the following table.
+.TS
+center box;
+c s s
+c | c | c
+c | c | c
+r | l | l.
+Character string control characters
+_
+escape	octal	Meaning
+character	value	
+=
+\eb	010	Back space
+\eE	033	Escape
+\ee	033	Escape
+\ef	014	Form feed
+\eg	007	Bell
+\eM	*	Turn on 
+		8'th (parity) bit
+\en	012	New line
+\er	015	Return
+\es	040	Space
+\e\e	134	Back-slash (\e)
+
+.TE
+.ce
+* \s-2(the next character has its 8'th bit turned on)\s+2
+.Ad to , from
+The small positive integers
+.Fa to
+and
+.Fa from
+identify the destination and source bitmaps for
+.I bit-blt
+operations.
+The value 0 (zero) represents the current window bitmap;
+positive integers name scratch-pad bitmap storage.
+.Ad width , height
+The integers
+.Fa width
+and
+.Fa height
+represent a width and height in
+.B window
+coordinates.
+.Ad X , Y
+The integer pair
+.Fr "" X Y
+ represents a point in 
+.I display
+coordinates.
+The suffixes
+.Fi src
+and
+.Fi dst
+as in
+.Fr "" X_src Y_src
+ or
+.Fr "" X_dst Y_dst
+ are used to indicate 
+.I source
+and 
+.I destination
+coordinates respectively.
+Similarly, the suffixes
+.Fi 1
+and
+.Fi 2
+as in
+.Fr "" X1 Y1
+ refer generically to the first or second coordinate.
+.Ad  x , y
+The integers
+.Fr "" x y
+ represent a point in
+.I window
+coordinates.  Whether that is
+.I relative
+(i.e. 0-999) or
+.I absolute
+depends upon the current coordinate setting of the window.
+As with
+.Fr "" X Y
+ above, the modifiers
+.Fi src , dst , 1 ,
+and
+.Fi 2
+refer respectively to the
+.I source ,
+.I destination ,
+.I first ,
+and
+.I second
+coordinates.

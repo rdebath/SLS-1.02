@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# match -- play a series of games using xboard as a referee
+# Run this in a clean directory.
+#
+
+case $# in
+6) COUNT=0; HOST1=$1; PROG1=$2; HOST2=$3; PROG2=$4; LENGTH=$5; MODE=$6 ;;
+*) echo "Usage: match <host1> <prog1> <host2> <prog2> <length> \
+(Init | Position | Opening)" ; exit
+esac
+
+rm -f CLp*
+CHESSDIR=.
+export CHESSDIR
+
+while (:)
+do
+    if (test $COUNT -eq $LENGTH)
+    then
+        break
+    else
+        COUNT=`echo $COUNT | awk '{print $0 + 1}'`
+        MODULO=`echo $COUNT | awk '{print $0 % 2}'`
+        if (test $MODULO -eq 0)
+        then
+            xboard -iconic -firstHost $HOST1 -secondHost $HOST2 \
+		-fcp $PROG1 -scp $PROG2 \
+                -matchMode $MODE -saveGameFile match.game.$COUNT
+        else
+            xboard -iconic -firstHost $HOST2 -secondHost $HOST1 \
+		-fcp $PROG2 -scp $PROG1 \
+                -matchMode $MODE -saveGameFile match.game.$COUNT
+        fi
+	sleep 60
+	if (test -f CLp*W)
+	then
+	    mv CLp* match.lstW.$COUNT
+	fi
+	if (test -f CLp*B)
+	then
+	    mv CLp* match.lstB.$COUNT
+	fi
+	if (test -f $HOME/chess.lst)
+	then
+	    mv $HOME/chess.lst match.lst31.$COUNT
+	fi
+    fi
+done

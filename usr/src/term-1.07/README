@@ -1,0 +1,287 @@
+[ See README.NeXT for information about this release, Term 1.0.5.a ]
+
+			   Term. version 1.0.6
+
+	      Copyright (c) 1992-1993 Michael O'Reilly
+		  All Rights Reserved
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 1, or (at your option)
+    any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+-------------------------------------------------------------------------------
+
+--> Read the 'CHANGES' file as this will be more up to date than this
+readme.
+
+--> Please read this entire file if you have any problems.
+
+Term is a program to implement a slip-like connection between 2 unix
+machines. It isn't sl/ip. It runs entirely in use mode. It requires no
+kernel support on either end, and no root access on either end. It is
+built to run over a modem to connect a non-internet machine with an
+internet machine. If this is your situation, and yo udon't have
+slip/ppp then term is for you.
+
+It is run at both ends, and does multiplexing, error correction, and
+compression across the serial link between them. Designed to be as
+efficient as possible, and have good response time, even over slow
+modems. (I run it over a 2400 baud modem).
+
+Note that it behaves the same from both ends. A user on either machine
+can connect to the other.
+
+The term program runs as a server. A unix-domain socket is opened and
+bound to support communication between client processes and the
+server.
+
+See 'PROTOCOL.unix' for the protocol uses by clients.  
+See 'PROTOCOL.serial' for the protocol used across the serial link.  ( Be
+warned that they may be out of date. If in doubt, read the source :)
+
+There are five clients currently written:
+
+    trsh
+	Runs a shell on the remote end. Like a normal login.
+    tupload <local file> <remote file>
+	Uploads a file. takes the name of the local file and the optional
+	arg is the name of the remote file.
+    txconn
+	Hangs around in the background waiting for X connections. re-directs
+	them to the local X server. Intended to be run on the remote machine.
+    tredir
+	Lets you alias a port on one system to another. I.e. 'redir 4000 23'
+	run on host 'a' means that anyone telneting to port 4000 on 'a',
+	will get a login prompt of machine 'b'.
+
+By default the program assumes a 2400 baud modem. Run it as 
+'term -s9600' for a 9600 baud modem.  Alternatively try 
+'setenv BAUDRATE 9600'. The baudrate determines how fast term will try
+to send data to the modem. I.e. if BAUDRATE is 9600, it will only
+attempt to send 960 bytes per second to the modem.  Alternatively yet,
+write a ~/.term/termrc file, following the format in TERMRC.
+
+There is a ~/.term/termrc file so you can permanently set this stuff.
+Look in the file TERMRC.
+
+If either end gets five zeros (i.e "00000") it will exit. This means
+to that finish a session you kill the linux end term, then run a
+comm's program (xcomm or whatnot) and type '000000'. You should then
+get a prompt back from the remote end. Doing something like 'echo
+00000000 > /dev/ttys1' will do the job as well. :)
+	
+Rshing from the remote machine back to the linux one has a bug. When
+you exit the linux shell, the connection doesn't close. You tell me
+why. :( It is something to do wiith the pty handleing on linux.
+
+----------------------------------------------------------
+How to use txconn: (and term for that matter)
+
+Login to your remote machine.
+run
+	"term"
+
+Break back to your linux prompt. I.e if you are running xcomm or
+something similar then type control-A, x (to break back to xcomm
+prompt). Then run term with stdin/stdout connected to the modem. 
+
+In xcomm I type
+	"$ term"
+Alternatively you could exit your comms program altogether and run
+	"term < /dev/ttys1 > /dev/ttys1" from the shell prompt.
+		(assumeing that /dev/ttys1 is your modem port).
+		Makes certain your comms program ISN'T running if you
+		try the above, as it will fight with term if it is.
+		
+Then run 'trsh' from a shell prompt. (I generally run xcomm and term
+on tty8, and then switch to tty7 to run trsh. You may find it handy to
+have a entry in /etc/passwd looking like...
+	remote::0:0::/root:/usr/local/bin/trsh 
+as this then enables you to login to your remote machine by logging in
+as 'remote').
+
+This should give you (in about 2 seconds) a shell on your remote
+machine. At this point the error correction/compression is on. You can
+go to another tty to run another trsh giving you multiple shells etc.
+
+
+None of the above needs X-windows to run.
+------------------------------------------ 
+
+To run txconn:
+  Make sure you are running X-windows. txconn will
+assume you have x-windows running.
+
+After running 'trsh', type
+	"txconn"
+on the trsh. (i.e. run txconn on your remote machine).
+It should exit immediately. (This is because it starts a process in the 
+background). Then if you are running tcsh, or csh..
+	"setenv DISPLAY name:9" for csh/tcsh )
+otherwise, if you are running 'sh' , or 'ksh'.
+	"export DISPLAY=hostname:9"
+
+Here, 'hostname' is the hostname of your REMOTE machine. (i.e. the
+machine you ran txconn on. To make that very clear. The local machine
+is the machine you are typeing on, the remote is the one at the other
+end of the modem link. Run txconn on the remote machine. hostname is
+set to be the name of your remote machine. DON'T use the hostname of
+your local machine).
+
+Then you can run any x-windows program on your remote machine, and it
+should appear on your screen.
+
+
+Things that can go wrong compiling..
+1) The makefile breaks on the line 'ar rcs ....'
+	Read the makefile. Change the 'ar rcs ..' to be 'ar rc ..' and
+	uncomment the like with the $(RANLIB) ...
+2) config.h gives a message about the OS being undefined. 
+	config.h sets up a list of #define's baased on what OS you are
+	compiling on. Please (if you can) write support for your OS, and
+	mail me the patches so I can support it. If you can't mail me
+	with details of you machine, and I will see what I can do.
+
+Things that can go wrong:
+1) term giving message like
+	"(null): timed out at 60 trans 4"
+    This should be read as "A packet got no acknowledgement even tho it
+	has been waiting for 60/10th of a second, so it is being 
+	re-transmitted for the 4th time."
+
+     These errors are normal. Line noise etc will cause packets to be
+	lost and retransmitting is the way they are recovered.
+
+     Times when it isn't normal:
+	a) Constantly re-transmitting i.e the last number just keeps
+	going up. This indicated one of 
+	    i) The remote term has died. Shouldn't happen.
+	   ii) The line is not an 8 bit line.
+		You can check this by running the linecheck program.
+	
+		Look up 'sevenbit' in TERMRC or term(1) if you have a
+		sevenbit line. 
+	  iii) Line noise has sent a XOFF character and your terminal
+		server has treated it is a quench signal. You
+		shouldn't be useing software flow control with term.
+		turn if off if you can. Look up the -f option in OPTIONS
+		or 'flowcontrol' in TERMRC or term(1).
+	   iv) The remote term has 'blocked'. Term uses none blocking
+		I/O. Unfortuneatly there seems to be little consensus
+		on how to set it. What works on linux doesn't work on
+		ultrix and vice versa. :( You will have to fiddle with
+		the routines in lib.c (set_block and set_nonblock)
+		I have played with this some, and other ppl have
+		kindly guided my ways, so it shouldn't happen as often 
+		now. In fact, this should not happen at all. If it
+		does, PLEASE mail me.
+	b) Any retransmitions on an error correcting modem.
+	    Any of the above, and
+	    v) The BAUDRATE is set too high. Too much data is being
+		buffered by the operating system. Alternatively
+		you could try increaseing the value of 'timeout' (see 
+		TERMRC).
+		
+2) Term not doing anything. Everything hangs.
+	i) The non-blocking I/O is probly stuffed. Look in lib.c(or misc.c) at
+	routines set_block() and set_nonblock().
+	ii) I have stuffed up and left a bug in a released verion.
+	iii) The line is really dirty on it is eating one of the characters
+	term is useing. See linecheck below.
+	iv) Mail me with LOTS of details.
+3) Term constantly giveing you the prompt from your remote machine.
+	You have run the remote term in the background. Don't do this.
+4) Trsh hangs after you have typed a few keystrokes.
+	You have a dirty line. A terminal server or something like
+	that is eating some characters. Run linecheckline. See
+	term_setup.1 for more info. See TERMRC for more info. See
+	below for more info.
+	
+
+More known bugs:
+	When first run, term will make a directory called ~/.term. It will
+very likely have dud permissions. just do chmod 700 ~/.term to fix it.
+
+
+------------
+USAGE OF linecheck.c
+
+
+ intially written by Michael O'Reilly
+ *seriously* bashed about by by quarters
+ hell, I wonder if diff would find more than 5 matching lines anymore...
+ jefftep@cs.utexas.edu
+ jeff grills
+
+ to make, type 'make linecheck'. This should produce a program called
+ 'linecheck' 
+
+Without term running do the following. (i.e. on a bare serial line.
+Nothing but your comms program is running.)
+if you use a csh type shell (csh, or tcsh), then run /bin/sh before
+you do the following
+ run remotely like:      linecheck 2> remote.output
+             locally:    linecheck < /dev/modem > /dev/modem 2> local.output 
+	
+
+ if it says something needs escaped, that means it didn't get through okay
+ this time. if you get an invalid packet printed, it means the packet wasn't
+ sent by the linecheck on the other side, and may either be line static,
+ or some very braindead terminal response to a (possibly series) of characters
+ to what was printed over the line.  in this case, it's your responsibilty
+ to determine which, and escape the previously sent char if needed.  There is
+ no way this program can identity a braindead terminal server from line static,
+ so this is the way it has to be.
+
+ if, for some reason, you get stuck out in lala land, and can't kill
+ the program, try typing "^jexit^j".  That should kill it, and restore
+ your terminal.   
+
+ It'll print "### sending char" and "### received valid".  Don't worry if these
+ two number are out of sync.  That's fine.  Just worry, on either side, if you
+ get some "Invalid packet: " lines.  Look at them closely, and see if it's line
+ static, or a real problem.
+
+ At the end, it'll print out a summary of what it thinks you should escape.
+ This just means these chars didn't get recieved correctly this time.  Again,
+ if line static munched something, some of these may be valid. 
+
+ To actually escape them, you have to put them into your termrc file.
+ So if it said to escape 0-31, then on the OTHER end from the one that
+ printed it, you add the line 'escape 0-31' to your ~/.term/termrc file.
+ Please note that the local.output file contains the characters that
+ should be escaped on the REMOTE end, and vice versa. See TERMRC and
+ term(1) for more on escapeing characters.
+
+ *** IF *** your terminal server generates extra responses for odd chars,
+ then you may not be told to escape something, but need to anyway.  This will
+ be evident from a "Invalid packet: " on the local side, after attempting to
+ send a character.  Again, it may be line static. You have to make the call.
+
+ if you're running it locally in a xterm, I suggest you turn on logging.
+
+ if you have problems with this program, and want me to look at it, mail me
+ *both* the local and remote output, and label them appropriately.
+
+programmers notes:
+
+ hopefully, soon, I'll add the ability to skip chars to this program,
+ so you can test out the escapes you want.
+
+ maybe do a fork() and process the two sides independently, so it never hangs.
+ would cause minor quitting problems, but may be worth it.
+
+Any problems, feel free to mail me. Any patches, bug fixes, etc are
+VERY welcome.
+
+Michael (oreillym@tartarus.uwa.edu.au);

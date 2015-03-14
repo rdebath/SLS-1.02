@@ -1,0 +1,663 @@
+.\"{{{}}}
+.\"{{{  defines
+.\"                        Copyright (c) 1988 Bellcore
+.\"                            All Rights Reserved
+.\"       Permission is granted to copy or use this program, EXCEPT that it
+.\"       may not be sold for profit, the copyright notice must be reproduced
+.\"       on copies, and credit should be given to Bellcore where it is due.
+.\"       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+.\"
+.ds M \fBM\s-2GR\s+2\fP
+.\"}}}
+.\"{{{  title
+.TH \*M 1L "August 1, 1992"
+.\"}}}
+.\"{{{  name
+.SH NAME
+mgr \(em Bellcore window manager
+.\"}}}
+.\"{{{  synopsis
+.SH SYNOPSIS
+.ad l
+mgr
+[ \fB\-f\fP\fIfont_dir\fP ]
+[ \fB\-i\fP\fIicon_dir\fP ]
+[ \fB\-s\fP\fIstartup_file\fP ]
+.if n .ti +0.5i
+[ \fB\-n\fP ]
+[ \fB\-x\fP ]
+[ \fB\-v\fP ]
+[ \fB\-F\fP\fIdefault_font\fP ]
+.ti +0.5i
+{
+[ \fB\-d\fP\fIlist\fP ]
+[ \fB\-m\fP \fImouse_device\fP ]
+[ \fB\-B\fP\fIwindow_buff\fP ]
+[ \fB\-b\fP\fIshell_buff\fP ]
+.if n .ti +0.5i
+[ \fB\-P\fP\fIpoll_interval\fP ]
+.ti +0.5i
+[ \fB\-S\fP\fIscreen\fP ]
+}
+.ad b
+.\"}}}
+.\"{{{  description
+.SH DESCRIPTION
+.I Mgr
+is a grafics window manager.  It permits the creation and manipulation
+of overlapping windows, with different processes running in each window.
+The user controls the function and layout of the display with a mouse.
+Windows are updated asynchronously even if they are partially (or
+completely) obscured by other windows, although obscured windows may
+arrange to have their output suspended until the window is uncovered.
+.LP
+Each window runs a terminal emulator which, in addition to the functions
+normally required to run screen oriented programs, such as
+.I vi,
+provides primitives for drawing lines, doing 
+.I bit-blts,
+and performing administrative functions such as 
+.I reshaping
+the window,
+changing
+.I fonts,
+or
+starting a new window.
+Details of of the terminal emulator operation are described in
+the \*M - C Language Application Interface.
+.LP
+The useful command line options are:
+.TP
+.BI \-f font_dir
+Use
+.I font_dir
+as the directory to find the fonts, instead of
+.B /usr/mgr/font.
+.TP
+.BI \-i icon_dir
+Use
+.I icon_dir
+as the directory to find the icons, instead of
+.B /usr/mgr/icon.
+.TP
+.BI \-s startup_file
+Use 
+.I startup file
+instead of
+.B $HOME/.mgrc
+to obtain initial configuration information.
+See the description of startup commands below.
+.TP 
+.B \-n
+Bitmap files are created using the new, portable bitmap format.  The
+portable format has an 8 byte header, and each row is padded to a byte
+boundary.
+Ordinarily the old (6 byte) bitmap header is
+produced, followed by the bitmap data with each line padded to an 16
+bit boundary.  Eventually, the sense of 
+.B \-n
+will change, when all of the programs that were written in the old
+format are changed.
+.TP 
+.B \-x
+Don't use a startup file upon execution.
+.TP 
+.B \-v
+Don't run 
+\*M
+at all.  Print the current version number and creation date instead.
+.TP 
+.BI \-F default_font
+Use
+.I default_font
+as the pathname of a \*M font to be used in place of \*M's
+builtin default font.
+.LP
+The rest of the options are:
+.TP 
+.BI \-d list
+Print debugging information on 
+.I stderr.
+.I list
+is one or more of the characters:
+.B *ABCEFMNPSUbcdefilmnopsuwxy
+each of which turns on debugging output for some aspect of \*M.
+.TP 
+.BI \-m mouse_device
+Use 
+.I mouse_device
+instead of
+.B /dev/mouse
+to obtain mouse coordinates.
+.TP
+.BI \-S screen
+Use
+.I screen
+instead of
+.B /dev/bwtwo0
+as the display device.
+.TP
+.BI \-B win_buff
+Process characters to a window in up to
+.I win_buff
+byte chunks (the default is 40).
+.TP
+.BI \-b shell_buff
+Buffer up to 
+.I shell_buff
+bytes of output from a program before writing it on a window
+(the default is 256).
+.TP
+.BI \-P poll_interval
+When output is pending in a window, wait
+.I poll_interval
+micro-seconds on every polling loop to give more
+process time to the processes running in the windows.
+The default is zero.
+.SS "Startup File Format"
+Upon invocation
+\*M
+reads commands from the "startup file",
+.B $HOME/.mgrc
+(see 
+.B \-s
+flag above)
+to initialize the display.
+Commands are placed one per line with the command arguments separated
+by spaces or tabs.
+The following commands are supported:
+.LP
+.TP
+\fBinitcmd\fP \fIcommand\fP [ \fIargs...\fP ]
+This command line is handed to the shell and executed
+at the time the startup file is read.
+.TP
+\fBsuspendcmd\fP \fIcommand\fP [ \fIargs...\fP ]
+This command line is handed to the shell and executed
+each time \*M suspends it self,
+either due to a main menu selection or the Left-z key.
+.TP
+\fBresumecmd\fP \fIcommand\fP [ \fIargs...\fP ]
+This command line is handed to the shell and executed
+each time \*M resumes after a suspension.
+.TP
+\fBquitcmd\fP \fIcommand\fP [ \fIargs...\fP ]
+This command line is handed to the shell and executed
+just before \*M quits,
+either due to a main menu selection or the Left-Q key.
+.TP
+\fBmap\fP \fIn0 n1 n2 n3 n4 n5 n6 n7\fP
+This changes the meaning of the mouse buttons.
+Each
+.I n[0-7]
+represents one of the 8 states of the three
+.I mouse buttons.
+The default mapping is: 0 1 2 3 4 5 6 7.  To change the meaning of the
+.I left
+and
+.I right
+buttons, 0 2 4 6 1 3 5 7 would be used.  It is possible to map a button
+out of existence, which may have grave consequences.
+.TP
+\fBfont\fP \fIfont_number font_name\fP
+The default font may be overridden by specifying the font
+.I font name
+which is to be substituted for the font at position
+.IR font_number .
+Font numbers
+are small integers, in the range of 0-99.
+The
+.IR font_name s
+are found in the font directory, by default
+.BR /usr/mgr/font .
+See the
+.B \-f
+flag above.
+.TP
+\fBwindow\fP \fIx y wide high\fP [ \fIfont_number\fP ]
+A window is created whose corner is at the coordinates
+.I (x, y)
+and whose size is
+.I (wide, high).
+Units are in pixels, with 
+.I x
+and
+.I y
+increasing to the 
+.I right
+and
+.I
+down
+respectively.
+.I Wide
+and
+.I high
+can be set in terms of characters in the current font by appending
+the letter "c" to the value.
+If
+.I x
+and
+.I y
+are
+.BR \-1 ,
+then they are replaced by values that causes new windows to
+"tile" across the screen.
+Setting
+.I wide
+and
+.I high
+to
+.B \-1
+is identical to setting them to "80c" and "24c" respectively.
+The scope of the
+.B window
+command continues until either another 
+.B window
+command or
+.B done
+is reached.
+The rest of the options,
+.B shell, start, init,
+.B flags,
+and
+.B newwindow
+apply only to the current
+.B window
+command.
+.RS
+.TP
+\fBshell\fP \fIcommand\fP [ \fIargs...\fP ]
+.I Command
+is the name of the command or shell to be started in the window.
+If
+.I command 
+is not specified, then the environment variable
+.B $SHELL,
+or 
+.B /bin/csh
+is used.
+.TP
+\fBstart\fP \fIcommand\fP
+The
+.I command 
+is sent to the 
+.I shell
+upon startup, as if it had
+been typed at the keyboard.
+.TP
+\fBinit\fP \fIinitial_string\fP
+The 
+.I
+initial string
+is sent to the 
+.I window
+upon startup.
+The string is terminated by white space, the remainder of the
+line may be used as a comment.
+The codes:
+.B \e\e, \eb, \ef \ee, \en, \er, \eMx
+or
+.B \es
+may be used to represent
+.I \e, backspace formfeed, escape, newline, return, x|0200,
+or
+.I space
+respectively.
+.TP
+\fBflags\fP \fIflag...\fP
+Normally a window self destructs when the original process running in it dies.
+if
+.B nokill,
+currently the only flag,
+is specified, the window hangs around until specifically snuffed by
+the user.
+.TP
+.B newwindow
+The current window specification is not to be used to initialize the display,
+but instead will be used when
+.B "Left n"
+or
+.B "Right n"
+to create a new window.
+.RE
+.TP
+.B done
+.B done
+must be the last line in the startup file if any
+.B window
+commands are specified, or the last
+.B window
+command will not take affect.
+.SS "Using The Mouse"
+User interaction with 
+\*M
+is with the mouse.
+Moving the mouse causes a corresponding movement of the 
+.I mouse cursor,
+usually an arrow pointing to the upper left.
+The
+.I left
+or
+.I command button
+of mouse activates a
+.I menu
+whose options depend upon the current mouse position.
+An option is chosen by moving the mouse vertically while the
+.I command
+button is depressed, releasing the button when the appropriate
+selection is highlighted.
+.LP
+When the mouse is over the background pattern, or at the extreme
+left edge of the screen, the
+.I command menu 
+is activated by the 
+mouse.
+The
+.I command
+menu options are:
+.TP 12
+.B new window
+A new window is created by moving the the mouse cursor
+(now a box) to the upper left corner of the window, depressing
+the
+.I command button,
+sweeping out the window, then releasing the
+.I command button.
+The new window, if it is big enough, is started with a shell
+running in it.
+.TP 12
+.B redraw
+The background and windows are redrawn.
+This is useful if a process unknown to
+\*M
+scribbles on the display.
+It is left to the processing running in a window to fix the contents
+of its window.
+.TP 12
+.B quit
+\*M
+is terminated, after the
+.I quit
+is confirmed.
+Alternately,
+\*M
+may be suspended (ala
+.B ^Z 
+in
+.B csh
+).
+.LP
+When the mouse is over the 
+.I active
+window, the fat bordered window the keyboard is connected to,
+the 
+.I window menu
+is activated by depressing the
+.I command button.
+The
+.I window
+menu options are:
+.TP 12
+.B reshape
+.I Reshape
+reshapes the 
+.I active
+window, using a procedure similar to
+.I new window
+above.
+.TP 12
+.B move
+An outline of the current window
+is moved along with the mouse until the
+.I command button
+is depressed and released.
+The current window is then moved to the new location.
+.TP 12
+.B bury
+The current window is made inactive.
+Another window (if any) becomes the
+.I active
+window.
+.TP 12
+.B cut
+The mouse may be used to sweep out and save text from the current window
+into a global buffer.  A small scissors appears as the mouse cursor.
+Position the upper left corner of the scissors with the upper left
+corner of the first character to be saved, then push one of the mouse
+buttons, moving the mouse to sweep out the desired text.  Releasing the
+button causes the outlined text to be saved.  Using the
+.I command button
+with 
+.I cut
+causes the current contents of the global buffer (if any) to be replaced
+by the indicated text.  Either of the other two buttons causes the
+indicated text to be appended to the global buffer.
+.IP
+The
+.I cut
+facility currently works only for windows containing a single font, aligned
+on the default character boundaries.  Applications which use only
+the terminal emulator sub-set of
+.I MGR
+capabilities, such as the
+.I shell,
+.I mail, 
+and
+.I editors
+automatically meet this restriction.  Cuttability may be restored by
+issuing a
+.I clear
+(i.e.\& form feed) to the window.  The window flashes and beeps if the
+.I cut
+operation could not be completed, usually the result of corrupted data
+in the window.  In such cases, no text is saved.  See \*M - C Language
+Application Interface for a detailed description of the various
+.I cut
+option settings.
+.TP 12
+.B paste
+The contents of the global buffer (if any) are inserted into the input
+stream of the current window.  The global buffer is filled using 
+.B cut
+above, or under program control.
+.TP 12
+.B destroy
+All processes associated with the current window are sent a
+.I hangup
+signal, and the window is destroyed.
+.LP
+When the mouse is clicked on any window except the
+.I active
+window, that window moves to the
+.I front
+and becomes the
+.I active 
+window.
+.SS "Using The Left and Right Keys"
+When \*M is invoked from the console keyboard, many of the system menu
+functions have keyboard equivalents.  Some of the more interesting ones
+are activated by holding down the
+.B Left
+or
+.B Right
+keys, and then pressing:
+.TP 6
+space bar
+to activate the previous window
+.TP 6
+Back Space
+to activate the bottom window
+.TP 6
+c
+to initiate a 
+.I cut-text
+operation
+.TP 6
+p
+to initiate a 
+.I paste
+operation
+.TP 6
+h
+hide the top window on the bottom
+.TP 6
+l
+to clear the active window
+.TP 6
+m
+initiate a
+.I cut-text
+operation which will automatically cause a
+.I paste
+operation when completed
+.TP 6
+n
+to start a new window, 80 x 24 characters (if it will fit),
+placed in the "tile" position of its window-set ID
+.TP 6
+N
+start a new window by sweeping with the mouse
+.TP 6
+Q
+to exit
+\*M
+quickly
+.TP 6
+1\-9
+to activate the window with window-set ID 1 through 9
+.TP 6
+0
+activates the window with window-set ID 10,
+a synonym for w10<Return>
+.TP 6
+w\fInumber\fP<Return>
+activate the window with window-set ID
+.I number
+.TP 6
+r
+to redraw the windows
+.TP 6
+R
+to redraw the windows
+.TP 6
+.TP 6
+z
+to suspend 
+\*M
+.LP
+There are other characters that cause \*M to display debugging information
+which may disrupt the screen; they are
+i,
+I,
+M,
++,
+-,
+#,
+and
+?.
+Use "redraw", either from the command menu on the mouse or "right r"
+to restore the screen display.
+.LP
+The environment variable
+.B \s-2DEFAULT_FONT\s+2
+may be assigned the full path name of a
+\*M
+font,
+which will then replace
+\*M's
+built in default font.
+.\"}}}
+.\"{{{  files
+.SH FILES
+.TP 20
+.B /dev/mouse
+place to obtain mouse coordinates.
+.TP 20
+.B /dev/bwtwo0
+name of the display.
+.TP 20
+.B /usr/mgr/icon
+place to find 
+\*M
+icons.
+.TP 20
+.B /usr/mgr/font
+place to find 
+\*M
+fonts.
+.TP 20
+.B /usr/mgr/font/.mgrc
+the global default startup file;
+delivered with 15 fonts specified.
+.TP 20
+.B $HOME/.mgrc
+place to find startup commands.
+.TP 20
+.B /dev/bell
+For ringing the bell.
+.TP 20
+.B /dev/[pt]ty[pq]?
+Name of the pseudo-tty's.
+.\"}}}
+.\"{{{  see also
+.SH "SEE ALSO"
+\*M - C Language Application Interface
+.br
+bounce(1L)
+browse(1L)
+bury(1L)
+clock(1L)
+clock2(1L)
+close(1L)
+dmgr(1L)
+ether(1L)
+font(1L)
+iconmail(1L)
+iconmsgs(1L)
+loadfont(1L)
+maze(1L)
+menu(1L)
+mgr(1L)
+mgrmail(1L)
+mgrmsgs(1L)
+oclose(1L)
+omgrmail(1L)
+rotate(1L)
+set_console(1L)
+set_termcap(1L)
+shape(1L)
+show(1L)
+showfont(1L)
+snap(1L)
+startup(1L)
+stat(1L)
+stringart(1L)
+tjfilter(1L)
+window_print(1L)
+zoom(1L)
+bitmap(5L)
+font(5L)
+.\"}}}
+.\"{{{  bugs
+.SH BUGS
+.TP 3
+*
+A separate application program,
+set_console(1L)
+is required to prevent others from scribbling on 
+.B /dev/console
+and messing up the display.
+.TP 3
+*
+As 
+\*M
+requires exclusive control of the mouse, 
+it may not be invoked from within itself.
+.TP 3
+*
+Only fixed-width fonts are supported.
+.\"}}}
+.\"{{{  author
+.SH AUTHOR
+Stephen A. Uhler, changes by lots of people
+.\"}}}

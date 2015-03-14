@@ -1,0 +1,118 @@
+#!../expect -f
+
+# weather - Expect script to get the weather (courtesy University of Michigan)
+# Don Libes
+# Version 1.7
+
+# local weather is retrieved if no argument
+# argument is the National Weather Service designation for an area
+# I.e., WBC = Washington DC (oh yeah, that's obvious)
+
+if [llength $argv]>1 {set code [lindex $argv 1]} else {set code "WBC"}
+
+trap exit SIGINT
+
+proc timedout {} {
+	send_user "Weather server timed out.  Try again later when weather server is not so busy.\n"
+	exit 1
+}
+
+# delete special weather statement question
+proc delete_special {s} {
+	set x [string first "     ******" $s]
+	return [join [lrange [split $s ""] 0 $x] ""]
+}
+
+# delete main menu and question
+proc delete_main {s} {
+	set x [string first "                Select an option" $s]
+	return [join [lrange [split $s ""] 0 [expr $x-1]] ""]
+}
+
+# delete city forecast menu and question
+proc delete_city_menu {s} {
+	set x [string first "CITY FORECAST MENU" $s]
+	return [join [lrange [split $s ""] 0 [expr $x-1]] ""]
+}
+
+# strip signature, blank lines, and trailing returns
+proc strip_sig {s} {
+	set foundsig 0
+	set s2 [split $s ""]
+
+	for {set i [llength $s2]} 1 {} {
+		set i [expr $i-1]
+		if $i<0 break
+		set char [lindex $s2 $i]
+		if 0==[string compare $char " "] continue
+		if 0==[string compare $char "\r"] continue
+		if 0==[string compare $char "\n"] continue
+		# if we see two sig-like things, the second is probably
+		# real text, so stop stripping
+		if $foundsig break
+		set j [expr $i-4]
+		set char [lindex $s2 $j]
+		if {1==[string compare $char "\r"] &&
+		    1==[string compare $char "\n"]} break
+		# delete signature just by skipping over it
+		set i $j
+		set foundsig 1
+	}
+	return [join [lrange $s2 0 $i] ""]
+}
+
+
+set timeout 60
+match_max 10000
+log_user 0
+
+spawn telnet downwind.sprl.umich.edu 3000
+for {} 1 {} {
+	expect timeout {
+		send_user "failed to contact weather server\n"
+		exit
+	} "Press Return to continue*" {
+               # this prompt used sometimes, eg, upon opening connection
+               send "\r"
+	} "Press Return for menu*" {
+               # this prompt used sometimes, eg, upon opening connection
+               send "\r"
+	} "M to display main menu*" {
+		# sometimes ask this if there is a weather watch in effect
+		send "M\r"
+	} "Change scrolling to screen*" {
+		break
+	} eof {
+		send_user "failed to telnet to weather server\n"
+		exit
+	}
+}
+send "C\r"
+expect timeout timedout "Unlimited*"
+send "4\r"
+expect timeout timedout "Change scrolling to screen*"
+send "1\r"
+expect timeout timedout "Help*"
+send "1\r"
+expect timeout timedout "Enter 3-letter city code*"
+send "$code\r"
+
+for {} 1 {} {
+	expect timeout {
+		timedout
+	} "Press Return to display statement, M for menu:*" {
+		send_user "\n[strip_sig [delete_special $expect_out(buffer)]]\n"
+		send "\r"
+	} "CITY FORECAST MENU*?) Help*" {
+		send_user "\n[strip_sig [delete_city_menu $expect_out(buffer)]]\n"
+		break
+	} "?) Help*" {
+		# doesn't appear to happen anymore, leave in just in case
+		send_user "\n[strip_sig [delete_main_menu $expect_out(buffer)]]\n"
+		break
+	}
+}
+
+send "X\r"
+expect
+

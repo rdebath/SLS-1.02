@@ -1,0 +1,137 @@
+#! /bin/sh
+# Prepare some batches of size $1 in files named togo.[0-9] .  We prepare a
+# total of 7 to stay within awk's limits on file descriptors (we need a
+# couple of other descriptors).  We ultimately work from togo, but if it's
+# the only thing we've got to work on, we immediately shuffle it aside into
+# togo.more so that we can unlock the news system.  If we've got an existing
+# non-empty togo.more, we use that.  As a further optimization, if there
+# is more than will fit in the numbered batches, we put the next few
+# lots in togo.next, and use that thereafter until it's empty.  This
+# avoids the need to paw through the whole huge list every time when
+# a large backlog has built up.  We also punt to sed to trim the big
+# list when we do process it, avoiding the need to run it all through awk.
+#
+# If the togo files do not contain file sizes, we make an arbitrary guess
+# at an average size.
+
+case "$1" in
+'')	echo 'Usage: batchsplit size' >&2
+	exit 2
+	;;
+-x)	lotsmissing=0
+	shift
+	;;
+esac
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/batch:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+# pick an input file, shuffling togo aside (with locking) if needed
+if test -s togo.next
+then
+	input=togo.next
+elif test -s togo.more
+then
+	input=togo.more
+else
+	# Locking.
+	lock="$NEWSCTL/LOCK"
+	ltemp="$NEWSCTL/L.$$"
+	echo $$ >$ltemp
+	trap "rm -f $ltemp ; exit 0" 0 1 2 15
+	while true
+	do
+		if newslock $ltemp $lock
+		then
+			trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+			break
+		fi
+		sleep 30
+	done
+
+	# Do it.
+	rm -f togo.more
+	mv togo togo.more
+	>togo
+	input=togo.more
+
+	# Unlock.
+	trap 0 1 2 15
+	rm -f $ltemp $lock
+fi
+
+# A little precaution... do there seem to be a lot of nonexistent files?
+# Check first three as quick screening, check next fifty to decide whether
+# a relatively-costly existence filtering is in order.
+nextonly=0
+lotsmissing=${lotsmissing-25}
+if test " `sed 3q $input | batchcheck -v | wc -l`" -gt 0 && \
+	test " `sed 50q $input | batchcheck -v | wc -l`" -gt $lotsmissing
+then
+	# need to filter togo.next, or generate one for filtering
+	case "$input" in
+	togo.next)	batchcheck <togo.next >togo.tmp
+			mv togo.tmp togo.next
+			if test ! -s togo.next
+			then
+				# it's really bad
+				rm -f togo.next
+				input=togo.more
+				nextonly=1
+			fi
+			;;
+	togo.more)	nextonly=1		;;
+	esac
+fi
+
+# main processing
+rm -f togo.overflow togo.count
+awk 'BEGIN { total = 0 ; ninbatch = 0 ; bno = 1 ; limit = '$1'
+		batch = "togo." bno ; nbatches = 7
+		if ('$nextonly' == 1) {
+			# just make a new togo.next, no togo.[0-9] batches
+			bno = nbatches
+			ninbatch = 1
+			total = limit+1
+		}
+	}
+	{
+		if (NF == 1) {
+			if ($1 ~ /^<.*>$/)	# probably ihave/sendme m-id
+				size = length + 1
+			else
+				size = 3000	# Arbitrary guess.
+		} else
+			size = $NF + 15		# 15 for "#! rnews nnnnn"
+		if (total + size > limit && ninbatch > 0) {
+			# Go to next batch.
+			bno++
+			if (bno <= nbatches) {
+				batch = "togo." bno
+				ninbatch = 0
+			} else if (bno == nbatches+1 && FILENAME == "togo.more") {
+				batch = "togo.next"
+				limit = 4 * nbatches * limit
+			} else {
+				print NR - 1 >"togo.count"
+				exit
+			}
+			total = 0
+		}
+		ninbatch++
+		total += size
+		print >batch
+	}' $input
+
+# handle the overflow case efficiently
+if test -s togo.count
+then
+	sed "1,`cat togo.count`d" $input >togo.overflow
+	rm togo.count
+	mv togo.overflow $input
+else
+	rm $input
+fi

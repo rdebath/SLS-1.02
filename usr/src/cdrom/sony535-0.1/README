@@ -1,0 +1,82 @@
+Sony CDU-535 Linux driver README
+================================
+
+This package contains an ALPHA linux device driver for the Sony CDU-535
+CDROM drive.  This is one of the older Sony drives with its own interface
+card (Sony bus).  The DOS driver for this drive is named SONY_CDU.SYS -
+when you boot DOS your drive should be identified as a SONY CDU-535.  The
+driver probably works with a CDU-531 also since I used that drive's
+documentation to write the driver -- Sony said they were very similar.
+
+The linux driver is based on Corey Minyard's sonycd 0.3 driver for the
+CDU-31A.  I just changed the commands that were sent to the drive to
+correspond to the CDU-535 commands and registers.  There were enough
+changes to let bugs creep in but it seems to be stable.  I was able to tar
+an entire CDROM (should read all blocks) and built ghostview and xfig off
+Walnut Creek's X11R5/GNU CDROM.  xcdplayer and workman work with the
+driver.  Like Minyard's original driver this one uses a polled interface
+(this is also the default setup for the DOS driver).  I have not tried it
+will interrupts or DMA enabled on the board.
+
+REQUIREMENTS
+============
+
+	- Sony CDU-535 drive, preferably without interrupts and DMA 
+	  enabled on the card.
+
+	- Drive must be set up as unit 1.  Only the first unit will be 
+	  recognized
+
+	- linux kernel source and gcc compiler
+
+FILES
+=====
+	README		- this file
+	README.sonycd	- README from the CDU-31A driver package
+	sonycd.diffs	- diffs to the kernel from the CDU-31A driver
+			  package with a change in source file name from
+			  sonycd.[ch] to sonycd535.[ch] - everything else
+			  is the same
+	driver535.tar	- the CDU-535 driver source code.  Equivalent to
+			  the driver.tar mentioned in the README.sonycd
+
+INSTALLATION
+============
+
+Follow the instructions in README.sonycd EXCEPT untar driver535.tar rather 
+than the driver.tar mentioned. In this release the CDU-535 and CDU-31A 
+drivers can not be installed at the same time.  (Hopefully the next 
+distribution fix this.)  When you reboot after building the new kernel you 
+should get a message saying Linux found your CDU-535 drive.  If it does not 
+find the drive you will get a message saying so.
+
+I am working with the kernel from the SLS release prior to the present one.
+The kernel is 0.99pl4.  This is the only extra kernel patch I use.  I 
+compile with normal hard disk, w/o SCSI, with all filesystems except nfs.
+Default response on everything else.
+
+NOTES:
+======
+
+1) The drive MUST be turned on when booting or it will not be recognized!
+
+2) when the cdrom device is opened I disable the eject button to keep the
+   user from ejecting a mounted disk and replacing it with another.
+   Unfortunately xcdplayer and workman also open the cdrom device so you
+   have to use the eject button in the software.  Keep this in mind if your
+   cdrom player refuses to give up its disk -- exit workman or xcdplayer, or
+   umount the drive if it has been mounted.
+
+KNOWN BUGS
+==========
+
+1) I have trouble reading the var/tmp/.X11-unix directory on the Yggdrasil
+   beta CDROM.   Work-around: don't read the directory!  If you are using
+   the install script, modify the exclude file on the boot/install floppy
+   to exclude this directory - then it will install without problems.
+   (Note: you still have to get a kernel with this driver onto the boot 
+   disk!)  Note2:  if you get this error you will not be able to umount
+   the disk - you must reboot to get another CDROM mounted.
+
+Ron Jeppesen
+ronj.an@site007.saic.com

@@ -1,0 +1,518 @@
+		    The X Toolkit Intrinsics F.A.Q
+				   
+	$Id: FAQ-Xt,v 1.3 92/06/11 14:50:16 ware Exp $
+
+This article contains the answers to some Frequently Asked Questions
+(FAQ) from comp.windows.x about the X Toolkit Intrinsics.  To submit
+questions (preferably with an answer) send email to: ware@cis.ohio-state.edu
+
+All code fragments are public domain.
+
+			       Contents
+0.  Glossary
+1.  Software Versions
+2.  Why does my application core dump when I use signals/alarms/cthreads?
+3.  How do I use a different visual than the default?
+4.  Which Visual should an application use?
+5.  Why do only Shell widgets have a Visual?
+6.  I've done all the above and I still get a BadMatch error.  Why?
+7.  Why doesn't my widget get destroyed when I call XtDestroyWidget()?
+8.  How do I exit but still execute the DestroyCallbacks?
+9.  How do I resize a Shell widget?
+10. Why can't XtAppAddInput() handle files?
+11. What good books are there on Xt?
+12. What Widgets are available?
+13. What alternatives to the Intrinsics are there?
+14. How do I pass a float value to XtSetValues?
+15. How do I write a resource converter?
+16. How do I open multiple displays?
+17. What changed from R3 to R4 to R5?
+18. Where are the resources loaded from?
+19. What order are callbacks executed in?
+20. How do I know if a widget is visible?
+21. How do I reparent a widget in Xt, i.e. XtReparentWidget()?
+
+The "+++" indicates the question needs more of an answer.
+
+----------------------------------------------------------------------
+0.  Xt Glossary
+----------------------------------------------------------------------
+
+o The Xt Intrinsics implement an object oriented  interface to C  code
+  to allow  useful graphical components to be created.   Included with
+  this  are  classes  that  provide  the  base  functionality:
+  Object, RectObj, Core, Composite, Constraint,  Shell, OverrideShell,
+  WMShell, etc.    The   terms   "Xt"   and  "Intrinsics"   are  used
+  interchangeably.  This  is  used very  precisely to mean  a specific
+  library of the X window system.  In particular, it does not include
+  the Athena, Motif,
+  OLIT  or  any   other  widget  set.   Without  further  widgets  the
+  Intrinsics are not especially useful.
+
+o A widget refers to a user interface abstraction created via Xt.
+  The precise use, is
+  any object that is a subclass of the Core class.  It is used loosely to
+  refer to anything that is a subclass of the Object class although these
+  are more accurately called windowless widgets or gadgets.
+
+o Xlib is  the C interface to the X11 protocol.  It is one layer below
+  the  Xt  Intrinsics.   Typically a  widget uses relatively few  Xlib
+  functions  because  Xt  provides  most  such  services  although  an
+  understanding of Xlib sometimes helps with problems.
+
+----------------------------------------------------------------------
+1.  Software Versions
+----------------------------------------------------------------------
+
+The following are the latest versions of Xt based software:
+        _____________________________________________________________
+	Software	Version		Released	Next Expected
+        _____________________________________________________________
+	X11R4		patch 18			(none)
+	X11R5		patch 12	5/15/92		??
+	Athena Widgets	(see X11R5)
+	Motif		1.2		5/92		??
+	OLIT		??		??		??
+	Xtra		2.0		now		2.5 (June 15, 92)
+	Xw		X11R4				(none)
+	Xcu		X11R5				(none)
+	fwf		3.1		6/08/92		??
+        _____________________________________________________________
+
+----------------------------------------------------------------------
+2.  Why does my application core dump when I use signals/alarms/cthreads?
+----------------------------------------------------------------------
+
+In brief, Xlib, Xt and most widget sets have no mutual exclusion for
+critical sections.  Any interrupt handler is likely to leave one of
+the above libraries in an inconsistent state -- such as all the
+appropriate flags not yet set, dangling pointers, in the middle of a
+list traversal, etc.  Note that the ANSI C standard points
+out that behavior of a signal handler is undefined if the signal handler calls
+any function other than signal() itself, so this is not a problem specific to
+Xlib and Xt; the POSIX specification mentions other functions which may be
+called safely but it may not be assumed that these functions are called by
+Xlib or Xt functions.
+
+The only safe way to deal with signals is to set a flag in the
+interrupt handler.  This flag later needs to be checked either by an
+work procedure or a timeout callback.  It is incorrect to add either of
+these in the interrupt handler.
+
+Why don't the Intrinsics deal with this problem?  Primarily because it
+is supposed to be a portable layer to any hardware and operating
+system.   Is that a good enough reason -- I don't think so.
+
+        Note: the article in The X Journal 1:4 and the example in O'Reilly
+Volume 6 are in error.
+
+----------------------------------------------------------------------
+3.  How do I use a different visual than the default?
+----------------------------------------------------------------------
+
+This requires a more complicated answer than it should.  A window has
+three things that are visual specific -- the visual, colormap and
+border pixmap.  All widgets have their own Colormap and BorderPixmap
+resource; only shell widgets have Visual resources (another questions
+deals with why shells have a Visual).  The default value of these
+resources is CopyFromParent which does exactly what it says.  In the
+shell widget CopyFromParent gets evalulated as DefaultVisualOfScreen
+and DefaultColormapOfScreen.  When any one of the three resources is
+not properly set, a BadMatch error occurs when the window is
+created.  They are not properly set because each of the values depends
+on the visual being used.  
+
+How to get this to work?  There are two parts to the answer.  The
+first is if you want an application to start with a particular visual
+and the second is if you want a particular shell within an application
+to start with a different visual.  The second is actually easier
+because the basic information you need is available.  The first is a
+little harder because you'll need to initialize much of the toolkit
+yourself in order to determine the needed information.
+
+    [I need to include some code to demonstrate these two options.
+     as is, this answer is incomplete, sorry.]
+
+----------------------------------------------------------------------
+4.  Which visual should an application use?
+----------------------------------------------------------------------
+
+This is a point that can be argued about but one opinion is there is
+no way for an application to know the appropriate visual -- it has to
+be specified by the user.  If you disagree with this then your
+application probably falls into the category of always using the
+default visual or it is hardware specific and expects some particular
+visual such as 24bit TrueColor with an OverlayPlane extension (or some
+such).
+
+Why?  No application runs in isolation.  Depending on the way a server
+allocates resources I may not always want your application to run in
+TrueColor mode if it is going to mess up my other applications.  I may
+be very upset if it chooses to run in GreyScale instead of PsuedoColor
+or just monochrome.
+
+As an example, on a low end color Sun server there are many different
+possible visuals: monochrome, 256 entry colormap, static gray, static
+color, and a 3/3/2 TrueColor.  The SGI Iris's offer all the above plus
+12 bit TrueColor, 24 bit TrueColor, an Overlay Plane.
+
+----------------------------------------------------------------------
+5.  Why do only Shell widgets have a Visual?
+----------------------------------------------------------------------
+
+This is strictly by convention.  It makes it possible for an arbitrary
+widget to know that the visual it uses can be found by looking for the
+shell widget that is its ancestor and obtaining the visual of that
+shell.
+
+A widget can have its own visual resource.  If it does, it must have
+its own realize method to use the visual when it calls
+XCreateWindow().  You should also make this a resource that can be
+obtained with XtGetValues() so other widgets can find it.  A
+reasonable value is probably XtNvisual.
+
+----------------------------------------------------------------------
+6.  I've done all the above and I still get a BadMatch error.  Why?
+----------------------------------------------------------------------
+
+Many resource converters improperly cache references.  This was
+especially true of X11R3 and earlier versions of Motif.
+
+----------------------------------------------------------------------
+7.  Why doesn't my widget get destroyed when I call XtDestroyWidget()?
+----------------------------------------------------------------------
+
+See section 2.8 of the Xt specification.
+
+It eventually does get destroyed, just not immediately.  The
+Intrinsics destroy a widget in a two-phase process.  First it and all
+of its children have a flag set that indicate it is being destroyed.
+It is then put on a list of widgets to be destroyed.  This way any
+pending X events or further references to that widget can be cleaned
+up before the memory is actually freed.  The second phase is then
+performed after all callbacks, event handlers, and actions have
+completed, before checking for the next X event.
+At this point the list is traversed and each widget's memory is actually
+free()'d, among other things.
+
+----------------------------------------------------------------------
+8.  How do I exit but still execute the DestroyCallbacks?
+----------------------------------------------------------------------
+
+The problem is if a simple and entirely reasonable approach to exiting
+an application is used then a widget may not have a chance to clean up
+any external state -- such as open sockets, temporary files,
+allocated X resources, etc.  This simple approach is just to use a
+callback that looks like:
+
+<code to be supplied>  I'd like to see this code, I'm not convinced
+you have thought about this carefully.  How about setting a flag
+and checking the flag each time though your own event loop?
+
+The more sophisticated and probably unneeded by most applications and
+certainly slower is something along the lines of:
+
+<code to be supplied>
+
+This adds a work procedure that will get called when the application
+is next idle -- which happens after all the events are processed
+and the destroy callbacks are executed.
+
+----------------------------------------------------------------------
+9.  How do I resize a Shell widget?
+----------------------------------------------------------------------
+
+After it is realized, one doesn't resize a Shell widget.  The proper
+thing to do is to resize the currently managed child of the Shell
+widget using XtSetValues().  The geometry change is then propagated to
+the Shell which asks the window manager which may or may not allow the
+request.  However, the Shell must have the resource
+XtNallowShellResize set to True otherwise it will not even ask the
+window manager to grant the request and the Shell will not resize.
+
+To change the position of a Shell, use XtSetValues() on the Shell, not
+the child, and within the limits of the window manager it should be granted.
+
+----------------------------------------------------------------------
+10. Why can't XtAppAddInput() handle files?
+----------------------------------------------------------------------
+
+It does, however Unix semantics for when I/O is ready for a file does
+not fit most peoples' intuitive model.  In Unix terms a file
+descriptor is ready for reading whenever the read() call would not
+block, ignoring the setting of optional flags that indicate not to
+block.  This works as expected for terminals, sockets and pipes.  For
+a file the read() will always return but the return indicates an EOF
+-- i.e. no more data.  The result is the code in the Intrinsics always
+calls the input handler because it always thinks something is about to
+be read.  The culprit is the select() system call or on SYSV based
+OS's it is the poll() system call.
+
+How to get around this on a Unix system?  The best approach is to use
+another process to check for available input on the file.  Use a pipe
+to connect the application with this other process and pass the file
+descriptor from the pipe to XtAppAddInput().  A suitable program on
+BSD systems is "tail -f filename".
+
+Note that all the above descriptions used Unix terminology such as
+read(), file descriptor, pipes, etc.  This is an OS dependent area and
+may not be identical on all systems.  However the Intrinsic designers
+felt it was a common enough operation that it should be included with
+part of the toolkit.  Why they didn't also deal with signals at this
+point I don't know.
+
+----------------------------------------------------------------------
+11.  What good books are there on Xt?
+----------------------------------------------------------------------
+
+I have a favorite that is the definitive reference.  To my perspective
+it offers a reasonable introduction but also goes into the full
+details of the Intrinsics.  When I started using it I was already
+familiar with Xt and the concepts behind it, so newcomers may or may
+not find it useful.  I've always found it accurate and complete, which
+means its a 1000 pages.
+
+Asente, Paul J., and Swick, Ralph R., "X Window System Toolkit, The
+	Complete Programmer's Guide and Specification", Digital Press,
+	1990.  The bible on Xt. A treasury of information, excellent
+	and invaluable.  Distributed by Digital Press, ISBN
+	1-55558-051-3, order number EY-E757E-DP; and by Prentice-Hall,
+	ISBN 0-13-972191-6. Also available through DEC Direct at
+	1-800-DIGITAL.
+	[The examples are on export.lcs.mit.edu in contrib/ and on
+	gatekeeper.dec.com (16.1.0.2) in pub/X11/contrib as
+	asente-swick.examples.tar.Z.  They were also posted to
+	comp.sources.x as xt-examples/part0[1-5].]
+
+The other book I commonly recomend to novices is:
+
+Young, Doug. "The X Window System: Applications and Programming with
+	Xt (Motif Version)," Prentice Hall, 1989 (ISBN 0-13-497074-8).
+	The excellent tutorial "X Window Systems Programming and
+	Applications with Xt," (ISBN 0-13-972167-3) updated for Motif.
+	[The examples are available on export; the ones from the Motif
+	version are in ~ftp/contrib/young.motif.tar.Z.]
+
+And of course O'Reilly has an entire series of manuals on X and Xt.
+O'Reilly ordering is 800-998-9938.
+
+(The above details are extracted from the X FAQ, available on
+export.lcs.mit.edu in contrib/FAQ.)
+
+----------------------------------------------------------------------
+12. What Widgets are available?
+----------------------------------------------------------------------
+
+There are three popular widget sets:
+
+Athena	- The set provided with X11.  This is sufficient for most
+	  purposes but is on the ugly side.
+Motif	- From OSF available for a license fee and commonly shipped on
+	  many workstation vendors platforms (almost everyone but
+	  Sun).  It looks good and works well but personally I think
+	  it is poorly implemented.
+OLIT	- The Open Look Intrinsics Toolkit is a set of widgets
+	  implementing Sun's Open Look specification.  Developed by
+	  AT&T.  I've never used it so can't comment on its quality.
+	  I've heard rumours that it is a pain to actually get.
+
+In addition the following collection of widgets are also available:
+
+Xtra	- a library of widgets for sale from Graphical Software
+	  Technology (310-328-9338).  It includes bar graph, stacked
+	  bar graph, line graph, pie chart, xy plot, hypertext, help,
+	  spreadsheet, and data entry form widgets.  I've never seen
+	  them so I can't comment.
+FWF	- The Free Widget Foundation is attempting to collect a set of
+	  freely available widgets.  Included are a Pixmap editor,
+	  FileDialog, and a few others.  It seems to lack momentum.
+Xcu	- The Cornell University widgets from Gene Dykes.  One of the
+	  early widget sets released.  Provides a nice appearance for
+	  buttons and has a mini command language.  Probably not so
+	  widely used.
+Xs	- The Sony widget set.  This was around during R3 days but
+	  seemed to disappear.  It looked like it had promise.
+Xw	- The HP widgets.  The precursor to Motif.  Originally written
+	  for R3 there exists diffs to get it to work under R4 & R5.
+	  Again, a pretty good widget set but has more or less died.
+	  The precursor to this was the Xray toolkit which was
+	  originally implemented for X10R4 and apparently provided
+	  much experience for the designers of Xt.
+
+The following specialized widgets are also available:
+
+Tbl	- Implements a tabular layout of widgets.  Supports Motif
+	  widgets as children.  Part of Wcl.
+Plots	- The Athena Plotting widgets (not the Athena widgets).
+	  ...
+
+----------------------------------------------------------------------
+13. What alternatives to the Intrinsics are there?
+----------------------------------------------------------------------
+
+Xview	- C	Sun
+OI	- C++	Solbourne
+Interviews
+	- C++	Stanford
+
+----------------------------------------------------------------------
+14. How do I pass a float value to XtSetValues?
+----------------------------------------------------------------------
+
+First, what is going wrong is the structure for an Arg is (essentially)
+	typdef struct
+	{	
+	    String	name;
+	    long	value;
+	} Arg;
+
+and the code:
+	Arg	arg;
+
+	XtSetArg (arg, "name", 3.2)
+
+expands to
+	Arg	arg;
+
+	arg.name = "name";
+	arg.value = 3.2;
+
+you can see that with normal C type conversions, the arg.value
+gets the integer "3" instead of the floating point value "3.2".  When
+the value is copied into the widget resource, the bit pattern is
+wildly different than that required for a floating point value.  So,
+how to get around this?
+
+There are two choices.  The first just directly copies the value and
+the second uses a union to get around the problem.  Instead of using
+XtSetArg(), try the following (you may need to use memcpy() instead of
+bcopy()):
+
+	Arg	arg;
+	float	value;
+
+	arg.name = "name";
+	value = 3.2;
+	if (sizeof (value) > sizeof (arg.value))
+		arg.value = &value;
+	else
+		bcopy (&value, &arg.value, sizeof (value));
+
+The second approach yields:
+	Arg	arg;
+	union {
+		int	int_value;
+		float	float_value;
+	} value;
+
+	value.float_value = 3.2;
+	XtSetArg (arg, "name", value.int_value);
+
+Although the safe thing to do is to check that sizeof(float) <= sizeof
+(arg.value), just as before.
+
+----------------------------------------------------------------------
+15. +++How do I write a resource converter?
+----------------------------------------------------------------------
+
+See section 9.6 of the Xt specification, and/or,
+start with a previously written resource converter, and modify it.
+
+----------------------------------------------------------------------
+16. +++How do I open multiple displays?
+----------------------------------------------------------------------
+
+See the forthcoming issue of The X Resource.
+
+- include problems with shutting down the proper connection on
+  KillClient (oj@roadrunner.pictel.com (Oliver Jones))
+- include resource converters improperly caching info (i.e. who are
+  the offendors).
+
+----------------------------------------------------------------------
+17. +++What changed from R3 to R4 to R5?
+----------------------------------------------------------------------
+
+See Chapter 13 of the Xt specification.
+
+----------------------------------------------------------------------
+18. +++Where are the resources loaded from?
+----------------------------------------------------------------------
+
+See section 2.3 of the Xt specification.
+
+- How do I use the following environment variables:
+  XAPPLRESDIR, XUSERFILESEARCHPATH, XFILESEARCHPATH
+  (oj@roadrunner.pictel.com (Oliver Jones))
+
+----------------------------------------------------------------------
+19. What order are callbacks executed in?
+----------------------------------------------------------------------
+(Courtesy of Donna Converse, converse@expo.lcs.mit.edu; 5/10/92)
+
+The Intrinsics library do not guarantee an order.  This is because
+both the widget writer and the application writer have the ability to
+modify the entire contents of the callback list.  Neither one
+currently knows what the other is doing and the Intrinsics cannot
+guarantee the order of execution.
+
+The application programmer cannot rely on the widget writer; the
+widget writer is not required to document when the widget will add and
+remove callbacks from the list or what effect this will have;
+therefore the functionality contained in a callback should be
+independent of the functionality contained in other callbacks on the
+list.
+
+Even though the Xt standard in the definition of XtAddCallback
+says:
+
+ 	"callback_name: Specifies the callback list to which the
+ 	procedure is to be appended."
+ 
+you may not infer from the word "appended" that the callback routines
+are called in the same order as they have been added to the callback
+list.
+
+----------------------------------------------------------------------
+20. How do I know if a widget is visible?
+----------------------------------------------------------------------
+(Courtesy of Donna Converse, converse@expo.lcs.mit.edu; 5/14/92)
+
+> I am building a widget needs to know if it is visible. I set the visible
+> interest field in Core and if my window is completely obscured, the Core
+> visible flag goes FALSE. However, if my window is iconified, the flag
+> stays set to TRUE.
+
+Right, everything is implemented correctly.  This demonstrates a "deficiency"
+in the X protocol, and the Core widget is reflecting the capabilities of the
+protocol.  (The "deficiency" is that the information is available in one way,
+in this case an inconvenient way.)  The Xt specification is accurate, in
+the second and third paragraphs of section 7.10.2, so read this section
+carefully.  The visible field will not change in response to iconification.
+
+A VisibilityNotify event will not be received when the window goes from
+viewable to unviewable, that is, when the widget or an ancestor is unmapped;
+that is, when iconification occurs.  This is the protocol deficiency.
+Visibility state and viewable state have specific meanings in the X protocol;
+see the glossary in your Xlib and X protocol reference manual.
+
+> Is this a problem with "mwm" or is there something
+> else which needs to be done?
+
+You'll see this with any window manager, with no window manager.
+
+> If the problem is "mwm", what is the fastest
+> way to determine if a window is iconified? 
+
+As an application writer, keep track with a global Boolean in an action
+routine with translations for MapNotify and UnmapNotify on the Shell widget
+which contains your custom widget.  As the custom widget writer, see the
+map_state field returned by a call to XGetWindowAttributes.  These are
+suggestions.
+
+----------------------------------------------------------------------
+21. How do I reparent a widget in Xt, i.e. XtReparentWidget()?
+----------------------------------------------------------------------
+
+You can't.
+

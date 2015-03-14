@@ -1,0 +1,1402 @@
+*** server/Makefile		Wed Sep 30 14:34:44 1992
+--- server/Makefile		Wed Nov 18 19:02:45 1992
+***************
+*** 6,18 ****
+  	ahbs.o globals.o group.o help.o ihave.o list.o misc.o netaux.o \
+  	newgroups.o newnews.o nextlast.o ngmatch.o post.o parsit.o scandir.o \
+  	slave.o spawn.o strcasecmp.o subnet.o time.o xhdr.o fakesyslog.o \
+! 	batch.o auth.o timer.o ../common/version.o
+  
+  SRVRSRC = main.c serve.c access.c access_inet.c access_dnet.c active.c \
+  	ahbs.c globals.c group.c help.c ihave.c list.c misc.c netaux.c \
+  	newgroups.c newnews.c nextlast.c ngmatch.c post.c parsit.c scandir.c \
+  	slave.c spawn.c strcasecmp.c subnet.c time.c xhdr.c fakesyslog.c \
+! 	batch.c auth.c timer.c ../common/version.c
+  
+  SRVRINC = common.h ../common/conf.h ../common/nntp.h timer.h
+  
+--- 6,20 ----
+  	ahbs.o globals.o group.o help.o ihave.o list.o misc.o netaux.o \
+  	newgroups.o newnews.o nextlast.o ngmatch.o post.o parsit.o scandir.o \
+  	slave.o spawn.o strcasecmp.o subnet.o time.o xhdr.o fakesyslog.o \
+! 	batch.o auth.o timer.o ../common/version.o xuser.o xindex.o \
+! 	xoverview.o xmotd.o
+  
+  SRVRSRC = main.c serve.c access.c access_inet.c access_dnet.c active.c \
+  	ahbs.c globals.c group.c help.c ihave.c list.c misc.c netaux.c \
+  	newgroups.c newnews.c nextlast.c ngmatch.c post.c parsit.c scandir.c \
+  	slave.c spawn.c strcasecmp.c subnet.c time.c xhdr.c fakesyslog.c \
+! 	batch.c auth.c timer.c ../common/version.c xuser.c xindex.c \
+! 	xoverview.c xmotd.c
+  
+  SRVRINC = common.h ../common/conf.h ../common/nntp.h timer.h
+  
+*** server/access.c		Wed Sep 30 14:34:42 1992
+--- server/access.c		Tue Sep 15 20:09:54 1992
+***************
+*** 44,50 ****
+  
+  #ifdef AUTH
+  extern	int Needauth;
+! #endif AUTH
+  
+  host_access(canread, canpost, canxfer, gdlist)
+  	int		*canread, *canpost, *canxfer;
+--- 44,50 ----
+  
+  #ifdef AUTH
+  extern	int Needauth;
+! #endif /* AUTH */
+  
+  host_access(canread, canpost, canxfer, gdlist)
+  	int		*canread, *canpost, *canxfer;
+***************
+*** 230,236 ****
+  	/* do we require a userid and password for this guy? */
+  	if (isupper(readperm[0]) || isupper(postperm[0]))
+  		Needauth = 1;
+! #endif AUTH
+  }
+  
+  #ifdef DOMAINMATCH
+--- 230,236 ----
+  	/* do we require a userid and password for this guy? */
+  	if (isupper(readperm[0]) || isupper(postperm[0]))
+  		Needauth = 1;
+! #endif /* AUTH */
+  }
+  
+  #ifdef DOMAINMATCH
+***************
+*** 267,270 ****
+  
+  	return (0);
+  }
+! #endif DOMAINMATCH
+--- 267,270 ----
+  
+  	return (0);
+  }
+! #endif /* DOMAINMATCH */
+*** server/access_inet.c	Wed Sep 30 14:34:45 1992
+--- server/access_inet.c	Tue Sep 15 20:09:56 1992
+***************
+*** 77,83 ****
+  	}
+  #else
+  	subnet_name[0] = '\0';
+! #endif SUBNET
+  
+  	hp = gethostbyaddr((char *) &sin->sin_addr.s_addr,
+  		sizeof (sin->sin_addr.s_addr), AF_INET);
+--- 77,83 ----
+  	}
+  #else
+  	subnet_name[0] = '\0';
+! #endif /* SUBNET */
+  
+  	hp = gethostbyaddr((char *) &sin->sin_addr.s_addr,
+  		sizeof (sin->sin_addr.s_addr), AF_INET);
+*** server/auth.c	Wed Sep 30 14:34:49 1992
+--- server/auth.c	Tue Sep 15 20:10:00 1992
+***************
+*** 149,152 ****
+  	Needauth = 0;
+  }
+  
+! #endif AUTH
+--- 149,152 ----
+  	Needauth = 0;
+  }
+  
+! #endif /* AUTH */
+*** server/batch.c	Wed Sep 30 14:34:45 1992
+--- server/batch.c	Tue Sep 15 20:09:58 1992
+***************
+*** 255,265 ****
+  #ifdef SYSLOG
+  #ifdef LOG
+  	syslog(LOG_ERR, "%s transfer_timeout", hostname);
+! #endif LOG
+  #endif
+  	(void) unlink(tempfile);
+  	exit(1);
+! #endif XFER_TIMEOUT
+  }
+  
+  /*
+--- 255,265 ----
+  #ifdef SYSLOG
+  #ifdef LOG
+  	syslog(LOG_ERR, "%s transfer_timeout", hostname);
+! #endif /* LOG */
+  #endif
+  	(void) unlink(tempfile);
+  	exit(1);
+! #endif /* XFER_TIMEOUT */
+  }
+  
+  /*
+*** server/common.h		Wed Sep 30 14:34:43 1992
+--- server/common.h		Tue Sep 15 20:09:55 1992
+***************
+*** 48,53 ****
+--- 48,56 ----
+  #endif
+  #else /* not NDIR */
+  # include <sys/dir.h>
++ # ifdef ISC
++ #  include <sys/dirent.h>
++ # endif
+  #endif /* not NDIR */
+  
+  #ifdef FCNTL
+***************
+*** 157,162 ****
+--- 160,166 ----
+  extern	char	spooldir[];
+  extern	char	activefile[];
+  extern	char	distributionsfile[];
++ extern	char	subscriptionsfile[];
+  extern	char	newsgroupsfile[];
+  extern	char	accessfile[];
+  extern	char	historyfile[];
+*** server/fakesyslog.c		Wed Sep 30 14:34:46 1992
+--- server/fakesyslog.c		Tue Sep 15 20:09:58 1992
+***************
+*** 138,144 ****
+  	(void) strcpy(buf, ctime(&clock)+4);
+  	*(bp = buf + 16) = '\0';
+  
+! 	(void) sprintf(bp, "localhost %s", ident ? ident : "");
+  	bp += strlen(bp);
+  
+  	if (opt&LOG_PID) {
+--- 138,145 ----
+  	(void) strcpy(buf, ctime(&clock)+4);
+  	*(bp = buf + 16) = '\0';
+  
+! /*	(void) sprintf(bp, "localhost %s", ident ? ident : ""); */
+! 	(void) sprintf(bp, "local %s", ident ? ident : "");
+  	bp += strlen(bp);
+  
+  	if (opt&LOG_PID) {
+*** server/fakesyslog.h		Wed Sep 30 14:34:50 1992
+--- server/fakesyslog.h		Tue Sep 15 20:10:02 1992
+***************
+*** 62,65 ****
+  #define LOG_NDELAY	0
+  #define LOG_NOWAIT	0
+  
+! #endif FAKESYSLOG
+--- 62,65 ----
+  #define LOG_NDELAY	0
+  #define LOG_NOWAIT	0
+  
+! #endif /* FAKESYSLOG */
+*** server/globals.c		Wed Sep 30 14:34:46 1992
+--- server/globals.c		Tue Sep 15 20:09:58 1992
+***************
+*** 16,21 ****
+--- 16,22 ----
+  char	activefile[] = ACTIVE_FILE;
+  char	accessfile[] = ACCESS_FILE;
+  char	distributionsfile[] = DISTRIBUTIONS_FILE;
++ char	subscriptionsfile[] = SUBSCRIPTIONS_FILE;
+  char	newsgroupsfile[] = NEWSGROUPS_FILE;
+  char	historyfile[] = HISTORY_FILE;
+  #ifdef ACTIVE_TIMES_FILE
+***************
+*** 54,60 ****
+  #ifdef AUTH
+  int	Needauth;	/* 1 if we need to do authorization */
+  char	User[10];	/* username for authentication */
+! #endif AUTH
+  
+  #ifdef LOG
+  int	arts_acsd;
+--- 55,61 ----
+  #ifdef AUTH
+  int	Needauth;	/* 1 if we need to do authorization */
+  char	User[10];	/* username for authentication */
+! #endif /* AUTH */
+  
+  #ifdef LOG
+  int	arts_acsd;
+*** server/group.c	Wed Sep 30 14:34:46 1992
+--- server/group.c	Tue Sep 15 20:09:58 1992
+***************
+*** 49,54 ****
+--- 49,55 ----
+  		return;
+  	}
+  
++ 
+  	reqlist[0] = argv[1];
+  	reqlist[1] = NULL;
+  
+***************
+*** 70,79 ****
+  	close_crnt();
+  	(void) chdir(spooldir);
+  
+- #ifdef LOG
+- 	syslog(LOG_INFO, "%s group %s", hostname, argv[1]);
+- #endif
+- 
+  	while ((cp = index(argv[1], '.')) != (char *) NULL)
+  		*cp = '/';
+  
+--- 71,76 ----
+***************
+*** 96,101 ****
+--- 93,103 ----
+  	art_ptr = 0;
+  
+  	ingroup = 1;
++ 	
++ #ifdef LOG	
++ 	syslog(LOG_INFO, "%s group=%s  high=%d  low=%d  arts=%d",
++ 		 hostname, argv[1], high_msg, low_msg, num_arts);
++ #endif
+  
+  	while ((cp = index(argv[1], '/')) != (char *) NULL)
+  		*cp = '.';
+*** server/help.c	Wed Sep 30 14:34:46 1992
+--- server/help.c	Wed Nov 18 19:09:10 1992
+***************
+*** 21,28 ****
+  	printf("NEXT        POST         QUIT\r\n");
+  	printf("STAT        NEWGROUPS    HELP\r\n");
+  	printf("IHAVE       NEWNEWS      SLAVE\r\n");
+! 	printf("\r\nAdditionally, the following extention is supported:\r\n\r\n");
+  	printf("XHDR        Retrieve a single header line from a range of articles.\r\n");
+  	printf("\r\n");
+  	printf("Bugs to Stan Barber (Internet: nntp@tmc.edu; UUCP: ...!bcm!nntp)\r\n");
+  	printf(".\r\n");
+--- 21,45 ----
+  	printf("NEXT        POST         QUIT\r\n");
+  	printf("STAT        NEWGROUPS    HELP\r\n");
+  	printf("IHAVE       NEWNEWS      SLAVE\r\n");
+! #if defined(XHDR) || defined(XINDEX) || defined(XMOTD) || \
+!     defined(XOVERVIEW) || defined(XUSER)
+! 	printf("\r\nAdditionally, the following extentions are supported:\r\n\r\n");
+! #  ifdef XHDR
+  	printf("XHDR        Retrieve a single header line from a range of articles.\r\n");
++ #  endif
++ #  ifdef XINDEX
++ 	printf("XINDEX      Retrieve a tin style index file.\r\n");
++ #  endif	
++ #  ifdef XMOTD	
++ 	printf("XMOTD       Display the news message of the day file.\r\n");
++ #  endif	
++ #  ifdef XOVERVIEW
++ 	printf("XOVERVIEW   Retrieve a .overview style index file.\r\n");
++ #  endif	
++ #  ifdef XUSER	
++ 	printf("XUSER       Log a clients username to nntp logfile.\r\n");
++ #  endif	
++ #endif	
+  	printf("\r\n");
+  	printf("Bugs to Stan Barber (Internet: nntp@tmc.edu; UUCP: ...!bcm!nntp)\r\n");
+  	printf(".\r\n");
+*** server/ihave.c	Wed Sep 30 14:34:46 1992
+--- server/ihave.c	Tue Sep 15 20:09:59 1992
+***************
+*** 8,14 ****
+  int	ih_accepted;
+  int	ih_rejected;
+  int	ih_failed;
+! #endif LOG
+  
+  /*
+   * IHAVE <messageid>
+--- 8,14 ----
+  int	ih_accepted;
+  int	ih_rejected;
+  int	ih_failed;
+! #endif /* LOG */
+  
+  /*
+   * IHAVE <messageid>
+***************
+*** 50,57 ****
+  		ih_rejected++;
+  #ifdef IHAVE_DEBUG
+  		syslog(LOG_DEBUG, "%s ihave %s rejected", hostname, argv[1]);
+! #endif IHAVE_DEBUG
+! #endif LOG
+  		return;
+  	}
+  
+--- 50,57 ----
+  		ih_rejected++;
+  #ifdef IHAVE_DEBUG
+  		syslog(LOG_DEBUG, "%s ihave %s rejected", hostname, argv[1]);
+! #endif /* IHAVE_DEBUG */
+! #endif /* LOG */
+  		return;
+  	}
+  
+***************
+*** 100,106 ****
+  #ifdef IHAVE_DEBUG
+  	syslog(LOG_DEBUG, "%s ihave %s accepted %s",
+  		hostname, argv[1], retcode == 1 ? "succeeded" : "failed");
+! #endif IHAVE_DEBUG
+! #endif LOG
+  
+  }
+--- 100,106 ----
+  #ifdef IHAVE_DEBUG
+  	syslog(LOG_DEBUG, "%s ihave %s accepted %s",
+  		hostname, argv[1], retcode == 1 ? "succeeded" : "failed");
+! #endif /* IHAVE_DEBUG */
+! #endif /* LOG */
+  
+  }
+*** server/list.c	Wed Sep 30 14:34:46 1992
+--- server/list.c	Tue Sep 15 20:09:59 1992
+***************
+*** 7,14 ****
+  /*
+   * LIST
+   *
+!  * List active newsgroups, newsgroup descriptions, and distributions.
+   *
+   */
+  
+  list(argc, argv)
+--- 7,17 ----
+  /*
+   * LIST
+   *
+!  * List active newsgroups, newsgroup descriptions, distributions
+!  * and subscriptions.
+   *
++  *
++  *
+   */
+  
+  list(argc, argv)
+***************
+*** 45,52 ****
+  		filename = newsgroupsfile;
+  		items = "newsgroup descriptions";
+  		format = "Descriptions in form \"group description\".";
+  	} else {
+! 		printf("%d Usage: LIST [ACTIVE|NEWSGROUPS|DISTRIBUTIONS]\r\n",
+  			ERR_CMDSYN);
+  		(void) fflush(stdout);
+  		return;
+--- 48,59 ----
+  		filename = newsgroupsfile;
+  		items = "newsgroup descriptions";
+  		format = "Descriptions in form \"group description\".";
++ 	} else if (argc == 2 && !strcasecmp(argv[1],"subscriptions")){
++ 		filename = subscriptionsfile;
++ 		items = "automatic group subscriptions";
++ 		format = "Subscriptions in form \"group\".";
+  	} else {
+! 		printf("%d Usage: LIST [ACTIVE|NEWSGROUPS|DISTRIBUTIONS|SUBSCRIPTIONS]\r\n",
+  			ERR_CMDSYN);
+  		(void) fflush(stdout);
+  		return;
+*** server/misc.c	Wed Sep 30 14:34:43 1992
+--- server/misc.c	Tue Sep 15 20:09:56 1992
+***************
+*** 90,98 ****
+  # ifndef DBM
+  #  ifndef USGHIST
+  #   define USGHIST
+! #  endif not USGHIST
+! # endif not DBM
+! #endif not DBM
+  
+  char *
+  gethistent(msg_id, lookup)
+--- 90,98 ----
+  # ifndef DBM
+  #  ifndef USGHIST
+  #   define USGHIST
+! #  endif /* not USGHIST */
+! # endif /* not DBM */
+! #endif /* not DBM */
+  
+  char *
+  gethistent(msg_id, lookup)
+***************
+*** 107,121 ****
+  #ifdef USGHIST
+  	char		*histfile();
+  	register int	len;
+! #else not USGHIST
+  #ifdef DBM
+  	static int	dbopen = 0;
+  	datum		fetch();
+! #else not DBM
+  	static DBM	*db = NULL;	/* History file, dbm version */
+! #endif DBM
+! 	datum		 key, content;
+! #endif USGHIST
+  	static FILE	*hfp = NULL;	/* history file, text version */
+  
+  #ifdef CNEWS
+--- 107,121 ----
+  #ifdef USGHIST
+  	char		*histfile();
+  	register int	len;
+! #else /* not USGHIST */
+  #ifdef DBM
+  	static int	dbopen = 0;
+  	datum		fetch();
+! #else /* not DBM */
+  	static DBM	*db = NULL;	/* History file, dbm version */
+! #endif /* DBM */
+!  	datum		 key, content;
+! #endif /* USGHIST */
+  	static FILE	*hfp = NULL;	/* history file, text version */
+  
+  #ifdef CNEWS
+***************
+*** 140,146 ****
+  	if (hfp == NULL) {
+  #ifdef SYSLOG
+  		syslog(LOG_ERR, "gethistent: histfile: %m");
+! #endif SYSLOG
+  		return (NULL);
+  	}
+  
+--- 140,146 ----
+  	if (hfp == NULL) {
+  #ifdef SYSLOG
+  		syslog(LOG_ERR, "gethistent: histfile: %m");
+! #endif /* SYSLOG */
+  		return (NULL);
+  	}
+  
+***************
+*** 153,159 ****
+  		(void) fclose(hfp);
+  		return (NULL);
+  	}
+! #else not USGHIST
+  #ifdef DBM
+  	if (!dbopen) {
+  		if (dbminit(historyfile) < 0) {
+--- 153,159 ----
+  		(void) fclose(hfp);
+  		return (NULL);
+  	}
+! #else /* not USGHIST */
+  #ifdef DBM
+  	if (!dbopen) {
+  		if (dbminit(historyfile) < 0) {
+***************
+*** 160,166 ****
+  #ifdef SYSLOG
+  			syslog(LOG_ERR, "openartbyid: dbminit %s: %m",
+  				historyfile);
+! #endif SYSLOG
+  			return (NULL);
+  		} else
+  			dbopen = 1;
+--- 160,166 ----
+  #ifdef SYSLOG
+  			syslog(LOG_ERR, "openartbyid: dbminit %s: %m",
+  				historyfile);
+! #endif /* SYSLOG */
+  			return (NULL);
+  		} else
+  			dbopen = 1;
+***************
+*** 172,182 ****
+  #ifdef SYSLOG
+  			syslog(LOG_ERR, "openartbyid: dbm_open %s: %m",
+  				historyfile);
+! #endif SYSLOG
+  			return (NULL);
+  		}
+  	}
+! #endif DBM
+  
+  	key.dptr = msg_id;
+  	key.dsize = strlen(msg_id) + 1;
+--- 172,182 ----
+  #ifdef SYSLOG
+  			syslog(LOG_ERR, "openartbyid: dbm_open %s: %m",
+  				historyfile);
+! #endif /* SYSLOG */
+  			return (NULL);
+  		}
+  	}
+! #endif /* DBM */
+  
+  	key.dptr = msg_id;
+  	key.dsize = strlen(msg_id) + 1;
+***************
+*** 185,191 ****
+  	content = fetch(key);
+  #else	/* ndbm */
+  	content = dbm_fetch(db, key);
+! #endif DBM
+  	if (content.dptr == NULL)
+  		return (NULL);
+  
+--- 185,191 ----
+  	content = fetch(key);
+  #else	/* ndbm */
+  	content = dbm_fetch(db, key);
+! #endif /* DBM */
+  	if (content.dptr == NULL)
+  		return (NULL);
+  
+***************
+*** 202,208 ****
+  #ifdef SYSLOG
+  			syslog(LOG_ERR, "message: fopen %s: %m",
+  				historyfile);
+! #endif SYSLOG
+  			return (NULL);
+  		}
+  	} else {
+--- 202,208 ----
+  #ifdef SYSLOG
+  			syslog(LOG_ERR, "message: fopen %s: %m",
+  				historyfile);
+! #endif /* SYSLOG */
+  			return (NULL);
+  		}
+  	} else {
+***************
+*** 215,226 ****
+  #ifdef SYSLOG
+  		syslog(LOG_ERR, "message: %s: fseek to %ld on %d: %m", 
+  		       historyfile, ltmp, hfp);
+! #endif SYSLOG
+  		return (NULL);
+  	}
+  
+  	(void) fgets(line, sizeof(line), hfp);
+! #endif USGHIST
+  
+  	if ((cp = index(line, '\n')) != NULL)
+  		*cp = '\0';
+--- 215,226 ----
+  #ifdef SYSLOG
+  		syslog(LOG_ERR, "message: %s: fseek to %ld on %d: %m", 
+  		       historyfile, ltmp, hfp);
+! #endif /* SYSLOG */
+  		return (NULL);
+  	}
+  
+  	(void) fgets(line, sizeof(line), hfp);
+! #endif /* USGHIST */
+  
+  	if ((cp = index(line, '\n')) != NULL)
+  		*cp = '\0';
+***************
+*** 232,238 ****
+  	    syslog(LOG_ERR,
+  		"message: malformed line in history file at %ld bytes, id %s",
+  			ltmp, msg_id);
+! #endif SYSLOG
+  	if (cp == NULL) return(NULL); /* this article has expired */
+  	tmp = cp+1;
+  
+--- 232,238 ----
+  	    syslog(LOG_ERR,
+  		"message: malformed line in history file at %ld bytes, id %s",
+  			ltmp, msg_id);
+! #endif /* SYSLOG */
+  	if (cp == NULL) return(NULL); /* this article has expired */
+  	tmp = cp+1;
+  
+***************
+*** 613,619 ****
+  		chr = '0';
+  	return chr;
+  }
+! #endif USGHIST
+  #ifdef USG
+  #ifndef GAZETTE
+  bcopy(s, d, l)
+--- 613,619 ----
+  		chr = '0';
+  	return chr;
+  }
+! #endif /* USGHIST */
+  #ifdef USG
+  #ifndef GAZETTE
+  bcopy(s, d, l)
+***************
+*** 775,781 ****
+  #define blkavail(fs)	((fs).f_tfree)
+  				/* USG doesn't reserve blocks for root */
+  #define filfree(fs)	((fs).f_tinode)	
+! #endif USG
+  
+  #ifdef CMU_MACH
+  /* This code supplied by Tom Lane <tgl@cs.cmu.edu> */
+--- 775,781 ----
+  #define blkavail(fs)	((fs).f_tfree)
+  				/* USG doesn't reserve blocks for root */
+  #define filfree(fs)	((fs).f_tinode)	
+! #endif /* USG */
+  
+  #ifdef CMU_MACH
+  /* This code supplied by Tom Lane <tgl@cs.cmu.edu> */
+***************
+*** 799,805 ****
+  #define bombed(call)	((call) < 0)
+  #define blkfree(fs)	((fs).fsp_free-((fs).fsp_size*(fs).fsp_minfree+99)/100)
+  #define blkavail(fs)	(-1)
+! #endif MACH
+  
+  dfree(spool,free_space)
+  char *spool;
+--- 799,805 ----
+  #define bombed(call)	((call) < 0)
+  #define blkfree(fs)	((fs).fsp_free-((fs).fsp_size*(fs).fsp_minfree+99)/100)
+  #define blkavail(fs)	(-1)
+! #endif /* MACH */
+  
+  dfree(spool,free_space)
+  char *spool;
+***************
+*** 825,831 ****
+      return( DFREE_OK );
+  }
+  
+! #else READ_SUPER
+  /*
+   * This code is used if you've got to directly read the superblock
+   * to determine how much space you've got left.  It's copied from
+--- 825,831 ----
+      return( DFREE_OK );
+  }
+  
+! #else /* READ_SUPER */
+  /*
+   * This code is used if you've got to directly read the superblock
+   * to determine how much space you've got left.  It's copied from
+***************
+*** 919,925 ****
+     return( DFREE_OK );
+  }
+  
+! #endif READ_SUPER
+  
+  #ifdef LOAD
+  /*
+--- 919,925 ----
+     return( DFREE_OK );
+  }
+  
+! #endif /* READ_SUPER */
+  
+  #ifdef LOAD
+  /*
+***************
+*** 987,990 ****
+  # endif
+  }
+  #endif
+! #endif LOAD
+--- 987,990 ----
+  # endif
+  }
+  #endif
+! #endif /* LOAD */
+*** server/netaux.c		Wed Sep 30 14:34:48 1992
+--- server/netaux.c		Tue Sep 15 20:09:59 1992
+***************
+*** 12,25 ****
+  #include <netinet/in.h>
+  #ifndef EXCELAN
+  #include <netdb.h>
+! #endif not EXCELAN
+  #include <sys/ioctl.h>
+  #include <signal.h>
+  #ifdef USG
+  #include <time.h>
+! #else not USG
+  #include <sys/time.h>
+! #endif USG
+  
+  #ifdef ALONE
+  
+--- 12,25 ----
+  #include <netinet/in.h>
+  #ifndef EXCELAN
+  #include <netdb.h>
+! #endif /* not EXCELAN */
+  #include <sys/ioctl.h>
+  #include <signal.h>
+  #ifdef USG
+  #include <time.h>
+! #else /* not USG */
+  #include <sys/time.h>
+! #endif /* USG */
+  
+  #ifdef ALONE
+  
+***************
+*** 211,217 ****
+  	if (setitimer(ITIMER_REAL, &new, &old) < 0) {
+  #ifdef SYSLOG
+  		syslog(LOG_ERR, "set_timer: setitimer: %m\n");
+! #endif SYSLOG
+  		exit(1);
+  	}
+  #endif /* not USG */
+--- 211,217 ----
+  	if (setitimer(ITIMER_REAL, &new, &old) < 0) {
+  #ifdef SYSLOG
+  		syslog(LOG_ERR, "set_timer: setitimer: %m\n");
+! #endif /* SYSLOG */
+  		exit(1);
+  	}
+  #endif /* not USG */
+*** server/newnews.c		Wed Sep 30 14:34:52 1992
+--- server/newnews.c		Tue Sep 15 20:10:02 1992
+***************
+*** 39,45 ****
+  	FILE		*tmplst;
+  	int		i;
+  	char		*tmpfile;
+! #endif USGHIST
+  
+  	if (argc < 4) {
+  		printf("%d Usage: NEWNEWS newsgroups yymmdd hhmmss [\"GMT\"] [<distributions>].\r\n",
+--- 39,45 ----
+  	FILE		*tmplst;
+  	int		i;
+  	char		*tmpfile;
+! #endif /* USGHIST */
+  
+  	if (argc < 4) {
+  		printf("%d Usage: NEWNEWS newsgroups yymmdd hhmmss [\"GMT\"] [<distributions>].\r\n",
+***************
+*** 131,137 ****
+  
+      for (i = 0; i < 9; i++) {
+  		sprintf(historyfile, "%s.d/%d", HISTORY_FILE, i);
+! #endif USGHIST
+  
+  	fp = fopen(historyfile, "r");
+  	if (fp == NULL) {
+--- 131,137 ----
+  
+      for (i = 0; i < 9; i++) {
+  		sprintf(historyfile, "%s.d/%d", HISTORY_FILE, i);
+! #endif /* USGHIST */
+  
+  	fp = fopen(historyfile, "r");
+  	if (fp == NULL) {
+***************
+*** 142,167 ****
+  		printf("%d Cannot open history file.\r\n", ERR_FAULT);
+  		(void) fflush(stdout);
+  		return;
+! #else USGHIST
+  		continue;
+! #endif USGHIST
+  	}
+  
+  #ifndef USGHIST
+  	printf("%d New news by message id follows\r\n", OK_NEWNEWS);
+! #endif not USGHIST
+  
+  	if (seekuntil(fp, key, line, sizeof (line)) < 0) {
+  #ifndef USGHIST
+  		printf(".\r\n");
+  		(void) fflush(stdout);
+! #endif not USGHIST
+  		(void) fclose(fp);
+  #ifndef USGHIST
+  		return;
+! #else USGHIST
+  		continue;
+! #endif USGHIST
+  	}
+  
+  /*
+--- 142,167 ----
+  		printf("%d Cannot open history file.\r\n", ERR_FAULT);
+  		(void) fflush(stdout);
+  		return;
+! #else /* USGHIST */
+  		continue;
+! #endif /* USGHIST */
+  	}
+  
+  #ifndef USGHIST
+  	printf("%d New news by message id follows\r\n", OK_NEWNEWS);
+! #endif /* not USGHIST */
+  
+  	if (seekuntil(fp, key, line, sizeof (line)) < 0) {
+  #ifndef USGHIST
+  		printf(".\r\n");
+  		(void) fflush(stdout);
+! #endif /* not USGHIST */
+  		(void) fclose(fp);
+  #ifndef USGHIST
+  		return;
+! #else /* USGHIST */
+  		continue;
+! #endif /* USGHIST */
+  	}
+  
+  /*
+***************
+*** 208,216 ****
+  #ifdef USGHIST
+  		fputs(line, tmplst);
+  		fputc('\n', tmplst);
+! #else not USGHIST
+  		putline(line);
+! #endif not USGHIST
+  #ifdef LOG
+  		nn_told++;
+  #endif
+--- 208,216 ----
+  #ifdef USGHIST
+  		fputs(line, tmplst);
+  		fputc('\n', tmplst);
+! #else /* not USGHIST */
+  		putline(line);
+! #endif /* not USGHIST */
+  #ifdef LOG
+  		nn_told++;
+  #endif
+***************
+*** 235,241 ****
+      (void) fflush(stdout);
+      (void) fclose(tmplst);
+      (void) unlink(tmpfile);
+! #endif USGHIST
+  }
+  
+  
+--- 235,241 ----
+      (void) fflush(stdout);
+      (void) fclose(tmplst);
+      (void) unlink(tmpfile);
+! #endif /* USGHIST */
+  }
+  
+  
+*** server/scandir.c		Wed Sep 30 14:34:49 1992
+--- server/scandir.c		Tue Sep 15 20:10:01 1992
+***************
+*** 4,9 ****
+--- 4,13 ----
+  
+  #include "common.h"
+  
++ #ifdef ISC
++ #	include <dirent.h>
++ #endif
++ 
+  /*
+   * scan_dir -- scan the current directory for news articles,
+   *	loading the article numbers into art_array.  Return
+***************
+*** 26,32 ****
+--- 30,40 ----
+  scan_dir(low_msg, high_msg)
+  int	low_msg, high_msg;
+  {
++ #ifdef ISC
++ 	register struct dirent	*dirent;
++ #else
+  	register struct direct	*dirent;
++ #endif
+  	register DIR		*dirp;
+  	int			artnum;
+  
+***************
+*** 34,43 ****
+  
+  	dirp = opendir(".");
+  
+! 	if (dirp == NULL)
+  		return (0);
+  
+  	while ((dirent = readdir(dirp)) != NULL) {
+  		artnum = atoi(dirent->d_name);
+  #ifdef DYNAMIC_ART_ARRAY
+  		if (artnum == 0 || artnum < low_msg || artnum > high_msg)
+--- 42,73 ----
+  
+  	dirp = opendir(".");
+  
+! 	if (dirp == NULL) {
+! #ifdef LOG
+! 		syslog(LOG_ERR, "scan_dir(): opendir() failed. Returning num_arts=0");
+! #endif
+  		return (0);
++ 	}
+  
+  	while ((dirent = readdir(dirp)) != NULL) {
++ 
++ #ifdef LOG
++ /*
++ {
++ 		char pwd[256];
++ 	
++ 		getcwd (pwd, 255);
++ #ifdef ISC
++ 		syslog(LOG_INFO, "%s: d->d_name=%s  d->d_ino=%d  d->d_reclen=%d",
++ 			pwd, dirent->d_name, dirent->d_ino, dirent->d_reclen);
++ #else		
++ 		syslog(LOG_INFO, "%s: d->d_name=%s  d->d_ino=%d",
++ 			pwd, dirent->d_name, dirent->d_ino);
++ #endif
++ }
++ */			
++ #endif
++ 	
+  		artnum = atoi(dirent->d_name);
+  #ifdef DYNAMIC_ART_ARRAY
+  		if (artnum == 0 || artnum < low_msg || artnum > high_msg)
+***************
+*** 70,75 ****
+--- 100,110 ----
+  		}
+  		art_array[num_arts] = artnum;
+   		++num_arts;
++ 
++ #ifdef LOG
++ 		syslog(LOG_INFO, "scan_dir(): artnum=%d  num_arts=%d", artnum, num_arts);
++ #endif
++ 
+  #else
+  		if (artnum != 0 && artnum >= low_msg && artnum <= high_msg)
+  			art_array[num_arts++] = artnum;
+*** server/serve.c	Wed Sep 30 14:34:43 1992
+--- server/serve.c	Wed Nov 18 19:07:06 1992
+***************
+*** 17,23 ****
+  #ifdef LOG
+  # ifndef USG
+  #  include <sys/resource.h>
+! # endif not USG
+  #endif
+  
+  #ifdef TIMERS
+--- 17,23 ----
+  #ifdef LOG
+  # ifndef USG
+  #  include <sys/resource.h>
+! # endif /* not USG */
+  #endif
+  
+  #ifdef TIMERS
+***************
+*** 27,38 ****
+  extern	int	ahbs(), group(), help(), ihave();
+  extern	int	list(), newgroups(), newnews(), nextlast(), post();
+  extern	int	slave(), stat(), xhdr();
+  
+  extern int errno;
+  
+  #ifdef AUTH
+  extern	int	doauth();
+! #endif AUTH
+  
+  static struct cmdent {
+  	char	*cmd_name;
+--- 27,50 ----
+  extern	int	ahbs(), group(), help(), ihave();
+  extern	int	list(), newgroups(), newnews(), nextlast(), post();
+  extern	int	slave(), stat(), xhdr();
++ #ifdef XINDEX
++ extern	int	xindex();
++ #endif
++ #ifdef XMOTD
++ extern	int	xmotd();
++ #endif
++ #ifdef XOVERVIEW
++ extern	int	xoverview();
++ #endif
++ #ifdef XUSER
++ extern	int	xuser();
++ #endif
+  
+  extern int errno;
+  
+  #ifdef AUTH
+  extern	int	doauth();
+! #endif /* AUTH */
+  
+  static struct cmdent {
+  	char	*cmd_name;
+***************
+*** 43,49 ****
+  	"authcap",	0,	doauth,
+  	"authinfo",	0,	doauth,
+  	"authsys",	0,	doauth,
+! #endif AUTH
+  	"article",	0,	ahbs,
+  	"body",		0,	ahbs,
+  	"group",	0,	group,
+--- 55,61 ----
+  	"authcap",	0,	doauth,
+  	"authinfo",	0,	doauth,
+  	"authsys",	0,	doauth,
+! #endif /* AUTH */
+  	"article",	0,	ahbs,
+  	"body",		0,	ahbs,
+  	"group",	0,	group,
+***************
+*** 60,66 ****
+  	"stat",		0,	ahbs,
+  #ifdef XHDR
+  	"xhdr",		0,	xhdr,
+! #endif XHDR
+  };
+  #define NUMCMDS (sizeof(cmdtbl) / sizeof(struct cmdent))
+  
+--- 72,90 ----
+  	"stat",		0,	ahbs,
+  #ifdef XHDR
+  	"xhdr",		0,	xhdr,
+! #endif /* XHDR */
+! #ifdef XINDEX
+! 	"xindex",	0,	xindex,
+! #endif /* XINDEX */
+! #ifdef XMOTD
+! 	"xmotd",	0,	xmotd,
+! #endif /* XMOTD */
+! #ifdef XOVERVIEW
+! 	"xoverview",	0,	xoverview,
+! #endif /* XOVERVIEW */
+! #ifdef XUSER
+! 	"xuser",	0,	xuser,
+! #endif /* XUSER */
+  };
+  #define NUMCMDS (sizeof(cmdtbl) / sizeof(struct cmdent))
+  
+***************
+*** 98,104 ****
+  #ifdef AUTH
+  extern int	Needauth;
+  extern char	User[];
+! #endif AUTH
+  
+  /*
+   * serve -- given a connection on stdin/stdout, serve
+--- 122,128 ----
+  #ifdef AUTH
+  extern int	Needauth;
+  extern char	User[];
+! #endif /* AUTH */
+  
+  /*
+   * serve -- given a connection on stdin/stdout, serve
+***************
+*** 152,158 ****
+  #ifdef ALONE
+  #ifndef USG
+  	(void) signal(SIGCHLD, SIG_IGN);
+! #endif not USG
+  #endif
+  
+  	/* Ignore SIGPIPE, since we'll see closed connections with read */
+--- 176,182 ----
+  #ifdef ALONE
+  #ifndef USG
+  	(void) signal(SIGCHLD, SIG_IGN);
+! #endif /* not USG */
+  #endif
+  
+  	/* Ignore SIGPIPE, since we'll see closed connections with read */
+***************
+*** 163,169 ****
+  #ifdef AUTH
+  	Needauth = 1;
+  	strcpy(User,"");
+! #endif AUTH
+  	host_access(&canread, &canpost, &canxfer, gdbuf);
+  
+  	if (gethostname(host, sizeof(host)) < 0)
+--- 187,193 ----
+  #ifdef AUTH
+  	Needauth = 1;
+  	strcpy(User,"");
+! #endif /* AUTH */
+  	host_access(&canread, &canpost, &canxfer, gdbuf);
+  
+  	if (gethostname(host, sizeof(host)) < 0)
+***************
+*** 302,308 ****
+  				(void) fflush(stdout);
+  				continue;
+  				}
+! #endif AUTH
+  			(*cmdtbl[i].cmd_fctn)(argnum, argp);
+  		} else {
+  #ifdef SYSLOG
+--- 326,332 ----
+  				(void) fflush(stdout);
+  				continue;
+  				}
+! #endif /* AUTH */
+  			(*cmdtbl[i].cmd_fctn)(argnum, argp);
+  		} else {
+  #ifdef SYSLOG
+***************
+*** 490,493 ****
+  		user, sys, Tfinish - Tstart);
+  	syslog(LOG_INFO, "%s times %s", hostname, buf);
+  }
+! #endif LOG
+--- 514,517 ----
+  		user, sys, Tfinish - Tstart);
+  	syslog(LOG_INFO, "%s times %s", hostname, buf);
+  }
+! #endif /* LOG */
+*** server/spawn.c	Wed Sep 30 14:34:46 1992
+--- server/spawn.c	Tue Sep 15 20:09:59 1992
+***************
+*** 65,73 ****
+  #endif
+  #ifdef USG
+  	int		status;
+! #else not USG
+  	union wait	status;
+! #endif not USG
+  	register FILE	*fp;
+  
+  #ifdef CNEWS
+--- 65,73 ----
+  #endif
+  #ifdef USG
+  	int		status;
+! #else /* not USG */
+  	union wait	status;
+! #endif /* not USG */
+  	register FILE	*fp;
+  
+  #ifdef CNEWS
+***************
+*** 91,97 ****
+  	*/
+  	if (cont_code == CONT_POST)
+  		fprintf(fp, "Nntp-Posting-Host: %s\n", hostname);
+! #endif AUTH
+  
+  	printf("%d Ok\r\n", cont_code);
+  	(void) fflush(stdout);
+--- 91,97 ----
+  	*/
+  	if (cont_code == CONT_POST)
+  		fprintf(fp, "Nntp-Posting-Host: %s\n", hostname);
+! #endif /* AUTH */
+  
+  	printf("%d Ok\r\n", cont_code);
+  	(void) fflush(stdout);
+***************
+*** 332,338 ****
+  
+  #ifdef LOG
+  	syslog(LOG_ERR, "%s transfer_timeout", hostname);
+! #endif LOG
+  
+  	(void) unlink(tempfile);
+  
+--- 332,338 ----
+  
+  #ifdef LOG
+  	syslog(LOG_ERR, "%s transfer_timeout", hostname);
+! #endif /* LOG */
+  
+  	(void) unlink(tempfile);
+  
+***************
+*** 339,343 ****
+  	exit(1);
+  }
+  
+! #endif XFER_TIMEOUT
+  
+--- 339,343 ----
+  	exit(1);
+  }
+  
+! #endif /* XFER_TIMEOUT */
+  
+*** server/time.c	Wed Sep 30 14:34:50 1992
+--- server/time.c	Tue Sep 15 20:10:01 1992
+***************
+*** 10,18 ****
+  #include "common.h"
+  #ifdef USG
+  #include <time.h>
+! #else not USG
+  #include <sys/time.h>
+! #endif not USG
+  
+  /*
+   * dtol -- convert date to long integer.  This is not implicitly
+--- 10,18 ----
+  #include "common.h"
+  #ifdef USG
+  #include <time.h>
+! #else /* not USG */
+  #include <sys/time.h>
+! #endif /* not USG */
+  
+  /*
+   * dtol -- convert date to long integer.  This is not implicitly
+*** server/timer.c	Wed Sep 30 14:34:49 1992
+--- server/timer.c	Sat Oct 17 20:01:25 1992
+***************
+*** 6,17 ****
+  #ifdef TIMERS
+  #ifndef lint
+  static char rcsid[] =
+!     "@(#) $Header: timer.c,v 1.3 91/03/19 03:02:41 sob Exp $ (NNTP with TIMERS)";
+  #endif
+  #else
+  #ifndef lint
+  static char rcsid[] =
+!     "@(#) $Header: timer.c,v 1.3 91/03/19 03:02:41 sob Exp $ (NNTP without TIMERS)";
+  #endif
+  #endif
+  
+--- 6,17 ----
+  #ifdef TIMERS
+  #ifndef lint
+  static char rcsid[] =
+!     "@(#) $Header: timer.c,v 1.2 90/12/27 22:16:27 sob Exp $ (NNTP with TIMERS)";
+  #endif
+  #else
+  #ifndef lint
+  static char rcsid[] =
+!     "@(#) $Header: timer.c,v 1.2 90/12/27 22:16:27 sob Exp $ (NNTP without TIMERS)";
+  #endif
+  #endif
+  
+***************
+*** 18,29 ****
+  #ifdef TIMERS
+  #include <sys/time.h>
+  #include "timer.h"
+! #ifdef USG
+! #ifdef LAI_TCP
+  #include <sys/bsdtypes.h>
+- #define BSDSELECT
+  #endif
+! #else
+  #ifndef FD_SETSIZE
+  /* Forward compatability */
+  #define FD_SET(n, p)    ((p)->fds_bits[0] |= (1<<(n)))
+--- 18,27 ----
+  #ifdef TIMERS
+  #include <sys/time.h>
+  #include "timer.h"
+! #ifdef ISC
+  #include <sys/bsdtypes.h>
+  #endif
+! #ifndef USG
+  #ifndef FD_SETSIZE
+  /* Forward compatability */
+  #define FD_SET(n, p)    ((p)->fds_bits[0] |= (1<<(n)))
+***************
+*** 30,36 ****
+  #define FD_CLR(n, p)    ((p)->fds_bits[0] &= ~(1<<(n)))
+  #define FD_ISSET(n, p)  ((p)->fds_bits[0] & (1<<(n)))
+  #define FD_ZERO(p)      ((p)->fds_bits[0] = 0)
+- #define BSDSELECT
+  #endif
+  #endif
+  /* non-portable */
+--- 28,33 ----
+***************
+*** 75,81 ****
+  	register int i, n;
+  	register struct timer *tp;
+  	register long secs;
+! #ifndef BSDSELECT
+  	long timeout;
+  	long readfds;
+  #else
+--- 72,78 ----
+  	register int i, n;
+  	register struct timer *tp;
+  	register long secs;
+! #if defined(USG) && !defined(ISC)
+  	long timeout;
+  	long readfds;
+  #else
+***************
+*** 89,95 ****
+  		return(1);
+  
+  	/* Length of next timeout is minimum of all "timers" */
+! #ifndef BSDSELECT
+  	timeout = -1;
+  	for (i = ntimer, tp = timers; i > 0; --i, ++tp)
+  		if (tp->left >= 0 &&
+--- 86,92 ----
+  		return(1);
+  
+  	/* Length of next timeout is minimum of all "timers" */
+! #if defined(USG) && !defined(ISC)
+  	timeout = -1;
+  	for (i = ntimer, tp = timers; i > 0; --i, ++tp)
+  		if (tp->left >= 0 &&
+***************
+*** 120,128 ****
+  	/* Do select */
+  	FD_ZERO(&readfds);
+  	FD_SET(fileno(stdin), &readfds);
+! #endif /* BSDSELECT */
+  	errno = 0;
+! #if defined(EXCELAN) || defined(ULTRIX)
+  	n = select(fileno(stdin) + 1, &readfds, (long*)0, timeout);
+  #else
+  	n = select(fileno(stdin) + 1,
+--- 117,125 ----
+  	/* Do select */
+  	FD_ZERO(&readfds);
+  	FD_SET(fileno(stdin), &readfds);
+! #endif /* !USG */
+  	errno = 0;
+! #ifdef EXCELAN
+  	n = select(fileno(stdin) + 1, &readfds, (long*)0, timeout);
+  #else
+  	n = select(fileno(stdin) + 1,
+*** server/xhdr.c	Wed Sep 30 14:34:50 1992
+--- server/xhdr.c	Tue Sep 15 20:10:02 1992
+***************
+*** 158,164 ****
+  	}
+  }
+  
+! #else not XHDR
+  
+  /* Kludge to get around Greenhills C compiler */
+  
+--- 158,164 ----
+  	}
+  }
+  
+! #else /* not XHDR */
+  
+  /* Kludge to get around Greenhills C compiler */
+  
+***************
+*** 166,169 ****
+  {
+  }
+  
+! #endif not XHDR
+--- 166,169 ----
+  {
+  }
+  
+! #endif /* not XHDR */

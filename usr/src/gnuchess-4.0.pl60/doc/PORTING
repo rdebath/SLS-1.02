@@ -1,0 +1,37 @@
+This is a note how to port gnuchess to machines with scarce memory:
+gnuchess minimal requirements are:
+ - approximately 100 kByte memory for the executable program.
+ - at least 200 kByte for data structures.
+You dont want to port gnuchess to a machine with less memory than that.
+
+gnuchess is optmized for speed and that means that memory has been used
+when there has been a tradeoff between memory usage and speed. If you intend
+to run gnuchess on a machine with less than 2 Mbyte memory the size of some
+data structures have to be reduced. Here is a list of the largest data
+structures in gnuchess, their sizes and a small comment on what can
+be done to reduce their size:
+
+ttable:		1.3	MByte	(#define ttblsz <something small>)
+nextpos:	32	kByte	(nothing save rewiting all move generation)
+nextdir:	32	kByte	(nothing save rewiting all move generation)
+Tree:		20 	kByte	(change f,t to unsigned char)
+history:	8	kByte   (can be removed)
+distdata:	8	kByte	(can be changed to a macro)
+taxidata:	8	kByte	(can be changed to a macro)
+hashcode:	7	kByte   (#define ttblsz 0)
+
+First of all, start by reducing the transposition table size, this
+is done by setting ttblsz in (gnuchess.c). If the transopsition table
+does not fit entiely in memory it will have a detrimental effect on
+performance. You can remove the transposition table by setting ttblsz 0.
+If this isn`nt enough, reconsider if you really want to do this port.
+There is`nt really that much to gain by changing the other
+data structures. 
+
+Here are the macros:
+#define taxicab(a,b) (abs(column (a) - column (b)) + abs (row (a) - row (b)))
+#define distance(a,b) \
+	((abs(column (a) - column (b)) > abs (row (a) - row (b)))
+	? abs(column (a) - column (b)) : abs (row (a) - row (b)))
+
+

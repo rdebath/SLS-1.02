@@ -1,0 +1,462 @@
+.TH LIBEXPECT 3 "12 December 1991"
+.SH NAME
+libexpect \- programmed dialogue with interactive programs \- C functions
+.SH SYNOPSIS
+.nf
+.B #include <expect.h>
+
+.B int
+.B "exp_spawnl(file, arg0 [, arg1, ..., argn] (char *)0);"
+.B char *file;
+.B char *arg0, *arg1, ... *argn;
+
+.B int
+.B exp_spawnv(file,argv);
+.B char *file, *argv[ ];
+
+.B FILE *
+.B exp_popen(command);
+.B char *command;
+
+.B extern int exp_pid;
+.B extern char *exp_stty_init;
+
+.B cc files... \-lexpect
+.fi
+
+.SH DESCRIPTION
+.B exp_spawnl
+and
+.B exp_spawnv
+fork a new process so that its stdin,
+stdout, and stderr can be written and read by the current process.
+.I file
+is the name of a file to be executed.  The
+.I arg
+pointers are
+null-terminated strings.  Following the style of execve(),
+.I arg0
+(or
+.IR argv[0] )
+is customarily a duplicate of the name of the file.
+.PP
+Three interfaces are available,
+.B exp_spawnl
+is useful when the number of
+arguments is known at compile time.
+.B exp_spawnv
+is useful when the number of arguments is not known at compile time.
+.B exp_popen
+is explained later on.
+.PP
+If the process is successfully created, a file descriptor is returned
+which corresponds to the process's stdin, stdout and stderr.
+A stream may be associated with the file descriptor by using fdopen().
+(This should almost certainly be followed by setbuf() to unbuffer the I/O.)
+.PP
+Closing the file descriptor will typically be detected by the
+process as an EOF.  Once such a process exits, it should be waited
+upon (via wait) in order to free up the kernel process slot.  (Some systems
+allow you to avoid this if you ignore the SIGCHLD signal).
+.PP
+.B exp_popen
+is yet another interface, styled after popen().  It takes a Bourne
+shell command line, and returns a stream that corresponds to the process's
+stdin, stdout and stderr.  The actual implementation of
+.B exp_popen
+below demonstrates
+.BR exp_spawnl .
+.nf
+
+FILE *
+exp_popen(program)
+char *program;
+{
+	FILE *fp;
+	int ec;
+
+	if (0 > (ec = exp_spawnl("sh","sh","-c",program,(char *)0)))
+		return(0);
+	if (NULL == (fp = fdopen(ec,"r+")) return(0);
+	setbuf(fp,(char *)0);
+	return(fp);
+}
+.fi
+
+After a process is started, the variable
+.B exp_pid
+is set to the process-id of the new process.
+
+The spawn functions uses a pty to communicate with the process.  By
+default, the pty is initialized the same way as the user's tty.
+When this is not possible
+(i.e., expect was not started with a controlling terminal),
+.B spawn
+uses the tty settings that correspond to "stty sane".  If the variable
+.I exp_stty_init
+is defined, it is interpreted in the style of stty arguments
+as further configuration for any pty used by future
+.B spawn
+commands.  For example, exp_stty_init = "sane"; repeats the default
+initialization.
+
+.SH "IF YOU WANT TO ALLOCATE YOUR OWN PTY"
+.nf
+
+.B extern int exp_autoallocpty;
+.B extern int exp_pty[2];
+.fi
+
+The spawn functions use a pty to communicate with the process.  By
+default, a pty is automatically allocated each time a process is spawned.
+If you want to allocate ptys yourself, before calling one of the spawn
+functions, set
+.B exp_autoallocpty
+to 0,
+.B exp_pty[0]
+to the master pty file descriptor and
+.B exp_pty[1]
+to the slave pty file descriptor.
+The expect library will not do any pty initializations (e.g., exp_stty_init will not be used).
+The slave pty file descriptor will be
+automatically closed when the process is spawned.  After the process is
+started, all further communication takes place with the master pty file
+descriptor.
+.PP
+.B exp_spawnl
+and
+.B exp_spawnv
+duplicate the shell's actions
+in searching for an executable file in a list of directories.  The
+directory list is obtained from the environment.
+.SH EXPECT PROCESSING
+While it is possible to use read() to read information from a process
+spawned by
+.B exp_spawnl
+or
+.BR exp_spawnv ,
+more convenient functions are provided.  They are as
+follows:
+.nf
+
+.B int
+.B exp_expectl(fd,pattern1,value1,pattern2,value2,....,(char *)0);
+.B int fd;
+.B char pattern1, pattern2, ...;
+.B int value1, value2, ...;
+
+.B int
+.B exp_fexpectl(fp,pattern1,value1,pattern2,value2,....,(char *)0);
+.B FILE *fp;
+.B char pattern1, pattern2, ...;
+.B int value1, value2, ...;
+
+.B struct exp_case {
+.B	char *pattern;
+.B	int value;
+.B };
+
+.B int
+.B exp_expectv(fd,cases);
+.B int fd;
+.B struct exp_case *cases;
+
+.B int
+.B exp_fexpectv(fp,cases);
+.B FILE *fp;
+.B struct exp_case *cases;
+
+.B extern unsigned int exp_timeout;
+.B extern char *exp_match;
+.B extern int exp_match_max;
+.fi
+
+The functions wait until the output from a process matches one of the
+patterns, a specified time period has passed, or an EOF is seen.
+.PP
+The first argument to each function is either a file descriptor or a stream.
+Successive arguments are pairs of patterns and associated integer values.
+.B exp_expectv
+and
+.B exp_fexpectv
+are useful when the number of patterns is
+not known in advance.  In this case, the pairs are provided in an array.
+The end of the array is denoted by a pair with pattern (char *)0.  For the rest
+of this discussion, these functions will be referred to generically as
+.IR expect.
+.PP
+If a pattern matches, then the corresponding value is returned.
+Values need not be unique.
+Upon EOF or timeout, the value
+.B EXP_EOF
+or
+.B EXP_TIMEOUT
+is returned.  The
+default timeout period is 10 seconds but may be changed by setting the
+variable
+.BR exp_timeout .
+The exact string that matched (or had been read if a timeout or EOF
+occurred) is saved in the variable
+.BR exp_match .
+.PP
+Each time new input arrives, it is compared to each pattern in the
+order they are listed.  Thus, you may test for absence of a match by
+making the last pattern something guaranteed to appear, such as a
+prompt.  In situations where there is no prompt, you must check for
+.B EXP_TIMEOUT
+(just like you would if you were interacting manually).  More philosophy
+and strategies on specifying
+.B expect
+patterns can be found in the
+documentation on the
+.B expect
+program, itself.  See SEE ALSO below.
+.PP
+Patterns are the usual C-shell-style regular expressions.  For
+example, the following fragment looks for a successful login, such
+as from a telnet dialogue.
+.nf
+
+	switch (exp_expectl(
+		"*connected*",CONN,
+		"*busy*",BUSY,
+		"*failed*",ABORT,
+		"*invalid password*",ABORT)) {
+	case CONN:	/* logged in successfully */
+		break;
+	case BUSY:	/* couldn't log in at the moment */
+		break;
+	case EXP_TIMEOUT:
+	case ABORT:	/* can't log in at any moment! */
+		break;
+	default: /* problem with expect */
+	}
+.fi
+
+Asterisks (as in the
+example above) are a useful shorthand for omitting line-termination
+characters and other detail.
+Patterns must match the entire output of the current process (since
+the previous read on the descriptor or stream).  
+More than 2000 bytes of output can
+force earlier bytes to be "forgotten".  This may be changed by setting
+the variable
+.BR exp_match_max .
+Note that excessively large values can slow down the pattern matcher.
+.SH RUNNING IN THE BACKGROUND
+.nf
+
+.B extern int exp_disconnected;
+.B int disconnect();
+
+.fi
+It is possible to move a process into the background after it has
+begun running.  A typical use for this is to read passwords and then
+go into the background to sleep before using the passwords to do real
+work.
+.PP
+To move a process into the background, fork, call disconnect() in the
+child process and exit() in the parent process.  This disassociates
+your process from the controlling terminal.  If you wish to move a
+process into the background in a different way, you must set the
+variable exp_disconnect to 1.  This allows processes spawned after
+this point to be started correctly.
+.SH ERRORS
+All functions indicate errors by returning \-1 and setting errno.
+.PP
+Errors that occur after the spawn functions fork (e.g., attempting to
+spawn a non-existent program) are written to the process's stderr,
+and will be read by the first
+.BR expect .
+.SH SIGNALS
+.nf
+.B extern int exp_reading;
+.B extern jmp_buf exp_readenv;
+.fi
+
+.B expect
+uses alarm() to timeout, thus if you generate alarms during
+.BR expect ,
+it will timeout prematurely.
+.PP
+Internally,
+.B expect
+calls read() which can be interrupted by signals.  If
+you define signal handlers, you can choose to restart or abort
+.BR expect 's
+internal read.  The variable,
+.BR exp_reading ,
+is true iff
+.BR expect 's
+read has been interrupted.  longjmp(exp_readenv,1) will abort
+the read.  longjmp(exp_readenv,2) will restart the read.
+.SH DEBUGGING
+
+While I consider the library to be easy to use, I think that the
+standalone expect program is much, much, easier to use than working
+with the C compiler and its usual edit, compile, debug cycle.  Unlike
+typical C programs, most of the debugging isn't getting the C compiler
+to accept your programs - rather, it is getting the dialogue correct.
+Also, translating scripts from expect to C is usually not necessary.
+For example, the speed of interactive dialogues is virtually never an
+issue.  So please try the standalone 'expect' program first.  I
+suspect it is a more appropriate solution for most people than the
+library.
+.PP
+Nonetheless, if you feel compelled to debug in C,
+here are some tools to help you.
+
+.nf
+
+.B extern int exp_loguser;
+.B extern int exp_logfile_all
+.B extern FILE *exp_logfile;
+.B extern int exp_is_debugging;
+.B extern FILE *exp_debugfile;
+.fi
+
+While expect dialogues seem very intuitive, trying to codify them in a
+program can reveal many surprises in a program's interface.  Therefore
+a variety of debugging aids are available.  They are controlled by the
+above variables, all 0 by default.
+.PP
+If
+.B exp_loguser
+is nonzero,
+.B expect
+sends any output from
+.B exp_pty
+to
+stdout.  Since interactive programs typically echo their input, this
+usually suffices to show both sides of the conversation.  If
+.B exp_logfile
+is also nonzero, this same output is written to the stream defined by 
+.BR exp_logfile .
+If 
+.B exp_logfile_all
+is non-zero,
+.B exp_logfile
+is written regardless of the value of 
+.BR exp_loguser .
+.PP
+Debugging information internal to
+.B expect
+is sent to stderr when
+.B exp_is_debugging
+is non-zero.  The debugging information includes
+every character received, and every attempt made to match the current
+input against the patterns.  In addition, non-printable characters are
+translated to a printable form.  For example, a control-C appears as a
+caret followed by a C.  If 
+.B exp_logfile
+is non-zero, this information
+is also written to that stream.
+.PP
+If 
+.B exp_debugfile
+is non-zero, all normal and debugging information is
+written to that stream, regardless of the value of 
+.BR exp_is_debugging .
+.SH CAVEATS
+The
+.B expect
+functions automatically remove nulls from incoming streams
+before doing pattern matching.  This allows the programmer (i.e., you)
+to use C-style strings in the arguments.
+.PP
+The stream versions of the
+.B expect
+functions are much slower than the
+file descriptor versions because there is no way to portably read
+an unknown number of bytes without the potential of timing out.
+Thus, characters are read one at a time.  You are therefore strongly
+encouraged to use the file descriptor versions of
+.B expect
+(although,
+automated versions of interactive programs don't usually demand high speed
+anyway).
+.PP
+You can actually get the best of both worlds, writing with the usual
+stream functions and reading with the file descriptor versions of
+.B expect
+as long as you don't attempt to intermix other stream input
+functions (e.g., fgetc).
+To do this, pass fileno(stream) as the file descriptor each time.
+Fortunately, there is little reason to use anything but the
+.B expect
+functions when reading from interactive programs.
+.PP
+There is no matching exp_pclose to exp_popen (unlike popen and pclose).
+It only takes two functions to close down a connection (fclose() followed
+by waiting on the pid), but it is not uncommon to separate these two
+actions by large time intervals, so the function seems of little value.
+.PP
+If you are running on a Cray running Unicos (all I know for sure from
+experience), you must run your compiled program as root or setuid.  The
+problem is that the Cray only allows root processes to open ptys. 
+You should observe as much precautions as possible:  If you don't need
+permissions, setuid(0) only immediately before calling one of the spawn
+functions and immediately set it back afterwards.
+.PP
+Normally,
+.B spawn
+takes little time to execute.  If you notice spawn taking a
+significant amount of time, it is probably encountering ptys that are
+wedged.  A number of tests are run on ptys to avoid entanglements with
+errant processes.  (These take 10 seconds per wedged pty.)  Running
+expect with the \-d option will show if
+.B expect
+is encountering many ptys in odd states.  If you cannot kill
+the processes to which these ptys are attached, your only recourse may
+be to reboot.
+.SH BUGS
+The
+.B exp_fexpect
+functions don't work at all under HP-UX.  Follow the
+advice (above) about using the
+.B exp_expect
+functions.  If you fix the problem (before
+I do - please check the latest release) let me know.
+.SH SEE ALSO
+An alternative to this library is the
+.B expect
+program.
+.B expect
+interprets scripts written in a high-level language
+which direct the dialogue.
+In addition, the user can take control and interact directly when desired.
+If it is not absolutely necessary to write your own C program, it is much
+easier to use
+.B expect
+to perform the entire interaction.
+It is described further in the following references:
+.PP
+.I
+"expect: Curing Those Uncontrollable Fits of Interactivity" \fRby Don Libes,
+Proceedings of the Summer 1990 USENIX Conference,
+Anaheim, California, June 11-15, 1990.
+.PP
+.I
+"Using expect to Automate System Administration Tasks" \fRby Don Libes,
+Proceedings of the 1990 USENIX Large Installation Systems Administration
+Conference, Colorado Springs, Colorado, October 17-19, 1990.
+.PP
+expect(1), alarm(3), read(2), write(2), fdopen(3), execve(2), execvp(3),
+longjmp(3), pty(4).
+.PP
+There are several examples C programs in the test directory of
+.BR expect 's
+source distribution which use the expect library.
+.PP
+.SH AUTHOR
+Don Libes, libes@cme.nist.gov, National Institute of Standards and Technology
+.SH ACKNOWLEDGEMENTS
+Thanks to John Ousterhout (UCBerkeley) for supplying the pattern
+matcher.
+.PP
+Design and implementation of the
+.B expect
+library was paid for by the U.S. government and is therefore in the public
+domain.
+However the author and NIST would like credit
+if this program and documentation or portions of them are used.

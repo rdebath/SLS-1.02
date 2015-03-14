@@ -1,0 +1,93 @@
+*** ./iv/src/bin/doc/DocViewer.c        Mon Jun  8 07:29:48 1992
+--- ../iv3.1-b4/./iv/src/bin/doc/DocViewer.c    Sat Dec  5 11:01:13 1992
+***************
+*** 233,239 ****
+          ), this
+      );
+      listener->key(true);
+!     listener->button(true);
+      _top->body(listener);
+
+      _pages = new DocDeck();
+--- 233,239 ----
+          ), this
+      );
+      listener->key(true);
+!     listener->button(true, Event::any);
+      _top->body(listener);
+
+      _pages = new DocDeck();
+*** ./iv/src/bin/doc/Document.c Mon Jul 13 17:19:20 1992
+--- ../iv3.1-b4/./iv/src/bin/doc/Document.c     Sat Dec  5 11:41:47 1992
+***************
+*** 560,565 ****
+--- 560,571 ----
+  }
+
+  void Document::name (const char* name) {
++     if (name==_name) return;  /* This is to allow the name to be set
++                                  to what it already is. There was a bug
++                                  before, because in this case
++                                       delete _name
++                                  would delete what it has to be set to.
++                                  This happened with every "Save" */
+      delete _name;
+      if (name != nil) {
+          _name = strcpy(new char[strlen(name)+1], name);
+*** ./iv/src/include/InterViews/glyph.h Mon Apr 13 16:59:05 1992
+--- ../iv3.1-b4/./iv/src/include/InterViews/glyph.h     Wed Dec  2 18:45:18 1992
+***************
+*** 42,48 ****
+  typedef long GlyphIndex;
+  typedef unsigned int GlyphBreakType;
+
+! class Glyph : public Resource {
+  public:
+      enum { no_break, pre_break, in_break, post_break };
+
+--- 42,48 ----
+  typedef long GlyphIndex;
+  typedef unsigned int GlyphBreakType;
+
+! class Glyph : virtual public Resource {
+  public:
+      enum { no_break, pre_break, in_break, post_break };
+
+*** ./iv/src/include/InterViews/handler.h       Tue Feb 11 17:33:42 1992
+--- ../iv3.1-b4/./iv/src/include/InterViews/handler.h   Wed Dec  2 18:45:40 1992
+***************
+*** 31,37 ****
+
+  class Event;
+
+! class Handler : public Resource {
+  protected:
+      Handler();
+      virtual ~Handler();
+--- 31,37 ----
+
+  class Event;
+
+! class Handler : virtual public Resource {
+  protected:
+      Handler();
+      virtual ~Handler();
+*** ./iv/src/lib/InterViews/fchooser.c  Mon Nov 23 20:25:33 1992
+--- ../iv3.1-b4/./iv/src/lib/InterViews/fchooser.c      Wed Dec  2 19:37:48 1992
+***************
+*** 387,393 ****
+  }
+
+  void FileChooserImpl::accept_editor(FieldEditor* e) {
+!     const String* path = Directory::canonical(*e->text());
+      e->field(*path);
+      if (chdir(*path)) {
+        /* chdir has copied the string */
+--- 387,393 ----
+  }
+
+  void FileChooserImpl::accept_editor(FieldEditor* e) {
+!     String* path = Directory::canonical(*e->text());
+      e->field(*path);
+      if (chdir(*path)) {
+        /* chdir has copied the string */

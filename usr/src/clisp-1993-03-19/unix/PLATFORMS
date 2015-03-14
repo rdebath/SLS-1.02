@@ -1,0 +1,184 @@
+List of platforms
+-----------------
+
+The Unix version of CLISP is known to run on a variety of machines
+and operating systems. The following is a list of successful compiles,
+in the format
+
+
+hardware              OS             compiled by
+date                  test-time      email address
+
+(Test-time is the time needed for "make test". Measure user time.)
+
+
+PC 486/33, 8 MB RAM   Linux 0.98     Bruno Haible
+17.11.1992                  415 s    <haible@ma2s2.mathematik.uni-karlsruhe.de>
+14.12.1992                  418 s
+31.12.1992 (gcc233)         384 s
+31.12.1992 (gcc233)         377 s
+2.1.1993  (gcc233,shm)      359 s
+2.1.1993  (gcc233,shm)      363 s
+5.1.1993  (gcc233,486)      367 s
+15.1.1993 (gcc233,486,shm)  356 s
+15.1.1993 (gcc233,486,shm)  362 s
+19.1.1993 (gcc233,486,shm)  360 s
+29.1.1993 (gcc233,486)      366 s
+10.2.1993 (gcc233,486,shm)  359 s
+4.3.1993  (gcc233,486,shm)  351 s
+
+PC 486/33, 8 MB RAM   Linux 0.99.7   Bruno Haible
+18.3.1993 (gcc233,486,mmap) 337 s    <haible@ma2s2.mathematik.uni-karlsruhe.de>
+
+Sun 4/70 (Sparc 2)    SunOS 4.1.1    Bruno Haible
+19.11.1992 (gcc23)       291 s       <haible@ma2s2.mathematik.uni-karlsruhe.de>
+22.12.1992 (gcc23)       298 s
+28.12.1992 (gcc23)       291 s
+1.1.1993   (cc)          424 s
+1.2.1993   (gcc23)       268 s
+4.2.1993   (gcc23)       276 s
+
+Sun 4c (Sparc 1)      SunOS 4.1.2    Martin Sjölin
+16.12.1992               679 s       <marsj@ida.liu.se>
+
+Sun 4m (Sparc 10)     SunOS 4.1.3    Bruno Haible
+16.1.1993 (gcc233)       208 s       <haible@ma2s2.mathematik.uni-karlsruhe.de>
+17.1.1993 (gcc233,shm)   203 s
+20.1.1993 (gcc233,shm)   186 s
+
+Sun386i               SunOS 4.0.2    Bruno Haible
+13.1.1993                            <haible@ma2s2.mathematik.uni-karlsruhe.de>
+
+i386                  Consensys      Bruno Haible
+18.12.1992             --- (*)       <haible@ma2s2.mathematik.uni-karlsruhe.de>
+
+HP 9000/720           HP-UX 8.05     Bruno Haible
+1.1.1992                 309 s       <haible@ma2s2.mathematik.uni-karlsruhe.de>
+
+i386                  Coherent 4.0   Dr Emmanuel Charpentier
+                                     <root@bacbuc.fr.mugnet.org>
+
+
+When you install CLISP on a machine not mentioned here, please send us a short
+note containing the information mentioned above. If you didn't succeed in
+building CLISP, please tell us the problems: we will try to make CLISP as
+portable as possible.
+
+
+Special hints for some platforms:
+---------------------------------
+
+
+On Linux:
+
+If you have SYSV IPC installed and want to use it, add -lipc to the LIBS in the
+makefile. This speeds up CLISP by 5%.
+If you have SYSV IPC installed and do not want to use it, add -DNO_MULTIMAP_SHM
+to the CFLAGS in the makefile.
+
+
+On 386BSD:
+
+Add -DNO_MULTIMAP_SHM -DNO_MULTIMAP_FILE to the CFLAGS in the makefile.
+386BSD declares the shared memory and memory mapping facilities (shm*, mmap)
+in the header files, but does not implement them in the kernel.
+
+In unixconf.h change
+  #undef STDC_HEADERS          to   #define STDC_HEADERS
+  #define RETFREETYPE int      to   #define RETFREETYPE void
+  #define RETABORTTYPE int     to   #define RETABORTTYPE void
+  #define GETENV_CONST         to   #define GETENV_CONST const
+  #undef HAVE_GETRUSAGE        to   #define HAVE_GETRUSAGE
+Can someone please tell me why this is necessary?
+
+
+On a Sun4 (Sparc) under SunOS 4:
+
+The Sun cc is usable only without the optimization flag "-O". (At least spvw.d
+is compiled incorrectly when -O is used.)
+It is best to get and install GNU gcc. (Gcc version 2.2 or later required.)
+
+
+On a HP9000/8xx under HP-UX version 8:
+
+If cc had no bugs:
+  Choose "cc -Aa -z -D_HPUX_SOURCE" or "c89 -z -D_HPUX_SOURCE" as compiler.
+  You need the -Aa flag resp. the c89 compiler because the normal "cc" does not
+  expand macros with arguments within constant expressions in preprocessor
+  commands like #if.
+  Without the -D_HPUX_SOURCE flag many include files are incomplete. When using
+  -D_POSIX_SOURCE instead, <errno.h> fails to define ELOOP.
+  The -z flag is harmless.
+Alas, cc and c89 initialize string arrays declared like
+    static char* table[] = { 0?"a":1?"b":"", ..., 0?"x":1?"y":"", };
+with NULL pointers!
+
+So get and install GNU gcc. This works for sure.
+
+If you get an error message "./configure: sh internal 1K buffer overflow"
+the remedy is to get and install GNU bash and replace the first line of
+src/configure by "#!" and the full pathname of bash.
+
+Add -DNO_MULTIMAP_SHM to the CFLAGS in the makefile. The shared memory
+facilities of HP-UX do not work as expected. This flag prevents CLISP
+from using them.
+
+
+On Consensys:
+
+Choose "cc -I/usr/include" as compiler.
+Otherwise /usr/ucbinclude/sys/sysmacros.h will be included instead of
+/usr/include/sys/sysmacros.h, and this lacks the definition of ctob().
+
+Add -DNO_MULTIMAP_SHM to the CFLAGS in the makefile. The shared memory
+facilities of Consensys do not work as expected. This flag prevents CLISP
+from using them.
+
+(*) The lisp.run you get is a program that reliably crashes your machine.
+
+
+On 386 UHC UNIX System V release 4:
+
+Add -DNO_MULTIMAP_SHM -DSVR4 -DUHC to the CFLAGS in the makefile.
+
+
+On IRIX:
+
+If you are using cc, choose "cc -ansi" as compiler. cc in non-ANSI mode
+fails to expand macros with arguments within preprocessor directives like #if.
+Since the compiler rejects 8-bit characters in strings, you will have to
+convert the sources to plain ASCII first.
+Add  -Olimit 3000  to the CFLAGS in the makefile. This ensures that the
+bytecode interpreter will get optimized, which is crucial for performance.
+If the compiler signals an internal error in unix.d, pointing to the line
+"extern signal_handler signal (int sig, signal_handler handler);",
+then comment out that line.
+
+
+Hints for porting to new platforms:
+-----------------------------------
+
+Choose a reliable C compiler. GNU gcc is a good bet.
+
+Has your machine a weird address space layout?
+CLISP assumes that the code and data area as well as the area of malloc'ed
+memory have addresses in the lower 16 MB, that is, addresses occupying
+only the lower 24 (out of 32) address bits. This allows CLISP to use the
+upper 8 bits as tags, for encoding the run time type of Lisp objects.
+In case this assumption does not hold, either
+* find a way to store 6 tag bits and an address in a 32 bit word, and
+  modify lispbibl.d appropriately - not a trivial task -, or
+* add -DWIDE to the CFLAGS. This will cause 64 bits (instead of 32) to be
+  allocated for every pointer to a Lisp object: 32 for the address, the
+  remaining for the tags. This will severely degrade CLISP's efficiency: memory
+  consumption will grow by 60% or more, speed will be lowered by 30% or more.
+  You will need a C compiler that provides 64 bit integer types; one such
+  compiler is GNU gcc (version 2.3.3 or later).
+No assumptions about the stack area are made.
+
+Has your operating system shared memory or memory mapping facilities?
+CLISP tries to use them to save the time for stripping off the tag bits (see
+above) before memory accesses. If you get an error message concerning shared
+memory, you should add -DNO_MULTIMAP_SHM to the CFLAGS and recompile.
+Doing so introduces a speed penalty of about 6%.
+

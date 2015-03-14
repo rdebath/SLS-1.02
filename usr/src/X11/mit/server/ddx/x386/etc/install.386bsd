@@ -1,0 +1,95 @@
+#!/bin/sh
+
+# Installation script for X386 on 386BSD.
+#
+# $Header: /home/x_cvs/mit/server/ddx/x386/etc/install.386bsd,v 1.2 1992/08/25 09:02:27 dawes Exp $
+
+# if /usr/X386 doesn't exist, check if we are being run from the directory
+# containing X386, or from X386/lib/X11/etc
+
+if [ ! -d /usr/X386 ]; then
+	if [ -d X386 ]; then
+		instdir=`pwd`
+	elif [ -d ../../../../X386 ]; then
+		instdir=`(cd ../../../..; pwd)`
+	else
+		echo Please run `basename $0` from the directory where you
+		echo installed X386.
+		exit 1
+	fi
+fi
+		
+# create /dev/vga if it doesn't exist
+if [ ! -c /dev/vga ]; then
+	mknod /dev/vga c 12 0
+fi
+
+# change console to vga in /etc/ttys
+if grep -s '^console' /etc/ttys; then
+	echo changing console device to vga in /etc/ttys
+	sed -e 's/^console/vga/' </etc/ttys >/tmp/$$.out \
+          && mv /etc/ttys /etc/ttys~ \
+          && mv /tmp/$$.out /etc/ttys
+	echo Before using X, you must reboot or use:
+	echo 
+	echo    kill -HUP 1
+	echo 
+	echo for this to take effect.  The console will sometimes hang
+	echo if you use kill only once.  If so, login as root on a
+	echo remote terminal and type \'kill -HUP 1\', else reboot the
+	echo "system (e.g. \`sync;shutdown -r now')."
+fi
+
+
+# create the symlink
+if [ ! -d /usr/X386 ]; then
+	(cd /usr; ln -s $instdir/X386 .)
+fi
+
+# put /usr/X386/man/ and /usr/X386/man/whatis.db in /etc/man.conf
+d=/etc/man.conf
+if grep -s '_default.*/usr/X386/man/' $d; then
+else
+	echo adding /usr/X386/man to the default search path in $d
+	sed -e '/^_default/s_$_ /usr/X386/man/_' <$d >/tmp/$$.out \
+           && mv $d $d~ \
+           && mv /tmp/$$.out $d
+fi
+if grep -s '_whatdb.*/usr/X386/man/whatis.db' $d; then
+else
+	echo adding /usr/X386/man/whatis.db to the whatis database list in $d
+	sed -e '/^_whatdb/s_$_ /usr/X386/man/whatis.db_' <$d >/tmp/$$.out \
+          && mv $d $d~ \
+          && mv /tmp/$$.out $d
+fi
+
+# look for the Xconfig and complain if missing
+if [ ! -f /usr/X386/lib/X11/Xconfig ]; then
+	cp /usr/X386/lib/X11/Xconfig.sample /usr/X386/lib/X11/Xconfig
+	echo You must edit /usr/X386/lib/X11/Xconfig to suit your vga card!
+	echo X386 will almost certainly fail otherwise.
+fi
+
+# put /usr/X386/bin in /etc/csh.login
+d=/etc/csh.login
+if grep -s '/usr/X386/bin' $d; then
+else
+	echo adding /usr/X386/bin to $d
+	echo '# add X386 executables to the search path' >>$d
+	echo 'set path = ($path /usr/X386/bin)' >>$d
+fi
+
+# put /usr/X386/bin in /etc/profile
+d=/etc/profile
+if grep -s '/usr/X386/bin' $d; then
+else
+	echo adding /usr/X386/bin to $d
+	echo '# add X386 executables to the search path' >>$d
+	echo 'PATH=$PATH:/usr/X386/bin' >>$d
+fi
+
+if grep -s 'pc_xmode' /386bsd; then
+else
+	echo Warning: Your kernel does not have X server support compiled in!
+fi
+

@@ -1,0 +1,825 @@
+diff -cr v1.4/RichText.c v1.5/RichText.c
+*** v1.4/RichText.c	Mon Sep 21 16:39:26 1992
+--- v1.5/RichText.c	Tue Sep 22 19:32:05 1992
+***************
+*** 1,5 ****
+  /* RichText.c -- implementation of the richtext widget
+!  * $Id: RichText.c,v 1.6 92/09/18 17:56:22 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* RichText.c -- implementation of the richtext widget
+!  * $Id: RichText.c,v 1.8 92/09/22 19:07:50 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 7,12 ****
+--- 7,14 ----
+  #include "RichTextP.h"
+  
+  #include <X11/Xatom.h>
++ /* for XmInternAtom() */
++ #include <Xm/Xm.h>
+  #include "debug.h"
+  
+  /* Internal procedures:
+***************
+*** 23,31 ****
+  				  XcRichTextWidget new);
+  static void             Realize(Widget w, Mask *valueMask,
+  				XSetWindowAttributes *attributes);
+! static int
+  InvertSelection(XcRichTextWidget w);
+! static int
+  InvertDifference(XcRichTextWidget w,
+  		 int rx, int ry,
+  		 unsigned rw, unsigned rh);
+--- 25,33 ----
+  				  XcRichTextWidget new);
+  static void             Realize(Widget w, Mask *valueMask,
+  				XSetWindowAttributes *attributes);
+! static void
+  InvertSelection(XcRichTextWidget w);
+! static void
+  InvertDifference(XcRichTextWidget w,
+  		 int rx, int ry,
+  		 unsigned rw, unsigned rh);
+***************
+*** 237,245 ****
+   ****************/
+  {
+  /****************/
+-   Display* disp = XtDisplay(new);
+    void* flow;
+-   int f;
+  
+    CopyFontList(new);
+  
+--- 239,245 ----
+***************
+*** 273,280 ****
+  	XcRichTextWidget new)
+  {
+  /****************/
+-   int f;
+- 
+    if(new->rich_text.value) XtFree(new->rich_text.value);
+  #ifdef OLD_FONTS
+    if(new->rich_text.fontList) XmFontListFree(new->rich_text.fontList);
+--- 273,278 ----
+***************
+*** 297,303 ****
+    XcRichTextPart* p = &da->rich_text;
+    long s, e;
+    int flicker;
+-   int* x = da->rich_text.sx;
+    int* y = da->rich_text.sy;
+  
+    if(p->point < p->mark){
+--- 295,300 ----
+***************
+*** 385,394 ****
+   ****************/
+  {
+  /****************/
+!   Boolean redisplay;
+    void* flow = new->rich_text.flow;
+    Boolean new_height = 0, new_string = 0;
+-   int f;
+  
+    /** This routine should only reformat the text once! **/
+  
+--- 382,390 ----
+   ****************/
+  {
+  /****************/
+!   Boolean redisplay = 0;
+    void* flow = new->rich_text.flow;
+    Boolean new_height = 0, new_string = 0;
+  
+    /** This routine should only reformat the text once! **/
+  
+***************
+*** 504,510 ****
+    w->rich_text.invert = XtGetGC((Widget)w, valuemask, &values);
+  }
+  
+! static int
+  InvertSelection(XcRichTextWidget w)
+  {
+    int* x = w->rich_text.sx;
+--- 500,506 ----
+    w->rich_text.invert = XtGetGC((Widget)w, valuemask, &values);
+  }
+  
+! static void
+  InvertSelection(XcRichTextWidget w)
+  {
+    int* x = w->rich_text.sx;
+***************
+*** 667,673 ****
+  
+  
+  	       
+! static int
+  InvertDifference(XcRichTextWidget w,
+  		 int rx, int ry,
+  		 unsigned rw, unsigned rh)
+--- 663,669 ----
+  
+  
+  	       
+! static void
+  InvertDifference(XcRichTextWidget w,
+  		 int rx, int ry,
+  		 unsigned rw, unsigned rh)
+***************
+*** 801,807 ****
+  {
+    XcRichTextWidget rt = (XcRichTextWidget)w;
+    XcRichTextPart* p = &rt->rich_text;
+!   
+    if(*target == XmInternAtom(XtDisplay(w), "TARGETS", 1)){
+      *type = XA_ATOM;
+      *value = (XtPointer)XtNew(Atom);
+--- 797,803 ----
+  {
+    XcRichTextWidget rt = (XcRichTextWidget)w;
+    XcRichTextPart* p = &rt->rich_text;
+! 
+    if(*target == XmInternAtom(XtDisplay(w), "TARGETS", 1)){
+      *type = XA_ATOM;
+      *value = (XtPointer)XtNew(Atom);
+diff -cr v1.4/rtftoken.C v1.5/rtftoken.C
+*** v1.4/rtftoken.C	Mon Sep 21 16:39:28 1992
+--- v1.5/rtftoken.C	Tue Sep 22 19:32:05 1992
+***************
+*** 1,5 ****
+  /* rtf.C
+!  * $Id: rtftoken.C,v 1.4 92/08/20 16:47:44 connolly Exp Locker: connolly $
+  
+   from
+  	reader.c - RTF file reader.  Distribution 1.06.
+--- 1,5 ----
+  /* rtf.C
+!  * $Id: rtftoken.C,v 1.5 92/09/22 18:15:38 connolly Exp $
+  
+   from
+  	reader.c - RTF file reader.  Distribution 1.06.
+***************
+*** 22,28 ****
+  # include	"rtftoken.h"
+  
+  
+- static int	GetChar ();
+  static int	HexVal (char);
+  static void	LookupInit ();
+  static int	Hash (const char*);
+--- 22,27 ----
+***************
+*** 171,177 ****
+  			return;
+  		}
+  
+! 		if (index (":{}\\", c) != NULL)		/* escaped char */
+  		{
+  			rtfClass = Text;
+  			rtfMajor = c;
+--- 170,176 ----
+  			return;
+  		}
+  
+! 		if (strchr (":{}\\", c) != NULL)	/* escaped char */
+  		{
+  			rtfClass = Text;
+  			rtfMajor = c;
+Common subdirectories: v1.4/test and v1.5/test
+diff -cr v1.4/textflow.C v1.5/textflow.C
+*** v1.4/textflow.C	Mon Sep 21 16:39:29 1992
+--- v1.5/textflow.C	Tue Sep 22 19:32:05 1992
+***************
+*** 1,5 ****
+  /* textflow.C -- implementation of structured text data structures
+!  * $Id: textflow.C,v 1.4 92/08/20 16:48:32 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* textflow.C -- implementation of structured text data structures
+!  * $Id: textflow.C,v 1.5 92/09/22 18:15:39 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 122,130 ****
+    assert(q>0);
+    bytes_ = q;
+    data_ = new Byte[q];
+!   memcpy(data_, d, q); //@# int!
+  
+!   new TextFlow(*this, 0, data_, q);
+  }
+  
+  TextFlow::~TextFlow()
+--- 122,130 ----
+    assert(q>0);
+    bytes_ = q;
+    data_ = new Byte[q];
+!   memcpy(data_, d, (int)q); //@# int!
+  
+!   (void)new TextFlow(*this, 0, data_, q);
+  }
+  
+  TextFlow::~TextFlow()
+***************
+*** 211,217 ****
+      else{ // split
+        Qty q = bytes() - offset;
+        bytes_ = offset;
+!       new TextFlow(*parent(), this, data()+bytes(), q);
+        return this;
+      }
+    }
+--- 211,217 ----
+      else{ // split
+        Qty q = bytes() - offset;
+        bytes_ = offset;
+!       (void)new TextFlow(*parent(), this, data()+bytes(), q);
+        return this;
+      }
+    }
+diff -cr v1.4/textflow.h v1.5/textflow.h
+*** v1.4/textflow.h	Mon Sep 21 16:39:29 1992
+--- v1.5/textflow.h	Tue Sep 22 19:32:06 1992
+***************
+*** 1,5 ****
+  /* textflow.h -- definitions for structured text data structures
+!  * $Id: textflow.h,v 1.2 92/08/20 16:48:33 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* textflow.h -- definitions for structured text data structures
+!  * $Id: textflow.h,v 1.3 92/09/22 18:15:40 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 88,94 ****
+     *       textflow = new TextFlow(data, siz);
+     *******/
+  
+!   ~TextFlow();
+  
+    Qty bytes() const                   { return bytes_; };
+    const Byte* data() const
+--- 88,94 ----
+     *       textflow = new TextFlow(data, siz);
+     *******/
+  
+!   virtual ~TextFlow();
+  
+    Qty bytes() const                   { return bytes_; };
+    const Byte* data() const
+diff -cr v1.4/textrect.C v1.5/textrect.C
+*** v1.4/textrect.C	Mon Sep 21 16:39:29 1992
+--- v1.5/textrect.C	Tue Sep 22 19:32:06 1992
+***************
+*** 1,5 ****
+  /* textrect.C -- implemtation of the text formatting algorithm
+!  * $Id: textrect.C,v 1.2 92/08/20 16:48:34 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* textrect.C -- implemtation of the text formatting algorithm
+!  * $Id: textrect.C,v 1.4 92/09/22 19:07:51 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 82,87 ****
+--- 82,88 ----
+        return l->position(x);
+      else if(l->prev() == 0)
+        return l->position(0);
++   return 0; // DEAD CODE; appeases compiler
+  }
+  
+  Coord
+***************
+*** 205,210 ****
+--- 206,212 ----
+      else if(s->prev() == 0){
+        return s->first();
+      }
++   return 0; //appease compiler
+  }
+  
+  Coord
+diff -cr v1.4/view.C v1.5/view.C
+*** v1.4/view.C	Mon Sep 21 16:39:30 1992
+--- v1.5/view.C	Tue Sep 22 19:32:06 1992
+***************
+*** 1,5 ****
+  /* view.C -- implementation of the text view object
+!  * $Id: view.C,v 1.11 92/09/18 17:56:25 connolly Exp Locker: connolly $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* view.C -- implementation of the text view object
+!  * $Id: view.C,v 1.12 92/09/22 18:15:42 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 274,280 ****
+    char* p;
+  
+    for(first = 0, p=(char*)data;
+!       first < q && (p = index(p, '\n'));
+        p++, first=last+1){
+      last = p - (char*)data;
+      if(last>first)
+--- 274,280 ----
+    char* p;
+  
+    for(first = 0, p=(char*)data;
+!       first < q && (p = strchr(p, '\n'));
+        p++, first=last+1){
+      last = p - (char*)data;
+      if(last>first)
+***************
+*** 356,362 ****
+  parse_color_table(RTFPos& here, const View& view)
+  {
+    ColorSequence* ret = 0;
+!   unsigned char r, g, b;
+  
+    int braces = 1;
+    do{
+--- 356,362 ----
+  parse_color_table(RTFPos& here, const View& view)
+  {
+    ColorSequence* ret = 0;
+!   unsigned char r=0, g=0, b=0;
+  
+    int braces = 1;
+    do{
+***************
+*** 476,482 ****
+  	  extern int debug_tabs;
+  	case RTF::Tab:
+  	case RTF::Cell: /* @@ hack to make sense of tables */
+! 	  new TabFlow(*parent_group, token.start(), token.end(),
+  		      pgf_fmt, *this);
+  	  break;
+  
+--- 476,482 ----
+  	  extern int debug_tabs;
+  	case RTF::Tab:
+  	case RTF::Cell: /* @@ hack to make sense of tables */
+! 	  (void)new TabFlow(*parent_group, token.start(), token.end(),
+  		      pgf_fmt, *this);
+  	  break;
+  
+***************
+*** 488,496 ****
+  	case RTF::Page: //@#
+  	case RTF::Par:
+  	  //@@ use char format for height of newline
+! 	  new_line(*parent_group, token.start(), token.end(),
+  		   pgf_fmt.space_after, pgf_fmt.border_bottom);
+! 	  new ParagraphFlow(*parent_group, start_paragraph, token.end(),
+  			    pgf_fmt, *this);
+  	  start_paragraph = token.end();
+  	  break;
+--- 488,496 ----
+  	case RTF::Page: //@#
+  	case RTF::Par:
+  	  //@@ use char format for height of newline
+! 	  (void)new_line(*parent_group, token.start(), token.end(),
+  		   pgf_fmt.space_after, pgf_fmt.border_bottom);
+! 	  (void)new ParagraphFlow(*parent_group, start_paragraph, token.end(),
+  			    pgf_fmt, *this);
+  	  start_paragraph = token.end();
+  	  break;
+diff -cr v1.4/view.h v1.5/view.h
+*** v1.4/view.h	Mon Sep 21 16:39:30 1992
+--- v1.5/view.h	Tue Sep 22 19:32:07 1992
+***************
+*** 1,5 ****
+  /* view.h -- defintions for the text view object
+!  * $Id: view.h,v 1.4 92/09/10 22:04:27 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* view.h -- defintions for the text view object
+!  * $Id: view.h,v 1.5 92/09/22 18:15:43 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 51,57 ****
+  class View{
+  public:
+    View();
+!   ~View();
+  
+    virtual unsigned long color(int , int, int) const
+      { return 0; };
+--- 51,57 ----
+  class View{
+  public:
+    View();
+!   virtual ~View();
+  
+    virtual unsigned long color(int , int, int) const
+      { return 0; };
+diff -cr v1.4/xtextview.C v1.5/xtextview.C
+*** v1.4/xtextview.C	Mon Sep 21 16:39:30 1992
+--- v1.5/xtextview.C	Tue Sep 22 19:32:07 1992
+***************
+*** 1,5 ****
+  /* xtextview.C -- implementation of the X subclass of the view object
+!  * $Id: xtextview.C,v 1.9 92/09/18 17:56:30 connolly Exp Locker: connolly $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* xtextview.C -- implementation of the X subclass of the view object
+!  * $Id: xtextview.C,v 1.10 92/09/22 18:15:43 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 112,118 ****
+    display_ = &d;
+    drawable_ = 0;
+    widget_ = widget;
+!   for(int i=0; i<MAX_FONT_FAMILY; i++){
+      font_names_[i] = 0;
+      font_qty_[i] = 0;
+    }
+--- 112,118 ----
+    display_ = &d;
+    drawable_ = 0;
+    widget_ = widget;
+!   for(int i=0; i<=MAX_FONT_FAMILY; i++){
+      font_names_[i] = 0;
+      font_qty_[i] = 0;
+    }
+***************
+*** 121,127 ****
+  
+   XTextView::~XTextView()
+  {
+!   for(int i=0; i<MAX_FONT_FAMILY; i++){
+      if(font_qty_[i]>0)
+        XFreeFontNames(font_names_[i]);
+    }
+--- 121,127 ----
+  
+   XTextView::~XTextView()
+  {
+!   for(int i=0; i<=MAX_FONT_FAMILY; i++){
+      if(font_qty_[i]>0)
+        XFreeFontNames(font_names_[i]);
+    }
+***************
+*** 165,171 ****
+  
+      if(pattern){
+        font_names_[font_family] =
+! 	XListFonts(display(), pattern, 200, //MAGIG #
+  		   &(font_qty_[font_family]));
+        delete pattern;
+      }else
+--- 165,171 ----
+  
+      if(pattern){
+        font_names_[font_family] =
+! 	XListFonts(display(), pattern, 100, //MAGIG #
+  		   &(font_qty_[font_family]));
+        delete pattern;
+      }else
+***************
+*** 248,254 ****
+  XTextView::text_flow(TextFlow& parent, TextPosition f, TextPosition l,
+  		     const CharacterFormat& cf)
+  {
+!   new XTextFlow(parent, f, l, *this, cf);
+  }
+  
+  void
+--- 248,254 ----
+  XTextView::text_flow(TextFlow& parent, TextPosition f, TextPosition l,
+  		     const CharacterFormat& cf)
+  {
+!   (void)new XTextFlow(parent, f, l, *this, cf);
+  }
+  
+  void
+***************
+*** 255,261 ****
+  XTextView::text_char(TextFlow& parent, TextPosition f, TextPosition l, char c,
+  		     const CharacterFormat& cf)
+  {
+!   new XTextFlow(parent, f, l, *this, cf, c);
+  }
+  
+  void
+--- 255,261 ----
+  XTextView::text_char(TextFlow& parent, TextPosition f, TextPosition l, char c,
+  		     const CharacterFormat& cf)
+  {
+!   (void)new XTextFlow(parent, f, l, *this, cf, c);
+  }
+  
+  void
+***************
+*** 262,268 ****
+  XTextView::new_line(TextFlow& parent, TextPosition f, TextPosition l,
+  		    Inches sa, char border_bottom)
+  {
+!   new XNewLineFlow(parent, f, l, *this, sa, border_bottom);
+  }
+  
+  void
+--- 262,268 ----
+  XTextView::new_line(TextFlow& parent, TextPosition f, TextPosition l,
+  		    Inches sa, char border_bottom)
+  {
+!   (void)new XNewLineFlow(parent, f, l, *this, sa, border_bottom);
+  }
+  
+  void
+***************
+*** 404,417 ****
+    XTextExtents(font(), (char*)text, (int)q, /* @# int! */
+  	       &dir, &ascent, &descent, &ext);
+  
+!   ascent += super_;
+!   descent += sub_;
+    REQUIRE(ascent + descent <= avail.bottom() - avail.top(),
+  	  return 0);
+  
+    while(ext.width > avail.right() - avail.current_x()){
+      if(whole)
+!       while(--q>0 && index(BREAK_CHARS, text[q-1]) == 0)
+  	;
+      else
+        q--;
+--- 404,420 ----
+    XTextExtents(font(), (char*)text, (int)q, /* @# int! */
+  	       &dir, &ascent, &descent, &ext);
+  
+!   if(super_ + ext.ascent > ascent)
+!     ascent = super_ + ext.ascent;
+!   if(sub_ + ext.descent > descent)
+!     descent = sub_ + ext.descent;
+! 
+    REQUIRE(ascent + descent <= avail.bottom() - avail.top(),
+  	  return 0);
+  
+    while(ext.width > avail.right() - avail.current_x()){
+      if(whole)
+!       while(--q>0 && strchr(BREAK_CHARS, text[q-1]) == 0)
+  	;
+      else
+        q--;
+***************
+*** 485,491 ****
+  XTextView::picture(TextFlow& p, TextPosition f, TextPosition l,
+  		 Coord w, Coord h)
+  {
+!   new XBitMap(p, f, l, *this, w, h);
+  }
+  
+  
+--- 488,494 ----
+  XTextView::picture(TextFlow& p, TextPosition f, TextPosition l,
+  		 Coord w, Coord h)
+  {
+!   (void)new XBitMap(p, f, l, *this, w, h);
+  }
+  
+  
+***************
+*** 492,498 ****
+  void
+  XTextView::hrule(TextFlow& p, TextPosition f, TextPosition l)
+  {
+!   new XHRule(p, f, l, *this);
+  }
+  
+  
+--- 495,501 ----
+  void
+  XTextView::hrule(TextFlow& p, TextPosition f, TextPosition l)
+  {
+!   (void)new XHRule(p, f, l, *this);
+  }
+  
+  
+diff -cr v1.4/xtextview.h v1.5/xtextview.h
+*** v1.4/xtextview.h	Mon Sep 21 16:39:31 1992
+--- v1.5/xtextview.h	Tue Sep 22 19:32:07 1992
+***************
+*** 1,5 ****
+  /* xtextview.C -- definitions for the X subclass of the view object
+!  * $Id: xtextview.h,v 1.8 92/09/18 17:56:31 connolly Exp Locker: connolly $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* xtextview.C -- definitions for the X subclass of the view object
+!  * $Id: xtextview.h,v 1.9 92/09/22 18:15:44 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 28,34 ****
+  
+  public:
+    XTextView(Display&, void* widget);
+!   ~XTextView();
+  
+    virtual Coord       hinches(double i) const
+      { return (Coord)((double)i * 254/10 * xdpmm()); }; //@@ make this tunable.
+--- 28,34 ----
+  
+  public:
+    XTextView(Display&, void* widget);
+!   virtual ~XTextView();
+  
+    virtual Coord       hinches(double i) const
+      { return (Coord)((double)i * 254/10 * xdpmm()); }; //@@ make this tunable.
+***************
+*** 99,106 ****
+    int       depth_;
+    void*     widget_;
+    enum {MAX_FONT_FAMILY = 6};
+!   char **  font_names_[MAX_FONT_FAMILY];
+!   int      font_qty_[MAX_FONT_FAMILY];
+  };
+  
+  
+--- 99,106 ----
+    int       depth_;
+    void*     widget_;
+    enum {MAX_FONT_FAMILY = 6};
+!   char **  font_names_[MAX_FONT_FAMILY+1];
+!   int      font_qty_[MAX_FONT_FAMILY+1];
+  };
+  
+  
+***************
+*** 109,116 ****
+    XTextFlow(TextFlow& parent, TextPosition first, TextPosition last,
+  	    XTextView& view, const CharacterFormat&, char c=0);
+    
+!   ~XTextFlow();
+! 
+    Qty character_shape(TextPosition, Qty, Extent, Extent&, int) const;
+  
+    void render(TextPosition, Qty, Point) const;
+--- 109,116 ----
+    XTextFlow(TextFlow& parent, TextPosition first, TextPosition last,
+  	    XTextView& view, const CharacterFormat&, char c=0);
+    
+!   virtual ~XTextFlow();
+!   
+    Qty character_shape(TextPosition, Qty, Extent, Extent&, int) const;
+  
+    void render(TextPosition, Qty, Point) const;
+***************
+*** 201,207 ****
+    XBitMap(TextFlow& p, TextPosition f, TextPosition l,
+  	  XTextView& v, int width, int height);
+  
+!   ~XBitMap();
+  
+    Qty character_shape(TextPosition, Qty, Extent, Extent&, int) const;
+  
+--- 201,207 ----
+    XBitMap(TextFlow& p, TextPosition f, TextPosition l,
+  	  XTextView& v, int width, int height);
+  
+!   virtual ~XBitMap();
+  
+    Qty character_shape(TextPosition, Qty, Extent, Extent&, int) const;
+  
+diff -cr v1.4/test/rt_test.c v1.5/test/rt_test.c
+*** v1.4/test/rt_test.c	Mon Sep 21 16:39:33 1992
+--- v1.5/test/rt_test.c	Tue Sep 22 19:32:08 1992
+***************
+*** 1,5 ****
+  /* rt_test.c -- test driver for RichText widget.
+!  * $Id: rt_test.c,v 1.5 92/09/18 17:54:01 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+--- 1,5 ----
+  /* rt_test.c -- test driver for RichText widget.
+!  * $Id: rt_test.c,v 1.6 92/09/22 18:14:01 connolly Exp $
+   * Copyright 1992 by Convex Computer Corporation, Richardson, Texas.
+   * See the COPYRIGHT file for details.
+   */
+***************
+*** 9,17 ****
+--- 9,19 ----
+  #include <Xm/ScrolledW.h>
+  #include <Xm/MainW.h>
+  #include <Xm/FileSB.h>
++ #include <Xm/PushB.h>
+  
+  #include "RichText.h"
+  #include <stdio.h>
++ #include <ctype.h>
+  #include <sys/types.h>
+  #include <sys/stat.h>
+  
+***************
+*** 35,42 ****
+  static void resizeHandler(Widget w, XtPointer pt, XtPointer motifdata)
+  {
+    Widget rt = (Widget)pt;
+!   XmDrawingAreaCallbackStruct* das = (XmDrawingAreaCallbackStruct*)motifdata;
+!   Dimension ow, width;
+  
+    XtVaGetValues(w,
+  		XmNwidth, &width,
+--- 37,43 ----
+  static void resizeHandler(Widget w, XtPointer pt, XtPointer motifdata)
+  {
+    Widget rt = (Widget)pt;
+!   Dimension width;
+  
+    XtVaGetValues(w,
+  		XmNwidth, &width,
+***************
+*** 108,113 ****
+--- 109,115 ----
+  }
+  
+  
++ #ifdef SEL
+  static void rangeCB(Widget w, XtPointer pt, XtPointer md)
+  {
+    Widget rt = (Widget)pt;
+***************
+*** 133,140 ****
+  		XmNbottomPosition, end,
+  		NULL);
+  }
+  
+- 
+  static void pageCB(Widget w, XtPointer pt, XtPointer md)
+  {
+    Widget rt = (Widget)pt;
+--- 135,142 ----
+  		XmNbottomPosition, end,
+  		NULL);
+  }
++ #endif
+  
+  static void pageCB(Widget w, XtPointer pt, XtPointer md)
+  {
+    Widget rt = (Widget)pt;
+***************
+*** 164,176 ****
+    }
+  }
+  
+! 
+  main(argc, argv)
+  Cardinal argc; char *argv[];
+  {
+    XtAppContext app;
+    Widget appShell;
+!   Widget rt, sc, clip, fsb, sel, pager;
+  
+    appShell = XtAppInitialize(&app, "RichTextTest",
+  			     NULL, 0,
+--- 166,181 ----
+    }
+  }
+  
+! int
+  main(argc, argv)
+  Cardinal argc; char *argv[];
+  {
+    XtAppContext app;
+    Widget appShell;
+!   Widget rt, sc, clip, fsb, pager;
+! #ifdef SEL
+!   Widget sel;
+! #endif
+  
+    appShell = XtAppInitialize(&app, "RichTextTest",
+  			     NULL, 0,

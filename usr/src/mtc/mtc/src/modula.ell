@@ -1,0 +1,934 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: ELL(1) Grammar for Modula-2 (one conflict handled by ell)
+ *		 generated parser checks context-free syntax and constructs
+ *		 abstract tree
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/08/07 15:50:57 $
+ *	$Revision: 1.6 $
+ *
+ ***)
+
+EXPORT	{
+FROM Tree	IMPORT tTree;
+
+CONST
+  RelOpr		= 1; 	(* (some) nonterminals of the	*)
+  AddOpr		= 2;	(* parsing grammar		*)
+  MulOpr		= 3;
+  Block			= 4;
+
+TYPE
+  tParsAttribute	= RECORD  (* type for nonterminal attributes	*)
+				  (* used during tree construction	*)
+
+	(* synthesized and/or inherited attributes of nonterminals	*)
+	CASE : SHORTCARD OF		 
+	| RelOpr, AddOpr, MulOpr: Operator	: SHORTCARD;
+	| Block			: Decls, Stmts	: tTree;
+	ELSE			  Tree		: tTree;
+	END; (* CASE *)
+    END; (* RECORD *)
+}
+
+GLOBAL	{
+FROM Scanner	IMPORT BeginScanner, CloseScanner;
+FROM Positions	IMPORT NoPosition;
+
+FROM Tree	IMPORT
+  NoTree	,
+  mDefMod	, mProgMod	,
+  mVarIds0	, mVarIds1	, mParIds0	, mParIds1	,
+  mEnumIds0	, mEnumIds1	, mFieldIds0	, mFieldIds1	,
+  mArray	, mRecord	, mSetType	, mPointer	,
+  mProcType	, mEnumeration	, mSubrange	, mVoid		,
+  mTypeId0	, mTypeId1	, mFields0	, mRecordSect	,
+  mVariantSect	, mTagField0	, mTagField1	, mVariants0	,
+  mVariant	, mFormalTypes0	, mFormalType	,
+  mBinary	, mUnary	, mIntConst	, mRealConst	,
+  mStringConst	, mCharConst	, mFuncCall	, mSet		,
+  mBitSet	, mQualid0	, mQualid1	,
+  mSubscript	, mDeref	, mSelect	, mElems0	,
+  mElem		, mElemRange	, mActuals0	, mActual	,
+  mStmts0	, mAssign	, mCall		, mIf		,
+  mCase		, mWhile	, mRepeat	, mLoop		,
+  mFor		, mWith		, mExit		, mReturn1	,
+  mReturn2	, mElsifs0	, mElsifs1	, mCases0	,
+  mCases1	,
+  mLabels0	, mLabel	, mLabelRange	,
+  mDecls0	, mVar		, mConst	, mTypeDecl	, 
+  mProc		, mProcHead	, mModule	, mOpaque	,
+  mFormals0	, mFormals1	,
+  mExpIds0	, mExpIds1	, mExport0	, mExport1	,
+  mImpIds0	, mImpIds1	, mImport0	, mFrom		,
+  mObjects	,
+  Qualid0	, Qualid1	,
+  Definition	, Foreign	, Implementation, Program	, 
+  NotEqual	, Times		, Plus		, Minus		, 
+  Divide	, Less		, LessEqual	, Equal		, 
+  Greater	, GreaterEqual	, And		, Div		, 
+  In		, Mod		, Not		, Or		, 
+  Decimal	, Octal		, Hexadecimal	,
+  ReverseTree	;
+
+FROM Defs	IMPORT
+  IdentLONGCARD	;
+
+VAR Kind	: SHORTCARD;	(* compilation unit kind	*)
+}
+
+BEGIN	{ BeginScanner; }
+
+CLOSE	{ CloseScanner; }
+
+TOKEN
+   Ident		= 1
+   DecConst		= 2
+   OctalConst		= 3
+   HexConst		= 4
+   CharConst		= 5
+   RealConst		= 6
+   StringConst		= 7
+   '#'			= 8
+   '('			= 9
+   ')'			= 10
+   '*'			= 11
+   '+'			= 12
+   Comma		= 13	(* ','		*)
+   '-'			= 14
+   '.'			= 15
+   '..'			= 16
+   '/'			= 17
+   ':'			= 18
+   ':='			= 19
+   ';'			= 20
+   '<'			= 21
+   '<='			= 22
+   '='			= 24
+   '>'			= 25
+   '>='			= 26
+   LBracket		= 27	(* '['		*)
+   ']'			= 28
+   Arrow		= 29	(* '^'		*)
+   '{'			= 30
+   '|'			= 31
+   '}'			= 32
+   'AND'		= 34
+   'ARRAY'		= 35
+   'BEGIN'		= 36
+   'BY'			= 37
+   'CASE'		= 38
+   'CONST'		= 39
+   'DEFINITION'		= 40
+   'DIV'		= 41
+   'DO'			= 42
+   'ELSE'		= 43
+   'ELSIF'		= 44
+   'END'		= 45
+   'EXIT'		= 46
+   'EXPORT'		= 47
+   'FOR'		= 48
+   'FROM'		= 49
+   'IF'			= 50
+   'IMPLEMENTATION'	= 51
+   'IMPORT'		= 52
+   'IN'			= 53
+   'LOOP'		= 54
+   'MOD'		= 55
+   'MODULE'		= 56
+   'NOT'		= 57
+   'OF'			= 58
+   'OR'			= 59
+   'POINTER'		= 60
+   'PROCEDURE'		= 61
+   'QUALIFIED'		= 62
+   'RECORD'		= 63
+   'REPEAT'		= 64
+   'RETURN'		= 65
+   'SET'		= 66
+   'THEN'		= 67
+   'TO'			= 68
+   'TYPE'		= 69
+   'UNTIL'		= 70
+   'VAR'		= 71
+   'WHILE'		= 72
+   'WITH'		= 73
+   'FOREIGN'		= 74
+
+RULE
+
+CompUnit	/* Tree: synthesized			*/
+
+		: ( 'DEFINITION' { Kind := Definition;	}
+		  [ 'FOR' Ident  { Kind := Foreign;	} ]
+		  | 'FOREIGN'	 { Kind := Foreign;	}
+		  )
+
+		  'MODULE' Ident ';'
+
+  { Import1.Tree := mImport0 (); }
+		    Import *
+  { Import1.Tree := ReverseTree (Import1.Tree);	}
+
+  { Def1.Tree := mDecls0 (); }
+		    Def *
+  { Def1.Tree := ReverseTree (Def1.Tree); }
+
+		  'END' Ident '.'
+  { CompUnit0.Tree := mDefMod (Kind, Ident2.Ident, Ident2.Position, NoTree, Import1.Tree, Def1.Tree); }
+
+		| ( 'IMPLEMENTATION'	{ Kind := Implementation;	}
+		  |			{ Kind := Program;		}
+		  )
+
+		  'MODULE' Ident [ Priority ] ';'
+
+  { Import1.Tree := mImport0 (); }
+		    Import *
+  { Import1.Tree := ReverseTree (Import1.Tree); }
+
+		    Block Ident '.'
+  { CompUnit0.Tree := mProgMod (Kind, Ident1.Ident, Ident1.Position, NoTree,
+		      Import1.Tree, Block1.Decls, Block1.Stmts); }
+
+		.
+
+Qualid		/* Tree: synthesized			*/
+
+		: Ident
+  { Qualid0.Tree := mQualid0 (Ident1.Position, Ident1.Ident); }
+
+		    ( '.' Ident
+    { Qualid0.Tree := mQualid1 (Ident2.Position, Ident2.Ident, Qualid0.Tree); }
+		    ) *
+
+		.
+
+ConstDecl	/* Tree: inherited and synthesized	*/
+
+		: Ident '=' Expr
+  { ConstDecl0.Tree := mConst (ConstDecl0.Tree, Ident1.Ident, Expr1.Tree); }
+		.
+
+TypeDecl	/* Tree: inherited and synthesized	*/
+
+		: Ident '=' Type
+  { TypeDecl0.Tree := mTypeDecl (TypeDecl0.Tree, Ident1.Ident, Type1.Tree, Ident1.Position); }
+
+		.
+
+Type		/* Tree: synthesized			*/
+
+		: SimpleType
+  { Type0.Tree := SimpleType1.Tree; }
+
+		|
+    (* construct an abstract syntax tree for an array type	*)
+    (*   ARRAY Index1, ... ,Indexn OF Type			*)
+    (* that has the form					*)
+    (*   ARRAY Index1 OF ARRAY ... OF ARRAY Indexn OF Type	*)
+
+		  'ARRAY' SimpleType ElemType
+  { Type0.Tree := mArray (FALSE, SimpleType1.Tree, ElemType1.Tree);	}
+
+		| 'RECORD' Fields 'END'
+  { Type0.Tree 	:= mRecord (Fields1.Tree); }
+
+		| 'SET' 'OF' SimpleType
+  { Type0.Tree 	:= mSetType (SimpleType1.Tree); }
+
+		| 'POINTER' 'TO' Type
+  { Type0.Tree	:= mPointer (Type1.Tree); }
+
+		| 'PROCEDURE'
+
+		    ( FormalTypes ResultType
+		    |
+    { FormalTypes1.Tree	:= mFormalTypes0 ();
+      ResultType1.Tree	:= mVoid ();		}
+		    )
+
+  { Type0.Tree := mProcType (FormalTypes1.Tree, ResultType1.Tree); }
+
+		.
+
+SimpleType	/* Tree: synthesized			*/
+
+		: TypeId
+
+		    ( /* '[' */ LBracket Expr '..' Expr ']'
+    { SimpleType0.Tree := mSubrange (TypeId1.Tree, Expr1.Tree, Expr2.Tree); }
+		    |
+    { SimpleType0.Tree := TypeId1.Tree;					}
+		    )
+
+		|
+		  '(' EnumIds ')'
+  { SimpleType0.Tree := mEnumeration (EnumIds1.Tree);			}
+
+		| /* '[' */ LBracket Expr '..' Expr ']'
+  { SimpleType0.Tree :=  mSubrange (mVoid (), Expr1.Tree, Expr2.Tree);	}
+
+		.
+
+ElemType	/* Tree: synthesized			*/
+
+		: /* ',' */ Comma SimpleType ElemType
+  { ElemType0.Tree := mArray (FALSE, SimpleType1.Tree, ElemType1.Tree);	}
+
+		| 'OF' Type
+  { ElemType0.Tree := Type1.Tree;					}
+
+		.
+
+TypeId		/* Tree: synthesized			*/
+
+		: Ident
+  { TypeId0.Tree := mTypeId0 (Ident1.Ident, Ident1.Position); }
+
+		    ( '.' Ident
+    { TypeId0.Tree := mTypeId1 (Ident2.Ident, Ident2.Position, TypeId0.Tree); }
+		    ) *
+
+		.
+
+EnumIds		/* Tree: synthesized			*/
+
+		:
+  { EnumIds0.Tree := mEnumIds0 ();	}
+
+		  ( Ident
+    { EnumIds0.Tree := mEnumIds1 (Ident1.Ident, EnumIds0.Tree);	}
+		  ) || /* ',' */ Comma
+
+  { EnumIds0.Tree := ReverseTree (EnumIds0.Tree); }
+
+		.
+
+Fields		/* Tree: synthesized			*/
+
+		:
+  { Field1.Tree := mFields0 (); }
+		  Field || ';'
+  { Fields0.Tree := ReverseTree (Field1.Tree); }
+
+		.
+
+Field		/* Tree: inherited and synthesized	*/
+
+		:
+		  FieldIds ':' Type
+  { Field0.Tree := mRecordSect (Field0.Tree, FieldIds1.Tree, Type1.Tree); }
+
+		| 'CASE' TagField 'OF'
+
+		    Variants
+
+		    ( 'ELSE' Fields
+		    |
+    { Fields1.Tree := mFields0 (); }
+		    )
+
+		  'END'
+
+  { Field0.Tree := mVariantSect (Field0.Tree, TagField1.Tree, Variants1.Tree, Fields1.Tree); }
+
+		|
+		.
+
+TagField	/* Tree: synthesized			*/
+
+		: Ident ':' TypeId
+  { TagField0.Tree := mTagField1 (TypeId1.Tree, Ident1.Ident);	}
+
+		| ':' TypeId
+  { TagField0.Tree := mTagField0 (TypeId1.Tree);		}
+
+		.
+
+Variants	/* Tree: synthesized			*/
+
+		:
+  { Variants0.Tree := mVariants0 ();					}
+		  [
+		    Labels ':' Fields
+    { Variants0.Tree := mVariant (Labels1.Tree, Fields1.Tree, Variants0.Tree); }
+		  ] || '|'
+
+  { Variants0.Tree:= ReverseTree (Variants0.Tree); }
+
+		.
+
+FieldIds		/* Tree: synthesized			*/
+
+		:
+  { FieldIds0.Tree := mFieldIds0 ();	}
+
+		  ( Ident
+    { FieldIds0.Tree := mFieldIds1 (Ident1.Ident, FieldIds0.Tree);	}
+		  ) || /* ',' */ Comma
+
+  { FieldIds0.Tree := ReverseTree (FieldIds0.Tree); }
+
+		.
+
+Labels		/* Tree: synthesized			*/
+
+		:
+  { Label1.Tree := mLabels0 (); }
+		  Label || /* ',' */ Comma
+  { Labels0.Tree := ReverseTree (Label1.Tree); }
+
+		.
+
+Label		/* Tree: inherited and synthesized	*/
+
+		: Expr
+
+		    ( '..' Expr
+    { Label0.Tree := mLabelRange (Label0.Tree, Expr1.Tree, Expr2.Tree); }
+		    |
+    { Label0.Tree := mLabel (Label0.Tree, Expr1.Tree); }
+		    )
+
+		.
+
+FormalTypes	/* Tree: synthesized			*/
+
+		:
+  { FormalTypes0.Tree := mFormalTypes0 (); }
+
+		  '(' [
+
+		  ( 'VAR' FormalType
+    { FormalTypes0.Tree := mFormalType (TRUE, FormalType1.Tree, FormalTypes0.Tree); }
+
+		  | FormalType
+    { FormalTypes0.Tree := mFormalType (FALSE, FormalType2.Tree, FormalTypes0.Tree); }
+		  )
+
+		  ] || /* ',' */ Comma
+
+		  ')'
+
+  { FormalTypes0.Tree := ReverseTree (FormalTypes0.Tree); }
+
+                .
+
+FormalType	/* Tree: synthesized			*/
+
+		: 'ARRAY' 'OF' TypeId
+  { FormalType0.Tree :=	mArray (TRUE, mTypeId0 (IdentLONGCARD, NoPosition), TypeId1.Tree); }
+
+		| TypeId
+  { FormalType0.Tree :=	TypeId1.Tree;		}
+
+                .
+
+ResultType	/* Tree: synthesized			*/
+
+		: ':' TypeId
+      { ResultType0.Tree := TypeId1.Tree;	}
+
+		|
+      { ResultType0.Tree := mVoid ();		}
+
+		.
+
+VarDecl		/* Tree: inherited and synthesized		*/
+
+		:
+		  VarIds ':' Type
+  { VarDecl0.Tree := mVar (VarDecl0.Tree, VarIds1.Tree, Type1.Tree); }
+
+		.
+
+VarIds		/* Tree: synthesized			*/
+
+		:
+  { VarIds0.Tree := mVarIds0 ();	}
+
+		  ( Ident
+    { VarIds0.Tree := mVarIds1 (Ident1.Ident, VarIds0.Tree);	}
+		  ) || /* ',' */ Comma
+
+  { VarIds0.Tree := ReverseTree (VarIds0.Tree); }
+
+		.
+
+Designator	/* Tree: synthesized				*/
+
+		: Qualid
+  { Designator0.Tree := Qualid1.Tree; }
+
+		    ( '.' Ident
+    { Designator0.Tree := mSelect (Ident1.Position, Designator0.Tree, Ident1.Ident); }
+
+		    | /* '[' */ LBracket Expr
+    { Designator0.Tree := mSubscript (LBracket1.Position, Designator0.Tree, Expr1.Tree); }
+		        ( /* ',' */ Comma Expr
+      { Designator0.Tree := mSubscript (Comma1.Position, Designator0.Tree, Expr2.Tree); }
+			) *
+		      ']'
+
+		    | /* '^' */ Arrow
+    { Designator0.Tree := mDeref (Arrow1.Position, Designator0.Tree); }
+		    ) *
+
+		.
+
+Expr		/* Tree: synthesized			*/
+
+		: SimpleExpr
+  { Expr0.Tree := SimpleExpr1.Tree; }
+
+		    [ RelOpr SimpleExpr
+    { Expr0.Tree := mBinary (RelOpr1.Operator, Expr0.Tree, SimpleExpr2.Tree); }
+		    ]
+
+		.
+
+RelOpr		/* Operator: synthesized		*/
+
+		: '='	{ RelOpr0.Operator := Equal;		}
+		| '#'	{ RelOpr0.Operator := NotEqual;		}
+		| '<'	{ RelOpr0.Operator := Less;		}
+		| '<='	{ RelOpr0.Operator := LessEqual;	}
+		| '>'	{ RelOpr0.Operator := Greater;		}
+		| '>='	{ RelOpr0.Operator := GreaterEqual;	}
+		| 'IN'	{ RelOpr0.Operator := In;		}
+		.
+
+SimpleExpr	/* Tree: synthesized			*/
+
+		: ( '-' Term
+  { SimpleExpr0.Tree := mUnary (Minus, Term1.Tree); }
+		  | [ '+' ] Term
+  { SimpleExpr0.Tree := Term2.Tree; }
+		  )
+
+		    ( AddOpr Term
+    { SimpleExpr0.Tree := mBinary (AddOpr1.Operator, SimpleExpr0.Tree, Term3.Tree); }
+		    ) *
+		.
+
+AddOpr		/* Operator: synthesized		*/
+
+		: '+'	{ AddOpr0.Operator := Plus;	}
+		| '-'	{ AddOpr0.Operator := Minus;	}
+		| 'OR'	{ AddOpr0.Operator := Or;	}
+		.
+
+Term		/* Tree: synthesized			*/
+
+		: Factor
+  { Term0.Tree := Factor1.Tree;	}
+
+		    ( MulOpr Factor
+    { Term0.Tree := mBinary (MulOpr1.Operator, Term0.Tree, Factor2.Tree); }
+		    ) *
+
+		.
+
+MulOpr		/* Operator: synthesized		*/
+
+		: '*'	{ MulOpr0.Operator := Times;	}
+		| '/'	{ MulOpr0.Operator := Divide;	}
+		| 'DIV'	{ MulOpr0.Operator := Div;	}
+		| 'MOD'	{ MulOpr0.Operator := Mod;	}
+		| 'AND'	{ MulOpr0.Operator := And;	}
+		.
+
+Factor		/* Tree: synthesized			*/
+
+		: DecConst
+  { Factor0.Tree := mIntConst (Decimal, DecConst1.IntValue, DecConst1.Position); }
+
+		| OctalConst
+  { Factor0.Tree := mIntConst (Octal, OctalConst1.IntValue, OctalConst1.Position); }
+
+		| HexConst
+  { Factor0.Tree := mIntConst (Hexadecimal, HexConst1.IntValue, HexConst1.Position); }
+
+		| CharConst
+  { Factor0.Tree := mCharConst (CharConst1.CharValue); }
+
+		| RealConst
+  { Factor0.Tree := mRealConst (RealConst1.RealValue); }
+
+		| StringConst
+  { Factor0.Tree := mStringConst (StringConst1.StringValue); }
+
+		| '{' Elems '}'
+  { Factor0.Tree := mBitSet (Elems1.Tree); }
+
+		| Designator
+
+		    ( Actuals
+    { Factor0.Tree := mFuncCall (Designator1.Tree, Actuals1.Tree);	}
+
+		    | '{' Elems '}'
+    { IF (Designator1.Tree^.Kind # Qualid0) AND
+         (Designator1.Tree^.Kind # Qualid1) THEN
+      (* Error: set type identifier expected		*)
+        Factor0.Tree := mBitSet (Elems1.Tree);
+      ELSE
+        Factor0.Tree := mSet (Designator1.Tree, Elems1.Tree);
+      END;							}
+
+		    |
+    { Factor0.Tree := Designator1.Tree; }
+		    )
+
+		| '(' Expr ')'
+  { Factor0.Tree := Expr1.Tree; }
+
+		| 'NOT' Factor
+  { Factor0.Tree := mUnary (Not, Factor1.Tree); }
+
+		.
+
+Elems		/* Tree: synthesized			*/
+
+		:
+  { Elem1.Tree := mElems0 (); }
+		  [ Elem || /* ',' */ Comma ]
+  { Elems0.Tree := ReverseTree (Elem1.Tree);	}
+
+		.
+
+Elem		/* Tree: inherited and synthesized	*/
+
+		: Expr
+
+		    ( '..' Expr
+    { Elem0.Tree := mElemRange (Elem0.Tree, Expr1.Tree, Expr2.Tree); }
+		    |
+    { Elem0.Tree := mElem (Elem0.Tree, Expr1.Tree); }
+		    )
+
+		.
+
+Actuals		/* Tree: synthesized			*/
+
+		:
+  { Actuals0.Tree := mActuals0 (); }
+
+		  '('
+		    [ ( Expr
+    { Actuals0.Tree := mActual (Expr1.Tree, Actuals0.Tree); }
+		      ) || /* ',' */ Comma
+		    ]
+		  ')'
+
+  { Actuals0.Tree := ReverseTree (Actuals0.Tree); }
+
+		.
+
+Stmt		/* Tree: inherited and synthesized	*/
+
+		: Designator
+
+		    ( ':=' Expr
+    { Stmt0.Tree := mAssign (Stmt0.Tree, Designator1.Tree, Expr1.Tree); }
+
+		    | ( Actuals
+		      |
+      { Actuals1.Tree := mActuals0 (); }
+		      )
+
+    { Stmt0.Tree := mCall (Stmt0.Tree, Designator1.Tree, Actuals1.Tree); }
+		    )
+
+		| 'IF' Expr 'THEN' Stmts
+
+		  Elsifs
+
+		  ( 'ELSE' Stmts
+		  |
+    { Stmts2.Tree := mStmts0 (); }
+		  )
+
+		  'END'
+  { Stmt0.Tree := mIf (Stmt0.Tree, Expr1.Tree, Stmts1.Tree, Elsifs1.Tree, Stmts2.Tree); }
+
+		| 'CASE' Expr 'OF'
+
+		    Cases
+
+		    ( 'ELSE' Stmts 'END'
+  { Stmt0.Tree := mCase (Stmt0.Tree, Expr1.Tree, Cases1.Tree, Stmts1.Tree, TRUE); }
+
+		    | 'END'
+  { Stmt0.Tree := mCase (Stmt0.Tree, Expr1.Tree, Cases1.Tree, mStmts0 (), FALSE); }
+		    )
+
+		| 'WHILE' Expr 'DO' Stmts 'END'
+  { Stmt0.Tree := mWhile (Stmt0.Tree, Expr1.Tree, Stmts1.Tree); }
+
+		| 'REPEAT' Stmts 'UNTIL' Expr
+  { Stmt0.Tree := mRepeat (Stmt0.Tree, Stmts1.Tree, Expr1.Tree); }
+
+		| 'LOOP' Stmts 'END'
+  { Stmt0.Tree := mLoop (Stmt0.Tree, Stmts1.Tree); }
+
+		| 'FOR' Ident ':=' Expr 'TO' Expr
+
+		    ( 'BY' Expr
+		    |
+    { Expr3.Tree := mIntConst (Decimal, 1, NoPosition); }
+		    )
+
+		    'DO' Stmts 'END'
+  { Stmt0.Tree := mFor (Stmt0.Tree, mQualid0 (Ident1.Position, Ident1.Ident),
+   			Expr1.Tree, Expr2.Tree, Expr3.Tree, Stmts1.Tree); }
+
+		| 'WITH' Designator 'DO' Stmts 'END'
+  { Stmt0.Tree := mWith (Stmt0.Tree, Designator1.Tree, Stmts1.Tree); }
+
+		| 'EXIT'
+  { Stmt0.Tree := mExit (Stmt0.Tree); }
+
+		| 'RETURN'
+		    ( Expr
+    { Stmt0.Tree := mReturn2 (Stmt0.Tree, Expr1.Tree);	}
+		    |
+    { Stmt0.Tree := mReturn1 (Stmt0.Tree);		}
+		    )
+
+		.
+
+Elsifs		/* Tree: synthesized			*/
+
+		:
+  { Elsifs0.Tree := mElsifs0 (); }
+		  ( 'ELSIF' Expr 'THEN' Stmts
+    { Elsifs0.Tree := mElsifs1 (Expr1.Tree, Stmts1.Tree, Elsifs0.Tree); }
+		  ) *
+  { Elsifs0.Tree := ReverseTree (Elsifs0.Tree); }
+
+		.
+
+Cases		/* Tree: synthesized			*/
+
+		:
+  { Cases0.Tree := mCases0 (); }
+		    [ Labels ':' Stmts
+    { Cases0.Tree := mCases1 (Labels1.Tree, Stmts1.Tree, Cases0.Tree); }
+		    ] || '|'
+  { Cases0.Tree := ReverseTree (Cases0.Tree); }
+
+		.
+
+Stmts		/* Tree: synthesized			*/
+
+		:
+  { Stmt1.Tree := mStmts0 (); }
+		  [ Stmt ] || ';'
+  { Stmts0.Tree := ReverseTree (Stmt1.Tree); }
+
+		.
+
+ProcDecl	/* Tree: inherited and synthesized	*/
+
+		: 'PROCEDURE' Ident
+
+		    ( Formals ResultType
+
+		    |
+    { Formals1.Tree	:= mFormals0 ();
+      ResultType1.Tree	:= mVoid ();		}
+		    ) ';'
+
+		    Block Ident
+  { ProcDecl0.Tree := mProc (ProcDecl0.Tree, Ident1.Ident,
+   	     Formals1.Tree, ResultType1.Tree, Block1.Decls, Block1.Stmts); }
+		.
+
+Block		/* Decls, Stmts: synthesized		*/
+
+		:
+  { Decl1.Tree := mDecls0 (); }
+		  Decl *
+  { Decl1.Tree := ReverseTree (Decl1.Tree); }
+
+		  ( 'BEGIN' Stmts
+		  |
+    { Stmts1.Tree := mStmts0 (); }
+		  )
+
+		  'END'
+  { Block0.Decls := Decl1.Tree;
+    Block0.Stmts := Stmts1.Tree; 	}
+
+		.
+
+Decl		/* Tree: inherited and synthesized	*/
+
+		:
+  { ConstDecl1.Tree := Decl0.Tree; }
+		  'CONST' ( ConstDecl ';' ) *
+  { Decl0.Tree := ConstDecl1.Tree; }
+
+		|
+  { TypeDecl1.Tree := Decl0.Tree; }
+		  'TYPE' ( TypeDecl ';' ) *
+  { Decl0.Tree := TypeDecl1.Tree; }
+
+		|
+  { VarDecl1.Tree := Decl0.Tree; }
+		  'VAR' ( VarDecl ';' ) *
+  { Decl0.Tree := VarDecl1.Tree; }
+
+		|
+  { ProcDecl1.Tree := Decl0.Tree; }
+		  ProcDecl ';'
+  { Decl0.Tree := ProcDecl1.Tree; }
+
+		|
+  { ModDecl1.Tree := Decl0.Tree; }
+		  ModDecl ';'
+  { Decl0.Tree := ModDecl1.Tree; }
+
+		.
+
+Formals		/* Tree: synthesized			*/
+
+		: '('
+  { FPSection1.Tree := mFormals0 (); }
+		    [ FPSection || ';' ]
+		  ')'
+  { Formals0.Tree := ReverseTree (FPSection1.Tree); }
+
+		.
+
+FPSection	/* Tree: inherited and synthesized	*/
+
+		: 'VAR' ParIds ':' FormalType
+  { FPSection0.Tree := mFormals1 (TRUE, ParIds1.Tree, FormalType1.Tree, FPSection0.Tree); }
+
+		| ParIds ':' FormalType
+  { FPSection0.Tree := mFormals1 (FALSE, ParIds1.Tree, FormalType1.Tree, FPSection0.Tree); }
+
+		.
+
+ParIds		/* Tree: synthesized			*/
+
+		:
+  { ParIds0.Tree := mParIds0 ();	}
+
+		  ( Ident
+    { ParIds0.Tree := mParIds1 (Ident1.Ident, ParIds0.Tree);	}
+		  ) || /* ',' */ Comma
+
+  { ParIds0.Tree := ReverseTree (ParIds0.Tree); }
+
+		.
+
+ModDecl		/* Tree: inherited and synthesized	*/
+
+		: 'MODULE' Ident [ Priority ] ';'
+
+  { Import1.Tree := mImport0 (); }
+		    Import *
+  { Import1.Tree := ReverseTree (Import1.Tree); }
+
+		  ( Export
+		  |
+    { Export1.Tree := mExport0 (); }
+		  )
+
+		  Block Ident
+  { ModDecl0.Tree := mModule (ModDecl0.Tree, Ident1.Ident, 
+   	       Import1.Tree, Export1.Tree, Block1.Decls, Block1.Stmts); }
+		.
+
+Priority
+
+		: /* '[' */ LBracket Expr ']'
+
+		.
+
+Export		/* Tree: synthesized			*/
+
+		: 'EXPORT'
+
+		  ( 'QUALIFIED' ExpIds ';'
+  { Export0.Tree := mExport1 (TRUE, ExpIds1.Tree); }
+
+		  | ExpIds ';'
+  { Export0.Tree := mExport1 (FALSE, ExpIds2.Tree); }
+		  )
+
+		.
+
+ExpIds		/* Tree: synthesized			*/
+
+		:
+  { ExpIds0.Tree := mExpIds0 ();	}
+
+		  ( Ident
+    { ExpIds0.Tree := mExpIds1 (Ident1.Ident, ExpIds0.Tree);	}
+		  ) || /* ',' */ Comma
+
+  { ExpIds0.Tree := ReverseTree (ExpIds0.Tree); }
+
+		.
+
+Import		/* Tree: inherited and synthesized	*/
+
+		: 'FROM' Ident 'IMPORT' ImpIds ';'
+  { Import0.Tree := mFrom (Import0.Tree, Ident1.Ident, Ident1.Position, ImpIds1.Tree); }
+
+		| 'IMPORT' ImpIds ';'
+  { Import0.Tree := mObjects (Import0.Tree, ImpIds1.Tree);	}
+
+		.
+
+ImpIds		/* Tree: synthesized			*/
+
+		:
+  { ImpIds0.Tree := mImpIds0 ();	}
+
+		  ( Ident
+    { ImpIds0.Tree := mImpIds1 (Ident1.Ident, Ident1.Position, ImpIds0.Tree); }
+		  ) || /* ',' */ Comma
+
+  { ImpIds0.Tree := ReverseTree (ImpIds0.Tree); }
+
+		.
+
+Def		/* Tree: inherited and synthesized	*/
+
+		:
+  { ConstDecl1.Tree := Def0.Tree; }
+		  'CONST' ( ConstDecl ';' ) *
+  { Def0.Tree := ConstDecl1.Tree; }
+
+		| 'TYPE' ( Ident
+		    ( '=' Type
+    { Def0.Tree := mTypeDecl (Def0.Tree, Ident1.Ident, Type1.Tree, Ident1.Position); }
+		    |
+    { Def0.Tree := mOpaque (Def0.Tree, Ident1.Ident);		}
+		    ) ';' ) *
+
+		|
+  { VarDecl1.Tree := Def0.Tree; }
+		  'VAR' ( VarDecl ';' ) *
+  { Def0.Tree := VarDecl1.Tree; }
+
+		| 'PROCEDURE' Ident
+
+		  ( Formals ResultType
+
+		  |
+    { Formals1.Tree	:= mFormals0 ();
+      ResultType1.Tree	:= mVoid ();		}
+		  ) ';'
+
+  { Def0.Tree := mProcHead (Def0.Tree, Ident1.Ident,
+   		 Formals1.Tree, ResultType1.Tree, Ident1.Position); }
+		.

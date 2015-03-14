@@ -1,0 +1,102 @@
+#!/bin/sh
+#                        Copyright (c) 1987 Bellcore
+#                            All Rights Reserved
+#       Permission is granted to copy or use this program, EXCEPT that it
+#       may not be sold for profit, the copyright notice must be reproduced
+#       on copies, and credit should be given to Bellcore where it is due.
+#       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+
+# Select a pop-up menu in the current mgr window,
+# Or download and select a menu
+# Or just download a new menu and don't select it.
+# Menus are activated by the middle mouse button.
+# See "man menu" for more details
+
+# Complaints to: Paul Tukey, paul@bellcore
+# Hacked to work with bash as /bin/sh by Michael Haardt
+
+TAB="	" FONT=7 NAME= C="`basename $0`" LOAD=1 SELECT=
+if test "$TERM" != mgr; then
+    echo "$C only works with mrg" >&2; exit
+fi
+for ARG
+do
+    case "$ARG" in
+      -l*) LOAD="`expr 0 + \`echo $ARG | sed 's/..//'\``";;
+      -s*) SELECT="`expr 0 + \`echo $ARG | sed 's/..//'\``";;
+      -f*) FONT="`echo $ARG | sed 's/..//'`";;
+      -d*) TAB="`echo $ARG | sed 's/..//'`";;
+      -n*) NAME="`echo $ARG | sed 's/..//'`";;
+       -*) echo >&2 "$C: unknown option $ARG"; exit 1; exit;;
+	*) break;;
+    esac
+    shift
+done
+
+case "$SELECT" in
+     0) ;;
+    "") SELECT=$LOAD;;
+     *) echo "${SELECT}m\c"; exit
+esac
+
+case $# in
+  0) if test -t 0; then
+	echo >&2 "Usage: $C [-l<load-pos>] [-s<select-pos>]
+		[-f<font>] [-d<delim>] [-n<name>] menufile(s)"
+	exit
+     fi
+esac
+
+if test "X$NAME" = "X" -a "X$*" != X; then
+    NAME="`echo \"$*\" | tr 'a-z' 'A-Z' | sed 's/ /; /'`"
+    fi
+
+(/bin/cat $*; echo pos=9999) |
+    awk -F"$TAB" '
+    BEGIN { TAB = FS
+	    first = 0; nameflag = 0
+	    font = "'"$FONT"'"
+	    pos = "'"$LOAD"'"
+	    items = ""; actions = ""; name = ""; nameact = ""
+	    defaultname = "'"$NAME"'" }
+    /^delim=/ { if ( NR != 1 ) { print "echo Error: delim= line must be first"; exit }
+		FS = substr($0,7,1); TAB = FS; next }
+    $0 ~ /^pos=/ && first == 0 { pos = substr($0,5); first = 1; next }
+    /^font=/  { font = substr($0,6); next }
+    /^name=/  { nameflag = 1
+		if ( length($0) > 5 ) {
+		    name = name TAB substr($0,6)
+		    nameact = nameact TAB }
+		next }
+    /^pos=/ { if ( nameflag != 1 && defaultname != "" ) {
+		    name = TAB defaultname
+		    nameact = TAB
+		    }
+	      items = name items
+	      actions = nameact actions TAB
+	      if ( length(items) == 0 ) items = TAB " " TAB
+	      line = "" pos "," font "," length(items actions) "m" items actions
+	      printf "%s", line
+ 	      pos = substr($0,5)
+	      items = ""; actions = ""; name = ""; nameact = ""
+	      nameflag = 0
+	      next
+	     }
+    { if ( $1 == "" ) items = items TAB " "
+      else items = items TAB $1
+      first = 1
+      actions = actions TAB
+      if( NF > 1) { act = ""
+		    for(i=2; i<=NF; i++)
+			if(length($i) > 0 ) {
+		    	    act = $i; break }
+		    if ( substr(act,length(act)-1,2) == "\\c" )
+			actions = actions substr(act,1,length(act)-2)
+		    else
+			actions = actions act "\r"
+		    }
+      }
+    END { line = "'"$SELECT"'m"
+	  printf "%s", line
+	  }
+  '

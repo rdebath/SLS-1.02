@@ -1,0 +1,132 @@
+/**/###########################################################################
+/**/# @(#)XView.obj	1.2 10/1/91 SMI
+/**/# XView.obj for XView release 3.0.  Common commands for all library objects.
+
+/*
+ *	If the library.tmpl file has already been included, then add its
+ *	definitions below so they are not excluded from the rules.  The
+ *	library.tmpl file is work around for a small bug in the Library.tmpl 
+ *	file.
+ *	
+ */
+#if LibraryTmpl
+            STD_DEFINES = StandardDefines LibXViewDefines LibraryDefines 
+#else
+            STD_DEFINES = StandardDefines LibXViewDefines 
+#endif
+HEADERS= ${HDRSPUBLIC} ${HDRSPRIVATE}
+INCLUDES= -I$(BUILDINCDIR)$(INCDIR) 
+OBJS = $(TEXT_OBJS) $(DATA_OBJS) $(SPECIAL_OBJS)
+#if !NotLibXView
+ALLFILES = $(SRCS) $(HEADERS)
+#endif
+
+#if SharedLibXView 
+# if DebugLibXView
+SubdirSharedAndDebuggedLibraryObjectRule()
+#  if SubdirHasSpecialObjs
+SubdirSpecialSharedAndDebuggedObjectRule($(SPECIAL_OBJS),/**/,/**/)
+#  endif
+# else
+SubdirSharedLibraryObjectRule()
+#  if SubdirHasSpecialObjs
+SubdirSpecialSharedObjectRule($(SPECIAL_OBJS),/**/,/**/)
+#  endif
+# endif
+#else
+# if DebugLibXView && ProfileLibXView
+DebuggedAndProfiledLibraryObjectRule()
+# else
+#  if DebugLibXView
+DebuggedLibraryObjectRule()
+#  else
+#   if ProfileLibXView
+ProfiledLibraryObjectRule()
+#   else
+NormalLibraryObjectRule()
+#   endif
+#  endif
+# endif
+#endif
+
+/*
+ * Need to include a special rule for data modules with globally initialized
+ * data.
+ */
+#if SharedLibXView
+# if SubdirHasTextObjs
+SubdirNormalSharedLibraryTarget(${LIBTARGET},${SOREV},$(TEXT_OBJS) $(SPECIAL_OBJS),$(SHARED_DIR),shared)
+# endif
+# if SubdirHasDataObjs
+#  if DebugLibXView
+SubdirSpecialSharedAndDebuggedObjectRule($(DATA_OBJS),/**/,/**/)
+#  else
+SubdirSpecialSharedObjectRule($(DATA_OBJS),/**/,/**/)
+#  endif
+SubdirNormalSharedLibraryDataTarget(${LIBTARGET},${SOREV},$(DATA_OBJS),$(UNSHARED_DIR),.)
+# endif
+# if DebugLibXView
+SubdirDebuggedLibTarget(${LIBTARGET},$(OBJS))
+# endif
+#else
+# if DebugLibXView
+SubdirDebuggedLibTarget(${LIBTARGET},$(OBJS))
+# endif
+# if ProfileLibXView
+SubdirProfiledLibTarget(${LIBTARGET},$(OBJS))
+# endif
+#endif
+
+SubdirNormalLibTarget(${LIBTARGET},$(OBJS))
+SubdirLintLibraryTarget(${LIBTARGET},$(LINTDIR),$(SRCS))
+
+DependTarget()
+NormalLintTarget($(SRCS))
+
+#if SubdirHasPublicHeaders
+# if NotLibXView
+BuildIncludes($(HDRSPUBLIC),$(PUB_INCDIR),/**/)
+
+install::
+	$(MKDIRHIER) $(PUB_HEADER_DEST)
+
+InstallMultiple($(HDRSPUBLIC),$(PUB_HEADER_DEST))
+# else
+BuildIncludes($(HDRSPUBLIC),$(XVPUB_INCDIR),/**/)
+
+install::
+	$(MKDIRHIER) $(XVPUB_HEADER_DEST)
+
+InstallMultiple($(HDRSPUBLIC),$(XVPUB_HEADER_DEST))
+# endif
+#endif
+
+#if SubdirHasPrivateHeaders
+# if NotLibXView
+BuildIncludes($(HDRSPRIVATE),$(PRI_INCDIR),/**/)
+# else
+BuildIncludes($(HDRSPRIVATE),$(XVPRI_INCDIR),/**/)
+# endif
+# if InstallPrivateHeaders
+#  if NotLibXView
+install::
+	$(MKDIRHIER) $(PRI_HEADER_DEST)
+
+InstallMultiple($(HDRSPRIVATE),$(PRI_HEADER_DEST))
+#  else
+install::
+	$(MKDIRHIER) $(XVPRI_HEADER_DEST)
+
+InstallMultiple($(HDRSPRIVATE),$(XVPRI_HEADER_DEST))
+#  endif
+# endif
+#endif
+
+#ifndef IncludePopulateSCCS
+#define IncludePopulateSCCS YES
+PopulateSCCSTree(h,$(ALLFILES))
+#endif
+
+includes::
+
+install::

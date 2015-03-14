@@ -1,0 +1,198 @@
+
+
+
+RCSFILE(5)                FILE FORMATS                 RCSFILE(5)
+
+
+
+NAME
+     rcsfile - format of RCS file
+
+DESCRIPTION
+     An RCS file's contents are described by the  grammar  below.
+     The  text  is  free  format: space, backspace, tab, newline,
+     vertical tab, form feed, and carriage return  (collectively,
+     _w_h_i_t_e   _s_p_a_c_e)  have  no  significance  except  in  strings.
+     Strings are enclosed by @.  If a string  contains  a  @,  it
+     must  be  doubled;  otherwise, strings may contain arbitrary
+     binary data.
+
+     The meta syntax uses the following  conventions:  `|'  (bar)
+     separates   alternatives;   `{'  and  `}'  enclose  optional
+     phrases; `{' and `}*' enclose phrases that may  be  repeated
+     zero  or  more times; `{' and '}+' enclose phrases that must
+     appear at least once and may be repeated;  Terminal  symbols
+     are in boldface; nonterminal symbols are in _i_t_a_l_i_c_s.
+
+     _r_c_s_t_e_x_t    ::=  _a_d_m_i_n {_d_e_l_t_a}* _d_e_s_c {_d_e_l_t_a_t_e_x_t}*
+
+     _a_d_m_i_n      ::=  head       {_n_u_m};
+                     { branch   {_n_u_m}; }
+                     access     {_i_d}*;
+                     symbols    {_i_d : _n_u_m}*;
+                     locks      {_i_d : _n_u_m}*;  {strict  ;}
+                     { comment  {_s_t_r_i_n_g}; }
+                     { expand   {_s_t_r_i_n_g}; }
+                     { _n_e_w_p_h_r_a_s_e }*
+
+     _d_e_l_t_a      ::=  _n_u_m
+                     date       _n_u_m;
+                     author     _i_d;
+                     state      {_i_d};
+                     branches   {_n_u_m}*;
+                     next       {_n_u_m};
+                     { _n_e_w_p_h_r_a_s_e }*
+
+     _d_e_s_c       ::=  desc       _s_t_r_i_n_g
+
+     _d_e_l_t_a_t_e_x_t  ::=  _n_u_m
+                     log        _s_t_r_i_n_g
+                     { _n_e_w_p_h_r_a_s_e }*
+                     text       _s_t_r_i_n_g
+
+     _n_u_m        ::=  {_d_i_g_i_t{.}}+
+
+     _d_i_g_i_t      ::=  0 | 1 | ... | 9
+
+     _i_d         ::=  _l_e_t_t_e_r{_i_d_c_h_a_r}*
+
+
+
+
+
+GNU                  Last change: 1990/08/22                    1
+
+
+
+
+
+
+RCSFILE(5)                FILE FORMATS                 RCSFILE(5)
+
+
+
+     _l_e_t_t_e_r     ::=  any letter
+
+     _i_d_c_h_a_r     ::=  any visible graphic character except _s_p_e_c_i_a_l
+
+     _s_p_e_c_i_a_l    ::=  $ | , | . | : | ; | @
+
+     _s_t_r_i_n_g     ::=  @{any character, with @ doubled}*@
+
+     _n_e_w_p_h_r_a_s_e  ::=  _i_d _w_o_r_d* ;
+
+     _w_o_r_d       ::=  _i_d | _n_u_m | _s_t_r_i_n_g | :
+
+     Identifiers are case sensitive.  Keywords are in lower  case
+     only.  The sets of keywords and identifiers may overlap.  In
+     most environments RCS uses the ISO 8859/1 encoding:  letters
+     are  octal codes 101-132, 141-172, 300-326, 330-366 and 370-
+     377,  visible  graphic  characters  are  codes  041-176  and
+     240-377,  and  white  space characters are codes 010-015 and
+     040.
+
+     The _n_e_w_p_h_r_a_s_e productions in the grammar  are  reserved  for
+     future  extensions to the format of RCS files.  No _n_e_w_p_h_r_a_s_e
+     will begin with any keyword already in use.
+
+     The _d_e_l_t_a nodes form a tree.  All nodes whose  numbers  con-
+     sist of a single pair (e.g., 2.3, 2.1, 1.3, etc.) are on the
+     trunk, and are linked through the next  field  in  order  of
+     decreasing numbers.  The head field in the _a_d_m_i_n node points
+     to the head of that sequence  (i.e.,  contains  the  highest
+     pair).   The  branch  node  in  the admin node indicates the
+     default branch (or revision) for most  RCS  operations.   If
+     empty,  the  default  branch  is  the  highest branch on the
+     trunk.
+
+     All _d_e_l_t_a nodes whose  numbers  consist  of  2_n  fields  (_n)
+     (e.g.,  3.1.1.1,  2.1.2.2, etc.) are linked as follows.  All
+     nodes whose first  2_n-1  number  fields  are  identical  are
+     linked  through  the  next  field  in  order  of  increasing
+     numbers.  For each  such  sequence,  the  _d_e_l_t_a  node  whose
+     number  is  identical to the first 2_n-2 number fields of the
+     deltas on that sequence  is  called  the  branchpoint.   The
+     branches  field  of a node contains a list of the numbers of
+     the first nodes of all sequences for which  it  is  a  bran-
+     chpoint.  This list is ordered in increasing numbers.
+
+
+
+
+
+
+
+
+
+
+
+GNU                  Last change: 1990/08/22                    2
+
+
+
+
+
+
+RCSFILE(5)                FILE FORMATS                 RCSFILE(5)
+
+
+
+     Example:
+
+                                Head
+                                  |
+                                  |
+                                  v                        / \
+                              ---------                   /   \
+        / \          / \      |       |      / \         /     \
+       /   \        /   \     |  2.1  |     /   \       /       \
+      /     \      /     \    |       |    /     \     /         \
+     /1.2.1.3\    /1.3.1.1\   |       |   /1.2.2.2\   /1.2.2.1.1.1\
+     ---------    ---------   ---------   ---------   -------------
+         ^            ^           |           ^             ^
+         |            |           |           |             |
+         |            |           v           |             |
+        / \           |       ---------      / \            |
+       /   \          |       \  1.3  /     /   \           |
+      /     \         ---------\     /     /     \-----------
+     /1.2.1.1\                  \   /     /1.2.2.1\
+     ---------                   \ /      ---------
+         ^                        |           ^
+         |                        |           |
+         |                        v           |
+         |                    ---------       |
+         |                    \  1.2  /       |
+         ----------------------\     /---------
+                                \   /
+                                 \ /
+                                  |
+                                  |
+                                  v
+                              ---------
+                              \  1.1  /
+                               \     /
+                                \   /
+                                 \ /
+
+                       Fig. 1: A revision tree
+
+IDENTIFICATION
+     Author: Walter F. Tichy, Purdue University, West  Lafayette,
+     IN, 47907.
+     Revision Number: 5.0; Release Date: 1990/08/22.
+     Copyright 8c9 1982, 1988, 1989 by Walter F. Tichy.
+     Copyright 8c9 1990 by Paul Eggert.
+
+SEE ALSO
+     ci(1), co(1),  ident(1),  rcs(1),  rcsdiff(1),  rcsmerge(1),
+     rlog(1),
+     Walter  F.  Tichy,  RCS--A  System  for   Version   Control,
+     _S_o_f_t_w_a_r_e--_P_r_a_c_t_i_c_e & _E_x_p_e_r_i_e_n_c_e 15, 7 (July 1985), 637-654.
+
+
+
+
+GNU                  Last change: 1990/08/22                    3
+
+
+

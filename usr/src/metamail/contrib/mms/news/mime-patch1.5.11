@@ -1,0 +1,325 @@
+#!/bin/sh
+NNTPVER="1.5.11"
+MMSVER="mms0.3"
+export MMSDIR
+MMSDIR=`pwd`
+PATCHDONE=patched-$NNTPVER
+
+if [ "$NNTPDIR" = "" ]; then
+	echo "Prease setenv NNTPDIR to the source directory of nntp$NNTPVER"
+	exit 1
+fi
+if [ ! -d "$NNTPDIR" ]; then
+	echo "NNTPDIR=$NNTPDIR does not exist."
+	exit 1
+fi
+
+nntpver="`grep version.*$NNTPVER $NNTPDIR/common/version.c 2>/dev/null`"
+
+if [ "$nntpver" = "" ]; then
+	echo "$NNTPDIR does not include the source of nntp$NNTPVER."
+	exit 1
+fi
+
+
+if [ -f $NNTPDIR/$PATCHDONE ]; then
+	echo "Seems already patched $NNTPVER because";
+	echo "$NNTPDIR/$PATCHDONE exists.";
+	exit 0
+fi
+
+if [ ! -f xhist.c ]; then
+	echo "You must on the ../mms/nntp directory."
+	exit 1
+fi
+cp xhist.c $NNTPDIR/server/
+if [ $? != 0 ]; then exit 1; fi
+cp xmime.c $NNTPDIR/server/
+if [ $? != 0 ]; then exit 1; fi
+
+echo "======== PATCHING START ========"
+
+cd $NNTPDIR
+touch $PATCHDONE
+
+patch -p <<"PATCHEOF"
+diff -c -r ../nntp1.5.11/Makefile ./Makefile
+*** ../nntp1.5.11/Makefile	Sat Aug 11 12:09:56 1990
+--- ./Makefile	Tue May 26 01:26:48 1992
+***************
+*** 6,12 ****
+  # set CFLAGS to be -Ipath/to/special/includes if needed
+  CFLAGS= -O 
+  # set LIBS to be -lneededlibrary if needed
+! LIBS=-ldbm
+  
+  DISTFILES = Makefile README CHANGES
+  
+--- 6,12 ----
+  # set CFLAGS to be -Ipath/to/special/includes if needed
+  CFLAGS= -O 
+  # set LIBS to be -lneededlibrary if needed
+! LIBS=-lcnews -L/$$MMSDIR -lmms
+  
+  DISTFILES = Makefile README CHANGES
+  
+Common subdirectories: ../nntp1.5.11/common and ./common
+Common subdirectories: ../nntp1.5.11/doc and ./doc
+Common subdirectories: ../nntp1.5.11/inews and ./inews
+Common subdirectories: ../nntp1.5.11/server and ./server
+Common subdirectories: ../nntp1.5.11/support and ./support
+Common subdirectories: ../nntp1.5.11/xfer and ./xfer
+Common subdirectories: ../nntp1.5.11/xmit and ./xmit
+diff -c -r ../nntp1.5.11/common/conf.h ./common/conf.h
+*** ../nntp1.5.11/common/conf.h	Mon Feb  4 15:46:37 1991
+--- ./common/conf.h	Thu May 21 01:12:13 1992
+***************
+*** 94,99 ****
+--- 94,103 ----
+  			/* the server more.  If your server is heavily */
+  			/* loaded already, defining this may be a bad idea */
+  
++ #define XHIST		/* Optional XHIST command which is used in vin. */
++ #define XMIME		/* Optional XMIME command which controles */
++ 			/* encoding/decoding of MIME format message */
++ 
+  /* Things that vary in network implementations *
+  #define	SUBNET		/* If you have 4.3 subnetting */
+  #undef	DAMAGED_NETMASK	/* If your subnet mask is not a multiple of */
+diff -c -r ../nntp1.5.11/server/Makefile ./server/Makefile
+*** ../nntp1.5.11/server/Makefile	Sun Dec 23 01:16:13 1990
+--- ./server/Makefile	Tue May 26 21:14:09 1992
+***************
+*** 6,18 ****
+  	ahbs.o globals.o group.o help.o ihave.o list.o misc.o netaux.o \
+  	newgroups.o newnews.o nextlast.o ngmatch.o post.o parsit.o scandir.o \
+  	slave.o spawn.o strcasecmp.o subnet.o time.o xhdr.o fakesyslog.o \
+! 	batch.o auth.o timer.o ../common/version.o
+  
+  SRVRSRC = main.c serve.c access.c access_inet.c access_dnet.c active.c \
+  	ahbs.c globals.c group.c help.c ihave.c list.c misc.c netaux.c \
+  	newgroups.c newnews.c nextlast.c ngmatch.c post.c parsit.c scandir.c \
+  	slave.c spawn.c strcasecmp.c subnet.c time.c xhdr.c fakesyslog.c \
+! 	batch.c auth.c timer.c ../common/version.c
+  
+  SRVRINC = common.h ../common/conf.h ../common/nntp.h timer.h
+  
+--- 6,18 ----
+  	ahbs.o globals.o group.o help.o ihave.o list.o misc.o netaux.o \
+  	newgroups.o newnews.o nextlast.o ngmatch.o post.o parsit.o scandir.o \
+  	slave.o spawn.o strcasecmp.o subnet.o time.o xhdr.o fakesyslog.o \
+! 	batch.o auth.o timer.o ../common/version.o xhist.o xmime.o
+  
+  SRVRSRC = main.c serve.c access.c access_inet.c access_dnet.c active.c \
+  	ahbs.c globals.c group.c help.c ihave.c list.c misc.c netaux.c \
+  	newgroups.c newnews.c nextlast.c ngmatch.c post.c parsit.c scandir.c \
+  	slave.c spawn.c strcasecmp.c subnet.c time.c xhdr.c fakesyslog.c \
+! 	batch.c auth.c timer.c ../common/version.c xhist.c xmime.c
+  
+  SRVRINC = common.h ../common/conf.h ../common/nntp.h timer.h
+  
+***************
+*** 30,36 ****
+  all:	nntpd
+  
+  nntpd: ${SRVROBJ} ${SRVRINC}
+! 	${CC} ${CFLAGS} -o nntpd ${SRVROBJ} ${LIBS}
+  
+  ${SRVROBJ}: ${SRVRINC}
+  
+--- 30,36 ----
+  all:	nntpd
+  
+  nntpd: ${SRVROBJ} ${SRVRINC}
+! 	${CC} -Bstatic ${CFLAGS} -o nntpd ${SRVROBJ} ${LIBS}
+  
+  ${SRVROBJ}: ${SRVRINC}
+  
+diff -c -r ../nntp1.5.11/server/common.h ./server/common.h
+*** ../nntp1.5.11/server/common.h	Sun Feb  3 06:55:37 1991
+--- ./server/common.h	Thu May 21 01:21:46 1992
+***************
+*** 200,202 ****
+--- 200,206 ----
+  extern	int	nn_told;
+  extern	int	nn_took;
+  #endif
++ 
++ #ifdef XMIME
++ extern	int	COCK_MIME_HDR;
++ #endif
+diff -c -r ../nntp1.5.11/server/help.c ./server/help.c
+*** ../nntp1.5.11/server/help.c	Thu Jul  5 16:29:15 1990
+--- ./server/help.c	Thu May 21 00:59:12 1992
+***************
+*** 23,28 ****
+--- 23,30 ----
+  	printf("IHAVE       NEWNEWS      SLAVE\r\n");
+  	printf("\r\nAdditionally, the following extention is supported:\r\n\r\n");
+  	printf("XHDR        Retrieve a single header line from a range of articles.\r\n");
++ 	printf("XHIST       Retrieve history file.\r\n");
++ 	printf("XMIME       Control MIME format article handling.\r\n");
+  	printf("\r\n");
+  	printf("Bugs to Stan Barber (Internet: nntp@tmc.edu; UUCP: ...!bcm!nntp)\r\n");
+  	printf(".\r\n");
+diff -c -r ../nntp1.5.11/server/misc.c ./server/misc.c
+*** ../nntp1.5.11/server/misc.c	Wed Dec 12 15:00:11 1990
+--- ./server/misc.c	Mon May 25 20:20:35 1992
+***************
+*** 358,363 ****
+--- 358,366 ----
+  {
+  	char		line[NNTP_STRLEN];
+  	register char	*cp;
++ #ifdef XMIME
++ 	FILE		*MIME_fp;
++ #endif
+  
+  #ifdef LOG
+  	++arts_acsd;
+***************
+*** 368,373 ****
+--- 371,383 ----
+  		return;
+  	}
+  
++ #ifdef XMIME
++ 	if( COCK_MIME_HDR ){
++ 		if( MIME_fp = (FILE*)MIME_tmpHeaderDecode(fp) )
++ 			fp = MIME_fp;
++ 	}
++ #endif
++ 
+  	while (fgets(line, sizeof(line)-6, fp) != NULL && *line != '\n') {
+  		if (how == BODY)	/* We need to skip this anyway */
+  			continue;
+***************
+*** 391,396 ****
+--- 401,410 ----
+  		putchar('\r');
+  		putchar('\n');
+  		(void) fflush(stdout);
++ #ifdef XMIME
++ 		if( COCK_MIME_HDR && MIME_fp )
++ 			fclose(MIME_fp);
++ #endif
+  		return;
+  	} else if (how == ARTICLE) {
+  		putchar('\r');
+***************
+*** 417,422 ****
+--- 431,440 ----
+  	putchar('\r');
+  	putchar('\n');
+  	(void) fflush(stdout);
++ #ifdef XMIME
++ 	if( COCK_MIME_HDR && MIME_fp )
++ 		fclose(fp);
++ #endif
+  }
+  
+  
+diff -c -r ../nntp1.5.11/server/serve.c ./server/serve.c
+*** ../nntp1.5.11/server/serve.c	Fri Jan 11 08:20:08 1991
+--- ./server/serve.c	Thu May 21 01:23:42 1992
+***************
+*** 27,32 ****
+--- 27,38 ----
+  extern	int	ahbs(), group(), help(), ihave();
+  extern	int	list(), newgroups(), newnews(), nextlast(), post();
+  extern	int	slave(), stat(), xhdr();
++ #ifdef XHIST
++ extern	int	xhist();
++ #endif
++ #ifdef XMIME
++ extern	int	xmime();
++ #endif
+  
+  extern int errno;
+  
+***************
+*** 61,66 ****
+--- 67,78 ----
+  #ifdef XHDR
+  	"xhdr",		0,	xhdr,
+  #endif XHDR
++ #ifdef XHIST
++ 	"xhist",	0,	xhist,
++ #endif XHIST
++ #ifdef XMIME
++ 	"xmime",	0,	xmime,
++ #endif XMIME
+  };
+  #define NUMCMDS (sizeof(cmdtbl) / sizeof(struct cmdent))
+  
+diff -c -r ../nntp1.5.11/server/spawn.c ./server/spawn.c
+*** ../nntp1.5.11/server/spawn.c	Sun Jan 13 02:25:36 1991
+--- ./server/spawn.c	Thu May 21 01:20:15 1992
+***************
+*** 69,74 ****
+--- 69,77 ----
+  	union wait	status;
+  #endif not USG
+  	register FILE	*fp;
++ #ifdef XMIME
++ 	register FILE	*artfp;
++ #endif
+  
+  #ifdef CNEWS
+  	(void) strcpy(tempfile, "/usr/tmp/rpostXXXXXX");
+***************
+*** 102,108 ****
+--- 105,118 ----
+  	(void) alarm(XFER_TIMEOUT);
+  #endif
+  
++ #ifdef XMIME
++ 	if( COCK_MIME_HDR && cont_code == CONT_POST )
++ 		artfp = (FILE*)MIME_tmpHeaderEncode(stdin);
++ 	else	artfp = stdin;
++ 	while (fgets(line, sizeof(line), artfp) != NULL) {
++ #else
+  	while (fgets(line, sizeof(line), stdin) != NULL) {
++ #endif
+  #ifdef XFER_TIMEOUT
+  		xfer_lines++;
+  #endif
+***************
+*** 121,126 ****
+--- 131,140 ----
+  		putc('\n', fp);
+  	}
+  	(void) fclose(fp);
++ #ifdef XMIME
++ 	if( artfp != stdin )
++ 		fclose(artfp);
++ #endif
+  
+  #ifdef XFER_TIMEOUT
+  	(void) alarm(0);
+diff -c -r ../nntp1.5.11/server/xhdr.c ./server/xhdr.c
+*** ../nntp1.5.11/server/xhdr.c	Wed Dec 12 14:59:56 1990
+--- ./server/xhdr.c	Thu May 21 01:20:30 1992
+***************
+*** 151,156 ****
+--- 151,163 ----
+  			if (!strcasecmp(header, line)) {
+  				if (cp1 = index(cp + 2, '\n'))
+  					*cp1 = '\0';
++ #ifdef XMIME
++ 				if( COCK_MIME_HDR ){
++ 					char b[NNTP_STRLEN*2];
++ 					MIME_strHeaderDecode(cp+2,b,sizeof(b));
++ 					printf("%s %s\r\n", artname, b);
++ 				}else
++ #endif
+  				printf("%s %s\r\n", artname, cp + 2);
+  				return;
+  			}
+Only in ./server: xhist.c
+Only in ./server: xmime.c
+PATCHEOF
+
+echo "========= PATCHING DONE ========"
+exit 0
+

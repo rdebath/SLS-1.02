@@ -1,0 +1,46 @@
+# /etc/rc
+#
+# These commands are executed at boot time by init(8).
+# User customization should go in /etc/rc.local.
+
+PATH=/bin:/usr/bin:/etc
+
+# start the update(8) sync demon
+/etc/update &
+
+# fsck disks if system crashed
+
+if [ -f /fastboot ]
+then
+    echo Skipping fcsk
+else
+    echo /dev/sda2
+    fsck -a /dev/sda2
+fi
+
+# remove /etc/mtab* so that mount will create it with a root entry
+/bin/rm -f /etc/nologin /fastboot /etc/mtab*
+
+# mount file systems in fstab (and create an entry for /)
+# but not NFS because TCP/IP is not yet configured
+/etc/mount -avt nonfs
+
+# remove stale locks (must be done after mount -a!)
+/bin/rm -f /usr/spool/locks/* /usr/spool/uucp/LCK*
+
+# remove /etc/utmp and touch it
+rm -f /etc/utmp
+touch /etc/utmp
+
+# enable swapping
+/etc/swapon -a
+
+# start up cron if it exists
+if [ -f /usr/etc/crond ]; then
+	/usr/etc/crond
+fi
+
+# do any local stuff
+/bin/sh /etc/rc.local
+
+exit 0

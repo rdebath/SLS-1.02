@@ -1,0 +1,148 @@
+.SH
+Parameters
+.PP
+The information contained in the Scot score notation we have considered
+so far is manifested in the output score in parameters p1 through p5
+in the following way:
+.i
+.ne 5
+p1:  instrument number
+p2:  initialization time of instrument
+p3:  duration
+p4:  slur information
+p5:  pitch information in octave point pitch-class notation
+.e
+Any additional parameters you may want to enter are listed in brackets
+as the last
+part of a note specification.  These parameters start with p6 and
+are separated from each other with spaces.  Any parameters not
+specified for a particular note have their value carried from the
+most recently specified value.
+You may choose to change some parameters and not
+others, in which case you can type a dot (`.') for parameters whose
+values don't change, and new values for those that do.
+Alternatively, the construction
+.I N:,
+where
+.I N
+is an integer, may be used to indicate that the following parameter
+specifications apply to successive parameters starting with parameter
+.I N.
+For example:
+.i
+.ne 2
+4e[15000 3 4 12:100 150] g_ d_[10000 . 5]    c
+.e
+Here, for the first two quarter notes p6, p7, p8, p12, and p13
+respectively assume the values 15000, 3, 4, 100, and 150.  The values
+of p9 through p11 are either unchanged, or implicitly zero if they
+have never been specified in the current section.  On the third
+quarter note, the value of p6 is changed to 10000, and the value of
+p8 is changed to 5.  All others are unchanged.
+.PP
+Normally, parameter values are treated as globals -- that is, a value
+specification will carry to successive notes if no new value is
+specified.  However, if a parameter specification begins with an
+apostrophe, the value applies locally to the current note only, and will
+not carry to successive notes either horizontally or vertically (see
+.I divisi
+below).
+.SH
+Pfield Macros
+.PP
+Scot has a macro text substitution facility which operates only on the
+pfield specification text within brackets.
+It allows control values to be specified symbolically rather than numerically.
+Macro definitions appear inside brackets in the orchestra section.
+A single bracketed list of macro definitions preceding the first
+instrument declaration defines macros which apply to all instruments.
+An additional bracketed list of definitions may follow each instrument
+to specify macros that apply to that particular instrument.
+.i
+.ne 13
+orchestra {
+	[ pp=2000 p=4000 mp=7000 mf=10000 f=20000 ff=30000
+	  modi = 11: w = 1 x = 2 y = 3 z = 4
+	  vib = "10:1 " novib = "10:0 1"
+	]
+violin = 1	[ pizz = " 20:1" arco = " 20:0" ]
+serpent = 3	[ ff = 25000 sfz = 'f sffz = 'ff]
+}
+score {
+ $violin	=4c[mf modi z.y novib] d e a['f vib3] /
+			8 b[pizz]c 4d[f] 2c[ff arco] /
+ $serpent	=,4.c[mp modi y.x] 8b 2c /
+			'g[f ] ,c[ff] /
+}
+.e
+As can be seen from this example, a macro definition consists of the
+macro name, which is a string of alphabetic characters, followed by an
+equal sign, followed by the macro value.
+As usual, spaces, tabs, and newlines may be used freely.
+The macro value may contain arbitrary characters, and may be quoted
+if spacing characters need to be included.
+.PP
+When a macro name is encountered in bracketed pfield lists in a score section,
+that name is replaced with the macro text with no additional punctuation
+supplied.  The macro text may itself invoke other macros, although it is
+a serious error for a macro to contain itself, directly or indirectly.
+Since macro names are identified as strings of alphabetic characters, and
+no additional spaces are provided when a macro is expanded,
+macros may easily perform such concatenations as found in the first serpent
+note above, where the integer and fractional parts of a single pfield are
+constructed.  Also, a macro may do no more than define a symbolic pfield,
+as in the definition of modi.	The primary intention of macros is in fact
+not only to reduce the number of characters required, but also to enable
+symbolic definitions of parameter numbers and parameter values.
+For instance, a particular instrument's interpretation of the dynamic
+.I ff
+can be changed merely by changing a macro value, rather than changing
+all occurrences of that particular value in the score.
+.SH
+Divisi
+.PP
+Notes may be stacked on top of each other by using a back arrow (`<')
+between the notes of the divisi.  Each time Scot encounters a back arrow,
+it understands that the following note is to start at the same time as
+the note to the left of the back arrow. Durations, accidentals
+and parameters carry from left to right through the divisi.  Each time these
+are given new values, the notes to the right of the back arrows also take on
+the new values unless they are specified again.
+.PP
+When writing divisi you can stack compound events by enclosing them
+in parentheses.  Also, divisi which occur at the end of the measure must
+have the proper durations or the scot program will mis-interpret the measure
+duration length.
+.SH
+Scot Example II
+.R
+.sp 15
+.i
+orchestra { right=1 left=2 }
+functions { f1 0 256 10 1}
+score {
+$right !key "-b"
+; since p5 is pitch, p7 is set to the pitch of next note
+!ti "2/4"
+!next p5 "p7"	;since p5 is pitch, p7 refers to pitch of next note
+!next p6 "p8"	;If p6 is vol, say, then p8 refers to vol of next note
+t90
+8r c[3 np5]<e<='g r c<f<a / t90 r d-<g<b r =c[5]<f<a__ /
+!ti "4/4"
+t80
+4d_<f__<(8a g__) 4c<(8fe)<4g 4.c<f<f 8r/
+
+$left  !key "-b"
+!next p5 "p7"
+!next p6 "p8"
+!ti "2/4"
+8=,c[3 np5] r f r/ e r f r/
+!ti "4/4"
+2b_[5]<(4=,b_c) 4.a<f 8r/
+}
+.e
+.PP
+Notice in this example that the tempo statements occurred in instrument `right'
+only.  Also, all notes had p6=3 until the third measure, at which point p6 took
+on the value 5 for all notes. The next parameter option used is described
+under Additional Features.  The output score of above is given at the end.

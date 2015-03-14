@@ -1,0 +1,239 @@
+GETTY_PS 2.0.7 for Linux 0.99.5 and higher
+------------------------------------------
+
+
+OVERVIEW
+
+It's finally here... getty_ps (Paul Sutcliffe's getty) for Linux kernels
+at 0.99.5 and above.
+
+This package contains several modifications to the getty_ps2.0.4 package
+from Steve Robbins.  The most important feature is that this package allows
+you to correctly share a serial line between getty and callout programs
+like kermit and uucp.  The other major modification that I have made is
+a simple scheduler for getty that allows you to configure active and in-
+active times for getty.  Shane Alderton has also provided a ringback 
+function that will easily allow a phone line to be shared between a
+computer and a human.
+
+If you have any problems setting up the package, questions about mod-
+ifications, or suggestions for additional features, feel free to mail 
+me.  I am more than happy to help out.
+
+As always, I would love to hear any bug reports.
+
+Kris Gleason
+gleasokr@rtt.colorado.edu
+
+
+CONTENTS
+
+1.  Brief explination of new serial drivers under Linux 0.99.5 and up
+2.  Compiling and installing the programs
+3.  Setting up the configuration files
+4.  Troubleshooting
+5.  Credits, Thanks, Etc...
+
+
+1.  NEW SERIAL DRIVERS
+
+    To many people's surprise (and a few people's disgust), the serial
+    drivers have been upgraded.  The basic idea behind the new drivers
+    is that callin and callout devices should not try to use the same
+    line at the same time.  In the past, this was accomplished by jug-
+    gling lockfiles.  The new scheme takes care of the problem in the
+    kernel.  Instead of one modem device, there are now two: a callin
+    device, named /dev/ttyS# (where # is the port number), and a call-
+    out device, named /dev/cua# (again, # = port number).  The callin
+    devices are used by programs like getty; the callout devices are
+    used by programs like Seyon and Kermit.  If you don't have the
+    callout devices in /dev, you create them with the mknod command.
+    They are character devices, major number 5, minor number same as
+    the corresponding callin device.
+
+    So how does it work?  Simple...
+
+    Suppose that kermit wants to open /dev/cua1 for a callout session.
+    The kernel allows the line to be open if and only if no other
+    program currently has the corresponding /dev/ttyS1 line open; if
+    it does, the error EBUSY is returned in errno.  
+
+    The /dev/ttyS1 line is a bit more complicated.  By default, the device
+    'blocks' on open.  This means that the program will be stopped until
+    the device is clear to open.  For the device to be clear, two things
+    must be true:  no process can be using the corresponding /dev/cua1
+    line, and the carrier detect line of the serial port must be high.
+    While the device is blocking, it is not busy, so callout devices can
+    use the line.  In other words, if getty is running on /dev/ttyS1, as
+    long as no incoming calls open the line (causing the carrier to go
+    high), other programs are free to use the line.  Blocking can be dis-
+    abled by setting the O_NDELAY flag to the open system call.  In this 
+    case, carrier detect is not needed to open the line; however, if 
+    /dev/ttyS1 is busy, EBUSY is still returned in errno and the open fails.
+
+    So... why didn't getty_ps work with this?  Getty_ps opened the line with
+    the O_NDELAY flag set to do modem initialization and wait for RING to
+    come over the line.  By doing this, the device is always busy, and any
+    other program trying to use the line is not allowed.  This behaviour
+    is the major change in the getty_ps package.
+
+2.  COMPILING AND INSTALLING THE PROGRAMS
+
+    Two binaries are the product of this package:  getty and uugetty.
+    The only difference between getty and uugetty is that uugetty checks
+    and creates lockfiles.  Uugetty should not really be necessary on
+    any system (getty can be used instead) under the new serial drivers,
+    but it does have one feature that may interest you:  It checks to
+    see if other programs have created lockfiles.  If other programs are
+    using the modem (and have created lockfiles), the modem is reinit-
+    ialized.  If none of your callout programs mess up the settings, you
+    can use getty instead.
+
+    Everything should be all set to compile on any 'normal' Linux box
+    (whatever that is).  Just untar the sources (which I assume you've
+    done if you're reading this), edit the Makefile to reflect your
+    local configuration, favorite linking flags, etc...  If you're using
+    SYSV init, take out the -DSIMPLEINIT in the CFLAGS line.
+
+    Also, edit the file tune.h, and change this to your liking.  Do a
+    make all to build the programs.  I have also included binaries of
+    getty and uugetty; these files were compiled with gcc 2.3.3, and
+    linked with libc.so.4.3.2.  If your library is older, you will have
+    to do the compile yourself (or grab the new library).
+
+    After the sources are compiled, MAKE A BACKUP COPY OF YOUR EXISTING
+    WORKING GETTY PROGRAM!  I cannot stress this enough.  There is a good
+    chance that you will not have things configured correctly the first
+    time around, and will not be able to log into your machine.  This is
+    also probably a good time to get one of those bootable rootdisks.  In
+    any case, be sure you can boot your system from a floppy disk before
+    you install anything.
+
+    I like my getty binaries in /etc.  If you want yours in /bin, edit the
+    makefile.  Make install to copy the binaries into the correct director-
+    ies.  By default, your old getty and uugetty programs are saved under
+    getty- and uugetty-.  After everything is running smoothly, you can 
+    remove these backup files.
+
+
+3.  SETING UP CONFIGURATION FILES
+
+    After you install the binaries AND BEFORE YOU LOGOUT/SHUTDOWN you must 
+    edit the file /etc/inittab.  The argument format for getty_ps is:
+    
+      getty tty speed [terminal-type]
+      uugetty tty speed [terminal-type]
+
+    'Tty' is the line to run on (without the /dev).  Speed is the line speed
+    as defined in /etc/gettydefs.  This argument must match the first field
+    of one of the lines in /etc/gettydefs (see gettydefs(4) man page). The
+    optional terminal-type is the expected type of terminal to be found at the
+    other end.  I set this to console for vt's and vt100 for serial lines.
+    Here is the relevant protion of my /etc/inittab file:
+
+	1:123:respawn:/etc/getty tty1 VC console
+	...
+	s2:23:respawn:/etc/uugetty ttys2 2400 vt100
+
+    You will want to change one of the lines to use your OLD WORKING getty
+    (named getty- if you used make install) until everything is stable.
+
+    Next, you want to create the configuration files.  The file
+    /etc/gettydefs must exist for proper operation.  See the man page
+    for gettydefs(4) for the format of this file.  There is an example
+    under examples that you can use to get started.
+
+    Finally, you want to create configuration files for the individual
+    lines.  These are kept in /etc/default.  If you are running getty on
+    ttyS2, the configuration file is /etc/default/getty.ttyS2; for uugetty
+    on ttyS0, /etc/default/uugetty.ttyS0.  Also, if you want the same file
+    for all instances of getty or uugetty, you can make the file
+    /etc/default/getty or /etc/default/uugetty.  Example configuration
+    files are under examples.  See the getty(1) manual page for more infor-
+    mation on this file.  These configuration files are optional, so your
+    system won't crash if you don't have them, and no configuration files
+    are needed to run getty on a virtual console or dumb terminal (though
+    you can still have them if you want).  The main purpose of the config-
+    uration files is to configure your modem correctly.
+
+    If you think you have everything right, reboot your system (you do have
+    a _working_ bootable floppy, right?  I thought so).  If you can log into
+    your system on the consoles you set to use the new getty, everything is
+    working fine (at least on the consoles).  
+
+    Next, after you have edited the configuration file for your modem's tty
+    line, go over to a friend's house and try to call up.  If you have a
+    9600 baud Hayes modem, the files I have included should drop right in
+    and work; otherwise they will need some editing.  Note that the config-
+    uration file setup has changed slightly:
+
+    1)  first of all, WAITFOR is back.  If you want to answer your modem 
+        with a chat string, this should now work properly.
+
+    2)  If you want to use the scheduler, you need SCHED and OFF strings
+        included
+
+    3)  If you want to use ringback, you need RINGBACK=YES in your defaults
+        file.  Also, the use of RINGBACK requires the use of WAITFOR for 
+	proper operation.
+
+    There are several examples of configuration files in the examples dir-
+    ectory.  I suggest you check these out.
+
+4.  TROUBLESHOOTING
+
+    So, what could possibly go wrong?
+
+    I suspect the following things will be the major sources of confusion:
+
+    1)  Installing the binaries over a previous version of getty_ps 
+        without editing your /etc/default/* files.  (If this is you,
+	*PLEASE* read this file, the new man pages, and my included
+	example files)
+
+    2)  Failing chat sequences.  If your modem is not responding as 
+        expected to the INIT/OFF/CONNECT chat sequences, getty will be
+	continuously respawning.  Check /usr/adm/getty.log.  If you
+	have lots of lines that say INIT sequence failed, this is the
+	problem.  Check your /etc/default/* files.  You can turn on
+	debugging of the init sequence by adding the following line
+	to your defaults file:
+
+	  DEBUG=010
+	
+	This will create a file in /tmp with debugging output.  Read
+	this for clues as to what might be going wrong.
+
+	If you get CONNECT sequence failed, then the CONNECT line is
+	to blame.  Debug this line the same way.
+
+    3)  Other problems.  Turn on full debugging:
+    
+          DEBUG=777
+	
+	and read the debugging file.  If you can't make heads or tails of it,
+	mail it to me and I'll see what I can do with it (after all... it 
+	may be a bug).  I don't know anything about other types of modems, 
+	so if you have modem specific questions, I probably can't help much.
+
+
+5.  CREDITS, ETC...
+
+Special thanks to all of these people:
+	Paul Sutcliffe ... original author
+	Steve Robbins  ... former maintanier of getty_ps
+	Michael Haardt ... SYSV init support
+	Theodore Tso   ... for a valuable discussion of the
+	                   new serial drivers
+	Shane Alderton ... for the RINGBACK patches
+
+I have included all of the original documentation from this package under
+the OLD directory.  You might find it useful.  If you find that this file
+is missing something, please let me know.  I've tried to be as complete as
+possible without writing a book, but I have been known to screw up in the
+past.
+
+Good Luck.
+
+Kris Gleason
+gleasokr@rtt.colorado.edu

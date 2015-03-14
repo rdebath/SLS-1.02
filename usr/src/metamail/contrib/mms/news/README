@@ -1,0 +1,111 @@
+Subject: patch to make nntpd1.5.11 treat MIME header
+From: Yutaka Sato <ysato@etl.go.jp>
+Date: Thu May 21 03:55:02 JST 1992
+Content-Type: multipart/mixed; charset=US-ASCII; boundary="=";
+X-MMS-Version: 0.3
+
+--=
+
+1. Automatic encoding/decoding of a news article header
+
+This is a patch to let nntpd encode/decode MIME-formatted message.
+
+Messages which include "encoded-word" of MIME is *DECODED* into local
+code before it passed to a client, via HEAD, ARTICLE, BODY, and XHDR
+commands.
+
+When nntpd received a message which includes local code from client,
+via POST command, it *ENCODES* the message into MIME-format.
+
+Currently only ISO-2022-JP(JUNET code) is supported as a local code.
+
+--=
+
+2. Controling encoding and decoding.
+
+To enable above actions, a NNTP client must send XMIME command first.
+
+    Usage: XMIME {enable/disable}     (disabled when start)
+
+--=
+
+3. How to make
+
+You must have original source of NNTP1.5.11.
+
+  (0) Setenv MMSDIR to this directory, like setenv MMSDIR `pwd`.
+
+  (1) Setenv NNTPDIR to the directory which contains NNTP1.5.11 sources
+      and is writable for you.
+
+  (2) Do make, then "fromMime" and "toMime" commands are created,
+      and $NNTPDIR is patched.
+
+  (3) Change directory to $NNTPDIR, and define local configuration
+      if necessary, then do make server.
+
+--=
+
+4. Testing
+
+% server/nntpd
+201 etlss2 NNTP[auth] server version 1.5.11 (31 January 1991) ready at
+Thu May 2 1 04:15:13 1992 (no posting).
+
+
+help
+100 This server accepts the following commands:
+ARTICLE     BODY         GROUP
+HEAD        LAST         LIST
+NEXT        POST         QUIT
+STAT        NEWGROUPS    HELP
+IHAVE       NEWNEWS      SLAVE
+
+Additionally, the following extention is supported:
+
+XHDR        Retrieve a single header line from a range of articles.
+XHIST       Retrieve history file.
+XMIME       Control MIME format article handling.
+
+Bugs to Stan Barber (Internet: nntp@tmc.edu; UUCP: ...!bcm!nntp)
+.
+
+
+group etl.test
+211 989 376 1919 etl.test
+
+
+head 1900
+221 1900 <1992May20.094135.6053@etl.go.jp> Article retrieved; head follows.
+Newsgroups: etl.test
+Path: etl.go.jp!news
+From: ysato
+Subject: posted with NNTP+MIME =?ISO-2022-JP?B?GyRAI00jSSNNI0U3QTwwRnw=?=
+        =?ISO-2022-JP?B?GyRAS1w4bCVYJUMlQCROJUYlOSVIGyhC?=
+Message-ID: <1992May20.094135.6053@etl.go.jp>
+Sender: news@etl.go.jp (News System)
+Nntp-Posting-Host: etlss2
+Organization: Electrotechnical Laboratory, Tsukuba Science City
+Date: Wed, 20 May 1992 09:41:35 GMT
+Lines: 1
+.
+
+xmime enable
+209 MIME encoding/decoding enabled
+
+haead
+221 1900 <1992May20.094135.6053@etl.go.jp> Article retrieved; head follows.
+Newsgroups: etl.test
+Path: etl.go.jp!news
+From: ysato
+Subject: posted with NNTP+MIME ＭＩＭＥ形式日本語ヘッダのテスト
+Message-ID: <1992May20.094135.6053@etl.go.jp>
+Sender: news@etl.go.jp (News System)
+Nntp-Posting-Host: etlss2
+Organization: Electrotechnical Laboratory, Tsukuba Science City
+Date: Wed, 20 May 1992 09:41:35 GMT
+Lines: 1
+.
+
+quit
+205 etlss2 closing connection.  Goodbye.

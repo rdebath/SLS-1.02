@@ -1,0 +1,316 @@
+%Doc-1.0
+\documentstyle{slides}
+
+
+\begin{document}
+{\align{center}\float{}{\pagenumber{00}}%383.04 -639.12 -2
+
+
+\size{52}Glyphs:\\
+Flyweight Objects\\
+for User Interfaces\size{18}\bigskip
+\size{36}Paul Calder\size{18}\bigskip
+\size{24}Computer Systems Laboratory\\
+Stanford University\\
+Stanford, California 94305\size{18}\bigskip
+\font{Courier}calder@interviews.stanford.edu
+
+}\newpage
+{\size{36}The problem}\bigskip
+{\size{24}Objects are good ...}\smallskip
+\quad data as well as commands
+
+\quad users think objects
+
+\quad smallest components should be objects\medskip
+{\size{24}... but current toolkits fall short}\smallskip
+\quad gap between objects and widgets
+
+\quad cannot build views of data
+
+\newpage
+{\size{36}The experiment{\size{18}%
+%
+\figure{%
+\psfig{figure=doc.ps,width=5in}%
+%34.56 -328.32 2
+}%
+%
+}}\newpage
+{\size{36}The experiment ...}\bigskip
+{\size{24}Build a document editor}\smallskip
+\quad each character is an object
+
+\quad graphics as well as text
+
+\quad papers, thesis, slides\medskip
+{\size{24}Why a document editor?}\smallskip
+\quad familar---well understood medium
+
+\quad high expectations---looks good, goes fast
+
+\quad severe test---100,000 objects\medskip
+{\size{24}More than just document editors}\smallskip
+\quad views of application data
+
+\quad smallest components are objects
+
+\newpage
+{\size{36}Glyphs}\bigskip
+{\size{24}Glyphs just define appearance}\smallskip
+\quad primtivies---line, circle, character, image
+
+\quad composites---box, deck\medskip
+{\size{24}Glyphs are simple}\smallskip
+\quad \begin{tabular}{|l|l|}
+\hline
+Task&
+Methods\\
+\hline
+geometry&
+request,\ allocate\\
+appearance&
+draw,\ pick\\
+structure&
+insert,\ remove,\ change\\
+\hline
+\end{tabular}%
+\medskip
+{\size{24}Glyphs are cheap}\smallskip
+\quad {\it much} cheaper than widgets\medskip
+{\size{24}Toolkit must include more}\smallskip
+\quad handlers---event distribution, event mapping
+
+\quad interactors---buttons, menus, scrollers
+
+\newpage
+{\size{36}A text view ...}\bigskip
+\quad %
+\psfig{figure=objects.ips}%
+\medskip
+{\size{24}View structure reflects text structure}\smallskip
+\quad glyph per character
+
+\quad composite glyph per line
+
+\newpage
+{\size{36}TextView code}\bigskip
+{\tt TextView::TextView\ (FILE*\ file)\ \{\
+\ \ TBBox*\ page\ =\ new\ TBBox();\
+\ \ LRBox*\ line\ =\ new\ LRBox();\
+\ \ int\ c;\
+\ \ while\ ((c\ =\ getc(file))\ !=\ EOF)\ \{\
+\ \ \ \ if\ (c\ ==\ '\backslash n')\ \{\
+\ \ \ \ \ \ page->append(line);\
+\ \ \ \ \ \ line\ =\ new\ LRBox();\
+\ \ \ \ \}\ else\ \{\
+\ \ \ \ \ \ line->append(new\ Character(c));\
+\ \ \ \ \}\
+\ \ \}\
+\ \ body(page)\
+\}\
+}\newpage
+{\size{36}... with multiple fonts ...}\bigskip
+\quad %
+\psfig{figure=euctext.ps,width=5.5in}%
+\medskip
+{\size{24}Same simple structure but ...}\smallskip
+\quad ASCII characters use ASCII-encoded font
+
+\quad Kanji characters use JIS-encoded font
+
+\newpage
+{\size{36}EUC TextView Code}\bigskip
+{\tt Font*\ kf;\
+Font*\ af;\
+\
+while\ ((c\ =\ getc(file))\ !=\ EOF)\ \{\
+\ \ if\ (c\ ==\ '\backslash n')\ \{\
+\ \ \ \ page->append(line);\
+\ \ \ \ line\ =\ new\ LRBox();\
++\ \}\ else\ if\ (!isascii(c))\ \{\
++\ \ \ line->append(\
+\ \ \ \ \ \ new\ Character(\
+\ \ \ \ \ \ \ \ tojis(c,\ getc(file)),\ kf\
+\ \ \ \ \ \ )\
+\ \ \ \ );\
+\ \ \}\ else\ \{\
+\ \ \ \ line->append(new\ Character(c,\ af));\
+\ \ \}\
+\}\
+}\newpage
+{\size{36}... and formatting}\bigskip
+\quad %
+\psfig{figure=fancytext.cut.ps,width=5.5in}%
+\medskip
+{\size{24}High-level help from a toolkit}\smallskip
+\quad line and column breaking
+
+\quad hyphenation
+
+\newpage
+{\size{36}Formatted TextView code}\bigskip
+{\tt Composition*\ page\ =\ new\ LRComposition(\
+\ \ new\ TBBox(),\ new\ TeXCompositor(),\
+\ \ nil,\ width\
+);\
+\
+while\ ((c\ =\ getc(file))\ !=\ EOF)\ \{\
+\ \ if\ (c\ ==\ '\backslash n')\ \{\
+\ \ \ \ page->append(\
+\ \ \ \ \ \ new\ Discretionary(\
+\ \ \ \ \ \ \ \ PenaltyGood,\ new\ HGlue(fil),\
+\ \ \ \ \ \ \ \ new\ HGlue(0,\ fil),\ nil,\ nil\
+\ \ \ \ \ \ )\
+\ \ \ \ );\
+\ \ \}\ else\ if\ (c\ ==\ '\ ')\ \{\
+\ \ \ \ page->append(\
+\ \ \ \ \ \ new\ Discretionary(\
+\ \ \ \ \ \ \ \ 0,\ new\ Character('\ '),\
+\ \ \ \ \ \ \ \ new\ HGlue(0,\ 0),\ nil,\ nil\
+\ \ \ \ \ \ )\
+\ \ \ \ );\
+\ \ \}\ else\ \{\
+\ \ \ \ page->append(new\ Character(c));\
+\ \ \}\
+\}\
+}\newpage
+{\size{36}Implementation}\bigskip
+{\size{24}A dynamic protocol ...}\smallskip
+\quad pass state rather than store it
+
+\quad Character::draw(Canvas*, Paint\&, allocation\&)\medskip
+{\size{24}... means small objects ...}\smallskip
+\quad objects needn't store graphics state
+
+\quad Character need only store character code\medskip
+{\size{24}... and fewer instances}\smallskip
+\quad sharable objects
+
+\quad one instance of Character(`a') per document
+
+\newpage
+{\size{36}Performance}\bigskip
+{\size{24}Drawing speed}\smallskip
+\quad \begin{tabular}{|l|r|r|}
+\hline
+Page\ type&
+Draw&
+Format\\
+\hline
+small&
+0.07&
+0.12\\
+average&
+0.11&
+0.20\\
+large&
+0.25&
+0.37\\
+\hline
+\end{tabular}%
+
+
+\quad Seconds per page on a DECstation 3100\medskip
+{\size{24}Process size}\smallskip
+\quad \begin{tabular}{|l|r|}
+\hline
+Document&
+Memory\ usage\\
+\hline
+small&
+1500\\
+medium&
+2300\\
+large&
+4000\\
+\hline
+\end{tabular}%
+
+
+\quad Total Kbytes allocated
+
+\newpage
+{\size{36}Comparisons}\bigskip
+{\size{24}Object size}\smallskip
+\quad \begin{tabular}{|l|l|r|}
+\hline
+Toolkit&
+Object&
+Size\\
+\hline
+Athena\ Widgets&
+Simple&
+132\\
+Andrew\ Toolkit&
+view&
+44\\
+ET++&
+VObject&
+32\\
+Extended\ InterViews&
+Glyph&
+8\\
+\hline
+\end{tabular}%
+
+
+\quad Sizes of base objects in bytes\medskip
+{\size{24}Code size}\smallskip
+\quad \begin{tabular}{|l|r|r|}
+\hline
+Toolkit&
+Label&
+TextView\\
+\hline
+Athena\ Widgets&
+500&
+2000\\
+Andrew\ Toolkit&
+300&
+3000\\
+ET++&
+500&
+2000\\
+Extended\ InterViews&
+10&
+20\\
+\hline
+\end{tabular}%
+
+
+\quad Lines of code for views
+
+\newpage
+{\size{36}Status}\bigskip
+{\size{24}Prototype toolkit}\smallskip
+\quad glyph---primitives, decorators, composites
+
+\quad layout---tiling, aligning
+
+\quad compositor---array, split, fill (optimum fit)
+
+\quad sensor---input interest
+
+\quad handler---interactors\medskip
+{\size{24}Document editor}\smallskip
+\quad basic editing (text, graphics, tables)
+
+\quad figure plowing
+
+\quad 5000 lines of code
+
+\quad papers, slides, thesis\medskip
+{\size{24}Merge into InterViews}
+
+\newpage
+{\size{36}Conclusion}\bigskip
+{\size{24}Toolkits can help build views of data}\smallskip
+\quad not just command interface\medskip
+{\size{24}Dynamic protocols for cheap objects}\smallskip
+\quad think lots of objects\medskip
+{\size{24}Leverage available technology}\smallskip
+\quad already beyond interactive threshold
+
+%
+\end{document}

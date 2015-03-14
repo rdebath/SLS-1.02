@@ -1,0 +1,597 @@
+.TL
+4. GEN ROUTINES
+.PP
+The GEN subroutines are function-drawing procedures called by
+.B f
+statements to construct stored wavetables.  They are available throughout
+orchestra performance, and can be invoked at any point in the score as given
+by p2.  p1 assigns a table \fInumber\fR, and p3 the table \fIsize\fR (see
+.B f
+statement).
+p4 specifies the GEN routine to be called;  each GEN routine will
+assign special meaning to the pfield values that follow.
+.sp 3
+GEN01, GEN02
+
+Transfer data from a soundfile (GEN01) or from immediate pfields (GEN02) into
+a function table.
+
+.i
+\fBf\fR  #  time  size  1  filno  skiptime  format
+\fBf\fR  #  time  size  2  v1  v2  v3  .  .  .
+.e
+
+.I size
+- number of points in the table.
+Must be a power of 2 or a power-of-2 plus 1 (see
+.B f
+statement).  The maximum tablesize is 16777216 (2**24) points.
+
+\fIfilno, skiptime, format\fR
+- directs GEN01 to read from \fBsoundin.\fIfilno\fR,
+beginning at \fIskiptime\fR seconds into the file.
+The parameter \fIformat\fR specifies the audio data-file format:
+.nf
+	1  -  8-bit signed character		4  -  16-bit short integers
+	2  -  8-bit A-law bytes		5  -  32-bit long integers
+	3  -  8-bit U-law bytes		6  -  32-bit floats
+.fi
+If \fIformat\fR = 0 the sample format is taken from the soundfile header,
+or by default from the \fBcsound -o\fR command flag.
+The soundfile is assumed to be in the directory SFDIR (see also \fBsoundin\fR).
+Reading stops at end-of-file or when the table is full.
+Any table locations not filled will contain zeros.
+
+\fIv1, v2, v3, ...\fR
+- for GEN02 these values will be copied directly into the table space.
+The number of values is limited by the compile-time variable PMAX,
+which controls the maximum pfields (currently 150).
+The values copied may include the table guard point; 
+any table locations not filled will contain zeros.
+
+Note:
+
+If p4 is positive, the table will be post-normalized (rescaled to a
+maximum absolute value of 1 after generation).  A negative p4 will
+cause rescaling to be skipped.
+
+Example:
+
+\fBf\fR  1  0  16  -2  0  1  2  3  4  5  6  7  8  9  10  11  0
+
+This calls upon GEN02 to place 12 values plus an explicit wrap-around
+guard value into a table of size next-highest power of 2.
+Rescaling is inhibited.
+.bp
+GEN03
+
+This subroutine generates a stored function table by evaluating a
+polynomial in x over a fixed interval and with specified coefficients.
+
+.i
+\fBf\fR  #  time  size  3  xval1  xval2  c0  c1  c2  .  .  .  cn
+.e
+
+.I size
+- number of points in the table.  Must be a power of 2 or a
+power-of-2 plus 1 (see
+.B f
+statement).
+
+\fIxval1, xval2\fR
+- left and right values of the x interval over which the
+polynomial is defined (\fIxval1 < xval2\fR).  These will produce the 1st
+stored value and the (power-of-2 plus 1)th stored value respectively
+in the generated function table.
+
+\fIc0, c1, c2, .... cn\fR
+- coefficients of the nth-order polynomial
+.EQ
+	c sub 0 ~+~ c sub 1 x ~+~ c sub 2 x sup 2 ~+~ c sub 3 x sup 3 ~+~ ... ~+~ c sub n x sup n
+.EN
+
+Coefficients may be positive or negative real numbers;  a zero
+denotes a missing term in the polynomial.  The coefficient list
+begins in p7, providing an upper limit of 44 terms.
+
+
+Note:
+
+The defined segment [fn(\fIxval1\fR),fn(\fIxval2\fR)] is evenly distributed.
+Thus a 512-point table over the interval [-1,1] will have its origin
+at location 257 (at the start of the 2nd half).  Provided the
+extended guard point is requested, both fn(-1) and fn(1) will
+exist in the table.
+
+GEN03 is useful in conjunction with \fBtable\fR or \fBtablei\fR
+for audio waveshaping (sound modification by non-linear
+distortion).  Coefficients to produce a particular formant from a
+sinusoidal lookup index of known amplitude can be determined at
+preprocessing time using algorithms such as Chebyshev formulae.
+See also GEN13.
+
+
+Example:
+
+.i
+f  1  0  1025  3  -1  1  5  4  3  2  1
+.e
+
+This calls GEN03 to fill a table with a 4th order polynomial function
+over the x-interval -1 to 1.  The origin will be at the offset position 512.
+The function is post-normalized.
+.bp
+GEN04
+
+This subroutine generates a normalizing function by examining the
+contents of an existing table.
+
+.i
+\fBf\fR  #  time  size  4  source#  sourcemode
+.e
+
+.I size
+- number of points in the table.  Should be power-of-2 plus 1.
+Must not exceed (except by 1) the size of the source table being examined;
+limited to just half that size if the sourcemode is of type offset (see below).
+
+.I source#
+- table number of stored function to be examined.
+
+.I sourcemode
+- a coded value, specifying how the source table is to be
+scanned to obtain the normalizing function.  Zero indicates that the source
+is to be scanned from left to right.  Non-zero indicates that the source has
+a bipolar structure; scanning will begin at the mid-point and progress
+outwards, looking at pairs of points equidistant from the center.
+
+
+Note:
+
+The normalizing function derives from the progressive absolute maxima
+of the source table being scanned.  The new table is created left-to-right,
+with stored values equal to 1/(absolute maximum so far scanned).  Stored
+values will thus begin with 1/(first value scanned), then get progressively
+smaller as new maxima are encountered.  For a source table which is
+normalized (values <= 1), the derived values will range from 1/(first value
+scanned) down to 1.  If the first value scanned is zero, that inverse will
+be set to 1.
+
+The normalizing function from GEN04 is not itself normalized.
+
+GEN04 is useful for scaling a table-derived signal so that it has a
+consistent peak amplitude.  A particular application occurs in waveshaping
+when the carrier (or indexing) signal is less than full amplitude.
+
+
+Example:
+
+.i
+f  2  0  512  4  1  1
+.e
+
+This creates a normalizing function for use in connection with the GEN03
+table 1 example.  Midpoint bipolar offset is specified.
+.bp
+GEN05, GEN07
+
+These subroutines are used to construct functions from segments of
+exponential curves (GEN05) or straight lines (GEN07).
+
+.i
+\fBf\fR #  time  size  5  a  n1  b  n2  c  .  .  .
+\fBf\fR #  time  size  7  a  n1  b  n2  c  .  .  .
+.e
+
+.I size
+- number of points in the table.
+Must be a power of 2 or power-of-2 plus 1 (see
+.B f
+statement).
+
+\fIa, b, c,\fR etc. - ordinate values, in odd-numbered pfields p5, p7, p9, ...
+For GEN05 these must be non-zero and must be alike in sign.
+No such restrictions exist for GEN07.
+
+\fIn1, n2,\fR etc. - length of segment (no. of storage locations), in
+even-numbered pfields.  Cannot be negative, but a zero is meaningful
+for specifying discontinuous waveforms (e.g. in the example below).
+The sum n1 + n2 + .... will
+normally equal \fIsize\fR for fully specified functions.  If the sum is
+smaller, the function locations not included will be set to zero;
+if the sum is greater, only the first \fIsize\fR locations will be stored.
+
+
+Note:
+
+If p4 is positive, functions are post-normalized (rescaled to a
+maximum absolute value of 1 after generation).  A negative p4 will cause
+rescaling to be skipped.
+
+Discrete-point linear interpolation implies an increase or decrease
+along a segment by equal differences between adjacent locations;
+exponential interpolation implies that the progression is by equal
+ratio.  In both forms the interpolation from
+.I a
+to
+.I b
+is such as to assume that the value
+.I b
+will be attained in the n+1 th location.
+For discontinuous functions, and for the segment encompassing the end
+location, this value will not actually be reached, although it may
+eventually appear as a result of final scaling.
+
+
+
+
+Example:
+
+f  1  0  256  7  0  128  1  0  -1  128  0
+
+This describes a single-cycle sawtooth whose discontinuity is mid-way
+in the stored function.
+.bp
+GEN06
+
+This subroutine will generate a function comprised of segments of
+cubic polynomials, spanning specified points just three at a time.
+
+.i
+\fBf\fR  #  time  size  6  a  n1  b  n2  c  n3  d  .  .  .
+.e
+
+\fIsize\fR - number of points in the table.  Must be a power of 2
+or power-of-2 plus 1 (see \fBf\fR statement).
+
+\fIa, c, e ...\fR - local maxima or minima of successive segments, depending
+on the relation of these points to adjacent inflexions.  May be either
+positive or negative.
+
+\fIb, d, f ...\fR - ordinate values of points of inflexion at the ends of
+successive curved segments.  May be positive or negative.
+
+\fIn1, n2, n3 ...\fR - number of stored values between specified points.
+Cannot be negative, but a zero is meaningful for specifying discontinuities.
+The sum n1 + n2 + ... will normally equal \fIsize\fR for fully specified
+functions. (for details, see GEN05).
+
+
+
+Note:
+
+GEN06 constructs a stored function from segments of cubic polynomial
+functions.  Segments link ordinate values in groups of 3: point of
+inflexion, maximum/minimum, point of inflexion.  The first complete
+segment encompasses \fIb,c,d\fR and has length \fIn2+n3\fR,
+the next encompasses \fId,e,f\fR and has length \fIn4+n5\fR, etc.
+The first segment (\fIa,b\fR with length \fIn1\fR) is partial with only
+one inflexion; the last segment may be partial too.
+Although the inflexion points \fIb,d,f..\fR each figure in two segments
+(to the left and right), the slope of the two segments remains independent
+at that common point (i.e. the 1st derivative will likely be discontinuous).
+When \fIa,c,e...\fR are alternately maximum and minimum, the inflexion joins
+will be relatively smooth;  for successive maxima or successive minima
+the inflexions will be comb-like.
+
+
+
+Example:
+
+f  1  0  65  6  0  16  .5  16  1  16  0  16  -1
+
+This creates a curve running 0 to 1 to -1, with a minimum, maximum
+and minimum at these values respectively.  Inflexions are at .5 and 0,
+and are relatively smooth.
+.bp
+GEN08
+
+This subroutine will generate a piecewise cubic spline curve,
+the smoothest possible through all specified points.
+
+.i
+\fBf\fR #  time  size  8  a  n1  b  n2  c  n3  d  .  .  .
+.e
+
+\fIsize\fR - number of points in the table.  Must be a power of 2
+or power-of-2 plus 1 (see \fBf\fR statement).
+
+\fIa, b, c ...\fR ordinate values of the function.
+
+\fIn1, n2, n3 ...\fR length of each segment measured in stored values.
+May not be zero, but may be fractional.  A particular segment may or may not
+actually store any values; stored values will be generated at integral points
+from the beginning of the function.  The sum n1 + n2 + ... will normally
+equal "size" for fully specified functions.
+
+
+Note:
+
+GEN08 constructs a stored table from segments of cubic polynomial functions.
+Each segment runs between two specified points but depends as well on their
+neighbors on each side.  Neighboring segments will agree in both value and
+slope at their common point. (The common slope is that of a parabola through
+that point and its two neighbors).  The slope at the two ends of the function
+is constrained to be zero (flat).
+
+\fIHint:\fR to make a discontinuity in slope or
+value in the function as stored, arrange a series of points in the interval
+between two stored values;  likewise for a non-zero boundary slope.
+
+
+
+Examples:
+
+f  1  0  65  8  0  16  0  16  1  16  0  16  0
+
+This example creates a curve with a smooth hump in the middle,
+going briefly negative outside the hump then flat at its ends.
+
+
+f  2  0  65  8  0  16  0  .1  0  15.9  1  15.9  0  .1  0  16  0
+
+This example is similar, but does not go negative.
+.bp
+GEN09, GEN10
+
+These subroutines generate composite waveforms made up of weighted sums
+of simple sinusoids.  The specification of each contributing partial
+requires 3 pfields using GEN09 but just 1 using GEN10.
+
+.i
+\fBf\fR #  time  size   9   pna  stra  phsa   pnb  strb  phsb  .  .  .
+\fBf\fR #  time  size  10  str1  str2  str3  str4  .  .  .  .
+.e
+
+\fIsize\fR - number of points in the table.  Must be  a power of 2 or
+power-of-2 plus 1 (see \fBf\fR statement).
+
+\fIpna, pnb,\fR etc. - partial no. (relative to a fundamental that would occupy
+\fIsize\fR locations per cycle) of sinusoid a, sinusoid b, etc.  Must be
+positive, but need not be a whole number, i.e., non-harmonic partials
+are permitted.  Partials may be in any order.
+
+\fIstra, strb,\fR etc. - strength of partials \fIpna, pnb,\fR etc.  These are
+relative strengths, since the composite waveform will be rescaled later.
+Negative values are permitted and imply a 180 degree phase shift.
+
+\fIphsa, phsb,\fR etc. - inital phase of partials \fIpna, pnb,\fR etc.,
+expressed in degrees.
+
+\fIstr1, str2, str3,\fR etc. - relative strengths of the fixed harmonic partial
+numbers 1,2,3,etc., beginning in p5.  Partials not required should be
+given a strength of zero.
+
+
+Note:
+
+Both subroutines generate stored functions as sums of sinusoids of
+different frequencies.  The two major restrictions on GEN10 -- that
+the partials be harmonic and in phase -- do not apply to GEN09.
+
+In either case the composite wave, once drawn, is then rescaled to unity
+if p4 was positive.  A negative p4 will cause rescaling to be skipped.
+
+
+
+Example:
+
+f  1  0  512  9  1  3  0  3  1  0  9  .3333  180
+
+This combines partials 1, 3 and 9 in the relative strengths with which
+they are present in a square wave, except that partial 9 is "upside down."
+.bp
+GEN11
+
+This subroutine generates an additive set of cosine partials, in the manner of
+csound generators \fBbuzz\fR and \fBgbuzz\fR.
+
+.i
+\fBf\fR  #  time  size  11  nh  lh  r
+.e
+
+\fIsize\fR - number of points in the table.  Must be a power of 2
+or power-of-2 plus 1 (see \fBf\fR statement).
+
+\fInh\fR - number of harmonics requested.  Must be positive.
+
+\fIlh\fR (optional) - lowest harmonic partial present.  Can be positive,
+zero or negative.  The set of partials can begin at any partial number
+and proceeds upwards;  if \fIlh\fR is negative, all partials below zero
+will reflect in zero to produce positive partials without phase change
+(since cosine is an even function), and will add constructively to
+any positive partials in the set.  The default value is 1.
+
+\fIr\fR (optional) - multiplier in an amplitude coefficient series.
+This is a power series: if the \fIlh\fRth partial has a strength coefficient
+of A, the (\fIlh\fR+n)th partial will have a coefficient of A * \fIr\fR**n,
+i.e.  strength values trace an exponential curve.
+\fIr\fR may be positive, zero or negative, and is not restricted to integers.
+The default value is 1.
+
+
+Note:
+
+This subroutine is a non-time-varying version of the csound \fBbuzz\fR and
+\fBgbuzz\fR generators, and is similarly useful as a complex sound source in
+subtractive synthesis.  With \fIlh\fR and \fIr\fR present it parallels
+\fBgbuzz\fR;  with both absent or equal to 1. it reduces to the simpler
+\fBbuzz\fR (i.e. \fInh\fR equal-strength harmonic partials beginning with
+the fundamental).
+
+Sampling the stored waveform with an oscillator is more efficient than
+using dynamic buzz units.  However, the spectral content is invariant,
+and care is necessary lest the higher partials exceed the Nyquist during
+sampling to produce foldover.
+
+
+
+Examples:
+
+.nf
+f  1  0  2049  11  4
+f  2  0  2049  11  4  1  1
+f  3  0  2049 -11  7  3  .5
+.fi
+
+The first two tables will contain identical band-limited pulse waves
+of four equal-strength harmonic partials beginning with the fundamental.
+The third table will sum seven consective harmonics, beginning with the third,
+and at progressively weaker strengths (1, .5, .25, .125 ...).
+It will not be post-normalized.
+.bp
+GEN12
+
+This generates the log of a modified Bessel function of the second kind, order 0,
+suitable for use in amplitude-modulated FM.
+
+.i
+\fBf\fR  #  time  size  -12  xint
+.e
+
+\fIsize\fR - number of points in the table.  Must be a power of 2 or a
+power-of-2 plus 1 (see \fBf\fR statement).
+The normal value is power-of-2 plus 1.
+
+\fIxint\fR - specifies the x interval [\fI0 to +xint\fR] over which the function
+is defined.
+
+
+Note:
+
+This subroutine draws the natural log of a modified Bessel function of the
+second kind, order 0 (commonly written as I subscript 0),
+over the x-interval requested.  The call should have rescaling inhibited.
+
+The function is useful as an amplitude scaling factor in cycle-synchronous
+amplitude-modulated FM.  (See Palamin & Palamin, \fIJ. Audio Eng. Soc.\fR,
+36/9, Sept. 1988, pp. 671-684.)  The algorithm is interesting because it
+permits the normally symmetric FM spectrum to be made asymmetric around a frequency
+other than the carrier, and is thereby useful for formant positioning.
+By using a table lookup index of \fII(r - 1/r)\fR, where
+.I I
+is the FM modulation index and
+.I r
+is an exponential parameter affecting partial strengths, the Palamin algorithm
+becomes relatively efficient, requiring only oscil's, table lookups, and a
+single \fIexp\fR call.
+
+
+Example:
+
+.nf
+f  1  0  2049  -12  20
+.fi
+
+This draws an unscaled ln(I0(x)) from 0 to 20.
+.bp
+GEN13, GEN14
+
+These subroutines use Chebyshev coefficients to generate stored polynomial
+functions which, under waveshaping, can be used to split a sinusoid into
+harmonic partials having a predefinable spectrum.
+
+.i
+\fBf\fR  #  time  size  13  xint  xamp  h0  h1  h2  . . . hn
+\fBf\fR  #  time  size  14  xint  xamp  h0  h1  h2  . . . hn
+.e
+
+\fIsize\fR - number of points in the table.  Must be a power of 2 or a
+power-of-2 plus 1 (see \fBf\fR statement).
+The normal value is power-of-2 plus 1.
+
+\fIxint\fR - provides the left and right values [\fI-xint,+xint\fR] of the
+.I x
+interval over which the polynomial is to be drawn.  These subroutines both call
+GEN03 to draw their functions; the p5 value here is therefor expanded to
+a negative-positive p5,p6 pair before GEN03 is actually called.
+The normal value is 1.
+
+\fIxamp\fR - amplitude scaling factor of the sinusoid input that is expected
+to produce the following spectrum.
+
+\fIh0, h1, h2, .... hn\fR - relative strength of partials 0 (DC),
+1 (fundamental), 2 ... that will result when a sinusoid of amplitude
+\fIxamp * int(size/2)/xint\fR
+is waveshaped using this function table.  These values thus describe a
+frequency spectrum associated with a particular factor \fIxamp\fR of the
+input signal.
+
+
+Note:
+
+GEN13 is the function generator normally employed in standard waveshaping.
+It stores a polynomial whose coefficients derive from the Chebyshev
+polynomials of the first kind, so that a driving sinusoid of strength xamp
+will exhibit the specified spectrum at output. Note that the evolution
+of this spectrum is generally not linear with varying xamp.  However,
+it is bandlimited (the only partials to appear will be those specified
+at generation time);  and the partials will tend to occur and to develop
+in ascending order (the lower partials dominating at low xamp, and the
+spectral richness increasing for higher values of xamp).  A negative
+hn value implies a 180 degree phase shift of that partial;  the requested
+full-amplitude spectrum will not be affected by this shift, although the
+evolution of several of its component partials may be.  The pattern
++,+,-,-,+,+, ... for \fIh0,h1,h2...\fR will minimize the normalization problem
+for low \fIxamp\fR values (see above), but does not necessarily provide the
+smoothest pattern of evolution.
+
+GEN14 stores a polynomial whose coefficients derive from Chebyshevs of
+the second kind.
+
+
+Example:
+
+f  1  0  1025  13  1  1  0  5  0  3  0  1
+
+This creates a function which, under waveshaping, will split a sinusoid
+into 3 odd-harmonic partials of relative strength 5:3:1.
+.bp
+GEN15
+
+This subroutine creates two tables of stored polynomial functions,
+suitable for use in phase quadrature operations.
+
+.i
+\fBf\fR  #  time  size  15  xint  xamp  h0  phs0  h1  phs1  h2  phs2 . .
+.e
+
+\fIsize\fR - number of points in the table.  Must be a power of 2 or a
+power-of-2 plus 1 (see \fBf\fR statement).
+The normal value is power-of-2 plus 1.
+
+\fIxint\fR - provides the left and right values [\fI-xint,+xint\fR] of the
+.I x
+interval over which the polynomial is to be drawn.  This subroutine will
+eventually call GEN03 to draw both functions; this p5 value is therefor
+expanded to a negative-positive p5,p6 pair before GEN03 is actually called.
+The normal value is 1.
+
+\fIxamp\fR - amplitude scaling factor of the sinusoid input that is expected
+to produce the following spectrum.
+
+\fIh0, h1, h2, .... hn\fR - relative strength of partials 0 (DC),
+1 (fundamental), 2 ... that will result when a sinusoid of amplitude
+\fIxamp * int(size/2)/xint\fR
+is waveshaped using this function table.  These values thus describe a
+frequency spectrum associated with a particular factor \fIxamp\fR of the
+input signal.
+
+\fIphs0, phs1,\fR ... - phase in degrees of desired harmonics \fIh0, h1, ...\fR
+when the two functions of GEN15 are used with phase quadrature.
+
+
+
+
+
+Note:
+
+GEN15 creates two tables of equal size, labelled \fBf \fI#\fR and
+\fBf \fI#+1.\fR
+Table \fI#\fR will contain a Chebyshev function of the first kind,
+drawn using GEN13 with partial strengths \fIh0cos(phs0), h1cos(phs1), ...\fR
+Table \fI#+1\fR will contain a Chebyshev function of the 2nd kind by
+calling GEN14 with partials \fIh1sin(phs1), h2sin(phs2), ...\fR
+(note the harmonic displacement).  The two tables can be used in
+conjunction in a waveshaping network that exploits phase quadrature.
+

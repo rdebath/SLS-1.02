@@ -1,0 +1,1833 @@
+.\" @(#)olwm.man	1.1 10/4/91 SMI
+.TH olwm 1 "6 August 1991"
+.SH NAME
+olwm \- OPEN LOOK window manager for OpenWindows
+.SH SYNOPSIS
+.B olwm
+[
+.I options
+]
+.\" ========================================================================
+.SH DESCRIPTION
+.LP
+.B olwm
+is a window manager for the X Window System that implements
+parts of the OPEN LOOK graphical user interface.  It is the standard window
+manager for Sun's OpenWindows product, but it will work properly with any
+X11 system.
+.\" ========================================================================
+.SH OPTIONS
+.LP
+Most command-line options have counterparts in the resource database.  A 
+command-line option will override any setting from the resource database.
+.TP
+.B \-2d
+Use two-dimensional look.  This is the default for monochrome systems.
+.TP
+.B \-3d
+Use three-dimensional look.  This is the default for color systems.  This
+option is ignored for monochrome systems.
+.TP
+.BR \-bd ",\ \ " \-bordercolor
+Specifies the border color.  See the description of the
+.B BorderColor
+resource.
+.TP
+.BR \-bg ",\ \ " \-background
+Specifies the background color.  See the description of the
+.B Background
+resource.
+.TP
+.BR \-c ",\ \ " \-click
+Use click-to-focus mode.  This is the default focus mode.
+.TP
+.BI "\-depth " depth
+Specifies the depth of the visual in which
+.B olwm
+is to run.  See the discussion in the Screen Resources section.
+.TP
+.BI "\-display " display-string
+Specify the name of the display to manage.  Overrides the DISPLAY
+environment variable, if any.  In addition, the display string is exported
+to
+.BR olwm 's
+environment, so processes forked from
+.B olwm
+will inherit this value.
+.TP
+.BR \-f ",\ \ " \-follow
+Use focus-follows-mouse mode.  Default mode is click-to-focus.
+.TP
+\fB\-fn\fP\ \fIfont-name,\fP\ \ \fB\-font\fP\ \ \fIfont-name\fP
+Set the font for window titles.
+.TP
+.BR \-fg ",\ \ " \-foreground
+Specifies the foreground color.  See the description of the
+.B ForegroundColor
+resource.
+.TP
+.BI "\-multi"
+Manage windows on all screens that a display supports.
+This is the default.
+.TP
+.BI "\-name " resource-name
+Use
+.I resource-name
+to look up resources in the resource database.
+.TP
+.BI "\-xrm " resource-string
+Specify resources on the command-line.  Resources specified here will override
+resources found in resource files.
+.TP
+.BI "\-single"
+Manage windows for a single screen only, using the default screen
+for the specified display.  Overrides the
+.B \-multi
+option.
+.TP
+.BI "\-syncpid " process-id
+When
+.B olwm
+has completed its initialization, it will send a signal (SIGALRM by default)
+to
+.I process-id.
+The signal will be sent only if this option is present.
+This is useful for running
+.B olwm
+from shell scripts (such as .xinitrc) in such a way that the script waits
+for
+.B olwm
+to finish its initialization, while leaving
+.B olwm
+as a child process of the shell script.
+This can be done using the following
+.BR sh (1)
+construct:
+.nf
+.sp
+	sleep 15 & pid=$!
+	olwm \-syncpid $pid &
+	wait $pid
+.sp
+.fi
+.TP
+.BI "\-syncsignal " signal
+Specifies the signal to send instead of SIGALRM.  The signal is specified as
+a number, not symbolically.
+.TP
+.BI "\-visual " visual-class
+Specifies the class of the visual in which
+.B olwm
+is to run.  See the discussion in the Screen Resources section.
+.\" ========================================================================
+.SH DEBUGGING OPTIONS
+.LP
+The following options are strictly for debugging.  They are not recommended
+for general use.  Don't use them
+unless you know what you are doing.
+.TP
+.B \-all
+Print a message for every event received.
+.TP
+.B \-debug
+Equivalent to turning on all debugging options.
+.TP
+.B \-orphans
+Print orphaned events.  Orphaned events are 
+events that are associated with a window or frame that has no entry in
+the frame hash table, or events that are not handled by the various
+event handlers.
+.TP
+.B \-synchronize
+Run the window manager in synchronous mode.
+.\" ========================================================================
+.SH INTERNATIONALIZATION OPTIONS
+.TP
+.BI "\-basiclocale " locale-name
+Specify the basic OPEN LOOK locale category setting.
+This category will be the base for other locale categories,
+therefore there are certain restrictions applied to other locale
+categories (see the following locale handling sections).
+.TP
+.BI "\-displaylang " locale-name
+Specify the display language OPEN LOOK locale category.
+This category affects the contents of workspace menu,
+window menu and notice messages.
+.TP
+.BI "\-numeric " locale-name
+Specify the numeric format OPEN LOOK locale category.
+This category affects the numeric format displayed in
+any message that contains numerics.
+.\" ========================================================================
+.SH LOCALE HANDLING
+.PP
+.I Locale
+is the language and cultural conventions used in the program.
+Locale will control the language-dependent part of
+.BR olwm 's
+behavior.
+The OPEN LOOK international extensions have defined
+several OPEN LOOK locale categories as follows:
+.TP
+.B "Basic Locale"
+This is the basic setting for the entire locale mechanism.
+This category specifies internal character handling behavior.
+.TP
+.B "Display Language"
+This category specifies the language used for displaying menus,
+notice messages and error messages.
+.TP
+.B "Input Language"
+This category specifies the language used for text input.
+This category has no affect on
+.BR olwm ,
+because it does not accept text input from the keyboard.
+.TP
+.B "Date Format"
+This category specifies the format of date and time.
+This category has no affect on
+.BR olwm ,
+because it does not display any date and time information.
+.TP
+.B "Numeric Format"
+This category specifies the format of displayed numeric data.
+.PP
+Since the Basic Locale setting defines the character handling of
+.BR olwm ,
+certain restrictions have been placed on combining
+the locale category settings.
+.IP 1. 3
+If basic setting is set to other than "C" locale,
+then all other locale categories must be the same as 
+basic setting or "C".
+.IP 2.
+If basic setting is set to "C" locale, then
+all other locale categories must be in "C" locale.
+.PP
+The following methods are available to inform 
+.BR olwm ,
+the locale settings, and they are listed in order of priority:
+.IP 1. 3
+Command line options (such as
+.BR \-basiclocale).
+.IP 2.
+by resource database.
+.IP 3.
+.BR setlocale (3)
+function defaults (for example: LANG environment variable).
+.PP
+If command line options are not used to specify locale settings,
+.B olwm
+will pick up the new locale settings from
+workspace property (per changes to the resource database);
+and change the locale settings dynamically (for example, to change the
+language of workspace and window menus).
+All pinned workspace menus will be unpinned during this locale switching
+operation.
+.\" ========================================================================
+.SH INPUT FOCUS
+The
+.I
+input focus
+.P
+is the window that will receive keystrokes.
+.B olwm
+has two different input focus modes,
+which are different ways of transferring the input focus from one
+window to another.  By default,
+.B olwm
+uses "click-to-focus" (also known as "click-to-type") mode.  This means that
+you must click on the window in order to get the focus to it.  While a
+window has the input focus, the mouse can be anywhere on the screen; the
+keyboard events will still go to that window.  You can set the input focus
+to a window and simultaneously raise it to the top by clicking the left
+mouse button in the window's title bar or border.
+.LP
+.B olwm
+has another focus mode called "focus-follows-mouse."  In this mode, whatever
+window the mouse is pointing to will receive the input focus.  To switch the
+input focus from one window to another, you simply move the mouse to the
+other window; you don't have to click at all.  Note, however, that to
+transfer the focus amongst subwindows of a single top-level window, you must
+click in the subwindow, or you must use focus transfer function keys (if
+available from the application).
+.LP
+The input focus mode can be controlled with command-line options or by
+entries in the resource database.  Neither focus mode has inherent
+advantages.  Which one you choose is a matter of personal preference.
+.\" ========================================================================
+.SH MOUSE BUTTONS
+OPEN LOOK defines three mouse button functions: SELECT, ADJUST, and MENU.
+These functions are mapped to mouse buttons 1, 2, and 3, respectively.  On
+systems with only two mouse buttons, the MENU function can be obtained by
+pressing buttons 1 and 2 simultaneously.  This technique is referred to as
+mouse button
+.I chording.
+The exact behavior of each of these functions depends on what object is
+under the pointer.
+.\" ========================================================================
+.SH MANIPULATING WINDOWS AND ICONS
+.I
+Window Title Bar and Borders.
+.P
+Clicking SELECT selects the window, raises it above other windows, and
+deselects any other objects.  In click-focus mode, the focus is also
+transferred to this window.  Pressing and holding SELECT and then dragging
+the mouse will move windows without raising them or setting the focus.  If
+this window is selected, it and all other selected windows are moved
+simultaneously.  Otherwise, just this window is moved, and it is not
+selected.  If you hold down the Control key while you are moving a window,
+motion is constrained to be either vertical or horizontal, depending on
+whether you've moved farther in a vertical or horizontal direction.
+Double-clicking SELECT on the window is the same as selecting the Full Size
+(or Restore Size) menu item.  Clicking ADJUST will toggle the selected state
+of this window.  If other windows or icons are already selected, they remain
+selected.  ADJUST is useful for selecting several windows and icons.
+Pressing MENU will bring up the window menu.  See the Window Menu section
+for further details.  If the
+.B Alt
+key is held down, the mouse button functions become accessible anywhere over
+the window, not just over the title bar and borders.  The modifier used can
+be changed; see the description of the
+.B WMGrab
+resource in the section on Modifier Customization.
+.LP
+.I
+Resize Corners.
+.P
+You can resize a window by pressing the left mouse button over any of the
+resize corners and dragging it to the new location.  Releasing the mouse
+button will set the new size of the window.  If you hold down the Control
+key while you are dragging, the resize operation is contrained to resize
+vertically or horizontally, depending on whether you've moved the mouse
+farther in the horizontal or vertical direction.
+.LP
+.I
+Window Button.
+.P
+The Window Button is the small box with a downward-pointing triangle near
+the left end of the title bar.  Pressing MENU over the window button will
+bring up the Window Menu.  Clicking SELECT over the left mouse button on the
+Window Button will execute the window menu's default action.  This will
+usually close the window into an icon.  You can change the window menu's
+default action by holding down the Control key while manipulating the window
+menu.
+.LP
+.I
+Pushpin.
+.P
+OPEN LOOK pop-up windows have a pushpin instead of a window button.  If the
+pushpin is out of its hole, pressing a command button within the window will
+cause the window to be taken down ("dismissed") after the command is
+executed.  If you click SELECT on the pushpin, it will move into its hole.
+In this state, pressing a command button will execute the command without
+dismissing the window.  Clicking SELECT over the pin will pull it out of the
+hold.  This will dismiss the window without executing any commands.  Some
+windows come up with the pin already in the hole.
+.LP
+.I
+Icons.
+.P
+An icon represents a closed window.  You can still do most of the same
+operations as with an open window.  Moving and selecting icons with SELECT
+and ADJUST is exactly the same as for open windows.  A similar version of
+the Window Menu is available on an icon by pressing MENU.  Double-clicking
+SELECT will open the icon.  Icons cannot be resized.
+.\" ========================================================================
+.SH NONRECTANGULAR WINDOWS
+The X11 Non-Rectangular Window Shape Extension (commonly referred to simply
+as the Shape extension) allows windows to have arbitrary shapes.
+.B Olwm
+will handle these windows by giving them no decoration whatsoever.  Shaped
+windows can be manipulated by using the WMGrab modifier (Alt by default)
+with the mouse buttons.  (See the section on Modifier Customization for
+further details.)  Shaped windows can be moved, resized, closed, opened, etc.
+like ordinary windows.  The selection feedback for shaped windows is the
+presence of resize corners floating at the corners of the bounding rectangle
+of the window's shape.
+.\" ========================================================================
+.SH SELECTIONS ON THE WORKSPACE
+.LP
+You can select a group of windows and icons by using the left or middle
+mouse buttons over the Workspace (the area of the screen outside of all
+windows and icons, commonly known as the "root window").  Pressing either
+SELECT or ADJUST and dragging the mouse will define a rubber-band rectangle.
+When you release the mouse button, the set of windows and icons enclosed by
+this rectangle will be operated on.  If you created the rectangle using
+SELECT, the windows and icons within will be selected, and all other objects
+will be deselected.  If you used ADJUST, the objects within will have their
+selected state toggled, and any other windows and icons already selected
+will remain selected.
+.\" ========================================================================
+.SH WORKSPACE MENU
+.LP
+Pressing MENU over the workspace brings up the Workspace Menu.  This menu is
+customizable, but it typically contains at least the following items.
+(The items may appear in a different language depending on the current
+locale setting.)
+.TP
+.B Programs
+This button has a sub-menu that allows you to invoke applications.  The
+default Programs sub-menu contains all of the programs in the OpenWindows
+DeskSet.  However, users typically customize this menu to contain many more
+programs and to contain nested submenus.  See the section on Menu
+Customization for further information.
+.TP
+.B Utilities
+This button has a sub-menu that contains several utility functions for the
+workspace, including Refresh (redisplay all windows on the screen), Lock
+Screen, and Save Workspace.
+.TP
+.B Properties...
+This item brings up the Workspace Properties window, which allows you to
+view and customize settings of the OpenWindows environment.
+.TP
+.B Help...
+Brings up the table of contents of the Help Handbooks.
+.TP
+.B "Desktop Intro..."
+Brings up a tutorial introduction to the Sun Desktop.
+.TP
+.B Exit
+Shuts down all applications and exits the window system.  A confirmation
+notice is popped up first to give you a chance to cancel the operation.
+.\" ========================================================================
+.SH WINDOW MENU
+.LP
+The window menu of most windows has the following items.
+(The items may appear in a different language depending on
+the current locale setting.)
+.TP
+.B Close 
+Close the window to an icon.  Any OPEN LOOK pop-up windows are closed into
+this icon as well.  They will reappear when the icon is opened.  This item
+is "Open" if you bring up the menu on an icon.
+.TP
+.B Full Size
+Expand the window to the full height of the screen.  If this has already
+done, the button is Normal Size instead of Full Size.  Normal Size restores
+the window to the size it was before you did the Full Size operation.  If
+the application has specified a maximum size for the window, this size is
+used for Full Size instead of the full screen height.
+.TP
+.B Move
+Starts the keyboard-based form of moving the window.  Appears only if OPEN
+LOOK Mouseless Mode is enabled.
+.TP
+.B Resize
+Starts the keyboard-based form of resizing the window.  Appears only if OPEN
+LOOK Mouseless Mode is enabled.
+.TP
+.B Back
+Move the window behind all other windows.
+.TP
+.B Refresh
+Clear and redisplay the window.
+.TP
+.B Quit
+Kill the program running in the window and remove the window.  If the
+application has elected to participate in the WM_DELETE_WINDOW protocol,
+.B olwm
+sends a WM_DELETE_WINDOW ClientMessage instead of killing that window.
+.LP
+OPEN LOOK pop-up windows (as opposed to base windows) have a smaller window
+menu.  It lacks the Close, Full Size, and Quit items, but it has two new
+items:
+.TP
+.B Dismiss
+Causes the window to be dismissed.  This button has a submenu with two
+items: This Window, which dismisses just this window, and All Pop-ups, which
+dismisses all pop-up windows owned by this application.
+.TP
+.B Owner?
+Raises and flashes the title bar of the base window that "owns" this pop-up
+window.
+.\" ========================================================================
+.SH MENU CUSTOMIZATION FILES
+.LP
+You can customize
+.BR olwm 's
+Workspace Menu by putting a menu description into a file that
+.B olwm
+will read.  When it starts up,
+.B olwm
+will first look for a file named by the OLWMMENU environment variable.  If
+this variable does not exist, or if the file is not readable,
+.B olwm
+will then look in the file named ".openwin-menu" in your home
+directory.  If this file is not present or is unreadable,
+.B olwm
+will fall back on the system default menu file.  If, for some reason, the
+system default menu file cannot be found,
+.B olwm
+will use a minimal, built-in menu.  The menu file that is read can also be
+modified by the display language locale setting.  The locale name is used as
+a suffix for the filename.  If a localized menu file is found, it is used in
+preference to the non-localized menu file.  For example, if the display
+language local is "japanese", the file ".openwin-menu.japanese" will take
+precedence over the file ".openwin-menu".
+.LP
+.B Olwm
+will automatically re-read its menu file whenever the menu file changes.
+This lets you make many small changes to a menu file, trying out the
+modified menu after each change.  The automatic re-reading can be controlled
+with the
+.B AutoReReadMenuFile
+resource.
+.LP
+If
+.B olwm
+encounters a syntax error during the reading of any menu file, a message is
+printed to the standard error, and the reading of this menu file is
+considered to have failed.
+.B Olwm
+will then attempt to read the next file in the sequence as described above.
+.\" ========================================================================
+.SH MENU SPECIFICATION SYNTAX
+The menu specification language has a number of keywords, all of which are
+in all upper case letters.  The keywords are
+.I not
+translated into the language specified by the the locale category settings.
+Keywords are always in English.
+.LP
+Each line typically specifies one menu button.  There are three fields on
+each line: a label, the optional keyword "DEFAULT", and a command.  The
+label is either a single word or a string enclosed in double quotes.  This
+is the label that appears in the menu button.  If the optional keyword
+"DEFAULT" appears next, this menu item becomes the default item for this
+menu.  The rest of the line (excluding leading whitespace) is considered to
+be a command.  It is executed by sending it to
+.BR sh (1).
+Any shell metacharacters will be passed through to the shell unchanged.
+A line containing only the keyword "SEPARATOR" will add extra space before
+the next item.
+.LP
+A sub-menu is specified using the special keyword "MENU" in place of a
+command.  A button is added to the current menu, and clicking or pulling
+right on this button will bring up the sub-menu.  Subsequent lines in the
+menu file define buttons for the sub-menu, until a line that has the special
+keyword "END" in the command field is encountered.  The label of the MENU
+line must match the label on the END line, otherwise an error is signaled.
+Sub-menus can be nested arbitrarily, bracketed by MENU and END lines with
+matching labels.
+To make a sub-menu pinnable, add the special keyword "PIN" after the END
+keyword on the line that ends the sub-menu definition.
+.LP
+A sub-menu can be specified in a different file by putting the 
+pathname of the file after the MENU keyword.  In this case, the file so
+named is assumed to contain lines that specify menu buttons.  The sub-menu
+file need not have any MENU or END lines (unless it has sub-menus itself).
+The current file need not have a matching END line if the sub-menu is read
+from another file.
+.LP
+By default, the label in a menu button is used as the title of the submenu.
+This can be overridden by specifying a line that has the special keyword
+TITLE in the command field.  The label from this line will be used as the
+sub-menu's title.  This line can appear anywhere in the sub-menu definition.
+It does not add an item to the menu.
+.LP
+The following keywords can be used in the command field of a menu item.
+They specify functions that are internal to
+.B olwm,
+that are not invoked by running a shell.
+.TP
+BACK_SELN
+Move the selected windows and icons behind other windows.
+.TP
+EXIT
+.br
+Kills all applications and exits the window manager after getting
+confirmation from the user.  
+This is useful for exiting the entire window system.
+.TP
+EXIT_NO_CONFIRM
+Like EXIT but skips the confirmation notice.
+.TP
+FLIPDRAG
+Toggle the state of the DragWindow resource.
+.TP
+FLIPFOCUS
+Toggle the state of the SetInput resource.
+.TP
+FULL_RESTORE_SIZE_SELN
+Toggle the full-sized/normal-sized states of the selected windows and icons.
+.TP
+NOP
+.br
+No operation; don't do anything.
+.TP
+OPEN_CLOSE_SELN
+Toggle the opened/closed states of the selected windows and icons.
+.TP
+QUIT_SELN
+Quit the selected windows and icons.
+.TP
+POSTSCRIPT
+Open up a connection to Ne\h'-0.2n'WS using
+.BR psh (1)
+and send the rest of the line to it.
+.TP
+PROPERTIES
+Bring up Workspace Properties.
+.TP
+REFRESH
+Refresh causes all windows on the screen to be repainted.
+.TP
+REREAD_MENU_FILE
+Force an immediate rereading of the workspace menu customization file.  
+.B Olwm 
+will start a complete search for a menu file (as described in the
+.I Menu Customization
+section) and use the first valid file it finds.
+.TP
+RESTART
+Restart the window manager by issuing an
+.BR exec (2)
+on
+.B argv.
+This shouldn't affect any running applications, nor should it cause the
+server to shut down.
+.TP
+SAVE_WORKSPACE
+.br
+Take a snapshot of the set of currently running
+applications, and put the command lines so obtained
+into the file ".openwin-init" in the user's home directory.
+This runs the command 
+.br
+"owplaces -silent -multi -script -output $HOME/.openwin-init".
+.TP
+WMEXIT
+Exit the window manager without killing any applications.
+.LP
+Here is an example root menu specification.
+.LP
+.nf
+"My Custom Menu" TITLE
+.sp
+Programs		 MENU
+	"Command Tool"		DEFAULT cmdtool
+	"Text Editor"		textedit
+	Mail			mailtool
+	"File Manager"		filemgr
+	Other			MENU
+		"Other Tools"		TITLE
+		"Shell Tool"		shelltool
+		"Icon Editor"		iconedit
+		Clock			clock
+		"Perf Meter"		DEFAULT perfmeter
+	Other			END
+Programs		END PIN
+.sp
+"Repaint Screen"	REFRESH
+.sp
+"Properties ..."	PROPERTIES
+.sp
+Exit		EXIT
+.fi
+.\" ========================================================================
+.SH COLORMAP INSTALLATION
+.LP
+.B Olwm
+will handle colormap installation for windows that have colormaps other
+than the default colormap.  There are two colormap focus modes:
+"color-follows-mouse" and "color-locked".  They are roughly analogous to
+the corresponding modes for input focus.  However, colormap focus mode can
+be completely independent of input focus.  The mode in which the system starts
+up is determined by the ColorFocusLocked resource (see the Resources section
+below).
+.LP
+.B Olwm
+keeps track of a set of windows that are eligible to have their colormaps
+installed.  This set includes all top-level windows of clients.  
+If any clients have specified other windows in a WM_COLORMAP_WINDOWS
+property, these windows are included in the set as well.
+.LP
+In color-follows-mouse mode,
+.B olwm
+keeps track of the location of the pointer and always keeps installed the
+colormap of the eligible window underneath the pointer.  Thus, you can
+install the colormap of a particular window simply by sliding the pointer
+into it.  The default colormap will be restored if you move the pointer back
+out into a window frame or into the workspace.  In this mode, the
+WM_COLORMAP_WINDOWS properties are tracked for changes, but only to change
+the set of eligible windows.  Changes to these properties only cause
+colormaps to be installed if the eligible window under the pointer has
+changed as a result of the set of eligible windows changing.  In this mode,
+no window is considered to have the colormap focus; colormap installation
+entirely is under control of the user.
+.LP
+In color-locked mode, colormaps are not installed based on pointer motion.
+Instead, a particular window is considered to have the colormap focus.  When
+a window has the colormap focus, colormaps will not be installed and
+uninstalled based on pointer motion.  If a client program changes the
+contents of the WM_COLORMAP_WINDOWS property on the top-level window with
+the colormap focus,
+.B olwm
+will respond by installing the colormap of the first window named in this
+property.  In this way, the application whose window has the colormap focus
+can control colormap installation by altering the contents of the
+WM_COLORMAP_WINDOWS property.
+.LP
+Note that, according to the ICCCM, if WM_COLORMAP_WINDOWS does not include
+the top-level window, it is assumed to occur first in the list.  If you want
+your program to request colormap installation via changes to
+WM_COLORMAP_WINDOWS, you must make sure that the top-level window appears
+somewhere in this property.  Otherwise,
+.B olwm
+will always install the colormap of the top-level window.
+.LP
+The colormap focus may be given to a window in one of several ways.  The
+user can assign the colormap focus to a window by pressing the Color-Lock
+key while the pointer is over the window.  If the AutoColorFocus resource is
+set, new windows will be given the colormap focus automatically.  If the
+ColorTracksInputFocus resource is set, the colormap focus will always be
+given to the window that has the input focus.
+.LP
+In addition to setting the colormap focus, the Color-Lock key has some
+additional effects.  When you press the Color-Lock key, if the pointer is
+within a subwindow named in the WM_COLORMAP_WINDOWS property, that
+subwindow's colormap will be installed.  If the pointer isn't within a
+window named in the WM_COLORMAP_WINDOWS property, or if the pointer is over
+the window title bar or border, the colormap of the first
+entry of the WM_COLORMAP_WINDOWS property will be installed.  You can use
+the Color-Lock key to install the colormap of a particular subwindow no
+matter where it resides in the WM_COLORMAP_WINDOWS list.
+If there is no WM_COLORMAP_WINDOWS property, pressing the Color-Lock key
+will simply install the colormap of the top-level window.
+.LP
+If you press the Color-Lock key over the workspace, the default colormap
+will be installed, and any window with the colormap focus will lose it.  The
+root window will have the colormap focus.
+.LP
+At any time, you can revert to color-follows-mouse mode by pressing the
+Color-Unlock key.  Any window with the colormap focus will lose it.
+.\" ========================================================================
+.SH SPOT HELP
+.LP
+.B Olwm
+provides spot help for frames, icons, the Workspace and Window menus, window
+buttons, resize corners, pushpins, and the Workspace itself.
+This is done via a separate slave program,
+.BR olwmslave (1) .
+The slave program is forked automatically when
+.B olwm
+starts up.  The forking of the slave program can be controlled by the
+.B RunSlaveProcess
+resource.
+.\" ========================================================================
+.SH MULTIPLE SCREENS
+.LP
+By default,
+.B olwm
+will manage windows on all screens of the display server.  Most operations
+are unchanged from single screen operation.  A window exists on a particular
+screen for its entire lifetime.  The window cannot be moved from one screen
+to another, nor can it be resized to cross a screen boundary.  Windows
+invoked from the Workspace menu will appear on the same screen as the
+menu.  Spot help will appear on the same screen as the pointer
+when the Help key is pressed.
+.LP
+Previous releases required modifications to the user's .xinitrc
+script to start multiple instances of
+.B olwm,
+one for each screen.  These modifications are no longer necessary.  The
+default Xinitrc (which contains a single invocation of
+.BR olwm )
+works for both single and multiple screen situations.
+.\" ========================================================================
+.SH GLOBAL RESOURCES
+.LP
+Global resources in
+.B olwm
+consist of two resource components.
+The first component in the resource name is taken from the trailing
+pathname component of
+.BR argv[0] .
+This value is typically `olwm'.  This name can be altered by using the
+.B \-name
+command-line argument.  The second resource component names the global
+attribute being set.  It should be one of the names from the following list.
+Thus, to set the AutoColorFocus attribute, one would use
+"olwm.AutoColorFocus" as the resource specification.
+.LP
+Some resources are also interpreted by XView (see
+.BR XView (7))
+and are set by the Workspace
+Properties program (see
+.BR props (1)).
+For these resources,
+.B olwm
+will also accept the string `OpenWindows' as the first resource component.
+These resources are marked with an asterisk `*'.
+.LP
+Colors can be specified using the formats parsed by the Xlib XParseColor()
+function.  Common formats are color names (see
+.BR showrgb (1))
+and explicit red, green, and blue values in hexadecimal, preceded by a `#'.
+For example, a bright magenta would be specified with "#ff00ff".
+.LP
+Boolean values can be specified with the words
+"true", "false", "on", "off", "yes", "no", "1", "0", "t", and "nil".
+.TP
+.BI AutoColorFocus " (boolean)"
+Indicates whether newly appearing windows are to be given the colormap focus
+automatically.  See the section on Colormap Installation for further details.
+.I
+Default value: false.
+.P
+.TP
+.BI AutoInputFocus " (boolean)"
+Indicates whether newly appearing windows are to be given the input focus
+automatically.
+.I
+Default value: false.
+.P
+.TP
+.BI AutoRaise " (boolean)"
+Raise windows automatically when they receive the focus.  This is useful in
+click-to-focus if you always like to type into the topmost window.  This is
+useful in focus-follow-mouse when the
+.B AutoRaiseDelay
+resource is set to a reasonable value.
+.I
+Default value: false.
+.P
+.TP
+.BI AutoRaiseDelay " (integer)"
+Amount of time to delay, in microseconds, between a window receiving the
+focus and raising it above other windows.  Effective only when the value of the
+.B AutoRaise
+resource is true.
+.I
+Default value: 0.
+.P
+.TP
+.BI AutoReReadMenuFile " (boolean)"
+Specifies whether the menu file is to be re-read whenever it changes.
+.I
+Default value: true.
+.P
+.TP
+.BI Background " (color)"
+Specifies the background color.  This is used for the background of masked
+icons.  Note: it is not used for the backgrounds of icon windows such as
+those used by XView (see
+.BR XView (7)).
+This resource is also distinct from the
+.B WindowColor
+resource.
+.I
+Default value: white.
+.P
+.TP
+.BI BasicLocale " (locale name)"
+Specifies the basic OPEN LOOK locale category setting.
+See the section on Locale Handling for more details.
+.TP
+.BI Beep " (enumeration) " *
+Specifies the circumstances under which
+.B olwm
+should beep.  Permissible values are the strings "always", "never", and
+"notices".  The string "never" means that
+.B olwm
+should never beep, "notices" means that
+.B olwm
+should beep only when a notice appears, and "always" means that
+.B olwm
+will beep whenever it is appropriate.
+.I
+Default value: always.
+.P
+.TP
+.BI BorderColor " (color)"
+Specifies the color used for window and icon borders.
+.I
+Default value: black.
+.P
+.TP
+.BI ButtonFont " (font name)"
+Font to be used for buttons in menus and notices.
+.I
+Default value: Lucida-Sans.
+.P
+.TP
+.BI ClickMoveThreshold " (integer)"
+This value is used when bringing up a menu.  If the mouse moves more than
+this amount while the menu button is down, the menu is considered to be in
+press-drag-release mode.  Otherwise, the menu is in click-move-click mode.
+.I
+Default value: 5.
+.P
+.TP
+.BI ColorTracksInputFocus " (boolean)"
+If true, indicates that the colormap focus is to be set automatically to any
+window that receives the input focus.  See the section on Colormap
+Installation for further details.
+.I
+Default value: false.
+.P
+.TP
+.BI ColorFocusLocked " (boolean)"
+Specifies the initial state of the colormap focus policy.  If true, the
+default colormap is locked into the hardware.  If false, the colormap of the
+window under the mouse is kept installed.  See the section on Colormap
+Installation for further details.
+.I
+Default value: false.
+.P
+.TP
+.BI CursorFont " (font name)"
+Specifies the font to be used for cursors.  It is probably not useful to
+change this unless you have an alternate cursor font with the same encoding
+as the OPEN LOOK cursor font.
+.I
+Default value: \-sun\-open look cursor\-*\-*\-*\-*\-*\-120\-*\-*\-*\-*\-*\-*.
+.TP
+.BI DefaultIconImage " (filename)"
+Specifies a file containing a bitmap to be used as the default icon image.
+.TP
+.BI DefaultIconMask " (filename)"
+Specifies a file containing a bitmap to be used as the default icon mask.
+.TP
+.BI DefaultTitle " (string)"
+Specifies the string to be used in the title bar of windows that have not
+provided a string in the WM_NAME property.
+.I
+Default value: No Name.
+.P
+.TP
+.BI DisplayLang " (locale name)"
+Specifies the display language OPEN LOOK locale category.
+See the section on Locale Handling for more details.
+.TP
+.BI DragRightDistance " (integer) " *
+The number of pixels you must drag the mouse to the right in a menu item to
+bring up a submenu.  The submenu always comes up when you move over the menu
+mark (the right-pointing triangle), regardless of the drag-right distance.
+.I
+Default value: 100.
+.P
+.TP
+.BI DragThreshold " (integer) " *
+This is the number of pixels the mouse must move while a mouse button is down
+in order to have the action be considered a drag.  If the mouse moves fewer
+than this number of pixels while the button is down, it is considered to be
+click instead of a drag.
+.I
+Default value: 5.
+.P
+.TP
+.BI DragWindow " (boolean)"
+If true, drags the entire image of the window when you move it.  Otherwise,
+just drags the window outline.
+.I
+Default value: false.
+.P
+.TP
+.BI EdgeMoveThreshold " (integer)"
+Specifies the amount of "hysteresis" provided when moving windows past the
+edge of the screen.  When you move a window or an icon, it will pause when
+it touches the edge of the screen.  This is to allow you to easily position
+windows right up against the edge of the screen.  If you move farther, the
+window or icon will continue to move past the edge.  You can prevent windows
+from ever lapping off the screen by setting an extremely large value (say,
+10000) for
+this resource, and you can disable this feature entirely by specifying a
+value of zero.
+.I
+Default value: 10.
+.P
+.TP
+.BI FlashCount " (integer)"
+Number of times the title bar is flashed when the "Owners?" menu item is
+activated.
+.I
+Default value: 6.
+.P
+.TP
+.BI FlashTime " (integer)"
+Amount of time, in microseconds, for which the title bar is flashed when
+the "Owner?" menu item is activated.
+.I
+Default value: 100000.
+.P
+.TP
+.BI FocusLenience " (boolean)"
+If this is set to true, 
+.B olwm
+will not enforce the ICCCM requirement that windows must have the input hint
+set in order to receive the input focus.  This option is useful if you run
+clients that aren't ICCCM-compliant, like many X11R3-based clients.
+.I
+Default value: false.
+.P
+.TP
+.BI Foreground " (color)"
+Specifies the foreground color.  This color is used mainly for the text of
+window and icon titles and in menus.
+.I
+Default value: black.
+.P
+.TP
+.BI GlyphFont " (font name)"
+Glyph font used for drawing OPEN LOOK graphics.  Changing this font is
+mainly useful for changing its size.  Specifying a different font, such as a
+text font, will result in undesirable behavior.
+.I
+Default value: \-sun\-open look glyph\-*\-*\-*\-*\-*\-120\-*\-*\-*\-*\-*\-*.
+.P
+.TP
+.BI IconFlashCount " (integer)"
+Number of times to flash the open/close "zoom" lines.
+.I
+Default value: 3.
+.P
+.TP
+.BI IconFlashOffTime " (integer)"
+Amount of time to pause while open/close "zoom" lines are not visible.
+.I
+Default value: 1.
+.TP
+.BI IconFlashOnTime " (integer)"
+Amount of time to pause while open/close "zoom" lines are visible.
+.I
+Default value: 20000.
+.TP
+.BI IconFont " (font name)"
+Font used for icon names.
+.I
+Default: Lucida-Sans.
+.P
+.TP
+.BI IconLocation " (enumeration) " *
+One of the words "top-lr", "top-rl", "bottom-lr", "bottom-rl", "left-tb",
+"left-bt", "right-tb", or "right-bt".  These specify that icons should be
+arranged along a particular edge of the screen, ordered from left to right
+or top to bottom as appropriate.  The words "top", "bottom", "left", and
+"right" are synonyms for "top-lr", "bottom-lr", "left-tb", and "right-tb",
+respectively.
+.I
+Default value: top.
+.P
+.TP
+.BI InvertFocusHighlighting " (boolean)"
+In click-to-focus, the input focus is normally indicated by a solid
+rectangle in the title bar.  In focus-follows-mouse, focus is normally
+indicated with two lines in the title bar.  If this resource is true, the
+style of highlighting is inverted with respect to the focus style.  This
+results in two lines for click-to-focus and a solid bar for
+focus-follows-mouse.
+.I
+Default value: false.
+.P
+.TP
+.BI KeepTransientsAbove " (boolean)"
+Specifies whether
+.B olwm
+should attempt to keep transient windows above their owner window.
+.I
+Default value: true.
+.P
+.TP
+.BI KeyboardCommands " (enumeration) " *
+Permissible values for this resource are
+.B "SunView1, Basic,"
+and
+.B Full.
+Values are case-sensitive.  In
+.B Full
+mode, all OPEN LOOK Mouseless commands implemented by the window manager are
+active.  See the section on Key Binding for further information.  In
+.B Basic
+mode, the keys active are Open, Front, Help, and the colormap keys.  In
+.B SunView1
+mode, the only keys active are Open and Front.
+.I
+Default value: Basic.
+.P
+.TP
+.BI MinimalDecor " (list of strings)"
+Specifies a list of windows that are to be decorated minimally.  Decoration
+on such windows includes only a thin border and resize corners, with no
+title bar or window button.  The value should be a whitespace-separated list
+of strings.  Each string should specify an applications class or instance
+name, as passed in the WM_CLASS property.  Most applications set this
+property based on the name of the executable (i.e. argv[0]).  For example,
+to specify that the clock and the calculator should be decorated minimally,
+you would use the following resource:
+.nf
+.sp
+	olwm.MinimalDecor: calctool clock
+.sp
+.fi
+Many applications will allow you to override the value of the WM_CLASS
+property using the
+.B \-name
+option on the command line.
+.I
+Default value: (null).
+.P
+.TP
+.BI MouseChordTimeout " (integer)"
+Specifies the amount of time, in milliseconds, that
+.B olwm
+is to wait for subsequent events to disambiguate chorded mouse button
+event sequences.
+.TP
+.BI MultiClickTimeout " (integer) " *
+The time, in tenths of a second, that differentiates a double-click
+from two single clicks.
+.I
+Default value: 5.
+.P
+.TP
+.BI Numeric " (locale name)"
+Specifies the numeric format OPEN LOOK locale category.
+See the section on Locale Handling for more details.
+.TP
+.BI PaintWorkspace " (boolean)"
+If true,
+.B olwm
+will use the
+.B WorkspaceColor
+resource to set the workspace (root window) background color.  If false,
+.B olwm
+will not change the root window background.  This is useful
+If you prefer to set your own workspace color using
+.BR xsetroot (1)
+or a similar program.
+.I
+Default value: true.
+.P
+.TP
+.BI PPositionCompat " (boolean)"
+Turns on backward compatibility for older applications that have a habit of
+always setting the PPosition flag in the WM_NORMAL_HINTS property, even when
+they haven't set a position.  This most often occurs with X11R3-based
+clients.  Without backward compatibility, these windows will always appear
+in the upper-left corner of the screen.  With backward compatibility, these
+windows will be positioned according to the default OPEN LOOK window
+placement policy, along the diagonal of the screen.  This option will not
+affect windows that have a geometry specified on the command line.
+.I
+Default value: false.
+.P
+.TP
+.BI PopupJumpCursor " (boolean) " *
+Specifies whether to warp the cursor to popup windows.
+.I
+Default value: true.
+.P
+.TP
+.BI RaiseOnActivate " (boolean)"
+Specifies whether a window is to be raised when it is activated via a
+Mouseless command.
+.I
+Default value: true.
+.P
+.TP
+.BI RefreshRecursively " (boolean)"
+Determines how
+the Refresh menu items on the window and workspace menus operate.  If the
+value is true,
+.B olwm
+will walk the window hierarchy and send exposure events to every window.
+This is useful for refreshing windows that have backing store.  If the value
+is false,
+.B olwm
+will map a window and then unmap it, causing all windows underneath that do
+not have backing store get get exposures.  When this feature is on, the
+Refresh operation generates a large amount of client-server traffic.  It may
+be useful to turn this feature off if the connection transport has low
+bandwidth or long latency.
+.I
+Default value: true.
+.P
+.TP
+.BI ReverseVideo " (boolean)"
+If true, reverses the sense of black and white on monochrome screens.
+Ignored for color screens.
+.I
+Default value: false.
+.P
+.TP
+.BI RubberBandThickness " (integer)"
+Specifies the thickness of the "rubber-band" line that is drawn when a
+window is resized, when a group of windows is selected by dragging a
+rectangle on the root, and when a window is moved and the value of the
+.B DragWindow
+resource is false.
+.TP
+.BI RunSlaveProcess " (boolean)"
+If false, disables the running of
+.BR olwmslave (1)
+at startup time.  If the slave process is not running, Spot Help will not be
+available on objects owned by
+.B olwm
+such as pushpins and resize corners.
+.I
+Default value: true.
+.P
+.TP
+.BI SaveWorkspaceTimeout " (integer)"
+Number of seconds to wait while the Save Workspace operation is in progress.
+If all applications haven't responded with this amount of time, the
+operation is considered to have failed.
+.I
+Default value: 30.
+.P
+.TP
+.BI SelectDisplaysMenu " (boolean) " *
+If true, pressing the SELECT mouse button will bring up a menu item's
+submenu (if any) instead of executing the submenu's default action.
+.I
+Default value: false.
+.P
+.TP
+.BI SelectionFuzz " (integer)"
+Number of pixels of "fuzz" to be applied when selecting windows and icons by
+dragging a rectangle on the workspace.  Consider an object that lies almost
+entirely within the selection rectangle, but that laps outside the rectangle
+by a few pixels.  The object will be considered to be within the selection
+rectangle if it laps outside by fewer than or equal to "fuzz" pixels.
+.I
+Default value: 1.
+.P
+.TP
+.BI SelectToggleStacking " (boolean)"
+If true, double-clicking on a window will push it to the back instead of
+zooming it to its full size.
+.I
+Default value: false.
+.P
+.TP
+.BI SelectWindows " (boolean)"
+If false, the SELECT mouse button will not select windows and icons.  Its
+other functions are unaffected.  The ADJUST mouse button can still be used
+to select windows and icons.
+.I
+Default value: true.
+.P
+.TP
+.BI ServerGrabs " (boolean)"
+Controls whether
+.B olwm
+grabs the server while menus and notices are up.
+.I
+Default value: true.
+.P
+.TP
+.BI SetInput " (enumeration) " *
+This controls the input focus mode.  If the value is "select", it
+means click-to-focus.  If the value is "followmouse", it means
+focus-follows-mouse.
+.I
+Default value: select.
+.P
+.TP
+.BI ShowMoveGeometry " (boolean)"
+Indicates whether the geometry box should be shown while moving windows and
+icons.
+.I
+Default value: false.
+.P
+.TP
+.BI ShowResizeGeometry " (boolean)"
+Indicates whether the geometry box should be shown while resizing windows.
+.I
+Default value: false.
+.P
+.TP
+.BI SnapToGrid " (boolean)"
+Determines whether icons will snap to a grid when they are moved.
+.I
+Default value: false.
+.P
+.TP
+.BI TextFont " (font name)"
+Font used in the text of notices.
+.I
+Default: Lucida-Sans.
+.if 0 \{
+.TP
+.BI timeFormat " (locale name)"
+Specify the time format OPEN LOOK locale category.
+See the section on Locale Handling for more details.
+\}
+.TP
+.BI TitleFont " (font name)"
+Font used in title bars atop windows and menus.
+.I
+Default: Lucida-Sans Bold.
+.P
+.TP
+.BI TransientsSaveUnder " (boolean)"
+Specifies whether the save-under attribute of transient windows is to be
+forced on.
+.I
+Default value: true.
+.P
+.TP
+.BI TransientsTitled " (boolean)"
+Specifies whether transient windows should have title bars.  Normally,
+transient windows have a title bar and resize corners, but no window button
+or pushpin.  Setting this resource to false will remove the title bar from
+transient windows.
+.I
+Default value: true.
+.P
+.TP
+.BI Use3D " (boolean)"
+Specifies whether to use 3D OPEN LOOK when possible.  If false, 3D look is
+never used.  If true, 3D is used unless the display hardware cannot support
+it.
+.I
+Default value: true.
+.P
+.TP
+.BI Use3DFrames " (boolean)"
+Specifies whether to use a 3D look for the frame borders.  If true, the
+frames will be given a 3D look; otherwise, they have the same thick border
+as in 2D look.  Some people prefer the look of 3D frames, but it is more
+difficult to distinguish selected from unselected windows with this option
+turned on.
+.I
+Default value: false.
+.P
+.TP
+.BI Use3DResize " (boolean)"
+Specifies whether the window resize corners are to be in the 2D or 3D look.
+.I
+Default value: false.
+.P
+.TP
+.BI WindowColor " (color) " *
+Specify the color of windows.  This is the "BG1" color for 3D OPEN LOOK.
+It is used for the backgrounds of windows, menus, and notices.  Other the 3D
+effect is achieved by using highlight and shadow colors derived from this
+color.
+.I
+Default value: #ccc.
+.P
+This specifies a 20% gray value.
+.TP
+.BI WorkspaceColor " (color) " *
+Specify the color for the workspace (root window).  On startup,
+.B olwm
+will set the root window's background color to the color specified by this
+resource, and it will restore the deafult background on shutdown.  To turn
+off this behavior, see the description of the
+.B PaintWorkspace
+resource.
+.I
+Default value: #40a0c0.
+.P
+.\" ========================================================================
+.SH SCREEN RESOURCES
+.LP
+In addition to the global resources described above,
+.B
+olwm
+also uses screen-specific resources.  
+The first component of the resource specification is the trailing pathname
+component of
+.BR argv[0] .
+The second component is the screen number appended to the string `screen'.
+The third component of the resource name is the name of the resource itself.
+For example,
+.nf
+.sp
+	olwm.screen1.ReverseVideo: true
+.sp
+.fi
+enables reverse video on screen number 1 for
+.B olwm.
+To affect all screens, you can use resource wildcarding.  For example,
+`olwm*ReverseVideo: true' will set reverse video for all screens
+.B olwm
+manages.
+.LP
+The following resources are available both globally and on a per-screen
+basis.  A screen-specific resource overrides the corresopnding global
+setting for that screen.  Note that screen specific settings for
+WorkspaceColor and WindowColor will only affect
+.BR olwm ;
+this may cause clashes with XView clients which only use the global setting.
+.nf
+.sp
+	Background
+	BorderColor
+	Foreground
+	ReverseVideo
+	WindowColor
+	WorkspaceColor
+.sp
+.fi
+.LP
+The following resources allow the selection of visuals other
+than the screen's default.  Available visuals may be listed with
+the
+.BR xdpyinfo (1)
+command.
+.TP
+.BI Depth " (integer)"
+Specify the visual depth to be used when searching for visuals.
+.I
+Default value: none.
+.TP
+.BI Visual " (enumeration)"
+Specify the visual class to be used when searching for visuals.
+Valid visual classes are
+.BR StaticGray ,
+.BR GrayScale ,
+.BR StaticColor ,
+.BR PseudoColor ,
+.BR TrueColor ,
+and
+.BR DirectColor .
+Names are case-sensitive.
+.I
+Default value: none.
+.TP
+.BI VisualID " (id)"
+Specify the visual ID to be used.
+Note: specifying a visual by its ID is not portable, as IDs may vary from
+server to server and even from one invocation of a server to the next.
+.I
+Default value: none.
+.\" ========================================================================
+.SH MOUSELESS OPERATION
+.B Olwm
+implements OPEN LOOK Mouseless operation.  This is a set of functions bound
+to keys that enable one to use the window system entirely without a pointing
+device.  Some Mouseless functions are also useful for "cross-over" users,
+who may want to use them as accelerators for mouse-based operations.
+.LP
+One can navigate from window to window using the Next Application, Previous
+Application, Next Window, and Previous Window functions, bound by default to
+Alt-n, Alt-Shift-n, Alt-w, and Alt-Shift-w, respectively.  (See the section
+on Key Binding for more detailed information.)  You can bring up both the
+window and the workspace menu using Alt-m and Alt-Shift-m, respectively.
+Once a menu is up, you can navigate through it by using the arrow keys or by
+pressing the first letter of the menu item you want to go to.  You can
+execute the current item by pressing Return, or you can cancel the menu
+using Stop or Escape.
+.LP
+You can also move and resize windows use Mouseless functions.  This can be
+accomplished by selecting the Move or Resize items on the window menu.
+(Keyboard acclerators for these items are Alt-F6 and Alt-F7, respectively.)
+In Move mode, you can use the arrow keys to move the window in the desired
+direction.  You can also hold down the Control key to "jump" the window by a
+larger distance each time you press an arrow key.  In Resize mode, the first
+arrow key selects the edge you are moving, and subsequent arrow keys move
+that edge.  For example, to shrink a window from the right (that is, to move
+it right edge to the left) you would first enter resize mode using Alt-F7,
+press the right arrow key to select the right edge, and then press the left
+arrow key to move the edge to the left.  As in move mode, you can hold down
+Control to "jump" the edge by a greater increment.  You can press Return to
+accept the new size or location, and you can press Escape or Stop to abort
+the move or resize operation.
+.\" ========================================================================
+.SH KEY BINDING
+Key bindings are specified using resources.  There is one resource per
+function, and the value of the resources are the keys to which the function
+is bound.  The resource value consists of a comma-separated list of key
+specifications.  Each key specification consists of a keysym optionally
+followed by modifier keysyms; the modifier keysyms are separated by `+'
+signs.  For example, to bind a function to F2, control-F3, and alt-shift-F4,
+one would use the value:
+.nf
+.sp
+	F2,F3+Control,F4+Shift+Alt
+.sp
+.fi
+.LP
+Any keysym whose key is in the modifier mapping may be used as a modifier.
+The following can also be used as aliases for common modifier keysyms:
+.BR Shift ,
+.BR Lock ,
+.BR Control ,
+.BR Ctrl ,
+.BR Ctl ,
+.BR Meta ,
+.BR Alt ,
+.BR Super ,
+and
+.B Hyper.
+.LP
+Resource names are prefixed with the trailing pathname component of
+.BR argv[0] ,
+followed by
+.B KeyboardCommand
+(note that this is singular, not to be confused with the
+.B KeyboardCommands
+resource), followed by a resource from the following list.  For example, the
+resource specification for setting the Stop function would typically be:
+.nf
+.sp
+	olwm.KeyboardCommand.Stop
+.sp
+.fi
+.LP
+Each item
+in this list is followed by its default keyboard binding and a
+description of what the function does.  Items marked with an asterisk `*'
+involve keyboard grabs.  Other items are active only while
+.B olwm
+is in a mode, such as when a menu is up.  Note: most of the functions that
+require grabs are active only when the
+.B KeyboardCommands
+resource is set to
+.B Full.
+See the description of this resource in the section on Global Resources.
+.TP
+Stop \fI(L1, Escape)\fP
+Abort the current mode or action.
+.TP
+DefaultAction \fI(Return, Meta-Return, Enter)\fP
+Execute the default action for the current menu or notice.
+.TP
+Select \fI(space)\fP
+Select the current button.
+.TP
+Adjust \fI(Alt-Insert)\fP
+Toggle the selected state of the current object.
+.TP
+Menu \fI(Alt-space)\fP
+Bring up a menu on the current object.
+.TP
+InputFocusHelp \fI(?, Control-?)\fP
+Bring up Help on the object with the input focus.
+.TP
+Up \fI(up-arrow)\fP
+Move up one item.
+.TP
+Down \fI(down-arrow)\fP
+Move down one item.
+.TP
+Left \fI(left-arrow)\fP
+Move left one item.
+.TP
+Right \fI(right-arrow)\fP
+Move right one item.
+.TP
+JumpUp \fI(Control up-arrow)\fP
+Move up ten items.
+.TP
+JumpDown \fI(Control down-arrow)\fP
+Move down ten items.
+.TP
+JumpLeft \fI(Control left-arrow)\fP
+Move left ten items.
+.TP
+JumpRight \fI(Control right-arrow)\fP
+Move right ten items.
+.TP
+RowStart \fI(Home, R7)\fP
+Move to the start of the current row.
+.TP
+RowEnd \fI(End, R13)\fP
+Move to the end of the current row.
+.TP
+DataStart \fI(Control-Home)\fP
+Move to the start of the data.
+.TP
+DataEnd \fI(Control-End)\fP
+Move to the end of the data.
+.TP
+FirstControl \fI(Control-[)\fP
+Move to the first item.
+.TP
+LastControl \fI(Control-])\fP
+Move to the last item.
+.TP
+NextElement \fI(Tab, Control-Tab)\fP
+Move to the next item.
+.TP
+PreviousElement \fI(Shift-Tab, Control-Shift-Tab)\fP
+Move to the previous item.
+.TP
+Open \fI(Alt-L7)\fP *
+Open the object with the input focus.
+.TP
+Help \fI(Help)\fP *
+Bring up Spot Help on the object under the pointer.
+.TP
+LockColormap \fI(Control-L2)\fP *
+Install the colormap of the subwindow under the pointer, and give the
+colormap focus to the top-level window containing the pointer.  See
+.I
+Colormap Installation
+.P
+for further details.
+.TP
+UnlockColormap \fI(Control-L4)\fP *
+Revert to color-follows-mouse mode, and unset colormap focus.  See
+.I
+Colormap Installation
+.P
+for further details.
+.TP
+Front \fI(Alt-L5)\fP *
+Bring the object with the input focus to the front.
+.TP
+FocusToPointer \fI(Alt-Shift-j)\fP *
+Set the focus to the window under the pointer.
+.TP
+NextApp \fI(Alt-n)\fP *
+Move the focus to the next base window.  Windows are ordered clockwise
+starting at the top.  Icons come after all windows, also in a clockwise
+fashion.  Order proceeds from the last icon on a screen to the first window
+of the next screen.  After the last screen, the order wraps back around to
+the first screen.
+.TP
+PreviousApp \fI(Alt-Shift-n)\fP *
+Move the focus to the previous base window.  See
+.B NextApp
+for details about the window traversal order.
+.TP
+ToggleInput \fI(Alt-t)\fP *
+Move the input focus to the previous window that had the input focus.
+.TP
+NextWindow \fI(Alt-w)\fP *
+Move to the next window in the family of windows consisting of a base window
+and a set of popups.  Windows are ordered clockwise, starting at the top of
+the screen.
+.TP
+PreviousWindow \fI(Alt-Shift-w)\fP *
+Move to the previous window in the family of windows consisting of a base
+window and a set of popups.  Windows are ordered clockwise, starting at the
+top of the screen.
+.TP
+TogglePin \fI(Meta-Insert)\fP *
+Toggle the state of the pin of the window with the input focus.
+.TP
+SuspendMouseless \fI(Alt-z)\fP *
+Temporarily suspend all key grabs associated with Mouseless operation.
+.TP
+ResumeMouseless \fI(Alt-Shift-z)\fP *
+Resume grabs after temporary suspension.
+.TP
+QuoteNextKey \fI(Alt-q)\fP *
+Pass the next key sequence to the application with the focus, ignoring any
+grabs.
+.TP
+Refresh \fI(Alt-F8)\fP *
+Repaint the window with the focus.
+.TP
+Back \fI(Alt-F5)\fP *
+Move the focus window behind other windows.
+.TP
+OpenClose \fI(Alt-F2)\fP *
+Toggle the open/clos state of the window with the focus.
+.TP
+FullRestore \fI(Alt-F3)\fP *
+Toggle the full-sized/normal-sized state of the window with the focus.
+.TP
+Quit \fI(Alt-F9)\fP *
+Quit the window with the focus.
+.TP
+Owner \fI(Alt-F10)\fP *
+Flash the owner of the popup window with the focus.
+.TP
+WorkspaceMenu \fI(Alt-Shift-m)\fP *
+Bring up the workspace menu.
+.TP
+WindowMenu \fI(Alt-m)\fP *
+Bring up the window menu on the window with the focus.
+.TP
+Move \fI(Alt-F6)\fP *
+Move the window with the focus.
+.TP
+Resize \fI(Alt-F7)\fP *
+Resize the window with the focus.
+.TP
+OpenClosePointer \fI(L7)\fP *
+Toggle the open/close state of the window or icon under the pointer.
+.TP
+RaiseLower \fI(L5)\fP *
+Raise the window under the pointer if obscured by other windows.  Otherwise,
+lower the window if it obscures other windows.
+.\" ========================================================================
+.SH MODIFIER CUSTOMIZATION
+.B Olwm
+will alter the operation of certain mouse-based functions based on the
+state of the modifier keys.  The relationship between the alteration and the
+associated modifier keys is controlled by a set of resources.
+Resource names are prefixed with the trailing pathname component of
+.BR argv[0] ,
+followed by
+.B Modifier,
+followed by a resource from the list below.  For example, the resource 
+specification to bind the Reduce modifier would typically be
+.nf
+.sp
+	olwm.Modifier.Reduce
+.sp
+.fi
+The value of each resource is a comma-separated list of modifier keysyms.
+Each item in this list is followed by its default modifier and a description
+of what it does.
+.TP
+Constrain \fI(Control)\fP
+Constrain a move or resize operation to be only on a horizontal or vertical
+direction.
+.TP
+Ignore \fI(Lock, NumLock, mod5, Mode_switch)\fP
+The set of modifiers to be ignored when processing mouse events.  This
+resource should contain the set of locking modifiers, so that mouse actions
+are still interpreted properly even while locking modifiers are in effect.
+.TP
+Invert \fI(Shift)\fP
+When moving windows, temporarily invert the sense of the
+.B DragWindow
+resource.  When resizing a window, temporarily move the window as long as
+this modifier is held down.  Return to resizing when the modifier is
+released.
+.TP
+Reduce \fI(Meta)\fP
+When moving windows, reduce the amount of mouse motion by a factor of ten.
+.TP
+SetDefault \fI(Control)\fP
+Sets the default item for a menu.
+.TP
+WMGrab \fI(Alt)\fP
+Using the WMGrab modifier allows access to the mouse button functions
+anywhere over the window, not just over the window's title bar and border.
+.\" ========================================================================
+.SH ENVIRONMENT
+.TP
+DISPLAY
+Specifies the X11 server to which to connect.
+.TP
+LANG, LC_CTYPE, LC_MESSAGE, LC_TIME
+These variables specify which locale to use when other methods of locale
+announcement are not available.  (See the section on Locale Handling for
+more details.)
+.TP
+OLWMMENU
+Specifies a file to use for the Workspace Menu.
+.\" ========================================================================
+.SH FILES
+.TP
+$HOME/.openwin-menu\fI.localename\fP
+.TP
+$HOME/.openwin-menu
+Contains the user-customized Workspace Menu specification.
+.TP
+$OPENWINHOME/lib/openwin-menu\fI.localename\fP
+.TP
+$OPENWINHOME/lib/openwin-menu
+Contains the default Workspace Menu specification.
+.TP
+$HOME/.openwin-init
+Stores the command lines obtained during the Save Workspace operation.
+.\" ========================================================================
+.SH TRADEMARKS
+.LP
+OPEN LOOK is a trademark of AT&T.
+.br
+The X Window system is a trademark of the Massachusetts Institute of
+Technology.
+.br
+OpenWindows is a trademark of Sun Microsystems, Inc.
+.\" ========================================================================
+.SH REFERENCES
+.LP
+Rosenthal, David S.H.
+.I Inter-Client Communication Conventions Manual for X11.
+Copyright 1989 by the Massachusetts
+Institute of Technology.  This document is commonly known as the ICCCM.  It
+is an X Consortium Standard that specifies conventions to which all X11
+clients must adhere.
+.LP
+OPEN LOOK Graphical User Interface Functional Specification.  Copyright 1989
+by Sun Microsystems, Inc.  Addison-Wesley Publishing Company, Inc.  ISBN
+0-201-52365-5.
+.LP
+OPEN LOOK Graphical User Interface
+International Extensions Functional Specification.
+Draft 1.1 (May 10, 1990).
+Copyright 1990 by Unix International.
+.LP
+.BR setlocale (3) .
+.\" ========================================================================
+.SH BUGS
+.LP
+The resource names do not follow any classing structure.  There is no
+general way to specify resources on a per-client basis.
+.LP
+There is no way to reconfigure the mouse buttons.  This makes it impossible
+to use
+.B olwm
+on a system that has a one-button mouse with no provision for simulating
+a second or third mouse button.  (It is possible to use
+.B olwm
+with a two-button mouse.  See the section on Mouse Buttons.)
+.LP
+The Exit menu item on the Workspace Menu doesn't really shut down the
+server.  It kills off all clients being managed by the window manager, and
+then it exits the window manager itself.  This works properly
+if some outside agent such as
+.BR xinit (1)
+or
+.BR xdm (1)
+is waiting for the window manager or a client to exit.  The outside agent
+will take care of shutting down the server or reinitializing it.  If you've
+started up the server a different way, this option may not work.  Instead,
+the server will be left running with no clients and no window manager
+running, and you will have to login from elsewhere to kill the server.
+An alternative for users of X11/NeWS
+is to add the following entry to the root menu:
+.nf
+.sp
+	Exit	POSTSCRIPT shutdownserver
+sp
+.fi
+This will shut down the server immediately, with no confirmation whatsoever.
+.LP
+.B Olwm
+is fairly simplistic about how it manages its keyboard bindings.  For
+example, if you bind a function to control-F2,
+.B olwm
+will grab F2 with the Control modifier and with all combinations of the Lock
+and NumLock modifiers.  If another locking modifier is in effect,
+.BR olwm 's
+passive grab will not be activated, and thus the function will not work.
+.LP
+.B Olwm
+cannot manage multiple locales at one time,
+therefore all clients should be running in the same locale.
+The "C" locale is the exception.  Applications using the "C" locale (such as
+non-internationalized applications) can be mixed with applications using one
+other locale.
+.LP
+.B Olwm
+does not handle different sizes of the glyph fonts well.
+Each locale can define a different size for the default font
+(for example, the default glyph font size is 12 for the
+"C" locale and is 14 for the "japanese" locale).
+.B Olwm
+does not re-position the window decorations after switching locale,
+therefore the window decorations may appear
+to be wrong.
+To remedy this problem partially,
+.B olwm
+will not change the font when locale is switching from
+non-"C" locale to the "C" locale
+(fonts for non-"C" locales are always supersets of the font for "C" locale).
+.LP
+There is no input focus feedback for nonrectangular windows.  The title
+string of nonrectangular windows cannot be displayed.
+.LP
+.B Olwm
+will not dynamically track screen-specific resources.  Only changes to global
+resources are applied.
+.LP
+The interaction of the
+.BR AutoColorFocus ,
+.BR ColorFocusLocked ,
+and
+.B ColorTracksInputFocus
+resources and the color locking and unlocking keys is overly complex.

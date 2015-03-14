@@ -1,0 +1,184 @@
+#
+# Term program makefile.  Version for NeXT.
+# some valids targets are:
+#	all term linecheck test tags clean install realclean ${PROGS}
+#
+PROG=term
+
+# The NeXTSTEP 3.0 cpp defines NeXT, so we don't have to.
+# But, just in case, you can set NeXTFLAG
+#NeXTFLAG= -DNeXT
+
+# Uncomment WARNFLAGS if you want to see how non-ANSI the code is.
+#WARNFLAGS=  -Wall
+
+CC=cc $(NeXTFLAG)
+CPP=cc -E $(NeXTFLAG)
+
+DEBUGFLAGS= $(DEBUG)
+OPTFLAGS= -O -funsigned-char
+CFLAGS= $(DEBUGFLAGS) $(WARNFLAGS) $(OPTFLAGS)
+
+LINKFLAGS=-O
+  
+RM=rm -f
+LN=ln 
+# If the following fails to work, the change it to be
+# ar rc 
+# and uncomment the ranlib below.
+# on a sun you can use /usr/5bin/ar.
+#AR=ar rcs
+AR=ar rc
+RANLIB= ranlib
+INSTALL= install
+INSTPGMFLAGS = -s
+MKDIR= mkdir
+BINDIR=/usr/local/bin
+MANDIR=/usr/local/man/man1
+#
+# Change this if yours is different.
+#
+CURSES= -ltermcap
+
+TERMOBJS=main.o serial.o misc.o link.o pty.o compress.o \
+		checksum.o meta.o statistics.o sevenbit.o \
+		client.a
+CLIENTOBJS=lib.o client.o terminal.o select.o socket.o connect.o
+
+TRSHELLOBJS=trshell.o client.a
+UPLOADOBJS=upload.o client.a
+RTELNETOBJS=rtelnet.o client.a
+REDIROBJS=redir.o client.a
+XCONNOBJS=xconn.o client.a
+STATOBJS=tmon.o client.a
+
+PROGS=term trsh tupload txconn tredir tmon
+
+MANPAGES=term.1 term_clients.1 term_setup.1 tupload.1 tredir.1 \
+	trsh.1 tmon.1
+
+all: $(PROGS)
+  
+install: all installman
+	if [ ! -d $(DESTDIR)$(BINDIR) ]; then $(MKDIR) $(DESTDIR)$(BINDIR); \
+	else true; fi
+	for i in $(PROGS);\
+	do \
+	$(INSTALL) -c $(INSTPGMFLAGS)  $$i $(DESTDIR)$(BINDIR);\
+	done
+
+installman:
+	if [ ! -d $(DESTDIR)$(MANDIR) ]; then $(MKDIR) $(DESTDIR)$(MANDIR); \
+	else true; fi
+	for i in $(MANPAGES);\
+	do \
+	cp $$i $(DESTDIR)$(MANDIR);\
+	done
+ 
+client.a: $(CLIENTOBJS)
+	$(RM) client.a
+	$(AR) client.a $(CLIENTOBJS)
+# if you need ranlib, then uncomment the following
+	$(RANLIB) client.a
+
+term: $(TERMOBJS) 
+	$(CC) $(LINKFLAGS) -o term $(TERMOBJS) $(LIBS)
+
+trsh: $(TRSHELLOBJS)
+	$(CC) $(LINKFLAGS) -o trsh $(TRSHELLOBJS) $(LIBS)
+
+
+trcmd: $(RSYSTEMOBJS)
+	$(CC) $(LINKFLAGS) -o trcmd $(RSYSTEMOBJS) $(LIBS)
+
+test: test.o
+	$(CC) $(LINKFLAGS) -o test test.o
+
+tupload: $(UPLOADOBJS) 
+	$(CC) $(LINKFLAGS) -o tupload $(UPLOADOBJS) $(LIBS)
+
+tredir: $(REDIROBJS)
+	$(CC) $(LINKFLAGS) -o tredir $(REDIROBJS) $(LIBS)
+
+txconn: $(XCONNOBJS)
+	$(CC) $(LINKFLAGS) -o txconn $(XCONNOBJS) $(LIBS)
+
+tmon: $(STATOBJS)
+	$(CC) $(LINKFLAGS) -o tmon $(STATOBJS) $(CURSES) $(LIBS)
+
+linecheck: linecheck.c terminal.o
+	$(CC) $(CFLAGS) -o linecheck linecheck.c terminal.o
+
+tags:
+	etags *.h *.c
+
+myclean:
+	$(RM) *~
+
+clean:
+	$(RM) *.o *.a core compress.debug out *~ *.log *.out
+
+realclean: clean
+	$(RM) $(PROGS) test 1 linerem check trcmd linecheck TAGS
+
+depend dep:
+	sed '/\#\#\# Dependencies/q' < Makefile > tmp_make
+	for i in *.c ;do $(CPP) -MM $$i;done >> tmp_make
+	mv tmp_make Makefile
+
+version: myclean diff
+	(cd ..;tar cf term.tar term/*.c term/*.h term/F* term/M* term/P* \
+	term/O* term/I* term/R* term/C* term/T* term/S* term/*.1 )
+	(cd ..;compress term.tar)
+
+diff:
+	(cd ..;mv term term.new;tar xfz term.tar.Z;mv term term.old; \
+		mv term.new term;diff -c +new-file term.old term > term.diff; \
+		rm -rf term.old)
+
+#
+# The following targets are mostly for my personal use. I use them to 
+# update the remote version of term when I am developing.
+myver: myclean mydiff
+	(cd ..;tar cf t.tar term/*.c term/*.h term/M* term/P* term/O* \
+	 term/I* term/R* term/C* term/T* term/*.1 )
+	(cd ..;compress t.tar)
+
+mydiff:
+	(cd ..;mv term term.new; tar xfz t.tar.Z;mv term term.old; \
+		mv term.new term;diff -c +new-file term.old term > t.diff; \
+		rm -rf term.old)
+
+update: mydiff
+	(export TERMDIR=/root; \
+		cd ..;trsh rm term.diff;tupload term.diff; \
+		trsh termpatch)
+
+dummy:
+
+### Dependencies:
+checksum.o : checksum.c 
+client.o : client.c includes.h term.h config.h client.h terminal.h 
+compress.o : compress.c includes.h term.h config.h client.h terminal.h debug.h 
+connect.o : connect.c includes.h term.h config.h client.h terminal.h 
+lib.o : lib.c includes.h term.h config.h client.h terminal.h debug.h 
+linecheck.o : linecheck.c terminal.h 
+link.o : link.c includes.h term.h config.h client.h terminal.h debug.h 
+main.o : main.c includes.h term.h config.h client.h terminal.h debug.h 
+meta.o : meta.c includes.h term.h config.h client.h terminal.h debug.h 
+misc.o : misc.c includes.h term.h config.h client.h terminal.h debug.h 
+pty.o : pty.c includes.h term.h config.h client.h terminal.h 
+redir.o : redir.c includes.h term.h config.h client.h terminal.h 
+select.o : select.c includes.h term.h config.h client.h terminal.h 
+serial.o : serial.c includes.h term.h config.h client.h terminal.h debug.h 
+sevenbit.o : sevenbit.c includes.h term.h config.h client.h terminal.h debug.h 
+socket.o : socket.c includes.h term.h config.h client.h terminal.h 
+statistics.o : statistics.c includes.h term.h config.h client.h terminal.h 
+tclient.o : tclient.c includes.h term.h config.h client.h terminal.h 
+terminal.o : terminal.c includes.h term.h config.h client.h terminal.h 
+test.o : test.c includes.h term.h config.h client.h terminal.h 
+tmon.o : tmon.c includes.h term.h config.h client.h terminal.h 
+trshell.o : trshell.c includes.h term.h config.h client.h terminal.h 
+upload.o : upload.c includes.h term.h config.h client.h terminal.h 
+xconn.o : xconn.c includes.h term.h config.h client.h terminal.h 
+

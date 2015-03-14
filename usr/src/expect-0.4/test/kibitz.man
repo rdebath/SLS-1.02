@@ -1,0 +1,197 @@
+.TH KIBITZ 1 "12 December 1991"
+.SH NAME
+kibitz \- allow two people to interact with one shell
+.SH SYNOPSIS
+.B kibitz
+.I user
+[
+.I program args...
+]
+.br
+.B kibitz
+.I user@host
+[
+.I program args...
+]
+.SH INTRODUCTION
+.B kibitz
+allows two (or more) people to interact with one shell (or any arbitrary
+program).  Uses include:
+.RS
+.TP 4
+\(bu
+A novice user can ask an expert user for help.  Using
+.BR kibitz ,
+the expert can see what the user is doing, and offer advice or
+show how to do it right.
+.TP
+\(bu
+By running
+.B kibitz
+and then starting a full-screen editor, people may carry out a
+conversation, retaining the ability to scroll backwards,
+save the entire conversation, or even edit it while in progress.
+.TP
+\(bu
+People can team up on games, document editing, or other cooperative
+tasks where each person has strengths and weaknesses that complement one
+another.
+.SH USAGE
+To start
+.BR kibitz ,
+user1
+runs kibitz with the argument of the
+user to kibitz.  For example:
+
+	kibitz user2
+
+.B kibitz
+starts a new shell (or another program, if given on the command
+line), while prompting user2 to run
+.BR kibitz .
+If user2 runs
+.B kibitz
+as directed, the keystrokes of both users become the input of
+the shell.  Similarly, both users receive the output from the
+shell.
+
+To terminate
+.B kibitz
+it suffices to terminate the shell itself.  For example, if either user
+types ^D (and the shell accepts this to be EOF), the shell terminates
+followed by
+.BR kibitz .
+
+Normally, all characters are passed uninterpreted.  However, if the
+escape character (described when
+.B kibitz
+starts) is issued, the user
+may talk directly to the
+.B kibitz
+interpreter.  Any
+.BR expect (1)
+or
+.BR Tcl (3)
+commands may be given.
+Also, job control may be used while in the interpreter, to, for example,
+suspend or restart
+.BR kibitz .
+.SH ARGUMENTS
+.B kibitz
+understands a few special arguments.  These should appear before the user
+name.  Each should be separated by whitespace.  If the arguments themselves
+takes arguments, these should also be separated by whitespace.
+.PP
+The
+.B \-noproc
+flag runs
+.B kibitz
+with no process underneath.  Characters are passed to the other
+.BR kibitz .  This is particularly useful for connecting multiple
+interactive processes together.
+
+Note characters are not echoed back to the typist.  Various processes
+can provide echoing.  For example, you can emulate a two-way write(1)
+session with the command:
+
+	kibitz user2 sleep 1000000
+.PP
+.B \-noescape
+disables the escape character.
+.PP
+.B \-escape
+sets the escape character.  The default escape character is ^].
+.PP
+.B \-silent
+turns off informational messages describing what kibitz is doing to
+initiate a connection.
+.SH MORE THAN TWO USERS
+The current implementation of kibitz explicitly understands only two users,
+however, it is nonetheless possible to have a three (or more) -way kibitz,
+by kibitzing another
+.BR kibitz .
+For example, the following command runs
+.B kibitz
+with the current user, user2, and user3:
+
+	% kibitz user2 kibitz user3
+
+Additional users may be added by simply appending more "kibitz user"
+commands.
+.SH CAVEATS
+.B kibitz
+assumes the 2nd user has the same terminal type and size as the 1st user.
+If this assumption is incorrect, graphical programs may display oddly.
+
+.B kibitz
+handles character graphics, but cannot handle bitmapped graphics.  Thus,
+.nf
+
+	% xterm -e kibitz    will work
+	% kibitz xterm       will not work
+
+.fi
+.B kibitz
+uses the same permissions as used by rlogin, rsh, etc.  Thus, you
+can only
+.B kibitz
+to users at hosts for which you can rlogin.
+Similarly,
+.B kibitz
+will prompt for a password on the remote host if
+rlogin would.
+
+If you
+.B kibitz
+to users at remote hosts,
+.B kibitz
+needs to distinguish your prompt from other things that may preceed it
+during login.
+(Ideally, the end of it is preferred but any part should suffice.)
+If you have an unusual prompt,
+set the environment variable EXPECT_PROMPT to an egrep(1)-style
+regular expression.
+Brackets should be preceeded with one backslash in ranges,
+and three backslashes for literal brackets.
+The default prompt r.e. is "($|%|#)\ ".
+
+.B kibitz
+requires the
+.B kibitz
+program on both hosts.
+.B kibitz requires
+.BR expect (1).
+
+While
+.B kibitz
+currently explicitly understands only two users,
+there is nothing inherent to the technique kibitz uses internally
+about this limit.  The mind boggles at various features that could
+be added (dynamically adding and deleting arbitrary numbers of users and
+programs, simulating multiple cursors, etc).  Feel free to hack around
+with the program to add whatever features you like.
+.SH BUGS
+An early version of Sun's tmpfs had a bug in it that causes
+.B kibitz
+to blow up.  If
+.B kibitz
+reports "error flushing ...: Is a directory"
+ask Sun for patch #100174.
+.PP
+HPUX 8.0 is reported to require cat(1) to be unbuffered.  Without it,
+characters are not passed at all.  If you are on such a system, edit
+the kibitz script.  Search for catflags and follow the instructions at
+that point.  Alternatively, you may add the "-catu" flag to the
+invocation of kibitz.
+.SH SEE ALSO
+.BR Tcl (3),
+.BR libexpect (3)
+.SH AUTHOR
+Don Libes, National Institute of Standards and Technology
+.SH ACKNOWLEDGEMENTS
+Design and implementation of
+.B kibitz
+was paid for by the U.S. government and is therefore in the public
+domain.
+However the author and NIST would like credit
+if this program and documentation or portions of them are used.

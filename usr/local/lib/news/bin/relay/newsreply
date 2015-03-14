@@ -1,0 +1,56 @@
+#! /bin/sh
+# newsreply - print return address from news article on stdin
+# This version assumes a domain mailer (user@host.domain works) or
+# "internet" in mailpaths file, unless $NEWSCTL/replyusepath exists.
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+hdr=/tmp/nc$$
+mroute=/tmp/ncm$$
+
+canonhdr >$hdr
+
+if test -r $NEWSCTL/replyusepath
+then
+	grep '^Path:' $hdr | sed 's/^[^:]*:[	 ]*//'
+	rm -f $hdr
+	exit 0
+fi
+
+# pick out the appropriate header
+sender="` grep '^Reply-To:' $hdr `"
+case "$sender" in
+"")	sender="` grep '^From:' $hdr `" ;;
+esac
+
+# strip header keyword, full name & duplicate lines, print result.
+# this copes with "address", "address (full name)" and "full name <address>".
+sender=` echo "$sender" | sed 's/^[^:]*:[	 ]*//
+s/ (.*)//
+s/.*<\(.*\)>/\1/
+1q' `
+
+# B 2.11 mailpaths/"internet" hack
+cat $NEWSCTL/mailpaths |
+	while read ngpat route junk
+	do
+		case "$ngpat" in
+		internet)
+				echo "$route" >$mroute
+				break
+				;;
+		esac
+	done
+if test -s $mroute; then
+	sed "s/%s/`
+		echo $sender | sed 's/\(.*\)@\(.*\)/\2!\1/'
+		`/" <$mroute	# the real B 2.11 hack: u@d -> route!d!u
+else
+	echo $sender
+fi
+
+rm -f $hdr $mroute

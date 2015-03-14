@@ -1,0 +1,228 @@
+.TH METAMAIL 1 "Release 2" "Bellcore Prototype"
+.SH NAME
+metamail - infrastructure for mailcap-based multimedia mail handling
+.SH SYNOPSIS
+.ta 8n
+\fBmetamail\fP	[-b] [-B] [-c \fBcontenttype\fP ...] [-d] [-e] [-f \fB from-name\fP]  [-m \fBmailer-name\fP] [-p] [-P] [-r] [-s \fBsubject\fP] [-q] [-x] [-y] [-z] [\fBfile-name\fP]
+.br
+.SH DESCRIPTION
+The
+.I metamail
+program reads a "mailcap" file to determine how to display non-text at the local site.  Every mail-reading interface needs to call metamail whenever non-text mail is being viewed, unless the mail is of a type that is already understood by the mail-reading program.  
+.I Metamail
+consults the mailcap file(s) to determine what program to use to show the message to the user.
+
+At a site where all mail reading interfaces have been modified to call 
+.I metamail
+for non-text mail, extending the local email system to handle a new media type in the mail becomes a simple matter of adding a line to a mailcap file.  (Although this manual page will discuss only mail, metamail is equally useful in adding multimedia support to news and bulletin board reading programs, assuming those programs preserve the "Content-type" header or some other indication of the content type of the messages.)
+
+In general, users will never run metamail directly.  Instead, metamail will be invoked for the user automatically by the user's mail reading program, whenever a non-text message is to be viewed.  This manual page, therefore, is directed not at end users, but at two categories of readers:  those who are adding metamail support to a particular mail-reading program, and those who are adding lines to a mailcap file.  The former need only to be concerned with the command line syntax of metamail.  The latter may ignore the command line syntax, and need only be concerned with the mailcap file syntax, as described in a later section.
+
+Note:  Metamail determines the type of a message using the "Content-type" header, as defined in RFC 1049 and RFC-MIME.  However, using the -b and -c options, metamail can be made to work with mail that is not in Internet format, including X.400 messages.  Note also that metamail automatically decodes mail that has been encoded for 7 bit transport if the mail includes a Content-Transfer-Encoding header as specified by RFC-MIME.
+
+.SH OPTIONS
+When called with no options or arguments, metamail expects to receive an RFC 822 format message on its standard input.  The following options can alter that expectation:
+.TP 8
+.B \-b
+This option tells metamail that the message is not in RFC 822 format, but instead is only the body of the message (i.e. there are no message headers).  The use of -b requires the use of -c.
+.TP 8
+.B \-B
+This option tells metamail that the message is to be displayed in the background, if it is non-interactive (i.e. it doesn't have the "needsterminal" attribute in the mailcap file).
+.TP 8
+.B \-c <contenttype>  
+This option tells metamail to use the specified content type rather than the one in the headers, if any.  
+.TP 8
+.B \-d 
+This option tells metamail not to ask any questions before running an interpreter to view the message.  (By default, metamail always asks before running almost any interpreter, if it is running in an interactive terminal and the MM_NOASK environment variable is not set.  However, it does not ask about the content-type "text" -- that is, the default value for MM_NOASK is "text,text/us-ascii")
+.TP 8
+.B \-e 
+This option tells metamail to "eat" leading newlines in message bodies.  This is particularly useful for MH-format mail.
+.TP 8
+.B \-f <address>
+This option specifies the name of the sender of the message.  Otherwise, this is determined from the header, if possible.  This information will be placed in the environment to make it available to any interpreters called by metamail.
+.TP 8
+.B \-m <mailername>
+This option specifies the name of the mail program that called metamail.  This information will be placed in the environment to make it available to any interpreters called by metamail.
+.TP 8
+.B \-p
+This option specifies that, if necessary, output should be shown to the user one page at a time.  By default, this will cause such output to be piped through the "more" command, but the environment variable METAMAIL_PAGER can be used to specify an alternative command to use.  Note that one should use -p rather than piping the output of metamail through a pager, because some interpreters called by metamail might be interactive rather than requiring pagination.  Metamail can tell whether or not to use a pager from information in the mailcap file.
+.TP 8
+.B \-P
+This option is just like -p, except that it also causes metamail to print "Press RETURN to go on" and await a RETURN after it has finished with the message.  This is intended for use only when metamail calls itself recursively in a new terminal window created only for that purpose.
+.TP 8
+.B \-q 
+This option tells metamail to be quiet.  By default, metamail prints a few key message headers (controllable with the KEYHEADS environment) and some other informative information, on stdout before running the interpreter, but this behavior is suppressed with -q.
+.TP 8
+.B \-r
+This option specifies that it is OK to run as root.  By default, metamail refuses to run if the real or effective user id is root.
+.TP 8
+.B \-R
+This option specifies that the /usr/ucb/reset should be executed to reset the terminal state, before any other I/O activity.
+.TP 8
+.B \-s <subject>  
+This option specifies the subject of the mail message.  By default, this information is obtained from the headers.  This information will be placed in the environment to make it available to any interpreters called by metamail.
+.TP 8
+.B \-x 
+This option tells metamail that it is definitely not running on a terminal, no matter what isatty() says.  This is necessary when metamail is actually running on a pseudoterminal and isatty(3) returns TRUE but there's really no terminal on which to interact with the user.  The same effect as -x can also be obtained with the environment variable MM_NOTTTY.
+.TP 8
+.B \-y
+This option tells metamail to try to "yank" a MIME-format message from the body of the message.  It is useful when a MIME-format has been rejected by a mail delivery system that does not now how to format the rejection in a MIME-compliant manner.  (For the convenience of those who can't control how metamail is called from their mail reader, this can also be set with the MM_YANKMODE variable.)  If you use yank mode on messages that really ARE in MIME format, or on messages that do not contain a MIME message in the body, the effects could be VERY strange.  It won't hurt you, but you won't see anything very useful, either.
+.TP 8
+.B \-z 
+This option tells metamail to delete its input file when finished.  The -z option requires that a file name was given as an argument to metamail, i.e. that it is not reading stdin.
+.TP 8
+.B \-T 
+This option is intended to be used by metamail recursively, to turn off the effect of the MM_TRANSPARENT environment variable.  It should only be used when the metamail program restarts itself in a terminal emulator window.
+.TP 8
+.B File Name Arguments
+Any argument that does not start with "-" is interpreted as the name of a file to read instead of standard input.
+.SH UNRECOGNIZED MAIL TYPES
+From time to time, metamail may tell you something like
+
+**** Unrecognized mail type: 'smell-o-vision'.  Writing to file /tmp/metamail.1234 ****
+
+What this means is that your are trying to read a message that contains data that is marked as being in "smell-o-vision" format, but that your site has not yet configured metamail to properly display that type of data.  In the general case, such configuration is accomplished using the mailcap file mechanism, as described in the next section.
+
+For unrecognized types, metamail simply removes all header and encoding information from the data, and writes it out to a temporary file.  (If running interactively, it will give you more alternatives -- writing it to a temporary file, viewing it as text, or jus skipping it.)  It is up to the user to delete such files when he or she is through with them.
+
+.SH THE MAILCAP FILE(S)
+The primary purpose of the metamail program is to allow diverse mail reading programs to centralize their access to multimedia information.  If all the mail reading programs call a single program to handle non-text mail, then only that program needs to know about the diverse types of non-text mail that might be received.  
+
+The metamail program is made more flexible in this role through the mechanism of one or more "mailcap" files.  The purpose of the mailcap files is to tell metamail what program to run in order to show the user mail in a given format.  Thus it becomes possible to add a new media type to all of the mail reading programs at a site simply by adding a line to a mailcap file.
+
+Metamail uses a search path to find the mailcap file(s) to consult.  Unlike many path searches, if necessary metamail will read 
+.I all
+the mailcap files on its path.  That is, it will keep reading mailcap files until it runs out of them, or until it finds a line that tells it how to handle the piece of mail it is looking at.  If it finds a matching line, it will execute the command that is specified in the mailcap file.  
+
+The default search path is equivalent to
+
+$HOME/.mailcap:/etc/mailcap:/usr/etc/mailcap:/usr/local/etc/mailcap
+
+It can be overridden by setting the MAILCAPS environment variable.  Note: Metamail does not actually interpret environment variables such as $HOME or the "~" syntax in this path search.
+
+The syntax of a mailcap file is quite simple, at least compared to termcap files.  Any line that starts with "#" is a comment.  Blank lines are ignored.  Otherwise, each line defines a single mailcap entry for a single content type.  Long lines may be continued by ending them with a backslash character, \\.
+
+Each individual mailcap entry consists of a content-type specification, a command to execute, and (possibly) a set of optional "flag" values.  For example, a very simple mailcap entry (which is actually a built-in default behavior for metamail) would look like this:
+
+text/plain; cat %s
+
+The optional flags can be used to specify additional information about the mail-handling command.  For example:
+
+text/plain; cat %s; copiousoutput
+
+can be used to indicate that the output of the 'cat' command may be voluminous, requiring either a scrolling window, a pager, or some other appropriate coping mechanism.
+
+The "type" field (text/plain, in the above example) is simply any legal content type name, as defined by RFC 822.  In practice, this is almost any string.  It is the string that will be matched against the "Content-type" header (or the value passed in with -c) to decide if this is the mailcap entry that matches the current message.  Additionally, the type field may specify a subtype (e.g. "text/ISO-8859-1") or a wildcard to match all subtypes (e.g. "image/*").
+
+The "command" field is any UNIX command ("cat %s" in the above example), and is used to specify the interpreter for the given type of message.  It will be passed to the shell via the system(3) facility.  Semicolons and backslashes within the command must be quoted with backslashes.  If the command contains "%s", those two characters will be replaced by the name of a file that contains the body of the message. If it contains "%t', those two characters will be replaced by the content-type field, including the subtype, if any.  (That is, if the content-type was "image/pbm; opt1=something-else", then "%t" would be replaced by "image/pbm".)   If the command field contains  "%{" followed by a parameter name and a closing "}", then all those characters will be replaced by the value of the named parameter, if any, from the Content-type header.   Thus, in the previous example, "%{opt1}" will be replaced by "something-else".  Finally, if the command contains "\%", those two characters will be replaced by a single % character.  (In fact, the backslash can be used to quote any character, including itself.)
+
+If no "%s" appears in the command field, then instead of placing the message body in a temporary file, metamail will pass the body to the command on the standard input.  This is helpful in saving /tmp file space, but can be problematic for window-oriented applications under some window systems such as MGR.
+
+The "notes=xxx" field is an uninterpreted string that is used to specify the name of the person who installed this entry in the mailcap file.  (The "xxx" may be replaced by any text string.)
+
+The "test=xxx" field is a command that is executed to determine whether or not the mailcap line actually applies.  That is, if the content-type field matches the content-type on the message, but a "test=" field is present, then the test must succeed before the mailcap line is considered to "match" the message being viewed.  The command may be any UNIX command, using the same syntax and the same %-escapes as for the viewing command, as described above.  A command is considered to succeed if it exits with a zero exit status, and to fail otherwise.
+
+.TP 8
+.B needsterminal
+If this flag is given, the named interpreter needs to interact with the user on a terminal.  In some environments (e.g. a window-oriented mail reader under X11) this will require the creation of a new terminal emulation window, while in most environments it will not.  If the mailcap entry specifies "needsterminal" and metamail is not running on a terminal (as determined by isatty(3), the -x option, and the MM_NOTTTY environment variable) then metamail will try to run the command in a new terminal emulation window.  Currently, metamail knows how to create new windows under the X11, SunTools, and WM window systems.
+.TP 8
+.B copiousoutput
+This flag should be given whenever the interpreter is capable of producing more than a few lines of output on stdout, and does no interaction with the user.  If the mailcap entry specifies copiousoutput, and pagination has been requested via the "-p" command, then the output of the command being executed will be piped through a pagination program ("more" by default, but this can be overridden with the METAMAIL_PAGER environment variable).
+.SH BUILT-IN CONTENT-TYPE SUPPORT
+The metamail program has built-in support for a few key content-types.  In particular, it supports the text type, the multipart and multipart/alternative type, and the message/rfc822 types.  This support is incomplete for many subtypes -- for example, it only supports US-ASCII text in general.  This kind of built-in support can be OVERRIDDEN by an entry in any mailcap file on the user's search path.  Metamail also has rudimentary built-in support for types that are totally unrecognized -- i.e. for which no mailcap entry or built-in handler exists.  For such unrecognized types, metamail will write a file with a "clean" copy of the data -- i.e. a copy in which all mail headers have been removed, and in which any 7-bit transport encoding has been decoded.
+.SH NON-ASCII HEADER FIELDS
+Metamail has rudimentary built-in support for the emerging Internet standards for non-ASCII data in mail headers.  What this means is that such data will be recognized, decoded, and sent to the terminal.  This behavior may be more or less reasonable, depending on the character set in the header data and the capability of the user's terminal, but it will rarely be any worse than showing such data in its encoded form.
+.SH ENVIRONMENT
+.PP
+.TP 8
+.B MM_NOASK
+If MM_NOASK is set to "1", metamail will never ask the user for confirmation before running an interpreter.  Otherwise, MM_NOASK may be set to a comma-separated list of type names (without white space) for which the user does not desire confirmation.  Thus, setting MM_NOASK to "magicmail,audio" will cause the user not to be asked before running interpreters for magicmail- or audio-format mail, but the user will still be asked for all other types.  (If the -d command line option is given, MM_NOASK is set to 1 for spawned processes, allowing -d to work recursively.)
+.TP 8
+.B KEYHEADS
+The KEYHEADS variable may be set to a colon-separated list of header names, which are the only headers that metamail will print out.  By default, the behavior is as if KEYHEADS were set to:
+
+Date:From:Subject:To:CC:Content-Description
+
+If KEYHEADS is set to the empty string, no header are printed out.  If it is set to an asterisk ("*"), all headers are printed out.
+.TP 8
+.B MM_NOTTTY
+If MM_NOTTTY is set to any nonzero value, metamail will assume that it is not running in a terminal window.  MM_NOTTTY implies setting MM_NOASK to 1.  If -z is given, MM_NOTTTY is set for spawned processes, allowing -z to work recursively.
+.TP 8
+.B MAILCAPS
+This variable can be used to override the default path search for mailcap files.
+.TP 8
+.B METAMAIL_PAGER
+If set, this variable overrides "more" as the name of the program to run to paginate output from an interpreter, when pagination has been requested.  Note that the normal "PAGER" variable is not used because many pagers (notably the "less" pager) interfere with the workings of termcap-based mail viewers.  
+.TP 8
+.B NOMETAMAIL
+This variable is not actually used by metamail, but is used by most metamail-compatible mail reading interfaces.  If NOMETAMAIL is set to any value, most mail reading interfaces will never call the metamail program, effectively inhibiting all multimedia functionality.
+.TP 8
+.B MM_DEBUG
+If MM_DEBUG is set to any value, metamail will produce slightly more verbose output to tell what it is doing.
+.TP 8
+.B MM_QUIET
+If this variable is set to "1", metamail will produce even less output than usual.  In particular,
+it will suppress the "Executing..." line unless MM_DEBUG is set.
+
+Otherwise, this variable can be set to a comma-separated list of short commands, and the "Executing..." line will be suppressed for those commands only.
+
+The default setting for MM_QUIET is "cat", which means that the "Executing..." line is printed for all commands executed except "cat".  This makes text support look more natural without sacrificing an understanding of what is going on in more complex circumstances.
+.TP 8
+.B MM_YANKMODE
+Setting this variable to a non-zero value has the same  effect as the -y switch.  Be sure to read the caveats attached to the description of -y before you use it. Basically, the only time you would set MM_YANKMODE is in order to re-enter a mail reader in which you can't control the way metamail is called, just to read a single rejected MIME message that was rejected by a mail agent that does not understand MIME.  In such cases, you should read that message, exit, and unset this variable.
+.TP 8
+.B MM_TRANSPARENT
+If this variable is set, metamail will reproduce the entire raw message on stdout, and will open up a new terminal emulator window in which to do something more intelligent.  This option supports certain brain-dead mail readers, such as mailtool, that actually depend on the output of the UNIX "Mail" program being the same as the raw message in the database.
+.TP 8
+.B MM_CHARSET
+If this variable is set, it will suppress the printing of character set declarations when mail headers being printed contain text in this character set.  For example, if you set MM_CHARSET to "iso-8859-8", it will suppress warnings when header output is produced in that character set.
+.TP 8
+.B DISPLAY
+Used to create a terminal window under the X11 window system.
+.TP 8
+.B WINDOW_PARENT
+Used to create a terminal window under the SunTools window system.
+.TP 8
+.B WMHOST
+Used to create a terminal window under the old Andrew WM window system.
+.SH INTERPRETER ENVIRONMENT
+When metamail calls an interpreter specified in a mailcap file, it sets several environment variables which can be used by the interpreter if desired:
+.TP 8
+.B MM_HEADERS
+This variable is set to the full set of RFC822 headers, if any.
+.TP 8
+.B MM_MAILER
+This variable is set to the name of the mailer that called metamail, if the -m option was used.
+.TP 8
+.B MM_CONTENTTYPE
+This variable is set to the content type, as named by the Content-type header or passed in via the -c option.  If the content-type has a subtype and parameters, these are also included in MM_CONTENTTYPE, e.g. "multipart/mixed; boundary=foobar".
+.TP 8
+.B MM_SUMMARY
+This variable is set to an efficient one-line "caption" of the message, typically including its sender and subject.
+.TP 8
+.B MM_USEPAGER
+This variable is set to a non-zero if the use of a pager has been requested for long output (e.g. the -p switch was given.)  If -p is given, MM_USEPAGER is set for spawned processes, allowing -p to work recursively.
+.TP 8
+TERMINAL_CMD
+This variable may be set to a string that is used to start a new terminal window if necessary.  The command to be executed in that window will be APPENDED to this command.  By default, this is set to something  like "xterm -e" if DISPLAY is set, or "shelltool" if WINDOW_PARENT is set.  Users of Sun's OpenWindows may wish to set TERMINAL_CMD to "shelltool" if they prefer shelltool over xterm.
+.SH FILES
+$HOME/.mailcap:/etc/mailcap:/usr/etc/mailcap:/usr/local/etc/mailcap -- default path for mailcap files.
+.SH SEE ALSO
+audiocompose(1), audiosend(1), ezview(1), getfilename(1), mailto-hebrew(1), mailto(1), metasend(1), mmencode(1), richtext(1), showaudio(1), showexternal(1), shownonascii(1), showpartial(1), showpicture(1)
+.SH BUGS
+In a multipart/alternative body or body parts, some headers in the embedded part that should be displayed may not be displayed.  This will rarely be a problem.  Also, in a multipart/alternative, anything of type "multipart" or "message" is considered to be a recognized part, regardless of the recognizability of its contents.  Thi might be a problem, only further experience will tell.
+.SH COPYRIGHT
+Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+
+Permission to use, copy, modify, and distribute this material 
+for any purpose and without fee is hereby granted, provided 
+that the above copyright notice and this permission notice 
+appear in all copies, and that the name of Bellcore not be 
+used in advertising or publicity pertaining to this 
+material without the specific, prior written permission 
+of an authorized representative of Bellcore.  BELLCORE 
+MAKES NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+.SH AUTHOR
+Nathaniel S. Borenstein

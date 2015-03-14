@@ -1,0 +1,194 @@
+#!pish -f
+
+option add *Background beige
+option add *Button.Background red
+
+option add *XYGraph.foreground navyblue
+option add *XYGraph.Geometry 500x500
+option add *XYGraph.font *New*Century*Bold*R*14* 
+option add *XYGraph.legendBackground lightsteelblue 
+option add *XYGraph.relief sunken 
+option add *XYGraph.borderWidth 4 
+option add *Hypertext.Geometry 500x110
+option add *Hypertext.Font *Helvetica*Bold*R*14*
+
+frame .top
+htext .top.msg -text {\
+In this example, you can sweep out a box to zoom in by clicking with 
+the left button and dragging the pointer.  To restore the original view,
+simply click on the middle button.  In addition, you can move the 
+legend by clicking on the right button. 
+
+Hit the %%
+button $this.quit -text {Quit} -command {exit} 
+$this append $this.quit
+%% button when you've seen enough.
+}
+
+xygraph .top.graph -title "Another XY Graph" \
+	-xlabel "X Axis Label" -ylabel "Y Axis Label" 
+
+set X { 
+  2.00000e-01 4.00000e-01 6.00000e-01 8.00000e-01 1.00000e+00 
+  1.20000e+00 1.40000e+00 1.60000e+00 1.80000e+00 2.00000e+00 
+  2.20000e+00 2.40000e+00 2.60000e+00 2.80000e+00 3.00000e+00 
+  3.20000e+00 3.40000e+00 3.60000e+00 3.80000e+00 4.00000e+00 
+  4.20000e+00 4.40000e+00 4.60000e+00 4.80000e+00 5.00000e+00 
+} 
+
+set Y1 { 
+  1.14471e+01 2.09373e+01 2.84608e+01 3.40080e+01 3.75691e+01 
+  3.91345e+01 3.92706e+01 3.93474e+01 3.94242e+01 3.95010e+01 
+  3.95778e+01 3.96545e+01 3.97313e+01 3.98081e+01 3.98849e+01 
+  3.99617e+01 4.00384e+01 4.01152e+01 4.01920e+01 4.02688e+01 
+  4.03455e+01 4.04223e+01 4.04990e+01 4.05758e+01 4.06526e+01 
+}
+
+set Y2 { 
+  2.61825e+01 5.04696e+01 7.28517e+01 9.33192e+01 1.11863e+02 
+  1.28473e+02 1.43140e+02 1.55854e+02 1.66606e+02 1.75386e+02 
+  1.82185e+02 1.86994e+02 1.89802e+02 1.90683e+02 1.91047e+02 
+  1.91411e+02 1.91775e+02 1.92139e+02 1.92503e+02 1.92867e+02 
+  1.93231e+02 1.93595e+02 1.93958e+02 1.94322e+02 1.94686e+02 
+}
+
+set Y3  { 
+  4.07008e+01 7.95658e+01 1.16585e+02 1.51750e+02 1.85051e+02 
+  2.16479e+02 2.46024e+02 2.73676e+02 2.99427e+02 3.23267e+02 
+  3.45187e+02 3.65177e+02 3.83228e+02 3.99331e+02 4.13476e+02 
+  4.25655e+02 4.35856e+02 4.44073e+02 4.50294e+02 4.54512e+02 
+  4.56716e+02 4.57596e+02 4.58448e+02 4.59299e+02 4.60151e+02 
+}
+
+.top.graph insert line2 -xdata $X -ydata $Y1 \
+	-symbol circle -label Vgs=2.0 -color blue 
+.top.graph insert line1 -xdata $X -ydata $Y2 \
+	-symbol square -label Vgs=3.5 -color brown  
+.top.graph insert line3 -xdata $X -ydata $Y3 \
+	-symbol diamond -label Vgs=5.0 -color red
+
+pack append .top .top.graph {top fill} .top.msg { top padx 20 pady 10 }
+pack append . .top {}
+
+proc get.coords { w sx sy xVar yVar } {
+  # w   widget
+  # sx  screen x position
+  # sy  screen y position
+
+  scan [$w locate $sx $sy ] "%s %s" x y 
+  scan [$w limits ] "%s %s %s %s" xmin xmax ymin ymax
+  if { $x > $xmax } { set x $xmax }
+  if { $x < $xmin } { set x $xmin }
+  if { $y > $ymax } { set y $ymax }
+  if { $y < $ymin } { set y $ymin }
+  global $xVar $yVar
+  set $xVar $x
+  set $yVar $y
+}
+
+proc swap { var1 var2 } {
+  global $var1 $var2
+  set hold [set $var1]
+  set $var1 [set $var2]
+  set $var2 $hold
+}
+
+proc get.anchor { w sx sy } {
+  # w   widget
+  # sx  screen x position
+  # sy  screen y position
+
+  global x1 y1 x2 y2
+  set x2 "" ; set y2 ""
+  get.coords $w $sx $sy x1 y1
+  bind $w <B1-Motion> { scan.xy %W %x %y }
+  bind $w <ButtonRelease-1> { zoom.xy %W %x %y }
+}
+
+proc box { w x1 y1 x2 y2 } {
+  $w newtag t1 $x1 $y1 \
+	-text [format "(%.4g, %.4g)" $x1 $y1] \
+	-fg red -bg grey \
+	-font *new*century*140* 
+  $w newtag t2 $x2 $y2 \
+	-text [format "(%.4g, %.4g)" $x2 $y2] \
+	-fg red -bg grey \
+	-font *new*century*140* 
+  $w insert outline \
+	-xydata { $x1 $y1 $x1 $y2 $x1 $y1 $x2 $y1 $x2 $y1 $x2 $y2 
+	         $x1 $y2 $x2 $y2 } \
+	-symbol dotted -color red -label {} -showretrace true
+}
+
+proc scan.xy { w sx sy } {
+  # w   widget
+  # sx  screen x position
+  # sy  screen y position
+
+  global x1 y1 x2 y2
+  get.coords $w $sx $sy x2 y2
+  if { $x1 > $x2 } { 
+     box $w $x2 $y2 $x1 $y1
+     if { $y1 > $y2 } {
+       $w config -cursor { bottom_left_corner red black }
+     } else {
+       $w config -cursor { top_left_corner red black }
+     }
+  } else {
+     box $w $x1 $y1 $x2 $y2
+     if { $y1 > $y2 } {
+       $w config -cursor { bottom_right_corner red black }
+     } else {
+       $w config -cursor { top_right_corner red black }
+     }
+  }
+}
+
+proc zoom.xy { w sx sy } {
+  # w   widget
+  # sx  screen x position
+  # sy  screen y position
+
+  global x1 y1 x2 y2
+  # Go back to original bindings
+  bind $w <ButtonPress-1> { get.anchor %W %x %y }
+  catch "$w untag t1" msg
+  catch "$w untag t2" msg
+  bind $w <B1-Motion> {}
+  if { $x2 == "" } then {
+     catch "$w delete outline" msg
+     $w config -xmin {} -ymin {} -xmax {} -ymax {}
+     return
+  }
+  if { $x1 > $x2 } { 
+     $w config -xmin $x2 -xmax $x1 
+  } else { 
+     if { $x1 < $x2 } {
+     	$w config -xmin $x1 -xmax $x2 
+     }
+  }
+  if { $y1 > $y2 } { 
+     $w config -ymin $y2 -ymax $y1
+  } else {
+     if { $y1 < $y2 } {
+	$w config -ymin $y1 -ymax $y2
+     }
+  }
+  $w config -cursor crosshair 
+}
+
+bind .top.graph <ButtonPress-1> { 
+  get.anchor %W %x %y ; %W config -cursor {crosshair red black}
+}
+
+bind .top.graph <ButtonPress-2> { 
+  catch "%W delete outline" msg
+  %W config -xmin {} -ymin {} -xmax {} -ymax {}
+}
+bind .top.graph <ButtonPress-3> { 
+  %W config -legendposition @%x,%y 
+}
+
+
+
+

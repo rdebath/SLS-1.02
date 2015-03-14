@@ -1,0 +1,61 @@
+
+.nf
+	ar	\fBdeltap\fR		kdlt
+	ar	\fBdeltapi\fR		xdlt
+.fi
+
+Tap a delay line at variable offset times.
+
+
+
+PERFORMANCE
+
+These units can tap into a \fBdelayr/delayw\fR pair, extracting
+delayed audio from the \fIidlt\fR seconds of stored sound.
+There can be any number of \fBdeltap\fR and/or \fBdeltapi\fR units
+between a read/write pair.  Each receives an audio tap with no change
+of original amplitude.
+
+\fBdeltap\fR extracts sound by reading the stored samples directly;
+\fBdeltapi\fR extracts sound by \fIinterpolated readout\fR.
+By interpolating between adjacent stored samples \fBdeltapi\fR represents
+a particular delay time with more accuracy, but it will take about twice
+as long to run.
+
+The arguments \fIkdlt, xdlt\fR specify the tapped delay time in seconds.
+Each can range from 1 Control Period to the full delay time of the read/write
+pair;  however, since there is no internal check for adherence to this range,
+the user is wholly responsible.
+Each argument can be a constant, a variable, or a time-varying signal;
+the \fIxdlt\fR argument in \fBdeltapi\fR implies that an audio-varying delay
+is permitted there.  
+
+These units can provide multiple delay taps for arbitrary delay path and
+feedback networks.  They can deliver either constant-time or time-varying taps,
+and are useful for building chorus effects, harmonizers, and doppler shifts.
+Constant-time delay taps (and some slowly changing ones) do not need
+interpolated readout;  they are well served by \fBdeltap\fR.
+Medium-paced or fast varying \fIdlt's\fR, however, will need the
+extra services of \fBdeltapi\fR.
+
+N.B.  K-rate delay times are not internally interpolated, but rather
+lay down stepped time-shifts of audio samples;  this will be found quite
+adequate for slowly changing tap times.  For medium to fast-paced changes,
+however, one should provide a higher resolution audio-rate timeshift as input.
+
+
+
+
+
+Example:
+
+.nf
+	asource	buzz	1, 440, 20, 1
+	atime	linseg	1, p3/2, .01, p3/2, 1	;trace a distance in secs
+	ampfac	=	1/atime/atime		;  and calc an amp factor
+	adump	delayr	1			;set maximum distance
+	amove	deltapi	atime			;move sound source past
+		delayw	asource			;  the listener
+		out	amove * ampfac
+.fi
+.bp

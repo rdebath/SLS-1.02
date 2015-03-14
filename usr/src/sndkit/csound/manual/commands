@@ -1,0 +1,308 @@
+.TL
+\fB7.  The CSOUND Command\fR
+.PP
+\fBcsound\fR is a command for passing an orchestra file and score file to
+\fBCsound\fR to generate a soundfile.
+The score file can be in one of many different formats, according to user
+preference.  Translation, sorting, and formatting into orchestra-readable
+numeric text is handled by various preprocessors;
+all or part of the score is then sent on to the orchestra.
+Orchestra performance is influenced by command flags,
+which set the level of displays and console reports,
+specify I/O filenames and sample formats,
+and declare the nature of realtime sensing and control.
+.PP
+The format of a command is:
+.i
+csound  [-flags]  orchname scorename
+.e
+where the arguments are of 2 types:
+\fIflag\fR arguments (beginning with a "-"), and
+\fIname\fR arguments (such as filenames).
+Certain flag arguments take a following name or numeric argument.
+The available flags are:
+.i
+-I, -n			sound output inhibitors
+-iName, -oName		sound I/O filenames
+-bNumb, -h		audio buffer & header control
+-c, -a, -u, -s, -l, -f		audio output formats
+-v, -mNumb, -d, -g		message & display levels
+-S, -xName		score formats
+-B, -RName, -MName	realtime event control
+.e
+Flags may appear anywhere in the command line, either separately or
+bundled together.  A flag taking a Name or Number will find it in
+that argument, or in the immediately subsequent one.
+The following are thus equivalent commands:
+.i
+csound  -nm3 orchname -Sxxfilename scorename
+csound  -n -m 3 orchname -x xfilename -S scorename
+.e
+All flags and names are optional.   The default values are:
+.i
+csound -s -otest -b iobufsamps -m7 orchname scorename
+
+where \fIiobufsamps\fR is a locally defined value (see below),
+
+and \fIorchname\fR is a file containing Csound orchestra code,
+
+and \fIscorename\fR is a file of score data in standard numeric score format;  if omitted,
+	csound will use the previously processed \fIscore.srt\fI in the current directory.
+.e
+\fBCsound\fR reports on the various stages of score and orchestra processing
+as it goes, doing various syntax and error checks along the way.
+Once the actual performance has begun, any error messages will derive
+from either the instrument loader or the unit generators themselves.
+A \fBcsound\fR command may include any rational combination of the following
+flag arguments:
+
+.B
+csound -I
+.br
+.R
+I-time only.  Allocate and initialize all instruments as per the score,
+but skip all P-time processing (no k-signals or a-signals, and thus no
+amplitudes and no sound).  Provides a fast validity check of the score pfields
+and orchestra i-variables.
+
+.B
+csound -n
+.br
+.R
+Nosound. Do all processing, but bypass writing of sound to disk.
+This flag does not change the execution in any other way.
+
+.B
+csound -i isfname
+.br
+.R
+Input soundfile name (interpreted as for output names, below).  The name
+.I stdin
+will cause audio to be read from standard input.
+
+.B
+csound -o osfname
+.br
+.R
+Output soundfile name.
+Sound is written to the file \fIosfame\fR in the user soundfile directory
+(set by the environment variable SFDIR).
+If no name is given, the default name will be \fItest\fR.
+If \fIosfname\fR is of the form \fI./name\fR or \fI/path/name\fR,
+sound will be written into the current or specified directory.
+If SFREMOTE is enabled at Csound installation, and \fIosfname\fR is of the form
+\fImachine:/path/name\fR, sound will be written to the remote machine.  The name
+.I stdout
+will cause audio to be written to standard output.
+
+.B
+csound -b Numb
+.br
+.R
+Number of audio samples per soundio buffer.  Typically 512.  A larger number
+is more efficient, but small numbers reduce the delay in realtime performances.
+
+.B
+csound -h
+.br
+.R
+No header on output soundfile.  Don't write a file header, just binary samples.
+
+.B
+csound {-c, -a, -u, -s, -l, -f}
+.br
+.R
+Audio sample format of the output soundfile.  One of:
+.br
+    c	8-bit signed character
+.br
+    a	8-bit a-law
+.br
+    u	8-bit u-law
+.br
+    s	short integer
+.br
+    l	long integer
+.br
+    f	single-precision float (not playable, but can be read by -i, 
+\fBsoundin\fR and GEN01)
+
+.B
+csound -v
+.br
+.R
+Verbose translate and run.  Prints details of orch translation and performance,
+enabling errors to be more clearly located.
+
+.B
+csound -m Numb
+.br
+.R
+Message level for standard (terminal) output.
+Takes the \fIsum\fR of 3 print control flags, turned on
+by the following values:
+1 = note amplitude messages,  2 = samples out of range message,
+4 = warning messages.
+The default value is
+.I m7
+(all messages on).
+
+.B
+csound -d
+.br
+.R
+Suppress all displays.
+
+.B
+csound -g
+.br
+.R
+Recast graphic displays into \fIascii\fR characters, suitable for any terminal.
+
+.B
+csound -S
+.br
+.R
+Interpret \fIscorename\fR as a Scot file and create a
+standard score file (named "score") from it, then sort and perform that.
+
+.B
+csound -x xfile
+.br
+.R
+Extract a portion of the sorted score
+.I score.srt,
+according to
+.I xfile
+(see extract below).
+
+.B
+csound -B
+.br
+.R
+Use the uninterpreted Beats of
+.I score.srt
+for this performance.  In this mode, the \fIbeat rate\fR of score performance
+is controllable from within the orchestra (see the \fBtempo\fR unit).
+
+.B
+csound -R devname
+.br
+.R
+Read Realtime Line-oriented score events from device
+.I devname.
+
+.B
+csound -M devname
+.br
+.R
+Read MIDI events from device
+.I devname.
+.sp .8
+.SH
+The EXTRACT feature:
+.PP
+This feature will
+.B extract
+a segment of a
+.I
+sorted numeric score
+.R
+file according to instructions taken from a control file.
+The control file contains an instrument list and two time points,
+.I from
+and
+.I to,
+in the form:
+.i
+instruments 1 2   from 1:27.5    to 2:2
+.e
+.PP
+The component labels may be abbreviated as
+.I
+i, f
+.R
+and
+.I t.
+The time points denote the begininng and end of the extract in terms of:
+.i
+[section no.] : [beat no.].
+.e
+Each of the three parts is also optional.
+The default values for missing
+.I
+i, f
+.R
+or
+.I t
+.R
+are:
+.i
+all instruments,   begining of score,   end of score.
+.e
+.PP
+.B extract
+reads an orchestra-readable score file and produces an
+orchestra-readable result.
+Comments, tabs and extra spaces are flushed,
+.B w
+and
+.B a
+statements are added and an 
+.B f0
+reflecting the extract length is appended to the output.
+Following an
+.B extract
+process, the abbreviated score will contain all function table statements,
+together with just those note statements that occur in the
+.I from-to
+interval specified.  Notes lying completely in the interval will be
+unmodified;  notes that lie only partly within will their p3 durations
+truncated as necessary.
+.sp .8
+.SH
+Independent Preprocessing:
+.PP
+Although the result of all score preprocessing is retained in the file
+.I score.srt
+after orchestra performance (it exists as soon as score preprocessing
+has completed), the user may sometimes want to run these phases independently.
+The command
+.i
+scot  filename
+.e
+will process the
+.B Scot
+formatted
+.I filename,
+and leave a
+.I
+standard numeric score
+.R
+result in a file named
+.I score
+for perusal or later processing;
+
+.i
+scscort < infile   > outfile
+.e
+will put a numeric score
+.I infile
+through Carry, Tempo, and Sort preprocessing, leaving the result in
+.I outfile.
+
+Likewise
+.B extract,
+also normally invoked as part of the
+.B csound
+command, can be invoked as a standalone program:
+.i
+extract xfile < score.sort  > score.extract
+.e
+This command expects an already sorted score.
+An unsorted score should first be sent through
+.I scsort
+then piped to the extract program:
+.i
+scsort < scorefile | extract xfile > score.extract
+.e

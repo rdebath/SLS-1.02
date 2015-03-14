@@ -1,0 +1,65 @@
+XCOMM $XConsortium: Imakefile,v 1.21 91/09/18 14:29:40 rws Exp $
+#define DoNormalLib NormalOldLibX
+#define DoSharedLib SharedOldLibX
+#define DoDebugLib DebugOldLibX
+#define DoProfileLib ProfileOldLibX
+#include <Library.tmpl>
+
+#ifdef RsArchitecture
+REQUIREDLIBS = $(XLIBSRC)/libX11.a
+#endif
+
+#if Malloc0ReturnsNull
+        DEFINES = -DMALLOC_0_RETURNS_NULL
+#endif
+       INCLUDES = -I$(INCLUDESRC) -I$(XLIBSRC)
+   INSTALLFLAGS = $(INSTINCFLAGS)
+           SRCS = *.c
+        HEADERS = X10.h
+       LINTLIBS =
+
+OBJS =\
+	XDraw.o \
+	XCrAssoc.o \
+	XDelAssoc.o \
+	XDestAssoc.o \
+	XLookAssoc.o \
+	XMakeAssoc.o
+
+LibraryObjectRule()
+
+#if DoSharedLib
+#if DoNormalLib
+SharedLibraryTarget(oldX,$(SOOLDXREV),$(OBJS),shared,..)
+#else
+SharedLibraryTarget(oldX,$(SOOLDXREV),$(OBJS),.,.)
+#endif
+InstallSharedLibrary(oldX,$(SOOLDXREV),$(USRLIBDIR))
+#endif
+#if DoNormalLib
+NormalLibraryTarget(oldX,$(OBJS))
+InstallLibrary(oldX,$(USRLIBDIR))
+#endif
+#if DoProfileLib
+ProfiledLibraryTarget(oldX,$(OBJS))
+InstallLibrary(oldX_p,$(USRLIBDIR))
+#endif
+#if DoDebugLib
+DebuggedLibraryTarget(oldX,$(OBJS))
+InstallLibrary(oldX_d,$(USRLIBDIR))
+#endif
+
+LintLibraryTarget(oldX,*.c)
+
+BuildIncludes($(HEADERS),.,.)
+InstallMultiple($(HEADERS),$(INCDIR))
+
+InstallLintLibrary(oldX,$(LINTLIBDIR))
+
+
+DependTarget()
+
+XCOMM structure alignment errors can safely be ignored.
+XCOMM complaints about qevent can be ignored too.
+
+NormalLintTarget(*.c)

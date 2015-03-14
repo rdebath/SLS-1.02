@@ -1,0 +1,80 @@
+#! /bin/sh
+# doexpire - overall administration for expire
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/expire:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+lock="$NEWSCTL/LOCKexpire"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+if newslock $ltemp $lock
+then
+	trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+else
+	echo "$0: expire apparently already running" | mail "$NEWSMASTER"
+	exit 1
+fi
+
+hopt=
+if test " `spacefor 1 archive`" -le 0
+then
+	(
+		echo "$0:"
+		echo "	Space shortage in archiving area!"
+		echo "	Unable to archive old articles -- holding them in"
+		echo "	current directories using \`expire -h'.  If shortage"
+		echo "	persists, human action is urgently needed."
+	) | mail "$NEWSMASTER"
+	hopt=-h
+fi
+
+cd $NEWSCTL
+forcer=no
+for o
+do
+	if test " $o" = " -r"
+	then
+		forcer=yes
+		ropt=
+	fi
+done
+case "$forcer" in
+no)	ropt=-r
+	for counter in x x x x		# four tries
+	do
+		rm -f history.o		# it's about to vanish anyway
+		size="`sizeof history history.pag history.dir`"
+		if test " `spacefor $size control`" -gt 0
+		then
+			ropt=
+			break
+		fi
+		sleep 600		# and hope it will improve
+	done
+	if test " $ropt" = " -r"
+	then
+		(
+			echo "$0:"
+			echo "	SEVERE SPACE SHORTAGE in $NEWSCTL !"
+			echo "	Unable to rebuild history files due to insufficient"
+			echo "	space for temporaries -- resorting to \`expire -r'."
+			echo "	Growth of the history files will make things worse;"
+			echo "	if shortage persists, human action is urgently needed."
+		) | mail "$NEWSMASTER"
+	fi
+	;;
+esac
+
+expire $ropt $hopt $* $NEWSCTL/explist 2>/tmp/doex$$
+if test -s /tmp/doex$$
+then
+	(echo 'expire problems:' ; cat /tmp/doex$$ ) | mail "$NEWSMASTER"
+	rm -f /tmp/doex$$
+	exit 1
+fi
+rm -f /tmp/doex$$
+exit 0

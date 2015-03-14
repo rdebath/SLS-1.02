@@ -1,0 +1,141 @@
+# This is the developer's makefile, not the user's makefile.
+# Don't use it unless you know exactly what you do!
+
+
+# Choose one of the packers:
+
+# Standard Unix packer. Requires GNU tar.
+PACK = tar
+PACKOPT = cvfhz
+PACKEXT = .tar.Z
+
+# The one with the best performance.
+#PACK = lha
+#PACKOPT = a
+#PACKEXT = .lzh
+
+# Popular DOS packer.
+#PACK = zip
+#PACKOPT = -r
+#PACKEXT = .zip
+
+# Popular Atari packer.
+#PACK = zoo
+#PACKOPT = -add
+#PACKEXT = .zoo
+
+# The distribution's top directory is called TOPDIR here.
+# Use clisp-YYYY-MM-DD where DD.MM.YYYY is the date.
+TOPDIR = clisp
+T = $(TOPDIR)
+
+SOURCES1 = $T/ANNOUNCE $T/COPYRIGHT $T/GNU-GPL $T/INSTALL $T/SUMMARY $T/target
+SOURCES2 = $T/src/*[^d] $T/src/*[^0]?d $T/src/[^l]*0?d # exclude $T/src/l*0?d = $T/src/lisparit0.d
+SOURCES3 = $T/utils $T/unix $T/vms $T/dos $T/os2 $T/amiga $T/atari $T/tests $T/makefile.developer
+
+SOURCES = $(SOURCES1) $(SOURCES2) $(SOURCES3)
+
+DOSDIR = /c:/clisp/src
+DOSPCLDIR= /c:/lisp/pcl
+TEMPDIR = /tmp/clispdos
+
+
+all : makefiles configures src/FILES
+
+makefiles : dos/makefile os2/makefile atari/makefile.cross
+
+dos/makefile : makemake
+	makemake dos gcc > dos/makefile.tmp
+	move-if-change dos/makefile.tmp dos/makefile
+
+os2/makefile : makemake
+	makemake os2 gcc > os2/makefile.tmp
+	move-if-change os2/makefile.tmp os2/makefile
+
+atari/makefile.cross : makemake
+	makemake cross atari gcc > atari/makefile.tmp
+	move-if-change atari/makefile.tmp atari/makefile.cross
+
+makemake : src/makemake.in
+	(echo "#!/bin/sh" ; cat src/makemake.in) > makemake
+	chmod a+x makemake
+
+
+configures : src/configure src/readline/configure
+
+src/configure : src/configure.in /usr/local/lib/aclocal.m4
+	cd src ; autoconf
+
+src/readline/configure : src/readline/configure.in /usr/local/lib/aclocal.m4
+	cd src/readline ; autoconf
+
+
+src/FILES : src/FILES.1
+	groff -Tascii -mandoc src/FILES.1 > src/FILES
+
+
+distrib : linux-distrib dos-distrib src-distrib
+
+src-distrib : src/FILES force
+	ln -s . $(TOPDIR)
+	$(PACK) $(PACKOPT) /tmp/clispsrc$(PACKEXT) $(SOURCES)
+	rm -f $(TOPDIR)
+	cd $$HOME/lisp/pcl && make src-distrib
+
+linux-distrib : force
+	make linux--distrib
+
+linux--distrib : force
+	cd make.gcc && make PACK="$(PACK)" PACKOPT="$(PACKOPT)" PACKEXT="$(PACKEXT)" distrib
+	cd $$HOME/lisp/pcl && make PACK="$(PACK)" PACKOPT="$(PACKOPT)" PACKEXT="$(PACKEXT)" clisp-distrib
+
+dos-distrib : force
+	make dos--distrib PACK="zip" PACKOPT="-r" PACKEXT=".zip"
+
+dos--distrib : force
+	mkdir $(TEMPDIR)
+	cp -p $(DOSDIR)/ANNOUNCE $(DOSDIR)/COPYRIGHT $(DOSDIR)/GNU-GPL $(DOSDIR)/SUMMARY $(TEMPDIR)
+	cp -p $(DOSDIR)/lisp.exe $(TEMPDIR)
+	cp -p $(DOSDIR)/lisp_1mb.exe $(TEMPDIR)
+	cp -p $(DOSDIR)/compiled.mem $(TEMPDIR)/lispinit.mem
+	cp -p $(DOSDIR)/*.lsp $(DOSDIR)/*.fas $(TEMPDIR)
+	cp -p $(DOSDIR)/README $(DOSDIR)/clisp.1 $(DOSDIR)/impnotes.txt $(TEMPDIR)
+	from-ibmpc $(TEMPDIR)/clisp.1 dos/clisp.1
+	from-ibmpc $(TEMPDIR)/impnotes.txt dos/impnotes.txt
+	cd dos ; groff -Tascii -mandoc clisp.1 > clisp.man
+	cd dos ; groff -Tdvi -mandoc clisp.1 > clisp.dvi
+	to-ibmpc dos/clisp.man $(TEMPDIR)/clisp.man
+	cp -p dos/clisp.dvi $(TEMPDIR)/clisp.dvi
+	cp -p /c:/emx/doc/user.doc $(TEMPDIR)/emx-user.doc
+	cd $(TEMPDIR) ; $(PACK) $(PACKOPT) /tmp/clisp$(PACKEXT) *
+	rm -rf $(TEMPDIR)
+	cd $(DOSPCLDIR) ; $(PACK) $(PACKOPT) /tmp/pcl$(PACKEXT) README get-pcl.txt pcl.mem
+	cd $(DOSPCLDIR) ; $(PACK) $(PACKOPT) /tmp/pcl-src$(PACKEXT) README Makefile *.lsp *.txt
+
+os2-distrib : force
+	make os2--distrib PACK="zip" PACKOPT="-r" PACKEXT=".zip"
+
+os2--distrib : force
+	mkdir $(TEMPDIR)
+	cp -p $(DOSDIR)/ANNOUNCE $(DOSDIR)/COPYRIGHT $(DOSDIR)/GNU-GPL $(DOSDIR)/SUMMARY $(TEMPDIR)
+	cp -p $(DOSDIR)/lisp.exe $(TEMPDIR)
+	cp -p $(DOSDIR)/compiled.mem $(TEMPDIR)/lispinit.mem
+	cp -p $(DOSDIR)/*.lsp $(DOSDIR)/*.fas $(TEMPDIR)
+	cp -p $(DOSDIR)/README $(DOSDIR)/clisp.1 $(DOSDIR)/impnotes.txt $(TEMPDIR)
+	from-ibmpc $(TEMPDIR)/clisp.1 os2/clisp.1
+	from-ibmpc $(TEMPDIR)/impnotes.txt os2/impnotes.txt
+	cd os2 ; groff -Tascii -mandoc clisp.1 > clisp.man
+	cd os2 ; groff -Tdvi -mandoc clisp.1 > clisp.dvi
+	to-ibmpc os2/clisp.man $(TEMPDIR)/clisp.man
+	cp -p os2/clisp.dvi $(TEMPDIR)/clisp.dvi
+	cp -p /c:/emx/doc/user.doc $(TEMPDIR)/emx-user.doc
+	cp -p /c:/emx/dll/emx.dll $(TEMPDIR)
+	cp -p /c:/emx/dll/emxlibc.dll $(TEMPDIR)
+	# cp -p /c:/emx/etc/termcap.dat $(TEMPDIR)
+	cd $(TEMPDIR) ; $(PACK) $(PACKOPT) /tmp/clisp$(PACKEXT) *
+	rm -rf $(TEMPDIR)
+	cd $(DOSPCLDIR) ; $(PACK) $(PACKOPT) /tmp/pcl$(PACKEXT) README get-pcl.txt pcl.mem
+	cd $(DOSPCLDIR) ; $(PACK) $(PACKOPT) /tmp/pcl-src$(PACKEXT) README Makefile *.lsp *.txt
+
+force :
+

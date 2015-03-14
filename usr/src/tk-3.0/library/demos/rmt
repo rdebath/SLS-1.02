@@ -1,0 +1,173 @@
+#!/usr/local/wish -f
+#
+# This script implements a simple remote-control mechanism for
+# Tk applications.  It allows you to select an application and
+# then type commands to that application.
+
+wm title . "Tk Remote Controller"
+wm iconname . "Tk Remote"
+wm minsize . 1 1
+
+# The global variable below keeps track of the remote application
+# that we're sending to.  If it's an empty string then we execute
+# the commands locally.
+
+set app "local"
+set promptLength 7
+
+# The global variable below keeps track of whether we're in the
+# middle of executing a command entered via the text.
+
+set executing 0
+
+# The global variable below keeps track of the last command executed,
+# so it can be re-executed in response to !! commands.
+
+set lastCommand ""
+
+# Create menu bar.  Arrange to recreate all the information in the
+# applications sub-menu whenever it is cascaded to.
+
+frame .menu -relief raised -bd 2
+pack append . .menu {top fillx}
+menubutton .menu.file -text "File" -menu .menu.file.m -underline 0
+menu .menu.file.m
+.menu.file.m add cascade -label "Select Application" -command fillAppsMenu \
+	-menu .menu.file.m.apps -underline 0 -accelerator =>
+.menu.file.m add command -label "Quit" -command "destroy ." -underline 0
+menu .menu.file.m.apps
+pack append .menu .menu.file left
+tk_menuBar .menu .menu.file
+
+# Create text window and scrollbar, and set up bindings for text
+# window to foward commands to a remote application.
+
+text .t -relief raised -bd 2 -yscrollcommand ".s set" -setgrid true
+scrollbar .s -relief flat -command ".t yview"
+pack append . .s {right fill} .t left
+
+bind .t <1> {
+    set tk_priv(selectMode) char
+    %W mark set anchor @%x,%y
+    if {[lindex [%W config -state] 4] == "normal"} {focus %W}
+}
+bind .t <Double-1> {
+    set tk_priv(selectMode) word
+    tk_textSelectTo %W @%x,%y
+}
+bind .t <Triple-1> {
+    set tk_priv(selectMode) line
+    tk_textSelectTo %W @%x,%y
+}
+bind .t <Control-u> {
+    .t delete "insert linestart + $promptLength chars" "insert lineend"
+    .t yview -pickplace insert
+}
+bind .t <Return> {.t insert insert \n; invoke}
+bind .t <BackSpace> backspace
+bind .t <Delete> backspace
+bind .t <Control-h> backspace
+bind .t <Control-v> {
+    .t insert insert [selection get]
+    .t yview -pickplace insert
+    if [string match *.0 [.t index insert]] {
+	invoke
+    }
+}
+
+.t tag configure bold -font *-Courier-Bold-R-Normal-*-120-*
+
+# The procedure below is used to print out a prompt at the
+# insertion point (which should be at the beginning of a line
+# right now).
+
+proc prompt {} {
+    global app promptLength
+    .t insert "insert linestart" "$app: "
+    .t tag add bold "insert linestart" \
+	    "insert linestart + [expr $promptLength-1] chars"
+}
+
+# The procedure below executes a command (it takes everything on the
+# current line after the prompt and either sends it to the remote
+# application or executes it locally, depending on "app".
+
+proc invoke {} {
+    global app promptLength executing lastCommand
+    set cmd [.t get cmdStart+1c insert]
+    incr executing 1
+    if [info complete $cmd] {
+	if {$cmd == "!!\n"} {
+	    set cmd $lastCommand
+	} else {
+	    set lastCommand $cmd
+	}
+	if {$app == "local"} {
+	    set result [catch [list uplevel #0 $cmd] msg]
+	} else {
+	    set result [catch [list send $app $cmd] msg]
+	}
+	if {$result != 0} {
+	    .t insert insert "Error: $msg\n"
+	} else {
+	    if {$msg != ""} {
+		.t insert insert $msg\n
+	    }
+	}
+	prompt
+	.t mark set cmdStart insert-1c
+    }
+    incr executing -1
+    .t yview -pickplace insert
+}
+
+# The following procedure is invoked to change the application that
+# we're talking to.  It also updates the prompt for the current
+# command, unless we're in the middle of executing a command from
+# the text item (in which case a new prompt is about to be output
+# so there's no need to change the old one).
+
+proc newApp appName {
+    global app promptLength executing
+    set app $appName
+    set promptLength [expr [string length $appName]+2]
+    if !$executing {
+	.t delete "cmdStart linestart" cmdStart
+	.t insert cmdStart "$appName:"
+	.t tag add bold "cmdStart linestart" cmdStart
+    }
+    return {}
+}
+
+# The following procedure below handles backspaces, being careful not
+# to backspace over the prompt.
+
+proc backspace {} {
+    global promptLength
+    scan [.t index insert] %*d.%d char
+    if {$char > $promptLength} {
+	.t delete insert-1c insert
+	.t yview -pickplace insert
+    }
+}
+
+# The procedure below will fill in the applications sub-menu with a list
+# of all the applications that currently exist.
+
+proc fillAppsMenu {} {
+    catch {.menu.file.m.apps delete 0 last}
+    foreach i [lsort [winfo interps]] {
+	.menu.file.m.apps add command -label $i -command [list newApp $i]
+    }
+    .menu.file.m.apps add command -label local -command {newApp local}
+}
+
+prompt
+focus .t
+
+# The "cmdStart" mark records the position of the space character just
+# after the most recent prompt.  It turns out to be important to use
+# this position, so that the mark floats correctly as characters are
+# typed in the command as as the prompt is changed.
+
+.t mark set cmdStart "insert-1c"

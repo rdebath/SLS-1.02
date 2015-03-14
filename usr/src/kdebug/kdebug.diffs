@@ -1,0 +1,2251 @@
+*** /user/linux/Makefile	Mon Feb 22 18:31:15 1993
+--- linux/Makefile	Wed Mar  3 11:18:37 1993
+***************
+*** 84,94 ****
+  
+  #
+  # standard CFLAGS
+  #
+  
+! CFLAGS = -Wall -O6 -fomit-frame-pointer
+  
+  ifdef CONFIG_M486
+  CFLAGS := $(CFLAGS) -m486
+  endif
+  
+--- 84,94 ----
+  
+  #
+  # standard CFLAGS
+  #
+  
+! CFLAGS = -Wall -g -O6 
+  
+  ifdef CONFIG_M486
+  CFLAGS := $(CFLAGS) -m486
+  endif
+  
+***************
+*** 115,126 ****
+  FILESYSTEMS	=fs/filesystems.a
+  DRIVERS		=kernel/blk_drv/blk_drv.a kernel/chr_drv/chr_drv.a \
+  		 kernel/blk_drv/scsi/scsi.a kernel/chr_drv/sound/sound.a
+  MATH		=kernel/FPU-emu/math.a
+  LIBS		=lib/lib.a
+! SUBDIRS		=kernel mm fs net lib
+  
+  KERNELHDRS	=/usr/src/linux/include
+  
+  .c.s:
+  	$(CC) $(CFLAGS) -S -o $*.s $<
+  .s.o:
+--- 115,133 ----
+  FILESYSTEMS	=fs/filesystems.a
+  DRIVERS		=kernel/blk_drv/blk_drv.a kernel/chr_drv/chr_drv.a \
+  		 kernel/blk_drv/scsi/scsi.a kernel/chr_drv/sound/sound.a
+  MATH		=kernel/FPU-emu/math.a
+  LIBS		=lib/lib.a
+! SUBDIRS		=kernel mm fs net lib kdebug
+  
++ K_SUBDIRS	=kernel mm fs net lib
++ 
++ ifdef CONFIG_LDEBUG
++ K_SUBDIRS := $(K_SUBDIRS) kdebug
++ ARCHIVES := $(ARCHIVES) kdebug/debugger.o
++ endif
++ 
+  KERNELHDRS	=/usr/src/linux/include
+  
+  .c.s:
+  	$(CC) $(CFLAGS) -S -o $*.s $<
+  .s.o:
+***************
+*** 139,149 ****
+  config:
+  	sh Configure < config.in
+  	mv .config~ .config
+  
+  linuxsubdirs: dummy
+! 	@for i in $(SUBDIRS); do (cd $$i && echo $$i && $(MAKE)) || exit; done
+  
+  tools/./version.h: tools/version.h
+  
+  tools/version.h: $(CONFIGURE) Makefile
+  	@./makever.sh
+--- 146,156 ----
+  config:
+  	sh Configure < config.in
+  	mv .config~ .config
+  
+  linuxsubdirs: dummy
+! 	@for i in $(K_SUBDIRS); do (cd $$i && echo $$i && $(MAKE)) || exit; done
+  
+  tools/./version.h: tools/version.h
+  
+  tools/version.h: $(CONFIGURE) Makefile
+  	@./makever.sh
+***************
+*** 160,170 ****
+  disk: Image
+  	dd bs=8192 if=Image of=/dev/fd0
+  
+  tools/build: $(CONFIGURE) tools/build.c
+  	$(HOSTCC) $(CFLAGS) \
+! 	-o tools/build tools/build.c
+  
+  boot/head.o: $(CONFIGURE) boot/head.s
+  
+  boot/head.s: $(CONFIGURE) boot/head.S include/linux/tasks.h
+  	$(CPP) -traditional boot/head.S -o boot/head.s
+--- 167,177 ----
+  disk: Image
+  	dd bs=8192 if=Image of=/dev/fd0
+  
+  tools/build: $(CONFIGURE) tools/build.c
+  	$(HOSTCC) $(CFLAGS) \
+! 	-o tools/build tools/build.c -lc
+  
+  boot/head.o: $(CONFIGURE) boot/head.s
+  
+  boot/head.s: $(CONFIGURE) boot/head.S include/linux/tasks.h
+  	$(CPP) -traditional boot/head.S -o boot/head.s
+diff +recursive -cC5 /user/linux/config.in linux/config.in
+*** /user/linux/config.in	Tue Feb  9 20:07:51 1993
+--- linux/config.in	Tue Mar  2 22:58:57 1993
+***************
+*** 10,19 ****
+--- 10,23 ----
+  CONFIG_PROFILE y/n n
+  Limit memory to low 16MB
+  CONFIG_MAX_16M y/n y
+  Use -m486 flag for 486-specific optimizations
+  CONFIG_M486 y/n y
++ Add remote kernel debugger
++ CONFIG_KDEBUG y/n n
++ Add local kernel debugger
++ CONFIG_LDEBUG y/n n
+  :
+  SCSI support
+  .
+  SCSI support?
+  CONFIG_SCSI y/n n
+diff +recursive -cC5 /user/linux/include/asm/irq.h linux/include/asm/irq.h
+*** /user/linux/include/asm/irq.h	Thu Jan 21 20:14:09 1993
+--- linux/include/asm/irq.h	Mon Mar  1 10:25:40 1993
+***************
+*** 131,153 ****
+  	"addl $8,%esp\n\t" \
+  	"cli\n\t" \
+  	UNBLK_##chip(mask) \
+  	"decl _intr_count\n\t" \
+  	"jne ret_from_sys_call\n\t" \
+  	"movl _bh_mask,%eax\n\t" \
+  	"andl _bh_active,%eax\n\t" \
+  	"je ret_from_sys_call\n\t" \
+- 	"incl _intr_count\n\t" \
+- 	"sti\n\t" \
+  	"bsfl %eax,%eax\n\t" \
+  	"btrl %eax,_bh_active\n\t" \
+  	"pushl %eax\n\t" \
+  	"call _do_bottom_half\n\t" \
+  	"addl $4,%esp\n\t" \
+  	"cli\n\t" \
+! 	"decl _intr_count\n\t" \
+! 	"jmp ret_from_sys_call\n" \
+  "\n.align 4\n" \
+  "_fast_IRQ" #nr "_interrupt:\n\t" \
+  	SAVE_MOST \
+  	ACK_##chip(mask) \
+  	"incl _intr_count\n\t" \
+--- 131,156 ----
+  	"addl $8,%esp\n\t" \
+  	"cli\n\t" \
+  	UNBLK_##chip(mask) \
+  	"decl _intr_count\n\t" \
+  	"jne ret_from_sys_call\n\t" \
++ 	"cmpl $-1,_bh_inuse \n\t"\
++ 	"jne ret_from_sys_call\n" \
++ 	"2:\n\t"\
+  	"movl _bh_mask,%eax\n\t" \
+  	"andl _bh_active,%eax\n\t" \
+  	"je ret_from_sys_call\n\t" \
+  	"bsfl %eax,%eax\n\t" \
+  	"btrl %eax,_bh_active\n\t" \
++ 	"movl %eax,_bh_inuse\n\t" \
++ 	"sti\n\t" \
+  	"pushl %eax\n\t" \
+  	"call _do_bottom_half\n\t" \
+  	"addl $4,%esp\n\t" \
+  	"cli\n\t" \
+! 	"movl $-1,_bh_inuse\n\t" \
+! 	"jmp 2b\n" \
+  "\n.align 4\n" \
+  "_fast_IRQ" #nr "_interrupt:\n\t" \
+  	SAVE_MOST \
+  	ACK_##chip(mask) \
+  	"incl _intr_count\n\t" \
+***************
+*** 156,181 ****
+  	"addl $4,%esp\n\t" \
+  	"cli\n\t" \
+  	UNBLK_##chip(mask) \
+  	"decl _intr_count\n\t" \
+  	"jne 1f\n\t" \
+  	"movl _bh_mask,%eax\n\t" \
+  	"andl _bh_active,%eax\n\t" \
+  	"jne 2f\n" \
+  	"1:\t" \
+  	RESTORE_MOST \
+  	"\n.align 4\n" \
+! 	"2:\tincl _intr_count\n\t" \
+! 	"sti\n\t" \
+  	"bsfl %eax,%eax\n\t" \
+  	"btrl %eax,_bh_active\n\t" \
+  	"pushl %eax\n\t" \
+  	"call _do_bottom_half\n\t" \
+  	"addl $4,%esp\n\t" \
+  	"cli\n\t" \
+! 	"decl _intr_count\n\t" \
+! 	RESTORE_MOST \
+  "\n\n.align 4\n" \
+  "_bad_IRQ" #nr "_interrupt:\n\t" \
+  	SAVE_MOST \
+  	ACK_##chip(mask) \
+  	RESTORE_MOST);
+--- 159,188 ----
+  	"addl $4,%esp\n\t" \
+  	"cli\n\t" \
+  	UNBLK_##chip(mask) \
+  	"decl _intr_count\n\t" \
+  	"jne 1f\n\t" \
++ 	"cmpl $-1, _bh_inuse\n\t"\
++ 	"jne 1f\n" \
++ 	"3:\n\t"\
+  	"movl _bh_mask,%eax\n\t" \
+  	"andl _bh_active,%eax\n\t" \
+  	"jne 2f\n" \
+  	"1:\t" \
+  	RESTORE_MOST \
+  	"\n.align 4\n" \
+! 	"2:\n\t"\
+  	"bsfl %eax,%eax\n\t" \
+  	"btrl %eax,_bh_active\n\t" \
++ 	"movl %eax,_bh_inuse\n\t" \
++ 	"sti\n\t" \
+  	"pushl %eax\n\t" \
+  	"call _do_bottom_half\n\t" \
+  	"addl $4,%esp\n\t" \
+  	"cli\n\t" \
+! 	"movl $-1, _bh_inuse\n\t"\
+! 	"jmp 3b\n\t"\
+  "\n\n.align 4\n" \
+  "_bad_IRQ" #nr "_interrupt:\n\t" \
+  	SAVE_MOST \
+  	ACK_##chip(mask) \
+  	RESTORE_MOST);
+diff +recursive -cC5 /user/linux/include/asm/segment.h linux/include/asm/segment.h
+*** /user/linux/include/asm/segment.h	Sun Nov 29 22:25:22 1992
+--- linux/include/asm/segment.h	Thu Mar  4 18:20:52 1993
+***************
+*** 54,63 ****
+--- 54,75 ----
+  	"pop %%es"
+  	::"c" (n),"D" ((long) to),"S" ((long) from)
+  	:"cx","di","si");
+  }
+  
++ extern inline void memset_fs(void * to, int data, unsigned long n)
++ {
++ __asm__("cld\n\t"
++ 	"push %%es\n\t"
++ 	"push %%fs\n\t"
++ 	"pop %%es\n\t"
++ 	"rep ; stosb\n\t"
++ 	"pop %%es"
++ 	::"c" (n),"D" ((long) to),"a" ((long) data)
++ 	:"cx","di","ax");
++ }
++ 
+  extern inline void memcpy_fromfs(void * to, const void * from, unsigned long n)
+  {
+  __asm__("cld\n\t"
+  	"testb $1,%%cl\n\t"
+  	"je 1f\n\t"
+diff +recursive -cC5 /user/linux/include/linux/interrupt.h linux/include/linux/interrupt.h
+*** /user/linux/include/linux/interrupt.h	Tue Feb  9 20:07:52 1993
+--- linux/include/linux/interrupt.h	Mon Mar  1 16:25:54 1993
+***************
+*** 8,27 ****
+  };
+  
+  extern unsigned long bh_active;
+  extern unsigned long bh_mask;
+  extern struct bh_struct bh_base[32];
+  
+  /* Who gets which entry in bh_base.  Things which will occur most often
+     should come first. */
+  enum {
+  	TIMER_BH = 0,
+  	CONSOLE_BH,
+  	SERIAL_BH,
+  	TTY_BH,
+  	INET_BH,
+! 	KEYBOARD_BH
+  };
+  
+  extern inline void mark_bh(int nr)
+  {
+  	__asm__ __volatile__("btsl %1,%0":"=m" (bh_active):"ir" (nr));
+--- 8,30 ----
+  };
+  
+  extern unsigned long bh_active;
+  extern unsigned long bh_mask;
+  extern struct bh_struct bh_base[32];
++ extern unsigned long intr_count;
++ extern long bh_inuse;
+  
+  /* Who gets which entry in bh_base.  Things which will occur most often
+     should come first. */
+  enum {
+  	TIMER_BH = 0,
+  	CONSOLE_BH,
+  	SERIAL_BH,
+  	TTY_BH,
+  	INET_BH,
+! 	KEYBOARD_BH,
+! 	KDEBUG_BH
+  };
+  
+  extern inline void mark_bh(int nr)
+  {
+  	__asm__ __volatile__("btsl %1,%0":"=m" (bh_active):"ir" (nr));
+diff +recursive -cC5 /user/linux/include/linux/ptrace.h linux/include/linux/ptrace.h
+*** /user/linux/include/linux/ptrace.h	Tue Nov 10 12:54:55 1992
+--- linux/include/linux/ptrace.h	Thu Mar  4 11:23:22 1993
+***************
+*** 1,10 ****
+--- 1,35 ----
+  #ifndef _LINUX_PTRACE_H
+  #define _LINUX_PTRACE_H
+  /* ptrace.h */
+  /* structs and defines to help the user use the ptrace system call. */
+  
++ /* this struct defines the way the registers are stored on the 
++    stack during a system call. */
++ 
++ struct pt_regs {
++   long ebx;
++   long ecx;
++   long edx;
++   long esi;
++   long edi;
++   long ebp;
++   long eax;
++   long ds;
++   long es;
++   long fs;
++   long gs;
++   long orig_eax;
++   long eip;
++   long cs;
++   long eflags;
++   long esp;
++   long ss;
++ };
++ 
++ 
++ 
+  /* has the defines to get at the registers. */
+  
+  #define PTRACE_TRACEME		   0
+  #define PTRACE_PEEKTEXT		   1
+  #define PTRACE_PEEKDATA		   2
+***************
+*** 19,28 ****
+--- 44,127 ----
+  #define PTRACE_ATTACH		0x10
+  #define PTRACE_DETACH		0x11
+  
+  #define PTRACE_SYSCALL		  24
+  
++ 
++ /* This one is for the remote kernel debuger (kdebug) */
++ #define PTRACE_ENABLE_KTRACE	0x1702 /* activate the remote kernel tracer.
++ 					  Can we say Security Hole?
++ 					  I thought so. */
++ 
++ /* this is for the local kernel debugger. */
++ #define PTRACE_ADD_BREAK	0x1801 /* add a break point to the local
++ 					  kernel debugger. */
++ 
++ #define PTRACE_DEL_BREAK	0x1802 /* remove a break point from the
++ 					  local kernel debugger. */
++ 
++ #define PTRACE_ADD_SAVE		0x1803 /* add an address to be
++ 					  saved when a break point is hit. */
++ 
++ #define PTRACE_DEL_SAVE		0x1804 /* del a saved address. */ 
++ 
++ #define PTRACE_SLOW		0x1805 /* slow down the processor using
++ 					  ge bit to insure correct address
++ 					  reporting for debugging */
++ 
++ #define PTRACE_SWITCH_STATE	0x1806 /* let's the user switch between
++ 					  the 4 saved states. */
++ 
++ /* I'm using the gdb protocol so I don't have to change gdb. */
++ /* see the file gdb4.6/remote.c for documentation.   If I was
++    to copy it to here, then this file would have to be GPL'ed,
++    not GLPL'ed; and I don't feel like rewriting it. */ 
++ 
++ /* used as a parameter to kptrace.  It's the reply function. */
++ 
++ typedef void (*pt_reply)(char *, int, void *);
++ 
++ /* flags for kpt_flags. */
++ 
++ #define  KPT_ENABLE 1
++ #define  KPT_STOPPED 2
++ #define  KPT_WAITING 4
++ 
++ /* breakpoint structure used by the local kernel debugger. */
++ 
++ struct kbrkpt 
++ {
++   unsigned long addr; /* where to set the address. */
++   unsigned long active:1, /* set means don't ignore this breakpoint. */
++                 cond:1, /* conditional means we need to check
++ 			   if we really wanted to get hit here. */
++                 stop:1, /* tells if we should stop and enter the debugger
++ 			   or not. */
++                 skip:1, /* tells weather or not we are skippig a breakpoint */
++ 		os:1,   /* one shot.  Tells weather or not to delete this
++ 			   break point after it has occured. */
++                 save:1; /* tells weather or not we should stop save state
++ 			   or not. */
++ 
++   int (*exec)(struct pt_regs *); /* if non null called (in kernel mode)
++ 				    whenever break point is hit. */
++ 
++   int pid;		/* send a signal to this pid when we get a
++ 			   break point. */
++ 
++   unsigned long caddr; /* conditional breakpoint is taken if */
++   unsigned long cmask; /*   creg[caddr] & cmask == cres */
++   unsigned long cres;
++ 
++   char creg;   /* conditional addresses are register relative.
++ 		  however a register number of -1 means absolute. */
++ 
++   unsigned char num; /* number 0-3 uses debug registers. */
++   unsigned char len; /* 0=1 1=2 3=4 2 is invalid */
++   unsigned char type; /* 0 = execute 1=write 3=read or write */
++ };
++ 
+  /* use ptrace (3 or 6, pid, PT_EXCL, data); to read or write
+     the processes registers. */
+  
+  #define EBX 0
+  #define ECX 1
+***************
+*** 40,69 ****
+  #define CS  13
+  #define EFL 14
+  #define UESP 15
+  #define SS   16
+  
+! 
+! /* this struct defines the way the registers are stored on the 
+!    stack during a system call. */
+! 
+! struct pt_regs {
+!   long ebx;
+!   long ecx;
+!   long edx;
+!   long esi;
+!   long edi;
+!   long ebp;
+!   long eax;
+!   long ds;
+!   long es;
+!   long fs;
+!   long gs;
+!   long orig_eax;
+!   long eip;
+!   long cs;
+!   long eflags;
+!   long esp;
+!   long ss;
+  };
+  
+  #endif
+--- 139,166 ----
+  #define CS  13
+  #define EFL 14
+  #define UESP 15
+  #define SS   16
+  
+! #ifdef KERNEL
+! #ifdef CONFIG_LDEBUG
+! /* This structure is used by the local debugger (as opposed to the kernel
+!    debugger) to save some state in for gdb to examine later. */
+! struct saved_state {
+!   struct pt_regs *regs; /* the regs */
+!   unsigned long stack_copy;  /* where we kept a pointer to the stack. */
+!   struct {
+!     unsigned long *addr;
+!     unsigned long data;
+!   } saved_mem[500]; /* where we keep some memory locations. 511 should be max*/
+  };
+  
++ extern struct saved_state *debug_memory;  
++ extern struct kbrkpt brks[];
++ extern struct saved_state states[];
++ void del_breaks(void);
++ void set_breaks(void);
++ void set_dr7(unsigned long);
++ unsigned long dr7(void);
++ #endif /* LDEBUG */
++ #endif /* KERNEL */
+  #endif
+diff +recursive -cC5 /user/linux/include/linux/termios.h linux/include/linux/termios.h
+*** /user/linux/include/linux/termios.h	Tue Feb  9 20:07:52 1993
+--- linux/include/linux/termios.h	Mon Mar  1 11:09:15 1993
+***************
+*** 229,235 ****
+--- 229,236 ----
+  
+  /* line disciplines */
+  #define N_TTY		0
+  #define N_SLIP		1
+  #define N_MOUSE		2
++ #define N_KDB		3
+  
+  #endif
+diff +recursive -cC5 /user/linux/include/linux/tty.h linux/include/linux/tty.h
+*** /user/linux/include/linux/tty.h	Mon Feb 22 18:32:15 1993
+--- linux/include/linux/tty.h	Tue Mar  2 22:42:41 1993
+***************
+*** 304,313 ****
+--- 304,316 ----
+  	reprint=^R	discard=^U	werase=^W	lnext=^V
+  	eol2=\0
+  */
+  #define INIT_C_CC "\003\034\177\025\004\0\1\0\021\023\032\0\022\017\027\026\0"
+  
++ /* for the local kernel debugger. */
++ #define KEY_DBG 1
++ 
+  extern long rs_init(long);
+  extern long lp_init(long);
+  extern long con_init(long);
+  extern long tty_init(long);
+  
+diff +recursive -cC5 /user/linux/init/main.c linux/init/main.c
+*** /user/linux/init/main.c	Mon Feb 22 18:32:23 1993
+--- linux/init/main.c	Wed Mar  3 11:20:18 1993
+***************
+*** 132,142 ****
+  	startup_time = kernel_mktime(&time);
+  }
+  
+  static unsigned long memory_start = 0; /* After mem_init, stores the */
+  				       /* amount of free user memory */
+! static unsigned long memory_end = 0;
+  static unsigned long low_memory_start = 0;
+  
+  static char * argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
+  static char * envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=console", NULL, };
+  
+--- 132,142 ----
+  	startup_time = kernel_mktime(&time);
+  }
+  
+  static unsigned long memory_start = 0; /* After mem_init, stores the */
+  				       /* amount of free user memory */
+! unsigned long memory_end = 0;
+  static unsigned long low_memory_start = 0;
+  
+  static char * argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
+  static char * envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=console", NULL, };
+  
+***************
+*** 251,260 ****
+--- 251,266 ----
+  	mem_init(low_memory_start,memory_start,memory_end);
+  	buffer_init();
+  	time_init();
+  	floppy_init();
+  	sock_init();
++ #ifdef CONFIG_LDEBUG
++ 	{
++ 	  void init_ldebug(void);
++ 	  init_ldebug();
++ 	}
++ #endif
+  	sti();
+  	/*
+  	 * check if exception 16 works correctly.. This is truly evil
+  	 * code: it disables the high 8 interrupts to make sure that
+  	 * the irq13 doesn't happen. But as this will lead to a lockup
+diff +recursive -cC5 /user/linux/kernel/chr_drv/console.c linux/kernel/chr_drv/console.c
+*** /user/linux/kernel/chr_drv/console.c	Mon Feb 22 18:32:57 1993
+--- linux/kernel/chr_drv/console.c	Wed Mar  3 13:24:12 1993
+***************
+*** 1461,1478 ****
+  				lf(currcons);
+  			cr(currcons);
+  			if (c == 10 || c == 13)
+  				continue;
+  		}
+! 		*(char *) pos = c;
+! 		*(char *) (pos+1) = attr;
+! 		if (x == video_num_columns - 1) {
+! 			need_wrap = 1;
+! 			continue;
+! 		}
+! 		x++;
+! 		pos+=2;
+  	}
+  	set_cursor(currcons);
+  	if (vt_cons[fg_console].vc_mode == KD_GRAPHICS)
+  		return;
+  	timer_active &= ~(1<<BLANK_TIMER);
+--- 1461,1491 ----
+  				lf(currcons);
+  			cr(currcons);
+  			if (c == 10 || c == 13)
+  				continue;
+  		}
+! 		if (c == 0x7f) /* delete */
+! 		  {
+! 		    if (x > 0)
+! 		      {
+! 			x--;
+! 			pos-=2;
+! 			*(char *)pos = ' ';
+! 			*(char *)(pos + 1) = attr;
+! 		      }
+! 		  }
+! 		else
+! 		  {
+! 		    *(char *) pos = c;
+! 		    *(char *) (pos+1) = attr;
+! 		    if (x == video_num_columns - 1) {
+! 		         need_wrap = 1;
+! 		         continue;
+! 		    }
+! 		    x++;
+! 		    pos+=2;
+! 		  }
+  	}
+  	set_cursor(currcons);
+  	if (vt_cons[fg_console].vc_mode == KD_GRAPHICS)
+  		return;
+  	timer_active &= ~(1<<BLANK_TIMER);
+diff +recursive -cC5 /user/linux/kernel/chr_drv/keyboard.c linux/kernel/chr_drv/keyboard.c
+*** /user/linux/kernel/chr_drv/keyboard.c	Mon Feb 22 18:32:57 1993
+--- linux/kernel/chr_drv/keyboard.c	Tue Mar  2 22:50:54 1993
+***************
+*** 18,30 ****
+  #include <linux/interrupt.h>
+  #include <linux/config.h>
+  
+  #ifndef KBD_DEFFLAGS
+  #ifdef CONFIG_KBD_META
+! #define KBD_DEFFLAGS ((1 << VC_NUMLOCK) | (1 << VC_REPEAT) | (1 << VC_META))
+  #else
+! #define KBD_DEFFLAGS ((1 << VC_NUMLOCK) | (1 << VC_REPEAT))
+  #endif
+  #endif
+  
+  /*
+   * The default IO slowdown is doing 'inb()'s from 0x61, which should be
+--- 18,30 ----
+  #include <linux/interrupt.h>
+  #include <linux/config.h>
+  
+  #ifndef KBD_DEFFLAGS
+  #ifdef CONFIG_KBD_META
+! #define KBD_DEFFLAGS ((1 << VC_REPEAT) | (1 << VC_META))
+  #else
+! #define KBD_DEFFLAGS (1 << VC_REPEAT)
+  #endif
+  #endif
+  
+  /*
+   * The default IO slowdown is doing 'inb()'s from 0x61, which should be
+***************
+*** 62,71 ****
+--- 62,77 ----
+  static void put_queue(int);
+  static void applkey(int);
+  static void cur(int);
+  static unsigned int handle_diacr(unsigned int);
+  
++ #ifdef CONFIG_LDEBUG
++ unsigned char kstatus = 0;
++ extern void debug_char (unsigned char c, struct pt_regs *pt);
++ extern void start_debug (int key, struct pt_regs *pt);
++ #endif
++ 
+  static struct pt_regs * pt_regs;
+  
+  static inline void kb_wait(void)
+  {
+  	int i;
+***************
+*** 1049,1058 ****
+--- 1055,1072 ----
+  	  0 };
+  #else
+  #error "KBD-type not defined"
+  #endif
+  
++ static void sys_req(int sc)
++ {
++ #ifdef CONFIG_LDEBUG
++   start_debug (sc, pt_regs);
++ #else
++   caps (sc);
++ #endif
++ }
+  static void do_self(int sc)
+  {
+  	unsigned char ch;
+  
+  	if (kbd_flag(KG_ALTGR))
+***************
+*** 1081,1091 ****
+--- 1095,1112 ----
+  			put_queue('\033');
+  			put_queue(ch);
+  		} else
+  			put_queue(ch|0x80);
+  	else
++ 	  {
++ #ifdef CONFIG_LDEBUG
++ 	        if (kstatus & KEY_DBG)
++ 		  debug_char (ch, pt_regs);
++ 		else
++ #endif
+  		put_queue(ch);
++           }
+  }
+  
+  unsigned char accent_table[5][64] = {
+  	" \300BCD\310FGH\314JKLMN\322PQRST\331VWXYZ[\\]^_"
+  	"`\340bcd\350fgh\354jklmn\362pqrst\371vwxyz{|}~",   /* accent grave */
+***************
+*** 1282,1291 ****
+--- 1303,1319 ----
+  static void enter(int sc)
+  {
+  	if (kbd_dead(KGD_E0) && vc_kbd_flag(kbd,VC_APPLIC))
+  		applkey('M');
+  	else {
++ #ifdef CONFIG_LDEBUG
++ 	  if (kstatus & KEY_DBG)
++ 	    {
++ 	      debug_char (13, pt_regs);
++ 	      return;
++ 	    }
++ #endif
+  		put_queue(13);
+  		if (vc_kbd_flag(kbd,VC_CRLF))
+  			put_queue(10);
+  	}
+  }
+***************
+*** 1408,1425 ****
+  	do_self,do_self,do_self,do_self,	/* 24-27 j k l | */
+  	do_self,do_self,lshift,do_self,		/* 28-2B { para lshift , */
+  	do_self,do_self,do_self,do_self,	/* 2C-2F z x c v */
+  	do_self,do_self,do_self,do_self,	/* 30-33 b n m , */
+  	do_self,slash,rshift,star,		/* 34-37 . - rshift * */
+! 	alt,do_self,caps,func,			/* 38-3B alt sp caps f1 */
+  	func,func,func,func,			/* 3C-3F f2 f3 f4 f5 */
+  	func,func,func,func,			/* 40-43 f6 f7 f8 f9 */
+  	func,num,scroll,cursor,			/* 44-47 f10 num scr home */
+  	cursor,cursor,minus,cursor,		/* 48-4B up pgup - left */
+  	cursor,cursor,plus,cursor,		/* 4C-4F n5 right + end */
+  	cursor,cursor,cursor,cursor,		/* 50-53 dn pgdn ins del */
+! 	none,none,do_self,func,			/* 54-57 sysreq ? < f11 */
+  	func,none,none,none,			/* 58-5B f12 ? ? ? */
+  	none,none,none,none,			/* 5C-5F ? ? ? ? */
+  	none,none,none,none,			/* 60-63 ? ? ? ? */
+  	none,none,none,none,			/* 64-67 ? ? ? ? */
+  	none,none,none,none,			/* 68-6B ? ? ? ? */
+--- 1436,1453 ----
+  	do_self,do_self,do_self,do_self,	/* 24-27 j k l | */
+  	do_self,do_self,lshift,do_self,		/* 28-2B { para lshift , */
+  	do_self,do_self,do_self,do_self,	/* 2C-2F z x c v */
+  	do_self,do_self,do_self,do_self,	/* 30-33 b n m , */
+  	do_self,slash,rshift,star,		/* 34-37 . - rshift * */
+! 	alt,do_self,caps,func,			/* 38-3B alt sp caps f1 */
+  	func,func,func,func,			/* 3C-3F f2 f3 f4 f5 */
+  	func,func,func,func,			/* 40-43 f6 f7 f8 f9 */
+  	func,num,scroll,cursor,			/* 44-47 f10 num scr home */
+  	cursor,cursor,minus,cursor,		/* 48-4B up pgup - left */
+  	cursor,cursor,plus,cursor,		/* 4C-4F n5 right + end */
+  	cursor,cursor,cursor,cursor,		/* 50-53 dn pgdn ins del */
+! 	sys_req,none,do_self,func,		/* 54-57 sysreq ? < f11 */
+  	func,none,none,none,			/* 58-5B f12 ? ? ? */
+  	none,none,none,none,			/* 5C-5F ? ? ? ? */
+  	none,none,none,none,			/* 60-63 ? ? ? ? */
+  	none,none,none,none,			/* 64-67 ? ? ? ? */
+  	none,none,none,none,			/* 68-6B ? ? ? ? */
+***************
+*** 1433,1457 ****
+  	none,none,none,none,			/* 88-8B br br br br */
+  	none,none,none,none,			/* 8C-8F br br br br */
+  	none,none,none,none,			/* 90-93 br br br br */
+  	none,none,none,none,			/* 94-97 br br br br */
+  	none,none,none,none,			/* 98-9B br br br br */
+! 	none,unctrl,none,none,			/* 9C-9F br unctrl br br */
+  	none,none,none,none,			/* A0-A3 br br br br */
+  	none,none,none,none,			/* A4-A7 br br br br */
+  	none,none,unlshift,none,		/* A8-AB br br unlshift br */
+  	none,none,none,none,			/* AC-AF br br br br */
+  	none,none,none,none,			/* B0-B3 br br br br */
+  	none,none,unrshift,none,		/* B4-B7 br br unrshift br */
+! 	unalt,none,uncaps,none,			/* B8-BB unalt br uncaps br */
+  	none,none,none,none,			/* BC-BF br br br br */
+  	none,none,none,none,			/* C0-C3 br br br br */
+  	none,none,none,none,			/* C4-C7 br br br br */
+  	none,none,none,none,			/* C8-CB br br br br */
+  	none,none,none,none,			/* CC-CF br br br br */
+  	none,none,none,none,			/* D0-D3 br br br br */
+! 	none,none,none,none,			/* D4-D7 br br br br */
+  	none,none,none,none,			/* D8-DB br ? ? ? */
+  	none,none,none,none,			/* DC-DF ? ? ? ? */
+  	none,none,none,none,			/* E0-E3 e0 e1 ? ? */
+  	none,none,none,none,			/* E4-E7 ? ? ? ? */
+  	none,none,none,none,			/* E8-EB ? ? ? ? */
+--- 1461,1485 ----
+  	none,none,none,none,			/* 88-8B br br br br */
+  	none,none,none,none,			/* 8C-8F br br br br */
+  	none,none,none,none,			/* 90-93 br br br br */
+  	none,none,none,none,			/* 94-97 br br br br */
+  	none,none,none,none,			/* 98-9B br br br br */
+! 	none,ctrl,none,none,			/* 9C-9F br unctrl br br */
+  	none,none,none,none,			/* A0-A3 br br br br */
+  	none,none,none,none,			/* A4-A7 br br br br */
+  	none,none,unlshift,none,		/* A8-AB br br unlshift br */
+  	none,none,none,none,			/* AC-AF br br br br */
+  	none,none,none,none,			/* B0-B3 br br br br */
+  	none,none,unrshift,none,		/* B4-B7 br br unrshift br */
+! 	unalt,none,uncaps,none,			/* B8-BB unalt br uncaps br */
+  	none,none,none,none,			/* BC-BF br br br br */
+  	none,none,none,none,			/* C0-C3 br br br br */
+  	none,none,none,none,			/* C4-C7 br br br br */
+  	none,none,none,none,			/* C8-CB br br br br */
+  	none,none,none,none,			/* CC-CF br br br br */
+  	none,none,none,none,			/* D0-D3 br br br br */
+! 	none,none,none,none,			/* D4-D7 br br br br */
+  	none,none,none,none,			/* D8-DB br ? ? ? */
+  	none,none,none,none,			/* DC-DF ? ? ? ? */
+  	none,none,none,none,			/* E0-E3 e0 e1 ? ? */
+  	none,none,none,none,			/* E4-E7 ? ? ? ? */
+  	none,none,none,none,			/* E8-EB ? ? ? ? */
+diff +recursive -cC5 /user/linux/kernel/chr_drv/mem.c linux/kernel/chr_drv/mem.c
+*** /user/linux/kernel/chr_drv/mem.c	Mon Feb 22 18:32:58 1993
+--- linux/kernel/chr_drv/mem.c	Thu Mar  4 18:22:18 1993
+***************
+*** 2,11 ****
+--- 2,12 ----
+   *  linux/kernel/chr_drv/mem.c
+   *
+   *  Copyright (C) 1991, 1992  Linus Torvalds
+   */
+  
++ #include <linux/config.h>
+  #include <linux/types.h>
+  #include <linux/errno.h>
+  #include <linux/sched.h>
+  #include <linux/kernel.h>
+  #include <linux/tty.h>
+***************
+*** 27,36 ****
+--- 28,39 ----
+  static int write_ram(struct inode * inode, struct file * file,char * buf, int count)
+  {
+  	return -EIO;
+  }
+  
++ /* This is stupid.  Why didn't he just save state on the last exception. 
++    and then dump it out. */
+  static int read_core(struct inode * inode, struct file * file,char * buf, int count)
+  {
+  	unsigned long p = file->f_pos;
+  	int read;
+  	int count1;
+***************
+*** 37,52 ****
+  	char * pnt;
+  	struct user dump;
+  
+  	memset(&dump, 0, sizeof(struct user));
+  	dump.magic = CMAGIC;
+! 	dump.u_dsize = high_memory >> 12;
+! 
+  	if (count < 0)
+  		return -EINVAL;
+  	if (p >= high_memory)
+! 		return 0;
+  	if (count > high_memory - p)
+  		count = high_memory - p;
+  	read = 0;
+  
+  	if (p < sizeof(struct user) && count > 0) {
+--- 40,63 ----
+  	char * pnt;
+  	struct user dump;
+  
+  	memset(&dump, 0, sizeof(struct user));
+  	dump.magic = CMAGIC;
+! 	dump.u_dsize = (high_memory >> 12);
+! #ifdef CONFIG_LDEBUG
+! 	/* get the saved registers. */
+! 	memcpy (&dump.regs, debug_memory->regs, sizeof (dump.regs));
+! #endif
+  	if (count < 0)
+  		return -EINVAL;
++ 	/* things will work better if we return 0's here. */
+  	if (p >= high_memory)
+! 	  {
+! 	    memset_fs((void *)p,0,count);
+! 	    file->f_pos+= count;
+! 	    return count;
+! 	  }
+  	if (count > high_memory - p)
+  		count = high_memory - p;
+  	read = 0;
+  
+  	if (p < sizeof(struct user) && count > 0) {
+***************
+*** 66,77 ****
+--- 77,115 ----
+  		buf++;
+  		p++;
+  		count--;
+  		read++;
+  	}
++ 
++ #ifdef CONFIG_LDEBUG
++ 	while (count)
++ 	  {
++ 	    unsigned long next_save (unsigned long);
++ 	    unsigned long read_saved (char *, unsigned long, unsigned long);
++ 	    unsigned amount;
++ 
++ 	    /* determine how much until we get to the next saved location. */
++ 	    amount = next_saved(p-4096);
++ 	    if (amount > count) amount = count;
++ 
++ 	    memcpy_tofs(buf,(void *) (p - 4096),amount);
++ 	    p += amount;
++ 	    read+=amount;
++ 	    buf += amount;
++ 	    count -= amount;
++ 
++ 	    /* now read the saved location. */
++ 	    amount = read_saved (buf, p-4096, count);
++ 	    p += amount;
++ 	    read+=amount;
++ 	    buf += amount;
++ 	    count -= amount;
++ 	  }
++ #else /* LDEBUG */
+  	memcpy_tofs(buf,(void *) (p - 4096),count);
+  	read += count;
++ #endif /* LDEBUG */
+  	file->f_pos += read;
+  	return read;
+  }
+  
+  static int read_mem(struct inode * inode, struct file * file,char * buf, int count)
+diff +recursive -cC5 /user/linux/kernel/irq.c linux/kernel/irq.c
+*** /user/linux/kernel/irq.c	Tue Feb  9 20:08:14 1993
+--- linux/kernel/irq.c	Mon Mar  1 10:22:24 1993
+***************
+*** 32,42 ****
+  #include <asm/io.h>
+  #include <asm/irq.h>
+  
+  #define CR0_NE 32
+  
+! static unsigned long intr_count=0;
+  static unsigned char cache_21 = 0xff;
+  static unsigned char cache_A1 = 0xff;
+  
+  unsigned long bh_active = 0;
+  unsigned long bh_mask = 0xFFFFFFFF;
+--- 32,43 ----
+  #include <asm/io.h>
+  #include <asm/irq.h>
+  
+  #define CR0_NE 32
+  
+! unsigned long intr_count=0;
+! long bh_inuse=-1;
+  static unsigned char cache_21 = 0xff;
+  static unsigned char cache_A1 = 0xff;
+  
+  unsigned long bh_active = 0;
+  unsigned long bh_mask = 0xFFFFFFFF;
+diff +recursive -cC5 /user/linux/kernel/panic.c linux/kernel/panic.c
+*** /user/linux/kernel/panic.c	Tue Nov 10 12:54:54 1992
+--- linux/kernel/panic.c	Tue Mar  2 22:41:11 1993
+***************
+*** 6,15 ****
+--- 6,16 ----
+  
+  /*
+   * This function is used through-out the kernel (includeinh mm and fs)
+   * to indicate a major problem.
+   */
++ #include <linux/config.h>
+  #include <linux/kernel.h>
+  #include <linux/sched.h>
+  
+  void sys_sync(void);	/* it's really int */
+  
+***************
+*** 18,24 ****
+--- 19,30 ----
+  	printk("Kernel panic: %s\n\r",s);
+  	if (current == task[0])
+  		printk("In swapper task - not syncing\n\r");
+  	else
+  		sys_sync();
++ #if defined(CONFIG_KDEBUG) || defined (CONFIG_LDEBUG)
++ 	__asm__ ("int $0x03"); /* break point in case we panic. */
++ #endif
+  	for(;;);
+  }
++ 
++ 
+diff +recursive -cC5 /user/linux/kernel/ptrace.c linux/kernel/ptrace.c
+*** /user/linux/kernel/ptrace.c	Thu Jan 21 20:14:27 1993
+--- linux/kernel/ptrace.c	Thu Mar  4 18:28:20 1993
+***************
+*** 1,19 ****
+--- 1,50 ----
+  /* ptrace.c */
+  /* By Ross Biro 1/23/92 */
+  /* edited by Linus Torvalds */
++ /* Kernel Ptrace code added 2/28/93 by Ross Biro */
+  
++ #include <linux/config.h>
+  #include <linux/head.h>
+  #include <linux/kernel.h>
+  #include <linux/sched.h>
+  #include <linux/mm.h>
+  #include <linux/errno.h>
+  #include <linux/ptrace.h>
++ #include <linux/interrupt.h>
+  
+  #include <asm/segment.h>
+  #include <asm/system.h>
+  
++ #ifdef CONFIG_KDEBUG
++ #include <linux/tty.h>
++ 
++ 
++ static void kdebug_rs_handler (struct tty_struct *);
++ 
++ static struct tty_ldisc tty_ldisc_N_KDB =
++ {
++   0,			/* flags */
++   NULL,			/* open */
++   NULL,			/* close */
++   NULL,			/* read */
++   NULL,			/* write */
++   NULL,			/* ioctl */
++   kdebug_rs_handler	/* handler */
++ };
++ 
++ static volatile unsigned long kpt_flags;
++ static volatile struct pt_regs *kpt_regs;
++ static unsigned long kpt_bh_mask;
++ static unsigned long kpt_saved_bh_mask;
++ void kpt_bh (void *);
++ extern long memory_end;
++ static long kpt_saved_bh_inuse = -1;
++ static void * saved_private=NULL;
++ static pt_reply saved_reply=NULL;
++ #endif
++ 
+  /*
+   * does not yet catch signals sent when the child dies.
+   * in exit.c or in signal.c.
+   */
+  
+***************
+*** 21,30 ****
+--- 52,63 ----
+  /* 1 = access 0 = no access */
+  #define FLAG_MASK 0x00000dd9
+  
+  /* set's the trap flag. */
+  #define TRAP_FLAG 0x100
++ /* set's the slow flag. */
++ #define DR7_GE (1 << 9) 
+  
+  /*
+   * this is the number to subtract from the top of the stack. To find
+   * the local frame.
+   */
+***************
+*** 219,228 ****
+--- 252,387 ----
+  
+  int sys_ptrace(long request, long pid, long addr, long data)
+  {
+  	struct task_struct *child;
+  
++ #ifdef CONFIG_KDEBUG
++ 	if (request == PTRACE_ENABLE_KTRACE)
++ 	  {
++ 	    if (!suser()) return (-EPERM);
++ 	    kpt_flags ^= KPT_ENABLE;
++ 	    if (kpt_flags & KPT_ENABLE)
++ 	      {
++ 		bh_mask |=  1 << KDEBUG_BH;
++ 		kpt_bh_mask = data;
++ 		kpt_regs = NULL;
++ 		bh_base[KDEBUG_BH].routine = kpt_bh;
++ 		printk ("\nkernel ptrace enabled.\n");
++ 		/* register the line discipline. */
++ 		if ( tty_register_ldisc (N_KDB, &tty_ldisc_N_KDB) < 0)
++ 		  {
++ 		    printk ("Unable to register line discipline. \n");
++ 		  }
++ 	      }
++ 	    else
++ 	      {
++ 		printk ("\nkernel ptrace disabled.\n");
++ 	      }
++ 	    return (0);
++ 	  }
++ #endif
++ #ifdef CONFIG_LDEBUG
++ 	if ((request & 0xff00) == 0x1800)
++ 	  {
++ 	    /* all these things open massive security holes, and
++ 	       must be run as superuser. */
++ 	    if (!suser()) return (-EPERM);
++ 	    switch (request)
++ 	      {
++ 	      case PTRACE_ADD_BREAK:
++ 		{
++ 		  int i;
++ 		  if (pid >= 4 || pid < 0)
++ 		    return (-EIO);
++ 		  /* copy the break point. */
++ 		  memcpy_fromfs (brks+pid,(void *) addr, sizeof (*brks));
++ 		  /* clear the correspoinding state. */
++ 		  for (i = 0; i < 500; i++)
++ 		    {
++ 		      states[pid].saved_mem[i].addr = 0;
++ 		    }
++ 		  /* make sure the number is coherent. */
++ 		  brks[pid].num = pid;
++ 		  
++ 		  /* adjust for the kernel virtual address. */
++ 		  brks[pid].addr |= 0xc0000000;
++ 
++ 		  /* Now we need to activate it. */
++ 		  cli();
++ 		  del_breaks();
++ 		  set_breaks();
++ 		  sti();
++ 		  return (0);
++ 		}
++ 
++ 	      case PTRACE_DEL_BREAK:
++ 		{
++ 		  int i;
++ 		  if (pid >= 4 || pid < 0)
++ 		    return (-EIO);
++ 		  brks[pid].active = 0;
++ 		  /* clear the correspoinding state. */
++ 		  for (i = 0; i < 500; i++)
++ 		    {
++ 		      states[pid].saved_mem[i].addr = 0;
++ 		    }
++ 		  cli();
++ 		  del_breaks();
++ 		  set_breaks();
++ 		  sti();
++ 		  return (0);
++ 		}
++ 
++ 	      case PTRACE_ADD_SAVE: /* add address to the data which is
++ 				       saved for break point pid. */
++ 		{
++ 		  int i;
++ 		  if (pid >= 4 || pid < 0)
++ 		    return (-EIO);
++ 		  for (i = 0; i < 500; i++)
++ 		    {
++ 		      if (states[pid].saved_mem[i].addr == 0)
++ 			states[pid].saved_mem[i].addr =
++ 			  (unsigned long *)addr;
++ 		      return (0);
++ 		    }
++ 		  return (-ENOMEM);
++ 		}
++ 		
++ 	      case PTRACE_DEL_SAVE: /* deletes an address from the state
++ 				       saving. */	
++ 		{
++ 		  int i;
++ 		  if (pid >= 4 || pid < 0)
++ 		    return (-EIO);
++ 		  for (i = 0; i < 500; i++)
++ 		    {
++ 		      if (states[pid].saved_mem[i].addr ==
++ 			  (unsigned long *)addr)
++ 			states[pid].saved_mem[i].addr = 0;
++ 		      return (1);
++ 		    }
++ 		  return (0);
++ 		}
++ 
++ 	      case PTRACE_SLOW: /* (re)set's the slow flag. */
++ 		if (pid)
++ 		  set_dr7(dr7() | DR7_GE);
++ 		else
++ 		  set_dr7(dr7() & ~DR7_GE);
++ 		return (pid?1:0);
++ 
++ 	      case PTRACE_SWITCH_STATE:
++ 		if (pid < 0 || pid > 4) 
++ 		  return (-EIO);
++ 		debug_memory = states + pid;
++ 		return (0);
++ 		
++ 	      }
++ 	  }
++ #endif
++ 
+  	if (request == PTRACE_TRACEME) {
+  		/* are we already being traced? */
+  		if (current->flags & PF_PTRACED)
+  			return -EPERM;
+  		/* set the ptrace bit in the proccess flags. */
+***************
+*** 375,379 ****
+--- 534,1146 ----
+  
+  		default:
+  			return -EIO;
+  	}
+  }
++ 
++ #ifdef CONFIG_KDEBUG
++ /* these are some auxillary routines used by the GDB protocol. */
++ 
++ static inline unsigned char
++ fromhex (char *x)
++ {
++   int tmp;
++   tmp = ((x[0] <= '9') ? (x[0]-'0'): (x[0]-'a'+10))*16 +
++     ((x[1] <= '9') ? (x[1]-'0'): (x[1]-'a'+10));
++ 
++   return (tmp);
++ }
++ 
++ static inline void
++ tohex (char *str, unsigned char data)
++ {
++   str[1]= ((data & 0xf) < 10) ? ((data & 0xf)+'0') : ((data & 0xf)+'a'-10);
++   str[0]= ((data >> 4) < 10 )? ((data >> 4)+'0') : ((data  >> 4)+'a'-10);
++ }
++ 
++ static inline
++ void write_int (char **str, unsigned data)
++ {
++   int i;
++   unsigned char *x;
++   x = (unsigned char *)&data;
++   for (i = 0; i < 4; i++)
++     {
++       tohex (*str, *x);
++       x++;
++       *str+=2;
++     }
++ }
++ 
++ static inline int
++ read_int(char **str,unsigned *data)
++ {
++   char *ptr;
++   ptr = *str;
++   *data = 0;
++   if (!((*ptr >= '0' &&  *ptr <= '9') || (*ptr >= 'a' && *ptr <='f')))
++     {
++       return (-1);
++     }
++   while ((*ptr >= '0' &&  *ptr <= '9') || (*ptr >= 'a' && *ptr <='f'))
++     {
++       *data *= 16;
++       *data += (*ptr <= '9')?(*ptr-'0'):(*ptr-'a'+10);
++       ptr++;
++     }
++   *str = ptr;
++   return (0);
++ }
++ 
++ 
++ /* This is the main entry point for the remote kernel debugger.
++    Basically it just does what ptrace does, but then on another
++    machine you can run a copy of gdb.  That way you whould be
++    able to signle step the instructions and what not.  The
++    hardest part is going to be making the debugger transparent
++    so that you arn't constantly single stepping through it. -RAB
++ 
++    regs is a pointer to the current register state. (We are assuming
++    this is only called at interrupt time. 
++ 
++    In order to keep the protocols as simple as possible, every packet
++    recieved with a valid check sum is responded to.  This end ignores
++    the packet number, but the other end may want to use it to keep
++    things straight.  Other than that the same structure is used both
++    ways.  Any errors are returned in the request field, and data is
++    returned in the data field.  The rest of the packet is not
++    changed. */
++ 
++ static char reg_map[15]=
++ {
++   3, 1, 2, 6, 7, 5, 0, 12, 13, 14, 15, -1, 8, 10, 9
++ };
++ 
++ void
++ kptrace (struct pt_regs *regs, char *cmd, pt_reply reply, void *private)
++ {
++   
++   char *data;
++   int i;
++   char *reply_buff;
++   char *ptr;
++   
++   if ( !(kpt_flags & KPT_ENABLE))
++     {
++       printk ("\nkptrace called, kernel ptrace not enabled.\n");
++       reply("E05", 3, private);
++       return;
++     }
++   
++   /* now we process the string. */
++   switch (cmd[0])
++     {
++     case 'g':
++       /* dump all the registers in hex. */
++       if (kpt_regs) 
++ 	data = (char *)kpt_regs;
++       else if (regs)
++ 	data = (char *)regs;
++       else
++ 	{
++ 	  /* we need a better error here.  Basically
++ 	     it means we are not stopped. */
++ 	  reply ("E0A",3, private);
++ 	  break;
++ 	}
++       
++       reply_buff = kmalloc (sizeof (struct pt_regs) * 2, GFP_ATOMIC);
++       if (reply_buff == NULL)
++ 	{
++ 	  reply ("E0C",3, private);
++ 	  return;
++ 	}
++       
++       for (i = 0; i < 15; i++)
++ 	{
++ 	  if (reg_map[i] >= 0)
++ 	    {
++ 	      ptr = reply_buff + 8*reg_map[i];
++ 	      write_int(&ptr,((unsigned long *)data)[i]);
++ 	    }
++ 	}
++       /* now we need to do ss and sp ss is number 11 and sp is number 4 */
++       ptr = reply_buff + 11*8;
++       write_int (&ptr, *(unsigned long *)(data+CS*4)); /* assumes cs=ss. */
++       ptr = reply_buff + 4*8;
++       write_int (&ptr, (unsigned long)&(((struct pt_regs *)data)->esp));
++       
++       reply (reply_buff, 8 * 16, private); /* gdb wants 128 bytes back. */
++       kfree_s (reply_buff, sizeof (struct pt_regs) *2);
++       
++       break;
++       
++     case 'G': /* write regs. */
++       if (kpt_regs)
++ 	data = (char *)kpt_regs;
++       else if (regs)
++ 	data = (char *)regs;
++       else
++ 	{
++ 	  reply ( "E0A", 3, private);
++ 	  break;
++ 	}
++       cmd++;
++       
++       for (i = 0; i <  15; i++)
++ 	{
++ 	  if (reg_map[i] >= 0)
++ 	    {
++ 	      ptr =cmd+ reg_map[i]*8;
++ 	      if (read_int (&ptr, (unsigned *)data+i))
++ 		{
++ 		  reply ("E05", 3, private);
++ 		  return;
++ 		}
++ 	    }
++ 	}
++       reply ("OK",2, private);
++       break;
++       
++     case 'm': /* read memory */
++       {
++ 	unsigned  start;
++ 	unsigned len;
++ 	cmd++;
++ 	if (read_int (&cmd, &start))
++ 	  {
++ 	    reply ("E05", 3, private);
++ 	    break;
++ 	  }
++ 	cmd++; /* skip the comma. */
++ 	if (read_int (&cmd, &len))
++ 	  {
++ 	    reply ("E05", 3, private);
++ 	    break;
++ 	  }
++ 
++ 	reply_buff = kmalloc (len * 2, GFP_ATOMIC);
++ 	if (reply_buff == NULL)
++ 	  {
++ 	    reply ("E0C",3,private);
++ 	    return;
++ 	  }
++ 
++ 	/* now we just do it. */
++ 	data = (char *)start;
++ 	for (i = 0; i < len; i++)
++ 	  {
++ 	    /* return 0's for out of range.  It could be 
++ 	       somewhere in user space. */
++ 	    if ((unsigned long )data < 4096
++ 		|| (unsigned long)data >= high_memory)
++ 	      tohex (&reply_buff[i*2],0);
++ 	    else
++ 	      tohex (&reply_buff[i*2], *data);
++ 	    data++;
++ 	  }
++ 	reply (reply_buff, 2*len, private);
++ 	kfree_s (reply_buff, 2*len);
++       }
++       break;
++       
++     case 'M': /* write mem. */
++       {
++ 	unsigned  start;
++ 	unsigned len;
++ 	cmd++;
++ 	if (read_int (&cmd, &start))
++ 	  {
++ 	    reply ("E05", 3, private);
++ 	    break;
++ 	  }
++ 	cmd ++; /* skip the , */
++ 	if (read_int (&cmd, &len))
++ 	  {
++ 	    reply ("E05", 3, private);
++ 	    break;
++ 	  }
++ 	if (start + len > memory_end || start < 4096)
++ 	  {
++ 	    reply ("E05", 3, private);
++ 	    break;
++ 	  }
++ 	
++ 	/* now we just do it. */
++ 	cmd ++; /* skip the : */
++ 	data = (char *)start;
++ 	for (i = 0; i < len; i++)
++ 	  {
++ 	    if (cmd[0] == 0 || cmd[1] == 0)
++ 	      {
++ 		reply ("E05", 3, private);
++ 		return;
++ 	      }
++ 	    *data = fromhex (cmd);
++ 	    data++;
++ 	    cmd +=2;
++ 	  }
++ 	reply ("OK", 2, private);
++       }
++       break;
++       
++     case 'c': /* continue */
++       {
++ 	unsigned long where;
++ 	cmd++;
++ 	if (!read_int (&cmd, &where) && where < memory_end) 
++ 	  {
++ 	    if (kpt_regs) 
++ 	      kpt_regs->eip = where;
++ 	    else if (regs)
++ 	      regs->eip = where;
++ 	  }
++ 	/* make sure we are not single stepping. */
++ 	if (kpt_regs)
++ 	  kpt_regs->eflags &= ~TRAP_FLAG;
++ 	
++ 	if (regs)
++ 	  regs->eflags &= ~TRAP_FLAG;
++ 	
++ 	kpt_flags &= ~KPT_STOPPED;
++ 	kpt_regs = NULL;
++ 	bh_mask = kpt_saved_bh_mask;
++ 	kpt_saved_bh_mask = 0;
++ 	saved_reply = reply;
++ 	saved_private = private;
++       }
++       break;
++       
++       
++     case 's': /* step */
++       {
++ 	unsigned long where;
++ 	cmd++;
++ 	if (!read_int (&cmd, &where) && where < memory_end) 
++ 	  {
++ 	    if (kpt_regs) 
++ 	      kpt_regs->eip = where;
++ 	    else if (regs)
++ 	      regs->eip = where;
++ 	  }
++ 	/* make sure we are single stepping. */
++ 	if (kpt_regs)
++ 	  kpt_regs->eflags |= TRAP_FLAG;
++ 	else if (regs)
++ 	  regs->eflags |= TRAP_FLAG;
++ 	
++ 	kpt_flags &= ~KPT_STOPPED;
++ 	kpt_regs = NULL;
++ 	bh_mask = kpt_saved_bh_mask;
++ 	kpt_saved_bh_mask = 0;
++ 	saved_reply = reply;
++ 	saved_private = private;
++       }
++       break;
++       
++     case '?':
++       /* if we are not stopped, then do so. */
++       if (!kpt_regs)
++ 	{
++ 	  kpt_flags |= KPT_STOPPED;
++ 	  mark_bh (KDEBUG_BH);
++ 	  saved_reply = reply;
++ 	  saved_private = private;
++ 	  return;
++ 	}
++       reply ("S02",3, private); /* signal doesn't make sense so we
++ 				   always reply with 2. */
++       break;
++       
++     default:
++       break;
++     }
++ }
++ 
++ /* this basically just stops the kernel and waits for
++    the other end to do something.   If it returns 1
++    it means that the problem was not dealt with
++    because we are at interrupt time and we want
++    to keep servicing interrupts.  If the it is
++    0 then that means that we have dealt with
++    the problem and we should try to return. */
++ 
++ int
++ enter_kdebug (struct pt_regs *regs)
++ {
++   static struct pt_regs static_regs;
++ 
++   printk ("breakpoint hit. \n");
++   if (!(kpt_flags & KPT_ENABLE))
++     {
++ #ifdef CONFIG_LDEBUG
++       {
++ 	void enter_local_debug (struct pt_regs *);
++ 	enter_local_debug(regs);
++ 	printk ("dr7=%8.8X\n", dr7());
++ 	return (0);
++       }
++ #else
++       return (1);
++ #endif
++     }
++   kpt_flags |= KPT_STOPPED;
++ 
++   /* kludge.  We would like to stop all processing here, however
++      we need interrupts to be serviced.  Therefore we will 
++      check to see if we are within an interrupt service routine,
++      and if so return.  Otherwise we will just loop until the
++      KPT_STOPPED flag is reset.  Unfortunately this means that
++      the debugging of top half interrupt routines will be impossible. 
++      However, we will be able to debug the bottom half routines. */
++ 
++ 
++   kpt_saved_bh_mask |= bh_mask;
++   bh_mask = (kpt_bh_mask & bh_mask) | (1 << KDEBUG_BH);
++ 
++   /* see if we are in a top half. */
++   if (intr_count )
++     {
++       /* we can't really debug top half interrupt routines.
++ 	 We are probably now in an infinite loop, and will
++ 	 continue doing this forever.  What we could do
++ 	 is advance the ip to the next instruction and
++ 	 continue.  However I don't know an easy way of
++ 	 determining where the next instruction should start. */
++       memcpy (&static_regs, regs, sizeof (*regs));
++       kpt_regs = &static_regs;
++       mark_bh (KDEBUG_BH);
++       return (1);
++     }
++   
++   kpt_regs = regs;
++ 
++   /* send the reply message. */
++   if (saved_reply)
++     {
++       saved_reply("S02",3, saved_private);
++     }
++ 
++   /* see if we are in a bottom half. */
++   if (bh_inuse != -1)
++     {
++       cli();
++       /* make off the bottom half so it
++ 	 does not get called again. */
++       bh_mask &= ~ (1 << bh_inuse);
++       kpt_saved_bh_inuse = bh_inuse;
++       /* reactivated the bottom half routines. */
++       bh_inuse = -1;
++       sti();
++     }
++ 
++   while (kpt_flags & KPT_STOPPED)
++     {
++       sti(); /* just to be safe. */
++       __asm__ (".byte 0xf4"); /* halt */
++     }
++ 
++   if (kpt_saved_bh_inuse != -1)
++     {
++       cli();
++       bh_inuse = kpt_saved_bh_inuse;
++       kpt_saved_bh_inuse = -1;
++       sti();
++     }
++ 
++   return (0);
++ }
++ 
++ void
++ kpt_bh(void *ptr)
++ {
++   /*if we are supposed to be stopped, we will cause a break point.
++     That should cause everything to work out ok.  Including future
++     bottom halves. */
++ 
++   if ((kpt_flags & KPT_STOPPED) && (kpt_flags & KPT_ENABLE))
++     __asm__("int $0x03"); /* break point. */
++ }     
++ 
++ static char pkt_buff[1025];
++ 
++ /* this does all the actuall sending. */
++ static void
++ resend_rs_pkt (struct tty_struct *tty)
++ {
++   char *ptr;
++   int len;
++ 
++   pkt_buff[1024]= 0;
++   len = strlen (pkt_buff);
++ 
++   /* if there is nothing to do, return. */
++   if (FULL(&tty->write_q) || len == 0) return;
++ 
++   /* how do we deal with over full buffers? */
++   /* for now we will punt and throw out the
++      rest of the packet. */
++ 
++   kpt_flags |= KPT_WAITING;
++   ptr = pkt_buff;
++ 
++   while (!FULL (&tty->write_q))
++     {
++       put_tty_queue (*ptr, &tty->write_q);
++       ptr++;
++       len --;
++       if (len == 0)
++ 	{
++ 	  TTY_WRITE_FLUSH (tty);
++ 	  /* let the other end do the timing by sending
++ 	     a NACK if it timesout. */
++ 	  return;
++ 	}
++     }
++   TTY_WRITE_FLUSH (tty);
++ }
++ 
++ /* this sends a packet over the serial line. 
++     Actually it calls resend to send it
++     for the first time.*/
++ 
++ static void
++ kdebug_rs_reply (char *string, int len, void *private)
++ {
++   struct tty_struct *tty;
++   char *ptr;
++   unsigned char cksum=0;
++   int i;
++   
++   if (len >= 1024-5)
++     {
++       string="E0C";
++       len = 3;
++     }
++ 
++   /* make sure it's zeroed. */
++   pkt_buff[0] = 0;
++   memcpy (pkt_buff+1, pkt_buff, 1023);
++   tty = private;
++   ptr = pkt_buff;
++   /* the packet header. */
++   *ptr = '$';
++   ptr ++;
++   for (i = 0; i < len; i++)
++     {
++       cksum += string[i];
++       *ptr=string[i];
++       ptr++;
++     }
++   *ptr='#';
++   ptr++;
++   tohex (ptr, cksum);
++   len += 4;
++   pkt_buff[len] = 0;
++   resend_rs_pkt (tty);
++ }
++ 
++ /* the routine which gets called when the serial
++    line has data. */
++ static void
++ kdebug_rs_handler(struct tty_struct *tty)
++ {
++   static char *ptr=(char *)&pkt_buff;
++   char * i;
++   unsigned char cksum;
++ 
++   /* basically what we will do is copy bytes out of
++      tty->read_q until we are done. */
++ 
++   while (!EMPTY (&tty->read_q))
++     {
++       /* do a wrap around. */
++       if (ptr >= pkt_buff+1023)
++ 	ptr=pkt_buff;
++ 
++       /* Check to see if we are waiting for an ack/nack. */
++       if (kpt_flags & KPT_WAITING)
++ 	{
++ 	  cksum = get_tty_queue (&tty->read_q);
++ 	  /* is it an ack? */
++ 	  if (cksum == '+')
++ 	    {
++ 	      kpt_flags &= ~KPT_WAITING;
++ 	      continue;
++ 	    }
++ 	  /* treat a $ as an ack.  That means
++ 	     we have missed the +, and we are now
++ 	     getting the next command.  Either that
++ 	     or the other end has been resending way
++ 	     too much. */
++ 	  if (cksum == '$' && EMPTY(&tty->write_q))
++ 	    {
++ 	      kpt_flags &= ~KPT_WAITING;
++ 	      ptr = pkt_buff;
++ 	      *ptr = '$';
++ 	      ptr++;
++ 	      continue;
++ 	    }
++ 	  else if (cksum == 3 /* ctrl-c */ && EMPTY(&tty->write_q))
++ 	    {
++ 	      kpt_flags &= ~KPT_WAITING;
++ 	      kptrace (NULL, "?",kdebug_rs_reply ,tty);
++ 	      ptr=pkt_buff;
++ 	      continue;
++ 	    }
++ 	  else
++ 	    {
++ 	      /* assume it's a nack. */
++ 	      if (EMPTY(&tty->write_q))
++ 		resend_rs_pkt(tty);
++ 	      continue;	 
++ 	    }
++ 	}
++ 
++       /* if the write queue is full, ignore incoming packets. 
++ 	 they will get resent in 5 seconds. */
++       if (!EMPTY(&tty->write_q))
++ 	{
++ 	  get_tty_queue(&tty->read_q);
++ 	  ptr = pkt_buff; /* reset this so we will
++ 			     start fresh. */
++ 	  continue;
++ 	}
++       *ptr = get_tty_queue (&tty->read_q);
++       if (*ptr == '$')
++ 	{
++ 	  ptr = pkt_buff;
++ 	  *ptr = '$';
++ 	}
++       ptr++;
++       /* see if we've got an entire packet. */
++       if ( ptr-pkt_buff > 3 && ptr[-3] == '#')
++ 	{
++ 	  *ptr = 0;
++ 	  /* do the checksum. */
++ 	  cksum=0;
++ 	  for (i = pkt_buff + 1; i < ptr-3; i++)
++ 	    {
++ 	      cksum += *i;
++ 	    }
++ 	  /* make sure it's got the right checksum, and that we
++ 	     got the whole thing. */
++ 	  if (fromhex(ptr-2) != cksum || pkt_buff[0] != '$')
++ 	    {
++ 	      put_tty_queue ('-', &tty->write_q);
++ 	      TTY_WRITE_FLUSH (tty);
++ 	    }
++ 	  else
++ 	    {
++ 	      put_tty_queue ('+', &tty->write_q);
++ 	      TTY_WRITE_FLUSH (tty);
++ 	      ptr-=3;
++ 	      *ptr=0;
++ 	      kptrace (NULL, pkt_buff+1,kdebug_rs_reply ,tty);
++ 	      /* reset the ptr. */
++ 	      ptr = (char *)&pkt_buff;
++ 	    }
++ 	}
++     }
++ } 
++ 
++ #endif
+diff +recursive -cC5 /user/linux/kernel/sched.c linux/kernel/sched.c
+*** /user/linux/kernel/sched.c	Tue Feb  9 20:08:14 1993
+--- linux/kernel/sched.c	Tue Mar  2 22:51:22 1993
+***************
+*** 134,143 ****
+--- 134,149 ----
+  			if (*p)
+  				(*p)->counter = ((*p)->counter >> 1) +
+  						(*p)->priority;
+  	}
+  	sti();
++ 	/* this needs to do the idle stuff first. */
++ 	if (next == 0)
++ 	  {
++ 	    sti();
++ 	    __asm__ (".byte 0xf4"::); /* halt */
++ 	  }
+  	switch_to(next);
+  }
+  
+  int sys_pause(void)
+  {
+***************
+*** 515,525 ****
+  		increment = current->priority-1;
+  	current->priority -= increment;
+  	return 0;
+  }
+  
+! static void show_task(int nr,struct task_struct * p)
+  {
+  	int i, j;
+  	unsigned char * stack;
+  
+  	printk("%d: pid=%d, state=%d, father=%d, child=%d, ",(p == current)?-nr:nr,p->pid,
+--- 521,531 ----
+  		increment = current->priority-1;
+  	current->priority -= increment;
+  	return 0;
+  }
+  
+! void show_task(int nr,struct task_struct * p)
+  {
+  	int i, j;
+  	unsigned char * stack;
+  
+  	printk("%d: pid=%d, state=%d, father=%d, child=%d, ",(p == current)?-nr:nr,p->pid,
+diff +recursive -cC5 /user/linux/kernel/traps.c linux/kernel/traps.c
+*** /user/linux/kernel/traps.c	Tue Feb  9 20:08:14 1993
+--- linux/kernel/traps.c	Wed Mar  3 00:06:09 1993
+***************
+*** 8,22 ****
+--- 8,24 ----
+   * 'Traps.c' handles hardware traps and faults after we have saved some
+   * state in 'asm.s'. Currently mostly a debugging-aid, will be extended
+   * to mainly kill the offending process (probably by giving it a signal,
+   * but possibly by killing it outright if necessary).
+   */
++ #include <linux/config.h>
+  #include <linux/head.h>
+  #include <linux/sched.h>
+  #include <linux/kernel.h>
+  #include <linux/string.h>
+  #include <linux/errno.h>
++ #include <linux/ptrace.h>
+  
+  #include <asm/system.h>
+  #include <asm/segment.h>
+  #include <asm/io.h>
+  
+***************
+*** 56,171 ****
+  void page_fault(void);
+  void coprocessor_error(void);
+  void reserved(void);
+  void alignment_check(void);
+  
+! /*static*/ void die_if_kernel(char * str,long esp_ptr,long nr)
+  {
+  	long * esp = (long *) esp_ptr;
+  	int i;
+  
+  	if ((esp[2] & VM_MASK) || ((0xffff & esp[1]) == 0xf))
+! 		return;
+  	printk("%s: %04x\n\r",str,nr&0xffff);
+  	printk("EIP:    %04x:%p\nEFLAGS: %p\n", 0xffff & esp[1],esp[0],esp[2]);
+  	printk("fs: %04x\n",_fs());
+  	printk("base: %p, limit: %p\n",get_base(current->ldt[1]),get_limit(0x17));
+  	store_TR(i);
+  	printk("Pid: %d, process nr: %d\n\r",current->pid,0xffff & i);
+  	for(i=0;i<10;i++)
+  		printk("%02x ",0xff & get_seg_byte(esp[1],(i+(char *)esp[0])));
+  	printk("\n\r");
+! 	do_exit(SIGSEGV);
+  }
+  
+  void do_double_fault(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("double fault",esp,error_code);
+  }
+  
+  void do_general_protection(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("general protection",esp,error_code);
+  }
+  
+  void do_alignment_check(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("alignment check",esp,error_code);
+  }
+  
+  void do_divide_error(long esp, long error_code)
+  {
+! 	send_sig(SIGFPE, current, 1);
+! 	die_if_kernel("divide error",esp,error_code);
+  }
+  
+  void do_int3(long esp, long error_code)
+  {
+! 	send_sig(SIGTRAP, current, 1);
+! 	die_if_kernel("int3",esp,error_code);
+  }
+  
+  void do_nmi(long esp, long error_code)
+  {
+  	printk("Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
+  }
+  
+  void do_debug(long esp, long error_code)
+  {
+! 	send_sig(SIGTRAP, current, 1);
+! 	die_if_kernel("debug",esp,error_code);
+  }
+  
+  void do_overflow(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("overflow",esp,error_code);
+  }
+  
+  void do_bounds(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("bounds",esp,error_code);
+  }
+  
+  void do_invalid_op(long esp, long error_code)
+  {
+! 	send_sig(SIGILL, current, 1);
+! 	die_if_kernel("invalid operand",esp,error_code);
+  }
+  
+  void do_device_not_available(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("device not available",esp,error_code);
+  }
+  
+  void do_coprocessor_segment_overrun(long esp, long error_code)
+  {
+! 	send_sig(SIGFPE, last_task_used_math, 1);
+! 	die_if_kernel("coprocessor segment overrun",esp,error_code);
+  }
+  
+  void do_invalid_TSS(long esp,long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("invalid TSS",esp,error_code);
+  }
+  
+  void do_segment_not_present(long esp,long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("segment not present",esp,error_code);
+  }
+  
+  void do_stack_segment(long esp,long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("stack segment",esp,error_code);
+  }
+  
+  void do_coprocessor_error(long esp, long error_code)
+  {
+  	ignore_irq13 = 1;
+--- 58,182 ----
+  void page_fault(void);
+  void coprocessor_error(void);
+  void reserved(void);
+  void alignment_check(void);
+  
+! /*static*/ int die_if_kernel(char * str,long esp_ptr,long nr)
+  {
+  	long * esp = (long *) esp_ptr;
+  	int i;
+  
+  	if ((esp[2] & VM_MASK) || ((0xffff & esp[1]) == 0xf))
+! 		return (1);
+  	printk("%s: %04x\n\r",str,nr&0xffff);
+  	printk("EIP:    %04x:%p\nEFLAGS: %p\n", 0xffff & esp[1],esp[0],esp[2]);
+  	printk("fs: %04x\n",_fs());
+  	printk("base: %p, limit: %p\n",get_base(current->ldt[1]),get_limit(0x17));
+  	store_TR(i);
+  	printk("Pid: %d, process nr: %d\n\r",current->pid,0xffff & i);
+  	for(i=0;i<10;i++)
+  		printk("%02x ",0xff & get_seg_byte(esp[1],(i+(char *)esp[0])));
+  	printk("\n\r");
+! #if defined(CONFIG_KDEBUG) || defined (CONFIG_LDEBUG)
+! 	{
+! 	  int enter_kdebug(struct pt_regs *pt);
+! 	  if (enter_kdebug ((struct pt_regs *)(esp - 12)))
+! 	    do_exit(SIGSEGV);
+! 	}
+! #else
+! 	  do_exit(SIGSEGV);
+! #endif	
+! 	return (0);
+  }
+  
+  void do_double_fault(long esp, long error_code)
+  {
+! 	if (die_if_kernel("double fault",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_general_protection(long esp, long error_code)
+  {
+!         if (die_if_kernel("general protection",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_alignment_check(long esp, long error_code)
+  {
+!         if (die_if_kernel("alignment check",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_divide_error(long esp, long error_code)
+  {
+! 	if (die_if_kernel("divide error",esp,error_code))
+! 	  send_sig(SIGFPE, current, 1);
+  }
+  
+  void do_int3(long esp, long error_code)
+  {
+!         if (die_if_kernel("int3",esp,error_code))
+! 	  send_sig(SIGTRAP, current, 1);
+  }
+  
+  void do_nmi(long esp, long error_code)
+  {
+  	printk("Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
+  }
+  
+  void do_debug(long esp, long error_code)
+  {
+! 	if (die_if_kernel("debug",esp,error_code))
+! 	  send_sig(SIGTRAP, current, 1);
+  }
+  
+  void do_overflow(long esp, long error_code)
+  {
+! 	if (die_if_kernel("overflow",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_bounds(long esp, long error_code)
+  {
+!         if (die_if_kernel("bounds",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_invalid_op(long esp, long error_code)
+  {
+! 	if (die_if_kernel("invalid operand",esp,error_code))
+! 	  send_sig(SIGILL, current, 1);
+  }
+  
+  void do_device_not_available(long esp, long error_code)
+  {
+! 	if (die_if_kernel("device not available",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_coprocessor_segment_overrun(long esp, long error_code)
+  {
+! 	if (die_if_kernel("coprocessor segment overrun",esp,error_code))
+! 	  send_sig(SIGFPE, last_task_used_math, 1);
+  }
+  
+  void do_invalid_TSS(long esp,long error_code)
+  {
+! 	if (die_if_kernel("invalid TSS",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_segment_not_present(long esp,long error_code)
+  {
+! 	if (die_if_kernel("segment not present",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_stack_segment(long esp,long error_code)
+  {
+! 	if (die_if_kernel("stack segment",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void do_coprocessor_error(long esp, long error_code)
+  {
+  	ignore_irq13 = 1;
+***************
+*** 173,184 ****
+  	__asm__("fninit");
+  }
+  
+  void do_reserved(long esp, long error_code)
+  {
+! 	send_sig(SIGSEGV, current, 1);
+! 	die_if_kernel("reserved (15,17-47) error",esp,error_code);
+  }
+  
+  void trap_init(void)
+  {
+  	int i;
+--- 184,195 ----
+  	__asm__("fninit");
+  }
+  
+  void do_reserved(long esp, long error_code)
+  {
+! 	if (die_if_kernel("reserved (15,17-47) error",esp,error_code))
+! 	  send_sig(SIGSEGV, current, 1);
+  }
+  
+  void trap_init(void)
+  {
+  	int i;
+diff +recursive -cC5 /user/linux/mm/memory.c linux/mm/memory.c
+*** /user/linux/mm/memory.c	Mon Feb 22 18:33:06 1993
+--- linux/mm/memory.c	Mon Mar  1 19:22:09 1993
+***************
+*** 768,778 ****
+  {
+  	unsigned long address;
+  	unsigned long user_esp = 0;
+  	unsigned long stack_limit;
+  	unsigned int bit;
+! 	extern void die_if_kernel();
+  
+  	/* get the address */
+  	__asm__("movl %%cr2,%0":"=r" (address));
+  	if (address < TASK_SIZE) {
+  		if (error_code & 4) {	/* user mode access? */
+--- 768,778 ----
+  {
+  	unsigned long address;
+  	unsigned long user_esp = 0;
+  	unsigned long stack_limit;
+  	unsigned int bit;
+! 	extern int die_if_kernel();
+  
+  	/* get the address */
+  	__asm__("movl %%cr2,%0":"=r" (address));
+  	if (address < TASK_SIZE) {
+  		if (error_code & 4) {	/* user mode access? */
+***************
+*** 798,809 ****
+  		if (user_esp < stack_limit)
+  			send_sig(SIGSEGV, current, 1);
+  		return;
+  	}
+  	printk("Unable to handle kernel paging request at address %08x\n",address);
+! 	die_if_kernel("Oops",esp,error_code);
+! 	do_exit(SIGKILL);
+  }
+  
+  /*
+   * BAD_PAGE is the page that is used for page faults when linux
+   * is out-of-memory. Older versions of linux just did a
+--- 798,809 ----
+  		if (user_esp < stack_limit)
+  			send_sig(SIGSEGV, current, 1);
+  		return;
+  	}
+  	printk("Unable to handle kernel paging request at address %08x\n",address);
+! 	if (die_if_kernel("Oops",esp,error_code))
+! 	  do_exit(SIGKILL);
+  }
+  
+  /*
+   * BAD_PAGE is the page that is used for page faults when linux
+   * is out-of-memory. Older versions of linux just did a

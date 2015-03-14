@@ -1,0 +1,120 @@
+ 
+SUBJECT: BootLinux v1.3 documentation 
+ 
+DATE:	06-30-92 
+AUTHOR: Fabien COUTANT 
+	ENSIMAG, Grenoble, France 
+Email:	coutant@imag.imag.fr (until 06-30-92) 
+ 
+COMMAND:	bootlin.com 
+SYNTAX:		[<path>]bootlin <file> 
+	<path>	is the DOS path where BOOTLIN.COM is located 
+	<file>	is the full name of the Linux boot image 
+		(relatively to your boot drive root) 
+ 
+DESCRIPTION: 
+	The image file, which name is provided on the command line, is 
+the one you "rawrite" to a disk to make it boot Linux: it must contain 
+the decompressed form of the bootimage-xxxx.Z; you can also copy (with 
+mtools I suppose) the file "Image", that is produced by making the kernel, 
+to a DOS partition and then use it directly as argument in the bootlin 
+command line. 
+	BootLinux loads from the specified file the three components 
+(boot sector, setup and kernel) at their usual loading addresses, then 
+correctly sets some registers and jumps to the setup, which in his turn 
+should run Linux. 
+	Since the kernel is loaded from the first 64K barrier (10000H or 
+1000H:0) and bootlin uses DOS to read the file, and because DOS will 
+load bootlin at the lowest address above itself, bootlin MUST be loaded 
+below the first 64K of the memory. The best way to achieve that is to 
+declare your CONFIG.SYS as the unique line: 
+ 
+	SHELL=c:\etc\bootlin.com c:\etc\bootimag.96b 
+ 
+assuming that the bootlin.com and bootimag.96b files are in c:\etc. 
+Of course, you still want to be able to run DOS at the same time, so 
+the idea is to use a CONFIG.SYS "multiplexer", e.g. something that 
+shows you on boot a menu, in which you choose wether you want to boot 
+DOS or Linux. I personnally use BOOT.SYS, which consumes nearly no 
+memory and is very powerful; using this, a config.sys should look like: 
+ 
+	DEVICE=C:\UTIL\BOOT.SYS 
+	DEVICE=BOOT.1 DOS 
+	  ... 
+	  here you put the usual config.sys 
+	  ... 
+ 
+	DEVICE=BOOT.2 Linux 
+	  SHELL=c:\etc\bootlin c:\etc\image 
+ 
+	DEVICE=BOOT.END 
+ 
+	If you are using DOS 5, it may tell you that it is trying to 
+load BootLin high and that it fails... don't worry: apart from the 
+message, it doesn't matter. BTW, I used to put a "DOS=LOW" line to 
+remove the warning message, but then DOS was ALWAYS loading low, even 
+if I had a "DOS=HIGH" in the first part of the config.sys ... It appears 
+that to know if it has to load high or low, DOS reads entirely the 
+config.sys and looks for the last "DOS=". 
+	If the specified file is not found, you will be prompted to enter 
+a new file name, until the corresponding file is found. If an error occur during 
+loading, a small error message is displayed and the computer is hung. The 
+behaviour is not defined if you don't follow exactly the syntax... in the 
+best case it will prompt you for a new file name. 
+	BootLinux checks if it is loaded enough low in memory; if it is not 
+the case, an error message is displayed, the computer is hung, and you 
+should reboot. It also checks the file is a copy of a BIOS bootable disk. 
+	Once all the loading is done, BootLinux now checks for a non-zero 
+root device number, so if there's nothing to use as root indicated in the 
+boot sector, it prompts you for a root device. The available devices are: 
+		[1] at0		is	5'1/4 1.2M disk in A: 
+		[2] ps0		is	3'1/2 1.44M disk in A: 
+		[3] at1		is	5'1/4 1.2M disk in B: 
+		[4] ps1		is	3'1/2 1.44M disk in B: 
+		[A] hda1	is	Hard Drive 0 BIOS Partition 1 
+		[B] hda2	is	Hard Drive 0 BIOS Partition 2 
+		[C] hda3	is	Hard Drive 0 BIOS Partition 3 
+		[D] hda4	is	Hard Drive 0 BIOS Partition 4 
+		[E] hdb1	is	Hard Drive 1 BIOS Partition 1 
+		[F] hdb2	is	Hard Drive 1 BIOS Partition 2 
+		[G] hdb3	is	Hard Drive 1 BIOS Partition 3 
+		[H] hdb4	is	Hard Drive 1 BIOS Partition 4 
+ 
+	NOTE! the behaviour of BootLinux is NOT defined if the kernel is 
+more than 512K in size... or if you have less than 640K base memory (I have 
+not any machine of this kind to test). 
+ 
+ 
+DETAILS: (There a lot more checking that is done, but not described here. 
+		The following description is no more exactly valid because 
+		bootlin is not finished at the moment. See the source) 
+	This section describes the details of the loading procedure: 
+	1) installs a new little 2K stack above the program, and checks 
+	   this doesn't overlap with the loading zone of the kernel (10000H). 
+	2) tries to open the specified file 
+	3) reads 512 bytes at 9000h:0 (the boot sector) 
+	4) reads 4*512 bytes at 9000h:200h (the setup) 
+	5) loads the remaining bytes of the file at 1000h:0 
+	   and closes the file 
+	6) sets SS=DS=ES=9000h, SP=4000h and AX=<ROOTDEV> found in the 
+	    bootsector.  SP was before set to the v0.12 value... OK, I 
+	    admit it is more secure to set it to the new v0.95c+ & Co value, 
+	    BUT I checked that it had nothing to do with the problems you 
+	    had with the first version. 
+	    I would have liked to also set FS and GS, but this caused 
+	    problems at linking with TLINK, so I gave it up. 
+	    I set SP to 4000h, not 3FF4h, because there's no need for a new 
+	    disk parameter table, since linux does not use Bios to read the 
+	    root device. 
+	7) jumps at 9020h:0. That's here I made an enormous mistake last time: 
+	     jumping at 9000h:200h caused possible hangs of the computer and 
+	     display of garbage instead of the "Press <RETURN> to see...". 
+	     I'm now surprised it worked well, apart from the garbage problem. 
+ 
+INFORMATIONS: 
+	For those who want to use BOOT.SYS, it is shareware and can be 
+	found at least on Simtel mirrors. I know more particularly the 
+	following locations: 
+	    wuarchive.wustl.edu:/systems/msdos/[sS]imtel20/sysutl/boot142.zip 
+	    oak.oakland.edu:/pub/msdos/sysutl/boot142.zip 
+ 

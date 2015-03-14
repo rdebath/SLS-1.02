@@ -1,0 +1,1039 @@
+
+
+
+
+
+
+
+
+
+			  The Curses Reference Manual
+
+			       Pavel Curtis 1982
+			     Zeyd M. Ben-Halim 1993
+
+
+
+
+
+
+	Caveat Emptor:
+		I'm slowly  but surely updating the documentation of
+	ncurses to reflect the current status of the code.  The text
+	below  may  refer  to  yet  to  be implemented  functions or
+	missing  functionality.	 Description  of  functions  may  be 
+	missing or out of date. ncurses is aimed at being compatible
+	with AT&T curses as defined in SysVR4.
+
+	1.  Introduction
+
+	Terminfo  is a database describing many capabilities of over
+	150 different terminals.  Curses  is  a  subroutine  package
+	which presents a high level screen  model to the programmer,
+	while dealing with issues such as terminal  differences  and
+	optimization of output to change one screenfull of text into
+	another.
+	Terminfo is based on Berkeley's termcap database,  but  con-
+	tains a number of improvements and extensions. Parameterized 
+	strings are introduced, making it possible to  describe such
+	capabilities  as video  attributes,  and to handle  far more
+	unusual terminals than possible with termcap.
+	Curses is also based on Berkeley's curses package, with many
+	improvements.  The  package  makes  use  of  the  insert and
+	delete line and character features of terminals so equipped,
+	and  determines  how to optimally use these features with no
+	help from the programmer.  It allows arbitrary  combinations
+	of  video attributes to be displayed, even on terminals that
+	leave  ``magic cookies'' on the screen to  mark  changes  in
+	attributes.+
+
+	2.  An Overview of the Package
+
+	2.1. Terminology
+	
+		In  this document, the following terminology is kept
+	to with reasonable consistency:
+
+	window	  An internal representation containing an image  of
+		  what  a  section  of  the terminal screen may look
+		  like at some point in time.  This  subsection  can
+		  either  encompass  the  entire terminal screen, or
+		  any smaller portion down  to  a  single  character
+		  within that screen.
+	terminal  Sometimes  called  terminal  screen. The package's
+		  idea of what the terminal's screen currently looks
+		  like,  i.e.,  what the  user sees  now.  This is a
+		  special screen.
+	screen	  This is a subset of windows which are as large  as
+		  the terminal screen, i.e., they start at the upper
+		  left hand  corner and  encompass  the  lower right
+		  hand  corner.  One of these,  stdscr, is automati-
+		  cally provided for the programmer.
+
+	2.2. Compiling Programs using the Package
+	
+		In order to use the library, it is necessary to have
+	certain  types  and  variables defined.  Therefore, the pro-
+	grammer must have a line:
+		  #include <ncurses.h>
+	at  the  top  of  the  program  source.	     The header file
+	<ncurses.h> needs to include <termios.h>. The screen package 
+	also uses the Standard I/O  library, so <ncurses.h> includes  
+	<stdio.h>. It is redundant (but harmless) for the programmer 
+	to do it, too.  Also, compilations should have the following 
+	form:
+		  gcc [ flags ] file ... -lncurses
+
+	2.3. Updating the Screen
+	
+		In  order to  update  the  screen  optimally,  it is
+	necessary for the routines to know what the screen currently
+	looks like and what  the programmer wants  it to  look  like
+	next. For this purpose, a data type (structure) named WINDOW
+	is defined which describes a window image to  the  routines,
+	including  its  starting position  on the screen (the (y, x)
+	coordinates of  the upper left hand  corner)  and  its size.
+	One of these (called curscr, for current screen) is a screen
+	image of what the  terminal  currently  looks like.  Another 
+	screen (called  stdscr,  for standard screen) is provided by
+	default to make changes on.
+	         A window is a purely internal representation. It is
+	used to  build  and store a potential  image of a portion of
+	the terminal.  It doesn't bear  any  necessary  relation  to
+	what is  really on  the terminal screen.  It is more like an
+	array of characters on which to make changes.
+	     When one has a window which describes what some part of
+	the terminal screen should look like,  the routine refresh()
+	(or wrefresh()  if the  window is  not  stdscr)  is  called.
+	Refresh()  in the area covered by the window, look like that
+	window.  Note, therefore, that changing something on a  win-
+	dow  does  not  change  the terminal.  Actual updates to the
+	terminal screen are made only by calling refresh()  or  wre-
+	fresh().  This  allows  the programmer  to maintain  several
+	different ideas of  what a  portion  of the  terminal screen
+	should  look like.  Also,  changes can be made to windows in
+	any order, without regard to motion  efficiency.   Then,  at
+	will, the programmer can effectively say ``make it look like
+	this,'' and let the  package worry about the best way to  do
+	this.
+
+	2.4. Naming Conventions
+	     As  hinted above, the routines can use several windows,
+	but two are automatically given: curscr,  which  knows  what
+	the  terminal looks like, and stdscr, which is what the pro-
+	grammer wants  the terminal to  look  like  next.  The  user
+	should  never really access curscr directly.  Changes should
+	be made to the appropriate  screen,  and  then  the  routine
+	refresh() (or wrefresh()) should be called.
+	      Many  functions are  set  up  to deal with stdscr as a
+	default screen.  For example, to add a character to  stdscr,
+	one  calls addch() with the desired character.  If a differ-
+	ent  window  is  to  be  used,  the  routine  waddch()  (for
+	`w'indow-specific  addch()) is provided.  This convention of
+	prepending function names with a  ``w'' when they are to  be
+	applied  to  specific windows  is consistent.  The only rou-
+	tines which do not do this are those to which a window  must
+	always be specified.
+	     In  order  to  move the current (y, x) coordinates from
+	one point to another, the routines move()  and  wmove()  are
+	provided.  However,  it is often desirable to first move and
+	then perform some I/O operation.  In order to avoid  clumsy-
+	ness,  most I/O routines can be preceded by the prefix  'mv'
+	and the desired (y,  x) coordinates then can be added to the
+	arguments to the function.  For example, the calls
+		  move(y, x);
+		  addch(ch);
+	can be replaced by
+		  mvaddch(y, x, ch);
+	and
+		  wmove(win, y, x);
+		  waddch(win, ch);
+	can be replaced by
+		  mvwaddch(win, y, x, ch);
+	Note that the window description pointer (win)  comes before
+	the added  (y, x) coordinates.  If such  pointers  are need,
+	they are always the first parameters passed.
+
+	3.  Variables
+
+	      Many variables which are used to describe the terminal
+	environment are available to the programmer. They are:
+
+  type  name	description
+  ------------------------------------------------------------------
+  WINDOW *curscr  current version of the screen (terminal screen).
+  WINDOW *stdscr  standard screen. Most updates are done here.
+  int    LINES	  number of lines on the terminal
+  int    COLS	  number of columns on the terminal
+
+	There are also several `#define' constants and types which
+	are of general usefulness:
+	
+	bool 	boolean type, actually a `char' (e.g., bool doneit;)
+	TRUE 	boolean `true' flag (1).
+	FALSE	boolean `false' flag (0).
+	ERR 	-1	error flag returned by routines on a fail.
+	OK 	0	error flag returned by routines when things
+	  		go right.
+
+	4.  Usage
+	
+	     This is a description of how to actually use the screen
+	package.  In it, we assume all updating,  reading,  etc.  is
+	applied  to  stdscr.  All instructions will work on any win-
+	dow, with changing the function name and parameters as  men-
+	tioned above.
+
+	4.1. Starting up
+
+	     In  order  to use the screen package, the routines must
+	know about  terminal  characteristics,  and  the  space  for
+	curscr  and  stdscr  must be allocated.  These functions are
+	performed by initscr(). Since it must allocate space for the  
+	windows, it can overflow memory when attempting to do so. On  
+	this  rather  rare  occasion, initscr() returns ERR.
+	initscr() must  always be called before any of  the routines
+	which  affect windows  are used.  If it is not,  the program
+	will  core  dump  as soon  as either  curscr  or  stdscr are
+	referenced.  However,  it is usually best to wait to call it
+	until  after  you  are  sure  you  will need it,  like after 
+	checking  for  startup  errors.   Terminal  status  changing 
+	routines  like nl()  and  cbreak()  should  be  called after
+	initscr().
+	     Now  that  the  screen windows have been allocated, you
+	can set them up for the run.  If you want to, say, allow the
+	window to scroll, use scrollok().  If you want the cursor to
+	be left after the last change, use leaveok().  If this isn't
+	done, refresh() will move the cursor to the window's current
+	(y, x) coordinates after updating it.  New windows  of  your
+	own can  be created,  too,  by using the  functions newwin() 
+	, derwin(), and subwin(). delwin() will allow you to get rid 
+	of  old  windows.
+
+	4.2. Output
+	
+	     Now  that  we have set things up, we will want to actu-
+	ally update the  terminal.   The  basic  functions  used  to
+	change  what will  go  on  a window  are addch() and move().
+	addch() adds a character at the current (y, x)  coordinates,
+	returning  ERR  if  it  would cause  the window to illegally
+	scroll, i.e., printing a character in the  lower  right-hand
+	corner	of   a  terminal  which   automatically  scrolls  if
+	scrolling is not allowed.  move() changes the current (y, x)
+	coordinates to whatever you want them to be.  It returns ERR
+	if you try to move off the window.  As mentioned above,  you
+	can  combine  the  two  into mvaddch() to  do both things at
+	once.
+	       The  other  output  functions, such  as addstr()  and
+	printw(),  all call addch() to add characters to the window.
+	      After you have put on the window what you  want there,
+	when you  want  the portion of  the terminal  covered by the
+	window to be made to look like it, you must call  refresh().
+	In order to optimize finding changes, refresh() assumes that
+	any part of the window not changed since the last  refresh()
+	of  that  window has not been changed on the terminal, i.e.,
+	that you  have not refreshed a portion of the terminal  with
+	an overlapping window.  If this is not the case, the routine
+	touchwin() is provided to make it look like the entire  win-
+	dow  has been changed, thus making refresh() check the whole
+	subsection of the terminal for changes.
+	     If you call wrefresh() with curscr(), it will make  the
+	screen  look like curscr thinks it looks like.  This is use-
+	ful for implementing a command which would redraw the screen
+	in case it get messed up.
+
+	4.3. Input
+
+	     Input  is  essentially  a  mirror image of output.  The
+	complementary function to addch() is getch() which, if  echo
+	is  set, will call addch() to echo the character.  Since the
+	screen package needs to know what is on the terminal at  all
+	times,  if  characters  are to be echoed, the tty must be in
+	raw or cbreak mode.   Since initially the terminal has echo-
+	ing enable  and is in nocreak  mode, one or the other has to
+	changed before calling getch(). The result of not doing this
+	is unpredictable output.
+
+	4.4. Miscellaneous
+	
+	     A plethora of other functions exist for maintaining and
+	changing  information about the windows.  For the most part,
+	the descriptions in section 5 should suffice.
+
+	4.5. Finishing Up
+	
+	     In order to do certain optimizations, and, on some ter-
+	minals,  to work at all, some things must be done before the
+	screen routines  start up.  In order to clean up  after  the
+	routines, the routine endwin() is provided.  It restores tty
+	modes to  what they were  when initscr()  was first  called,
+	moves the cursor down to the lower-left corner, etc.   Thus,
+	anytime after the call to initscr, endwin() should be called
+	before exiting.
+
+	5.  Descriptions of the Functions
+
+	This section describes  all the  functions  available to the
+	programmer in the curses package.  For an alphabetical list,
+	see the manual page ncurses(3).
+
+	5.1. Initialization
+	
+	These functions are called when initializing a program.
+
+	initscr()
+	The  first  function called should  always be initscr.  This
+	will determine the terminal type and initialize curses  data
+	structures. initscr also  arranges   that  the first call to
+	refresh will clear the screen.  If an error occurs a message
+	is writen to standard error and the program exits. Otherwise
+	it returns a pointer to stdscr.  Some function may be called
+	before initscr (slk_init,  filter, ripofflines, use_env, and
+	if you are using multiple terminals newterm.) 
+
+	endwin()
+	A  program  should  always  call  endwin  before  exiting or 
+	shelling out of the program. This function  will restore tty 
+	modes,  move  the  cursor to  the lower  left corner  of the 
+	screen,  reset the terminal into the proper  nonvisual mode.
+	Calling  refresh() or  doupdate()  after a  temporary escape
+	from  the program will  restore the  screen to  its original
+	status.
+	
+	newterm(type, ofp, ifp)
+	A program which outputs to more than one terminal should use
+	newterm instead of initscr.  newterm should be  called  once
+	for  each  terminal.  It  returns a variable  of type SCREEN
+	* which should be saved as a reference to that terminal. The 
+	arguments are the type of the terminal  (a string) and  FILE 
+	pointers for the output and input of the  terminal.  If type
+	is NULL then the environment variable $TERM is used.  endwin
+	must called for each terminal opened using this function.
+
+	set_term(new)
+	This function  is  used  to switch to a  different terminal.
+	The screen reference for the new terminal is passed  as  the
+	parameter.   The  previous terminal is returned by the func-
+	tion. All other calls affect only the current terminal.
+
+	delscreen(sp)
+
+	longname()
+	This function returns a pointer to a static area  containing
+	a verbose description of the current terminal. It is defined 
+	only after a call to initscr or newterm.
+
+	termattrs()
+
+	termname()
+
+	5.2. Option Setting
+
+	These  functions  set options within curses.  In  each case,
+	win  is  the window affected,  and bf is a boolean flag with
+	value TRUE or FALSE indicating whether to enable or  disable
+	the  option.  All  options  are initially  FALSE.  It is not
+	necessary to turn these options off before calling endwin.
+
+	clearok(win,bf)
+	If set, the next call to  wrefresh  with  this  window  will
+	clear the  screen  and redraw the entire  screen.  If win is
+	curscr, the next call to wrefresh with any window will cause
+	the  screen to be cleared.  This is useful when the contents
+	of the screen are uncertain, or in some  cases  for  a  more
+	pleasing visual effect.
+
+	idlok(win,bf)
+	If  enabled,  curses   will  consider   using  the  hardware
+	insert/delete  line feature of  terminals  so equipped.   If
+	disabled,  curses will never use this feature.  Enable  this 
+	option  only if your application  needs insert/delete  line, 
+	for example, for a screen editor. It is disabled  by default 
+	because insert/delete line is visually annoying when used in 
+	applications where it isn't really needed.
+	[N.B. idl/idc are currently not supported.]
+
+	immedok(win,bf)
+	If this  option is enabled any  change in the window's image
+	causes a call to wrefresh.  Enabling this option can degrade
+	performance; it is disabled by default.
+
+	keypad(win,bf)
+	This option  enables  the keypad of the  users terminal.  If
+	enabled, the user can press a function key (such as an arrow
+	key) and  getch will return a single  value representing the
+	function key. If disabled,  curses will not  treat  function
+	keys specially.  If the keypad in the terminal can be turned
+	on (made to transmit) and off (made to work locally),  turn-
+	ing on this option will turn on the terminal keypad. All the
+	possible function keys are defined in ncurses.h as KEY_*.
+
+	leaveok(win,bf)
+	Normally, the hardware cursor is left at the location of the
+	window cursor being refreshed.  This option allows the  cur-
+	sor  to be left wherever the update happens to leave it.  It
+	is useful for  applications  where the cursor  is  not used,
+	since it  saves cursor motions.  If possible,  the cursor is
+	made invisible when this option is enabled.
+
+	meta(win,bf)
+	If enabled, characters returned  by  getch  are  transmitted
+	with all  8 bits,  instead of stripping the highest bit.  It
+	is useful for extending the non-text command set in applica-
+	tions where the  terminal  has  a  meta shift key,   such as
+	EMACS.  NOTE: This function is currently unsupported.
+
+	nodelay(win,bf)
+	This option  causes getch to be a non-blocking call.  If  no
+	input is  ready,  getch will return ERR. If disabled,  getch
+	will hang until a key is pressed.
+
+	notimeout(win,bf)
+	This option  controls whether a timer is set  when wgetch is
+	trying to interpret an input sequence. See keypad.
+
+	scrollok(win,bf)
+	This option controls what happens when the cursor of a  win-
+	dow  is moved off the edge of the window, either from a new-
+	line on the bottom line, or typing the last character of the
+	last line.  If  disabled,  the cursor is left  on the bottom
+	line. If enabled, wrefresh is called on the window, and then 
+	the physical terminal and window are scrolled up one line.
+
+	setscrreg(t,b)
+	wsetscrreg(win,t,b)
+	These functions allow the user to set a  software  scrolling
+	region in a window win or stdscr.  t and b are the line num-
+	bers of the top and bottom margin of the  scrolling  region.
+	(Line 0  is the top line of the screen.)  If this option and
+	scrollok are enabled, an attempt to move off the bottom mar-
+	gin  line  will  cause  all lines in the scrolling region to
+	scroll up one line.  Note that this has nothing to  do  with
+	use  of a physical scrolling region capability in the termi-
+	nal, like that in the VT100.  Only the text of the window is
+	scrolled.
+	The  scrolling region really acts as a sort of barrier, lim-
+	iting the  area of a window over  which changes  take place.
+	For  this reason, an attempt to create a scrolling region in
+	an area of the screen which does not contain the current (y,
+	x)  coordinates  for that  window  is an  error.  Similarly,
+	attempts to move the (y, x)  coordinates out  of  the region
+	will also fail with an ERR return.
+	When a scrolling region is in place, all changes are limited
+	to the region.  For example,  erase() will  only  erase  the
+	area inside the  region;  insertln()  will  only shift lines
+	down to the  bottom of the region, etc.  It  is  anticipated
+	that this  method  of  controlling  the area  of change will
+	prove quite handy in a number of applications.
+	To disable the scrolling region,  once defined, simply rede-
+	fine it to be the whole window.  For example, to disable the
+	scrolling region on stdscr,  the  following  call  would  be
+	used:
+		  setscrreg(0, LINES - 1)
+	For  other  windows, the height of the window should be used
+	instead of (LINES - 1).
+
+	5.3. Terminal Mode Setting
+
+	These functions are used to set modes in the tty driver. The
+	initial mode usually depends on the setting when the program
+	was called: the initial modes documented here represenet the
+	normal situation.
+
+	cbreak()
+	nocbreak()
+	crmode()
+	nocrmode()
+	These  functions  put  the terminal into  and out  of CBREAK 
+	mode. In this mode, characters typed by the user are immedi-
+	ately available  to  the program. When out of this mode, the
+	device driver will buffer characters typed until  newline is
+	typed.  Interrupt and flow control characters are unaffected
+	by this mode.  Initially the terminal is not in CBREAK mode.
+	Most interactive  programs using  curses will set this mode. 
+	The functions  crmode() and  nocrmode() are the result of an
+	accident in  the first  version of  curses and  are retained
+	solely  for upward  compatibility.  crmode() is the  same as
+	cbreak() and nocrmode()  is the same as nocbreak().  See 4.3
+	for a important note on using these functions.
+
+	raw()
+	noraw()
+	These functions  put the terminal into  and out of RAW mode.
+	RAW mode is just like CBREAK mode  except  that  no  special
+	character  processing is done (e.g.  the interrupt character
+	will be passed through to  the  program,  uninterpreted,  as
+	will the  kill character, etc.)  and all 8 bits of the input
+	character are retained; in CBREAK mode, the  eighth  bit  is
+	stripped  off before it is given to the program.  Because of
+	the lack of interpretation of special characters, it is  not
+	recommended that programs use this mode.
+
+	echo()
+	noecho()
+	These functions control whether characters typed by the user
+	are echoed as typed. Initially,  characters typed are echoed
+	by  the  teletype  driver.  Authors of most interactive pro-
+	grams prefer to do their own echoing in a controlled area of
+	the  screen, or not to echo at all, so they disable echoing.
+
+	half_delay(t)
+	This options is similar to cbreak mode except that if after
+	blocking for t tenth of a seconds no input is received ERR
+	is returned. t must between 1 and 255. Use nocbreak to leave
+	this mode.
+
+	nl()
+	nonl()
+	These functions control whether newline is  translated  into
+	carriage  return  and linefeed on output, and whether return
+	is translated into newline on input.   Initially, the trans-
+	lations  do  occur.  By disabling these translations, curses
+	is able  to make  better  use  of  the linefeed  capability,
+	resulting in faster cursor motion.
+
+	resetty()
+	savetty()
+	These functions save and restore the state of the tty modes.
+	savetty  saves  the  current  state  in  a  buffer,  resetty
+	restores the state to what it  was at the last call to save-
+	tty.
+
+	5.4. Window Manipulation
+
+	newwin(num_lines, num_cols, begy, begx)
+	Create  a new  window with  the given  number of  lines  and
+	columns.  The  upper left  corner of the window  is  at line
+	begy column begx.  If either num_lines  or num_cols is zero,
+	they will  be defaulted to  LINES-begy and COLS-begx.  A new
+	full-screen window is created by calling newwin(0,0,0,0).
+
+	subwin(orig, num_lines, num_cols, begy, begx)
+	Create  a new  window with  the given  number of  lines  and
+	columns.  The  window  is  at  position  (begy, begx) on the
+	screen.  (It is relative to the screen, not orig.) The  win-
+	dow  is  made in  the  middle  of  the window orig,  so that
+	changes made to one window will affect both  windows.	When
+	using  this  function,  often it  will be  necessary to call
+	touchwin before calling wrefresh.
+
+	derwin(orig, num_lines, num_cols, begy, begx)
+	Is similar to subwin only the new window is created relative
+	to the original window, not the screen.
+
+	delwin(win)
+	Deletes the named window, freeing up all  memory  associated
+	with it.  In the case of sub-windows, they should be deleted
+	before the main window.
+
+	dupwin(win)
+	
+	mvderwin(win,y,x)
+
+	syncok(win,bf)
+	wsyncup(win)
+	wcursyncup(win)
+	wsyncdown(win)
+	
+	mvwin(win, by, bx)
+	Move the window so that the upper left  corner  will be  at
+	position (by, bx).  If the move would cause the window to be
+	off the screen, it is an error and the window is not moved.
+
+	touchline(win,start,count)
+	wtouchln(win,y,n,changed)
+	untouchwin(win)
+	
+	touchwin(win)
+	Throw away all optimization information about which parts of
+	the window have been touched, by pretending the entire  win-
+	dow  has  been  drawn on.  This is  sometimes necessary when
+	using overlapping windows, since a change to one window will
+	affect the other window, but the optimization records of the
+	other window will not reflect the change.
+
+	is_linetouched(win,line)
+	is_wintouched(win)
+	
+	overlay(win1, win2)
+	overwrite(win1, win2)
+	These functions overlay win1 on top of win2, that  is,  all
+	text in  win1  is copied into win2, after lining up the two
+	windows' origins.  The difference  between the functions  is
+	that overlay is nondestructive (blanks are not copied) while
+	overwrite is destructive.
+
+	copywin(win,win,sminrow,smincol,dminrow,dmincol,dmaxrow,
+		dmaxcol,overlay)
+
+	5.5. Causing Output to the Terminal
+	
+	refresh()
+	wrefresh(win)
+	These functions must be called to actually get any output on
+	the  terminal,  as  other  routines  merely  manipulate data
+	structures.  wrefresh copies the named window to the physi-
+	cal  terminal screen,  taking  into account what is already
+	there in order to do optimizations.  refresh is  the same,
+	using stdscr as a default screen.  Unless leaveok has been
+	enabled, the physical cursor of the terminal is left at  the
+	location of the window's cursor.
+
+	doupdate()
+	wnoutrefresh(win)
+	These two  functions allow multiple updates with more effi-
+	ciency than wrefresh. To  use  them, it  is important  to
+	understand  how curses works. In addition to all the window
+	structures, curses keeps two data  structures  representing
+	the  terminal screen: a physical screen, describing what is
+	actually on the screen, and  a  virtual  screen,  describing
+	what the  programmer wants to have on the screen.  wrefresh
+	works by first copying  the  named  window  to  the  virtual
+	screen  (wnoutrefresh),  and then  calling  the  routine to
+	update the screen (doupdate). If the programmer  wishes  to
+	output  several  windows  at once, a series of calls to wre-
+	fresh will result in alternating calls to  wnoutrefresh  and
+	doupdate,  causing  several  bursts of output to the screen.
+	By calling wnoutrefresh for each window, it is then possible
+	to  call  doupdate once, resulting in only one burst of out-
+	put, with probably fewer total characters transmitted.
+
+	redrawwin(win)
+	wredrawln(win,start,count)
+	
+	5.6. Writing on Window Structures
+
+	These routines are used to ``draw'' text on windows. In all
+	cases, a missing win is taken to be stdscr.  y and x are the
+	row and column, respectively. The  upper  left  corner  is
+	always  (0, 0) not (1, 1).  The mv functions imply a call to
+	move before the call to the other function.
+
+	5.6.1.  Moving the Cursor
+
+	move(y, x)
+	wmove(win, y, x)
+	The cursor associated with the window is moved to the given
+	location. This  does  not  move the physical cursor of the
+	terminal until refresh is called.
+
+	5.6.2.  Writing One Character
+
+	addch(ch)
+	waddch(win, ch)
+	mvaddch(y, x, ch)
+	mvwaddch(win, y, x, ch)
+	The character ch is put in the window at the current cursor
+	position  of the  window. If  ch  is  a  tab, newline, or
+	backspace, the cursor will be moved appropriately  in  the
+	window.	If ch is a different control character, it will be
+	drawn in the ^X notation.  The position of the window cursor
+	is  advanced. At the right margin, an automatic newline is
+	performed.  At the bottom of the scrolling region, if scrol-
+	lok is enabled, the scrolling region will be scrolled up one
+	line.
+
+	5.6.3.  Writing a String
+
+	addstr(str)
+	waddstr(win,str)
+	mvaddstr(y,x,str)
+	mvwaddstr(win,y,x,str)
+	These functions write all the characters of the null termi-
+	nated character  string  str on the given window.  They are
+	identical to a series of calls to addch.
+
+	5.6.4.  Clearing Areas of the Screen
+
+	erase()
+	werase(win)
+	These functions copy blanks to every position in the window.
+
+	clear()
+	wclear(win)
+	These functions are like erase and werase but they also call
+	clearok, arranging that the screen will be  cleared  on  the
+	next refresh.
+
+	clrtobot()
+	wclrtobot(win)
+	All lines below the cursor in this window are erased.  Also,
+	the current line to the right of the cursor is erased.
+
+	clrtoeol()
+	wclrtoeol(win)
+	The current line to the right of the cursor is erased.
+
+	5.6.5.  Inserting and Deleting Text
+
+	delch()
+	wdelch(win)
+	mvdelch(y,x)
+	mvwdelch(win,y,x)
+	The character under the cursor in  the  window  is  deleted.
+	All  characters  to  the right on the same line are moved to
+	the left one position.  This does not imply use of the hard-
+	ware delete character feature.
+
+	deleteln()
+	wdeleteln(win)
+	The  line  under  the cursor in the window is deleted.	All
+	lines below the current line are moved  up  one  line.	The
+	bottom  line of the window is cleared.  This does not imply
+	use of the hardware delete line feature.
+
+	insch(c)
+	winsch(win, c)
+	mvinsch(y,x,c)
+	mvwinsch(win,y,x,c)
+	The character c is inserted before the character  under  the
+	cursor.	All characters to the right are moved one space to
+	the right, possibly losing the rightmost  character  on  the
+	line. This does not imply use of the hardware insert char-
+	acter feature.
+
+	insertln()
+	winsertln(win)
+	A blank line is inserted above the current line.  The bottom
+	line is  lost.	This  does not  imply use of the hardware
+	insert line feature.
+
+	5.6.6.  Formatted Output
+
+	printw(fmt, args)
+	wprintw(win, fmt, args)
+	mvprintw(y, x, fmt, args)
+	mvwprintw(win, y, x, fmt, args)
+	These functions correspond to printf.  The characters  which
+	would be output by printf are instead output using waddch on
+	the given window.
+
+	5.6.7.  Miscelaneous
+
+	box(win, vert, hor)
+	A box is drawn around the edge of the window.  vert and  hor
+	are the characters the box is to be drawn with.
+
+	scroll(win)
+	The  window  is  scrolled up one line.  This involves moving
+	the lines in the window data structure.
+
+	5.7. Querying the Contents of a Window
+
+	getyx(win,y,x)
+	The cursor position of the  window  is  placed  in  the  two
+	integer  variables  y and x. Since this is a macro, no & is
+	necessary.
+
+	inch()
+	winch(win)
+	mvinch(y,x)
+	mvwinch(win,y,x)
+	The character at the current position in the named window is
+	returned.
+
+	5.8. Input from the Terminal
+
+	getch()
+	wgetch(win)
+	mvgetch(y,x)
+	mvwgetch(win,y,x)
+	A  character is  read from the terminal associated with the
+	window.  In nodelay mode, if there is no input waiting,  the
+	value -1 is returned.  In delay mode,  the program will hang
+	until a character is typed.
+
+	If keypad mode is enabled, and a function  key  is  pressed,
+	the  code  for that function key will be returned instead of
+	the raw characters.  Possible function keys are defined with
+	integers  beginning  with 0401, whose names begin with KEY_,
+	defined in <ncurses.h>.  If a character  is received  that
+	could be  the beginning of a function  key (such as escape),
+	curses will set a one second timer.  If the remainder of the
+	sequence  does  not come in within one second, the character
+	will be passed through,  otherwise  the  function  key value
+	will be returned.  For this reason, on many terminals, there
+	will be a one second delay after a user presses  the escape
+	key. (Use  by  a programmer of the escape  key for a single
+	character function is discouraged.)
+
+	getstr(str)
+	wgetstr(win,str)
+	mvgetstr(y,x,str)
+	mvwgetstr(win,y,x,str)
+	A series of calls to getch  is  made, until a  newline  is
+	received.  The resulting value is placed in the area pointed
+	at by the character pointer str.  The users erase  and  kill
+	characters are interpreted, and the string is echoed.
+
+	scanw(fmt, args)
+	wscanw(win, fmt, args)
+	mvscanw(y, x, fmt, args)
+	mvwscanw(win, y, x, fmt, args)
+	This function  corresponds  to scanf.  wgetstr is called on
+	the window, and the resulting line is used as input for  the
+	scan.
+
+	5.9. Video Attributes
+
+	attroff(at)
+	wattroff(win, attrs)
+	attron(at)
+	wattron(win, attrs)
+	attrset(at)
+	wattrset(win, attrs)
+	standout()
+	standend()
+	wstandout(win)
+	wstandend(win)
+	These functions set the current attributes of the named win-
+	dow. These attributes can be any combination of A_STANDOUT,
+	A_REVERSE,  A_BOLD,  A_DIM,  A_BLINK, A_BLANK, A_UNDERLINE,
+	A_PROTECT, and A_ALTCHARSET. These constants are defined in
+	<ncurses.h>  and can be combined with the C | (or) operator.
+	The current attributes of a window are applied to all char-
+	acters  that are written into the window.  Attributes are a
+	property of the  character,  and  move  with the  character
+	through any scrolling and insert/delete line/character oper-
+	ations.  To the extent possible on the particular  terminal,
+	they will  be displayed as the graphic rendition of charac-
+	ters put on the screen.
+	attrset(at) sets the current attributes of the given window
+	to  at.	attroff(at) turns off the named attributes without
+	affecting any other attributes.	attron(at) turns  on  the
+	named attributes without affecting any others.  standout is
+	the same as attrset(A_STANDOUT)  standend  is the  same  as
+	attrset(0), that is, it turns off all attributes.
+
+	5.10. Color Manipulation
+
+	5.11. Pads
+
+	5.12. Soft Labels
+
+	5.13. Bells and Flashing Lights
+
+	beep()
+	flash()
+	These functions  are used  to signal the programmer.  beep
+	will sound the audible alarm on the terminal, if  possible,
+	and if not, will flash the screen (visible bell), if that is
+	possible.  flash will flash the screen, and if that  is  not
+	possible,  will sound the audible signal.  If neither signal
+	is possible, nothing will happen.  Nearly all terminals have
+	an audible signal (bell or beep) but only some can flash the
+	screen.
+
+	5.14. Portability Functions
+
+	These functions do not have anything to  do with  terminal
+	dependent  character output, but tend to be needed by pro-
+	grams that use curses.	Unfortunately,  their  implemention
+	varies from one version of UNIX* to another. They have been
+	included here to enhance the portability of  programs using
+	curses.
+
+	baudrate()
+	baudrate returns the output speed of the terminal.  The num-
+	ber returned is the integer baud rate,  for  example, 9600,
+	rather than a table index such as B9600.
+
+	erasechar()
+	The erase character chosen by the user is returned.  This is
+	the character typed by the user to erase the character  just
+	typed.
+
+	killchar()
+	The  line  kill  character  chosen  by the user is returned.
+	This is the character typed by the user to forget the entire
+	line being typed.
+
+	flushinp()
+	flushinp  throws  away  any typeahead that has been typed by
+	the user and has not yet been read by the program.
+
+	5.15. Debugging
+
+	These functions are useful when  debugging  a program  with
+	curses.
+
+	unctrl(ch)
+	This macro  expands to a character string which is a print-
+	able representation of the character ch.  The program  must
+	include  the file  <unctrl.h>.  Control characters are dis-
+	played in the ^x notation. Printing characters  are  dis-
+	played as is.
+
+	traceoff()
+	traceon()
+	It is possible to compile a debugging version of curses with
+	tracing turned on, and with the -g  option  for  sdb. This
+	library  may be available on your system as -ldcurses.  When
+	using this version, the file ``trace'' will be created  each
+	time the  program  is  run, containing verbose information
+	showing each step done by curses.  This output is useful for
+	finding  bugs in curses, and may be useful for finding bugs
+	in user programs.  Since the output is so verbose, with  any
+	bug  that cannot be easily and quickly reproduced, it may be
+	necessary to turn the debugging output off in some parts  of
+	the  program. These functions can be used to turn tracing
+	off and back on.  When initscr is first called,  tracing  is
+	automatically turned on.
+
+	6. Lower Level Functions
+
+	These functions  are provided for programs not needing the
+	screen optimization capabilities of  curses. Programs  are
+	discouraged from working at this level, since they must han-
+	dle various glitches in certain terminals.  However, a  pro-
+	gram can be smaller if it only brings in the low level rou-
+	tines.
+
+	gettmode()
+	setterm(type)
+	These two initialization routines are provided  for upward
+	compatibility with  the old curses. gettmode does nothing.
+	setterm results in a call  to  setupterm  with  appropriate
+	arguments.
+
+	mvcur(oldrow, oldcol, newrow, newcol)
+	This routine optimally moves the cursor from (oldrow, old-
+	col) to (newrow, newcol).  The user program is  expected  to
+	keep track of the current cursor position.  Note that unless
+	a full screen image is kept, curses will have to  make  pes-
+	simistic assumptions, sometimes resulting in less than opti-
+	mal cursor motion.  For example, moving  the cursor a  few
+	spaces  to the right can be done by transmitting the charac-
+	ters being moved over, but if curses does not have access to
+	the screen image, it doesn't know what these characters are.
+	If either of oldcol or oldrow are  negative, mvcur()  will
+	refrain  from using any relative motions.  This is handy for
+	occasions when a program is unsure as to the current cursor
+	location.
+
+	7.  Terminfo Level
+
+	These routines  are called by low level programs that need
+	access to specific  capabilities  of terminfo.	A  program
+	working  at  this  level should include both <ncurses.h> and
+	<term.h>.  After a call to setupterm, the capabilities  will
+	be available with macro names defined in <term.h>.  See ter-
+	minfo(5) for a detailed description of the  capabilies.	If
+	the  program only needs to handle one terminal, the defini-
+	tion -DSINGLE can be passed to the C compiler, resulting  in
+	static  references to capabilities instead of dynamic refer-
+	ences.  This can result in smaller code, but prevents use of
+	more than  one  terminal  at a time. Very few programs use
+	more than one terminal, so almost all programs can use  this
+	flag.
+
+	setupterm(term, filenum, errret)
+	This routine is  called to initialize a terminal.  term is
+	the character string representing the name of the  terminal
+	being used.  filenum is the UNIX file descriptor of the ter-
+	minal being used for output. errret is  a  pointer to  an
+	integer,  in which  a  success  or  failure indication  is
+	returned.  The values returned can be 1 (all is well), 0 (no
+	such terminal),  or -1 (some problem locating the terminfo
+	database).
+	The value of term can be given as 0, which  will  cause  the
+	value of  TERM  in  the environment to be used.  The errret
+	pointer can also be given as 0, meaning  no  error  code  is
+	wanted.	If errret is defaulted, and something goes wrong,
+	setupterm will print an appropriate error message and exit,
+	rather  than returning.	Thus,  a  simple program can call
+	setupterm(0, 1,  0) and  not  worry about initialization
+	errors.
+	setupterm  will  check  the tty driver mode bits, and change
+	any that might prevent the correct operation of  other  low
+	level routines.  Currently, the mode that expands tabs into
+	spaces is disabled, because the tab character is  sometimes
+	used for different functions by different terminals. (Some
+	terminals use it to move right one space.  Others use it  to
+	address  the cursor to  row or column 9.) If the system is
+	expanding tabs, setupterm will remove the definition of  the
+	tab  and  backtab functions, assuming that since the user is
+	not using hardware tabs, they may not be properly set in the
+	terminal.
+	After the call to setupterm, the global variable cur_term is
+	set to point to the current structure of terminal  capabili-
+	ties. By  calling  setupterm for each terminal, and saving
+	and restoring cur_term, it is possible for a program to  use
+	two  or  more terminals at once.  Setupterm also stores the
+	names section of the terminal  description  in  the global
+	character  array  ttytype[]. Subsequent calls to setupterm
+	will overwrite this array, so you'll have to save  it your-
+	self if need be.
+	The mode that turns newlines into CRLF on output is not dis-
+	abled.  Programs that use cud1 or  ind  should  avoid these
+	capabilities if their value is linefeed unless they disable
+	this mode.  setupterm calls fixterm  after  any  changes  it
+	makes.
+
+	fixterm()
+	resetterm()
+	saveterm()
+	These routines  can be used to change the tty modes between
+	the two states: normal (the mode they were  in  before  the
+	program  was started)  and  program (the mode needed by the
+	program).  fixterm puts the terminal into program mode,  and
+	resetterm  puts  the terminal into normal mode.  These func-
+	tions are useful for shell  escapes  and  control-Z  suspen-
+	sions.  In addition, all programs must call resetterm before
+	they exit.
+	The routine saveterm saves the  current  state  of  the  tty
+	modes so  that  the next  time fixterm is called, the same
+	modes will be used.  This is useful for programs  which  use
+	some of the functions described in section 2.3 to tailor the
+	modes.
+	Normal mode is stored in cur_term->Ottyb, and program  mode
+	is  in  cur_term->Nttyb. These structures are both of type
+	SGTTYB (which varies depending on  the  system). Currently
+	the only possible type is struct sgttyb.
+
+	vidattr(newmode)
+	vidputs(newmode, outc)
+	newmode	is any  combination  of  attributes,  defined  in
+	<ncurses.h>. The proper string to put the terminal  in  the
+	given video mode is output. The routine vidattr() sends the
+	output characters to putchar; vidputs  sends them  to  the
+	given routine  outc, one character at a time.  That routine
+	should therefore expect one char  parameter. The  previous
+	mode is remembered by this routine.
+
+	tparm(instring, p1, p2, p3, p4, p5, p6, p7, p8, p9)
+	tparm is  used  to instantiate a parameterized string.  The
+	character string returned is suitable for tputs. Up to  9
+	parameters  can  be passed, in addition to the parameterized
+	string.
+
+	tputs(cp, affcnt, outc)
+	A string capability, possibly containing  padding  informa-
+	tion, is processed. Enough padding characters to delay for
+	the specified time replace the  padding  specification,  and
+	the  resulting string is passed, one character at a time, to
+	the routine outc, which should expect one character  parame-
+	ter. (This routine often just calls putchar.) cp is the
+	capability string.  affcnt is the number of  units  affected
+	by the capability, which varies with the particular capabil-
+	ity. (For example, the affcnt for insert_line is the number
+	of lines below the inserted line on the screen, that is, the
+	number of lines that will have to be moved by the terminal.)
+	affcnt  is used by the padding information of some terminals
+	as a multiplication factor.  If the capability does not have
+	a factor, the value 1 should be passed.
+
+	putp(str)
+	This is a convenient function to output a capability with no
+	affcnt.  The string is output to putchar with an  affcnt  of
+	1. It  can be used in simple applications that do not need
+	to process the output of tputs.
+
+
+	8. Termcap Emulation
+
+	Appendix I: Attributes
+	Appendix II: COLORS
+	Appendix III: Alternative character sets.
+	Appendix IV: Function keys, values, and descriptions
+

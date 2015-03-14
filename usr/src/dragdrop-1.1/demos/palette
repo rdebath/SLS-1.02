@@ -1,0 +1,306 @@
+#!dish -f
+# ----------------------------------------------------------------------
+#  PURPOSE:  color palette (demo for drag&drop facilities)
+#
+#   AUTHOR:  Michael J. McLennan       Phone: (215)770-2842
+#            AT&T Bell Laboratories   E-mail: alux2!mmc@att.com
+#
+#     SCCS:  %W% (%G%)
+# ----------------------------------------------------------------------
+#            Copyright (c) 1992  AT&T  All Rights Reserved
+# ======================================================================
+
+# ----------------------------------------------------------------------
+# Mapping numbers to colors...
+# ----------------------------------------------------------------------
+set dec_to_hex_map(0) 0
+set dec_to_hex_map(1) 1
+set dec_to_hex_map(2) 2
+set dec_to_hex_map(3) 3
+set dec_to_hex_map(4) 4
+set dec_to_hex_map(5) 5
+set dec_to_hex_map(6) 6
+set dec_to_hex_map(7) 7
+set dec_to_hex_map(8) 8
+set dec_to_hex_map(9) 9
+set dec_to_hex_map(10) a
+set dec_to_hex_map(11) b
+set dec_to_hex_map(12) c
+set dec_to_hex_map(13) d
+set dec_to_hex_map(14) e
+set dec_to_hex_map(15) f
+
+proc dec_to_hex {val} {
+	global dec_to_hex_map
+
+	if {$val < 0} {set val 0}
+	if {$val > 255} {set val 255}
+
+	set dig1 [expr $val/16]
+	set dig2 [expr $val-$dig1*16]
+	return $dec_to_hex_map($dig1)$dec_to_hex_map($dig2)
+}
+
+# ----------------------------------------------------------------------
+# Receiving data from remote applications...
+# ----------------------------------------------------------------------
+proc receive_number {num} {
+	global Number
+	expr $num*1
+	set Number $num
+}
+
+proc receive_rgb {r g b} {
+	global NewR NewG NewB
+	set NewR $r
+	set NewG $g
+	set NewB $b
+}
+
+proc set_color {} {
+	global NewR NewG NewB
+	set_red   $NewR
+	set_green $NewG
+	set_blue  $NewB
+}
+
+proc bg_color {win} {
+	global NewR NewG NewB
+	set ActR [expr $NewR-20]
+	set ActG [expr $NewG-20]
+	set ActB [expr $NewB-20]
+	set ncolor #[dec_to_hex $NewR][dec_to_hex $NewG][dec_to_hex $NewB]
+	set acolor #[dec_to_hex $ActR][dec_to_hex $ActG][dec_to_hex $ActB]
+
+	if {![string match *sample* $win]} {
+		catch "$win config -background $ncolor"
+		catch "$win config -activebackground $acolor"
+	}
+	foreach child [winfo children $win] {
+		bg_color $child
+	}
+}
+
+proc fg_color {win} {
+	global NewR NewG NewB
+
+	set ActR [expr $NewR-20]
+	set ActG [expr $NewG-20]
+	set ActB [expr $NewB-20]
+	set ncolor #[dec_to_hex $NewR][dec_to_hex $NewG][dec_to_hex $NewB]
+	set acolor #[dec_to_hex $ActR][dec_to_hex $ActG][dec_to_hex $ActB]
+
+	if {![string match *sample* $win]} {
+		catch "$win config -foreground $ncolor"
+		catch "$win config -activeforeground $acolor"
+	}
+	foreach child [winfo children $win] {
+		fg_color $child
+	}
+}
+
+# ----------------------------------------------------------------------
+# Sending data to remote applications...
+# ----------------------------------------------------------------------
+proc package_number {num win} {
+	if {[winfo children $win] == ""} {
+		label $win.label -text ""
+		pack append $win $win.label top
+	}
+	expr $num*1
+	$win.label config -text "Number: $num"
+	return $num
+}
+
+proc send_number {interp ddwin tokenval} {
+	send $interp "receive_number $tokenval"
+	send $interp "drag&drop target $ddwin handle number"
+}
+
+proc package_rgb {r g b win} {
+	if {[winfo children $win] == ""} {
+		label $win.label -text "Color"
+		pack append $win $win.label top
+	}
+	set color #[dec_to_hex $r][dec_to_hex $g][dec_to_hex $b]
+
+	if {[expr $r+$g+$b] > 384} {
+		$win.label config -background $color -foreground black
+	} else {
+		$win.label config -background $color -foreground white
+	}
+	return [list $r $g $b]
+}
+
+proc send_rgb {interp ddwin tokenval} {
+	send $interp "receive_rgb $tokenval"
+	send $interp "drag&drop target $ddwin handle rgb"
+}
+
+# ----------------------------------------------------------------------
+# Setting color samples...
+# ----------------------------------------------------------------------
+set Red 0
+set Green 0
+set Blue 0
+
+proc update_main_sample {} {
+	global Red Green Blue
+	set color #[dec_to_hex $Red][dec_to_hex $Green][dec_to_hex $Blue]
+
+	if {[expr $Red+$Green+$Blue] > 384} {
+		.sample config -background $color -foreground black
+	} else {
+		.sample config -background $color -foreground white
+	}
+}
+
+proc set_red {val} {
+	global Red
+	set Red $val
+	.red.cntl set $val
+	.red.sample config -background #[dec_to_hex $Red]0000
+	update_main_sample
+}
+
+proc set_green {val} {
+	global Green
+	set Green $val
+	.green.cntl set $val
+	.green.sample config -background #00[dec_to_hex $Green]00
+	update_main_sample
+}
+
+proc set_blue {val} {
+	global Blue
+	set Blue $val
+	.blue.cntl set $val
+	.blue.sample config -background #0000[dec_to_hex $Blue]
+	update_main_sample
+}
+
+# ----------------------------------------------------------------------
+# Main application window...
+# ----------------------------------------------------------------------
+label .sample -text "Color" -borderwidth 3 -relief raised
+
+drag&drop source .sample -button 3 \
+	-tokencmd {package_rgb $Red $Green $Blue} \
+	-sendcmd send_rgb
+
+drag&drop target .sample handler {rgb set_color}
+
+message .explanation -font -Adobe-times-medium-r-normal--*-120* -aspect 200 \
+    -text "Press the third mouse button over a slider or a color sample and drag the token window around.  When the token becomes raised, it is over a target window.  Release the mouse button to drop the token and transfer information.  If the transfer fails, a \"no\" symbol is drawn on the token window.\n\nTry the following:\n- Drop a number from one slider onto another\n- Drop a color sample onto the Foreground/Background targets\n- Drop one of the slider color samples onto the main sample\n- Drop tokens from one palette application onto another"
+
+#
+# Red slider...
+#
+frame .red -borderwidth 3 -relief raised
+scale .red.cntl -label "Red" -orient horizontal -from 0 -to 255 \
+	-command set_red
+frame .red.sample -geometry 20x20 -borderwidth 3 -relief raised
+pack append .red \
+	.red.cntl {left expand fillx} \
+	.red.sample {right filly}
+
+drag&drop source .red.sample -button 3 \
+	-tokencmd {package_rgb $Red 0 0} \
+	-sendcmd send_rgb
+
+drag&drop target .red.sample handler \
+	{number {set_red $Number}} \
+	{rgb {set_red $NewR}}
+
+drag&drop source .red.cntl -button 3 \
+	-tokencmd {package_number [.red.cntl get]} \
+	-sendcmd send_number
+
+drag&drop target .red.cntl handler \
+	{number {set_red $Number}} \
+	{rgb {set_red $NewR}}
+
+#
+# Green slider...
+#
+frame .green -borderwidth 3 -relief raised
+scale .green.cntl -label "Green" -orient horizontal -from 0 -to 255 \
+	-command set_green
+frame .green.sample -geometry 20x20 -borderwidth 3 -relief raised
+pack append .green \
+	.green.cntl {left expand fillx} \
+	.green.sample {right filly}
+
+drag&drop source .green.sample -button 3 \
+	-tokencmd {package_rgb 0 $Green 0} \
+	-sendcmd send_rgb
+
+drag&drop target .green.sample handler \
+	{number {set_green $Number}} \
+	{rgb {set_green $NewG}}
+
+drag&drop source .green.cntl -button 3 \
+	-tokencmd {package_number [.green.cntl get]} \
+	-sendcmd send_number
+
+drag&drop target .green.cntl handler \
+	{number {set_green $Number}} \
+	{rgb {set_green $NewG}}
+
+#
+# Blue slider...
+#
+frame .blue -borderwidth 3 -relief raised
+scale .blue.cntl -label "Blue" -orient horizontal -from 0 -to 255 \
+	-command set_blue
+frame .blue.sample -geometry 20x20 -borderwidth 3 -relief raised
+pack append .blue \
+	.blue.cntl {left expand fillx} \
+	.blue.sample {right filly}
+
+drag&drop source .blue.sample -button 3 \
+	-tokencmd {package_rgb 0 0 $Blue} \
+	-sendcmd send_rgb
+
+drag&drop target .blue.sample handler \
+	{number {set_blue $Number}} \
+	{rgb {set_blue $NewB}}
+
+drag&drop source .blue.cntl -button 3 \
+	-tokencmd {package_number [.blue.cntl get]} \
+	-sendcmd send_number
+
+drag&drop target .blue.cntl handler \
+	{number {set_blue $Number}} \
+	{rgb {set_blue $NewB}}
+
+#
+# Foreground/Background color inputs...
+#
+frame .inputs
+label .inputs.bg -text "Background" -borderwidth 3 -relief sunken
+label .inputs.fg -text "Foreground" -borderwidth 3 -relief sunken
+button .inputs.quit -text "Quit" -borderwidth 3 -command "destroy ."
+
+drag&drop target .inputs.bg handler {rgb "bg_color ."}
+drag&drop target .inputs.fg handler {rgb "fg_color ."}
+
+pack append .inputs \
+	.inputs.fg {left padx 5 pady 5} \
+	.inputs.bg {left padx 5 pady 5} \
+	.inputs.quit {right padx 5 pady 5}
+
+pack append . \
+	.sample {top expand fillx filly} \
+	.explanation {top expand fillx filly} \
+	.red {top expand fill} \
+	.green {top expand fill} \
+	.blue {top expand fill} \
+	.inputs {top fillx}
+
+wm minsize . 200 200
+wm maxsize . 1000 1000
+
+set_red 0
+set_green 0
+set_blue 0

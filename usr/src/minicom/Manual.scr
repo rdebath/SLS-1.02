@@ -1,0 +1,124 @@
+		Manual for "runscript"
+
+In this package, a simple script-interpreter is included. It can
+be used to login to other systems and things like that.
+Try running the demo:
+
+	runscript scriptdemo
+
+for fun.
+
+Runscript reckognizes the following keywords:
+
+expect    send      !         goto      gosub     return
+exit      print     set       inc       dec       if
+timeout   verbose   sleep     break     call
+
+The program expects that it's standard input and standard output are
+connected to the "remote end", that is the modem port, and that it
+can write to the local screen through standard error. This is naturally
+the case when you run it from within minicom.
+The next statements can be used:
+
+send <string>
+  <string> is sent to the modem. It is followed by a "\r". <string> can be:
+  - regular text, eg 'send hello'
+  - text enclosed in quotes, eg 'send "hello world"'
+  - and within <string> the following escape sequences are reckognized:
+    \n - newline
+    \r - carriage return
+    \a - bell
+    \b - backspace
+    \c - don't send the default '\r'.
+    \f - formfeed
+    and \ooo can be used to send an arbitrary character, where ooo is
+    an octal number.
+    Also $(environment_variable) can be used, for example $(TERM).
+    Minicom passes two special environment variables: $(LOGIN), which is the
+    username, and $(PASS), which is the password, as defined in the proper
+    entry of the dialing directory.
+
+print <string>
+  Prints <string> to the local screen. Default followed by '\r\n'.
+  See the description of 'send' above.
+
+label:
+  Declares a label (with the name 'label') to use with goto or gosub.
+
+goto <label>
+  Jump to another place in the program.
+
+gosub <label>
+  Jumps to another place in the program. When the statement 'return'
+  is encountered, control returns to the statement after the gosub.
+  Gosub's can be nested.
+
+return
+  Return from a gosub.
+
+! <command>
+  Runs a shell for you in which 'command' is executed. On return,
+  the variable '$?' is set to the exit status of this command,
+  so you can subsequently test it using 'if'.
+
+exit [value]
+  Exit from "runscript" with an optional exit status. (default 1)
+
+set <variable> <value>
+  Sets the value of <variable> (which is a single letter a-z) to the
+  value <value>. If <variable> does not exist, it will be created.
+  <value> can be a integer value or another variable.
+
+inc <variable>
+  Increments the value of <vaiable> by one.
+
+dec <variable>
+  Decrements the value of <variable> by one.
+
+if <value> <operator> <value> <statement>
+  Conditional execution of <statement>. <operator> can be <, > or =.
+  Eg, 'if a > 3 goto exitlabel'.
+
+timeout <value>
+  Sets the global timeout. By default, 'runscript' will exit after
+  120 seconds. This can be changed with this command. Warning: this
+  command acts differently within an 'expect' statement, but more
+  about that later.
+
+verbose <on|off>
+  By default, this is 'on'. That means that anything that is being
+  read from the modem by 'runscript', gets echoed to the screen.
+  This is so that you can see what 'runscript' is doing.
+
+sleep <value>
+  Suspend execution for <value> seconds.
+
+expect {
+  pattern  [statement]
+  pattern  [statement]
+  [timeout <value> [statement] ]
+  ....
+}
+  The most important command of all. Expect keeps reading from the input
+  until it reads a pattern that matches one of the specified ones.
+  If expect encounters an optional statement after that pattern, it
+  will execute it. Otherwise the default is to just break out of the
+  expect. 'pattern' is a string, just as in 'send' (see above).
+  Normally, expect will timeout in 60 seconds and just exit, but this
+  can be changed with the timeout command.
+
+break
+  Break out of an 'expect' statement. This is normally only useful
+  as argument to 'timeout' within an expect, because the default
+  action of timeout is to exit immediately.
+
+call <scriptname>
+  Transfers control to another scriptfile. When that scriptfile
+  finishes without errors, the original script will continue.
+
+Well, I don't think this is enough information to make you an
+experienced 'programmer' :-) in 'runscript', but together with the
+examples it shouldn't be too hard to write some useful script
+files. Things will be easier if you have experience with BASIC :-)
+
+Miquel.

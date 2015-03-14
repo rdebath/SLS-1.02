@@ -1,0 +1,206 @@
+#!/bin/csh -f
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+# 
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# appear in all copies, and that the name of Bellcore not be 
+# used in advertising or publicity pertaining to this 
+# material without the specific, prior written permission 
+# of an authorized representative of Bellcore.  BELLCORE 
+# MAKES NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+
+set MustDelete=0
+set batchmode=0
+set splitsize = 100000
+while ($#argv > 0)
+    switch ($1)
+        case "-S":
+            shift
+            if ($#argv == 0) then
+                echo "-S requires a following argument, the SPLIT threshhold"
+                exit
+            endif
+            set splitsize=$1
+            shift
+            breaksw
+        case "-b":
+            # Batch mode -- ALL args must be on command line
+            set batchmode = 1
+            shift
+            breaksw
+        case "-c":
+            shift
+            if ($#argv == 0) then
+                echo "-c requires a following argument, the CC address"
+                exit
+            endif
+            set cc=$1
+            shift
+            breaksw
+        case "-s":
+            shift
+            if ($#argv == 0) then
+                echo "-s requires a following argument, the SUBJECT"
+                exit
+            endif
+            set subject="$1"
+            shift
+            breaksw
+        case "-t":
+            shift
+            if ($#argv == 0) then
+                echo "-t requires a following argument, the TO address"
+                exit
+            endif
+            set to="$1"
+            shift
+            breaksw
+        case "-e":
+            shift
+            if ($#argv == 0) then
+                echo "-e requires a following argument, the ENCODING value"
+                exit
+            endif
+            set encode=$1
+            shift
+            breaksw
+        case "-f":
+            shift
+            if ($#argv == 0) then
+                echo "-f requires a following argument, the DATA FILE"
+                exit
+            endif
+            set datafile=$1
+            shift
+            breaksw
+        case "-m":
+            shift
+            if ($#argv == 0) then
+                echo "-m requires a following argument, the MIME CONTENT-TYPE"
+                exit
+            endif
+            set ctype=$1
+            shift
+            breaksw
+        case "-z":
+            set MustDelete=1
+            shift
+            breaksw
+        default:
+            echo UNRECOGNIZED METASEND OPTION: $1
+            exit
+    endsw
+end
+
+if ($batchmode == 0) then
+    if (! $?to) then
+        echo -n "To: "
+        set to = $<
+    endif
+    if (! $?subject) then
+        echo -n "Subject: "
+        set subject = $<
+    endif
+    if (! $?cc) then
+        echo -n "CC: "
+        set cc = $<
+    endif
+    if (! $?ctype) then
+        echo -n "Content-type: "
+        set ctype = $<
+    endif
+    if (! $?datafile) then
+        getfile:
+        echo -n "Name of file containing $ctype data: "
+        set datafile = $<
+        if (! -e  $datafile) then
+            echo The file $datafile does not exist.
+            goto getfile
+        endif
+    endif
+    if (! $?encode) then
+        retry:
+        echo "Do you want to encode this data for sending through the mail?"
+        echo "  1 -- No, it is already in 7 bit ASCII"
+        echo "  2 -- Yes, encode in base64 (most efficient)"
+        echo "  3 -- Yes, encode in quoted-printable (less efficient, more readable)"
+        echo "  4 -- Yes, encode it using uuencode (not standard, being phased out)"
+        set encode=$<
+        switch ("$encode")
+            case 1:
+                set encodingprog = cat
+	  set encode = 7bit
+                breaksw
+            case 2:
+                set encodingprog = "mmencode -b"
+	  set encode = base64
+                breaksw
+            case 3:
+                set encodingprog = "mmencode -q"
+	  set encode = quoted-printable
+                breaksw
+            case 4:
+                set encodingprog = "uuencode $datafile"
+	  set encode = x-uue
+                breaksw
+            default:
+                echo Unrecognized answer, please try again.
+                goto retry
+        endsw
+    endif
+else
+    if (! $?to || ! $?subject || ! $?ctype || ! $?datafile) then
+        echo metasend: in batch mode, -t, -s, -f, and -m are all required
+        exit
+    endif
+    if (! -e  $datafile) then
+        echo metasend:  The file $datafile does not exist
+        exit
+    endif
+    if (! $?cc) set cc=""
+    if (! $?encode) then
+        if ("$ctype" =~ text*) then
+	set encodingprog = "mmencode -q"
+	set encode = "quoted-printable"
+        else
+            set encodingprog = "mmencode -b"
+            set encode = base64
+        endif
+    else if ($encode == "base64") then
+        set encodingprog = "mmencode -b"
+    else if ($encode == "x-uue") then
+        set encodingprog = "uuencode mail-body"
+    else if ($encode == "7bit") then
+        set encodingprog = cat
+    else
+        set encodingprog = "mmencode -q"
+        set encode = "quoted-printable"
+    endif
+endif
+
+set fname = /tmp/metasend.$$
+echo "To: " "$to" > $fname
+echo "Subject: " "$subject" >> $fname
+echo "CC: " "$cc" >> $fname
+echo "MIME-Version: 1.0" >> $fname
+echo "Content-type: " $ctype >> $fname
+echo "Content-Transfer-Encoding: " $encode >> $fname
+echo  "" >> $fname
+$encodingprog < $datafile >> $fname
+# Ensure last line has trailing carraige return
+echo "" >> $fname
+
+splitmail -s $splitsize -d $fname
+if (! $status) then
+    rm $fname
+else if ($MustDelete == 1) then
+    echo Mail delivery failed
+    rm $fname
+else
+    echo Mail delivery failed, draft mail is in $fname
+endif
+

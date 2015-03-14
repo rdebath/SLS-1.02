@@ -1,0 +1,352 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+
+#
+# Copyright (c) 1992 Wimsey Informations Technologies
+#
+# usage: mmsend [options] addresses ...
+#	-c cc address
+#	-e encoding
+#	-m MIME-type
+#	-s Subject
+#	-S splitsize
+#	-z zap temp files always
+#
+
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+RC=1
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+clean() {
+    trap clean 1 2 15
+    echo caught SIG
+    rm $fname
+    exit $RC
+}
+
+trap clean 1 2 15
+
+MustDelete=0
+encode=""
+splitsize=100000
+verbose=""
+havedash=0
+filecount=0
+haveMIME=0
+haveencode=0
+
+while [ $# -gt 0 ] ; do
+    case $1 in
+	-V|-v)
+	    verbose="-v";
+	    ;;
+	-S)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-S requires a following argument, the SPLIT threshhold"
+                exit
+            fi
+            splitsize=$1
+            shift
+	    ;;
+	-c)
+            shift
+            if [ $# -eq 0 ] ; then
+                echo "-c requires a following argument, the CC address"
+                exit
+	    fi
+            cc=$1
+            shift
+	    ;;
+	-s)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-s requires a following argument, the SUBJECT"
+                exit
+	    fi
+            subject="$1"
+            shift
+	    ;;
+	-e)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-e requires a following argument, the ENCODING value"
+                exit
+	    fi
+            args="$args -e $1"
+	    haveencode=1
+            shift
+	    ;;
+	-f)
+            shift
+	    if [ $haveMIME = 0 ] ; then
+		echo "Must specify MIME content type prior to any files."
+		exit
+	    fi
+	    if [ $# -eq 0 ] ; then
+                echo "-f requires a following argument, the DATA FILE"
+                exit
+	    fi
+            args="$args -f $1"
+	    filecount=`expr $filecount + 1`
+            shift
+	    ;;
+	-m)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-m requires a following argument, the MIME CONTENT-TYPE"
+                exit
+	    fi
+            args="$args -m $1"
+	    haveMIME=1
+            shift
+	    ;;
+	-z)
+            MustDelete=1
+            shift
+	    ;;
+	-x|-X)
+            args="$args $1"
+	    shift;
+	    ;;
+        -*)
+            echo UNRECOGNIZED METASEND OPTION: $1
+            exit
+	    ;;
+	*)
+	    if [ ! "$addresses" ] ; then
+		addresses="$1"
+	    else
+		addresses="$addresses $1"
+	    fi
+            shift
+	    ;;
+    esac
+done
+
+if [ ! "$addresses" ] ; then
+    echo mmsend: an addresss is all required
+    exit
+fi
+if [ ! "$subject" ] ; then
+    echo mmsend: an -s subject is required
+    exit
+fi
+if [ ! "$args" ] ; then
+    echo mmsend: a -m and -f arguement is required
+    exit
+fi
+if [ ! "$cc" ] ; then
+    cc=""
+fi
+
+
+#
+# create headers
+#
+
+boundary="PART.BOUNDARY.`hostname`.`date +%y%m%d%H%M%S`.$$"
+fname=/tmp/mmsend.$$
+(
+    echo "To: $addresses" 
+    echo "Subject: $subject" 
+    if [ "$cc" ] ; then
+        echo "CC: $cc" 
+    fi
+    echo "MIME-Version: 1.0" 
+    #if [ $filecount -gt 1 ] ; then
+	echo "Content-type: multipart/mixed;" 
+	echo "        boundary=$boundary"
+    #fi
+    echo
+) > $fname
+
+#
+# Tell the user what's up
+#
+if [ "$verbose" = "-v" ] ; then
+    echo "Mail headers:"
+    cat $fname | sed 's/^/        /'
+fi
+
+
+#
+# add MIME warning
+#
+(
+    echo
+    echo "> THIS IS A MESSAGE IN 'MIME' FORMAT."
+    echo "> Your mail reader does not support MIME."
+    echo "> Some parts of this will be readable as plain text."
+    echo "> To see the rest, you will need to upgrade your mail reader."
+    echo
+
+) >> $fname
+
+#
+# now let's loop on files
+#
+set -- $args
+encode=base64
+externalbody=0
+while [ $# -gt 0 ] ; do
+    case "$1" in
+	-x)
+	    externalbody=0
+	    shift
+	    ;;
+	-X)
+	    externalbody=1
+	    shift
+	    ;;
+	-e) 
+	    shift
+	    encode=$1
+	    shift
+	    ;;
+	-m)
+	    shift
+	    mime=$1
+	    shift
+	    ;;
+	-f)
+	    shift
+	    file=$1
+	    if [ ! "$encode" ] ; then
+		if [ "$ctype" != text ] ; then
+		    encodingprog="mmencode -q"
+		    encode="quoted-printable"
+		else
+		    encodingprog="mmencode -b"
+		    encode=base64
+		fi
+	    elif [ $encode = "base64" ] ; then
+		encodingprog="mmencode -b"
+	    elif [ $encode = "x-uue" ] ; then
+		encodingprog="uuencode $file"
+	    else
+		encodingprog="mmencode -q"
+		encode="quoted-printable"
+	    fi
+
+	    if [ "$verbose" = "-v" ] ; then
+		echo
+		echo "Encoding file now: $encodingprog < $file"
+		echo 
+	    fi
+
+
+	    # add the next body part
+	    if [ $externalbody -eq 1 ] ; then
+		(
+		    echo
+		    #if [ $filecount -gt 1 ] ; then
+			echo "--$boundary"
+		    #fi
+		    echo "Subject: $subject" 
+		    echo "Content-type: message/external-body; "
+		    echo "        name=$file;"
+		    echo "        access-type=local-file;"
+		    echo "        site=`hostname`"
+		    #echo "Content-Transfer-Encoding: $encode" 
+		    echo
+		    echo "Content-type: $mime"
+		    echo
+
+		    # Ensure last line has trailing carraige return
+		    echo
+		) >> $fname
+	    else
+		(
+		    echo
+		    #if [ $filecount -gt 1 ] ; then
+			echo "--$boundary"
+		    #fi
+		    echo "Subject: $subject" 
+		    echo "Content-type: $mime; name=`basename $file`" 
+		    echo "Content-Transfer-Encoding: $encode" 
+		    echo
+
+		    $encodingprog < $file 
+		    # Ensure last line has trailing carraige return
+		    echo
+		) >> $fname
+	    fi
+
+	    shift
+	    ;;
+    esac
+done
+
+
+#
+# fill out message, possibly append boundary
+#
+(
+echo ""
+#if [ $filecount -gt 1 ] ; then
+    echo "--$boundary--"
+    echo
+#fi
+cd
+if [ -r ".mime-signature" ] ; then
+    echo --
+    cat .mime-signature
+elif [ -r ".signature" ] ; then
+    echo --
+    cat .signature
+fi
+) >> $fname
+
+#
+# now let's send the message
+#
+if [ "$verbose" = "-v" ] ; then
+    echo
+    echo Sending mail now: splitmail -s $splitsize -d $fname
+fi
+
+splitmail -s $splitsize -d $fname
+
+if [ $? -eq 0 ] ; then
+    if [ "$verbose" = "-v" ] ; then
+	echo
+	echo Mail sent successfully
+	echo
+    fi
+    rm $fname
+
+elif [ $MustDelete -eq 1 ] ; then
+    echo Mail delivery failed
+    rm $fname
+
+else
+    echo Mail delivery failed, draft mail is in $fname
+fi
+
+RC=0
+exit

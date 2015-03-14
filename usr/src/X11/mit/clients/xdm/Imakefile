@@ -1,0 +1,118 @@
+XCOMM $Header: /home/x_cvs/mit/clients/xdm/Imakefile,v 1.5 1992/09/16 15:09:08 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.58 91/08/22 14:24:45 rws Exp $
+#define IHaveSubdirs
+#define PassCDebugFlags 'CDEBUGFLAGS=$(CDEBUGFLAGS)'
+
+#define BuildChooser !SystemV && !defined(LinuxArchitecture)
+
+#if HasXdmAuth
+XDMAUTH_DEFINES = -DHASXDMAUTH
+XDMAUTHOBJS = xdmauth.o
+XDMAUTHSRCS = xdmauth.c
+#endif
+
+#if HasSecureRPC
+RPC_DEFINES = -DSECURE_RPC
+RPCOBJS = rpcauth.o
+RPCSRCS = rpcauth.c
+RPCLIB = -lrpcsvc
+#endif
+
+#if SystemV4 || HasShadowPasswd
+PWD_DEFINES = -DUSESHADOW
+#if SystemV
+SYS_LIBRARIES = -lsec
+#endif
+#endif
+
+   XDMCONFIGDIR = XdmConfigurationSubdirectory
+        SUBDIRS = $(XDMCONFIGDIR)
+
+DEPLIBS = XawClientDepLibs $(DEPXAUTHLIB) $(DEPXDMCPLIB)
+LOCAL_LIBRARIES = XawClientLibs $(XAUTHLIB) $(XDMCPLIB) $(RPCLIB)
+          SRCS1 = auth.c daemon.c server.c dpylist.c dm.c error.c file.c \
+		  greet.c netaddr.c reset.c resource.c protodpy.c policy.c \
+		  session.c socket.c streams.c util.c verify.c xdmcp.c \
+		  Login.c mitauth.c \
+		  genauth.c access.c choose.c $(XDMAUTHSRCS) $(RPCSRCS)
+          OBJS1 = auth.o daemon.o server.o dpylist.o dm.o error.o file.o \
+		  greet.o netaddr.o reset.o resource.o protodpy.o policy.o \
+		  session.o socket.o streams.o util.o verify.o xdmcp.o \
+		  Login.o mitauth.o \
+		  genauth.o access.o choose.o $(XDMAUTHOBJS) $(RPCOBJS)
+          SRCS2 = xdmshell.c 
+          OBJS2 = xdmshell.o 
+#if BuildChooser
+          SRCS3 = chooser.c
+          OBJS3 = chooser.o
+#endif
+       DEPLIBS3 = XawClientDepLibs $(TOP)/lib/Xdmcp/libXdmcp.a
+          LIBS3 = XawClientLibs $(TOP)/lib/Xdmcp/libXdmcp.a
+       
+          SRCS4 = sessreg.c
+          OBJS4 = sessreg.o
+#if BuildChooser
+       PROGRAMS = xdm xdmshell sessreg chooser
+#else
+       PROGRAMS = xdm xdmshell sessreg
+#endif
+
+ OSMAJORVERSION = OSMajorVersion
+ OSMINORVERSION = OSMinorVersion
+        DEFINES = -DBINDIR=\"$(BINDIR)\" -DXDMDIR=\"$(XDMDIR)\" \
+		$(SIGNAL_DEFINES) $(XDMAUTH_DEFINES) $(RPC_DEFINES) $(PWD_DEFINES) \
+		ConnectionFlags \
+		-DOSMAJORVERSION=$(OSMAJORVERSION) \
+		-DOSMINORVERSION=$(OSMINORVERSION)
+
+XCOMM
+XCOMM Special definitions for compiling default resources; these parameters
+XCOMM should be set in util/imake.includes/site.def or the appropriate .macros
+XCOMM file in that directory.  The lack of initial spaces is to prevent imake
+XCOMM from accidently turning the lines into rules by putting a leading tab.
+XCOMM
+XCOMM Do NOT change these lines!
+XCOMM
+DEF_SERVER = $(BINDIR)/X
+DEF_USER_PATH = DefaultUserPath		/* no leading spaces or imake will */
+DEF_SYSTEM_PATH = DefaultSystemPath	/* indent as rule */
+BOURNE_SHELL = DefaultSystemShell
+RES_DEFINES = '-DDEF_SERVER_LINE=":0 local $(DEF_SERVER) :0"' \
+		  '-DXRDB_PROGRAM="$(BINDIR)/xrdb"' \
+		  '-DDEF_SESSION="$(BINDIR)/xterm -ls"' \
+		  '-DDEF_USER_PATH="$(DEF_USER_PATH)"' \
+		  '-DDEF_SYSTEM_PATH="$(DEF_SYSTEM_PATH)"' \
+		  '-DDEF_SYSTEM_SHELL="$(BOURNE_SHELL)"' \
+		  '-DDEF_FAILSAFE_CLIENT="$(BINDIR)/xterm"' \
+		  '-DDEF_XDM_CONFIG="$(XDMDIR)/xdm-config"' \
+		  '-DDEF_CHOOSER="$(XDMDIR)/chooser"' \
+		  '-DDEF_AUTH_DIR="$(XDMDIR)"'
+
+ComplexProgramTarget_1(xdm,$(LOCAL_LIBRARIES),$(SYSLIBS))
+SingleProgramTarget(xdmshell,$(OBJS2),NullParameter,NullParameter)
+SingleProgramTarget(sessreg,$(OBJS4),NullParameter,NullParameter)
+InstallProgram(sessreg,$(BINDIR))
+InstallManPage(sessreg,$(MANDIR))
+#if BuildChooser
+NormalProgramTarget(chooser,$(OBJS3),$(DEPLIBS3),$(LIBS3),NullParameter)
+SaberProgramTarget(chooser,$(SRCS3),$(OBJS3),$(LIBS3),NullParameter)
+InstallProgram(chooser,$(XDMDIR))
+InstallAppDefaults(Chooser)
+#endif
+
+SpecialObjectRule(resource.o, $(ICONFIGFILES), $(RES_DEFINES))
+
+XCOMM these files depend on HASXDMAUTH
+auth.o policy.o: $(ICONFIGFILES)
+
+#ifdef IHaveSubdirs
+MakeSubdirs($(SUBDIRS))
+#endif
+
+/*
+ * Don't install; let people read the instructions about putting in the
+ * abort-display() resource:
+ */
+#ifdef comment
+InstallProgramWithFlags(xdmshell,$(BINDIR),NullParameter)
+#endif

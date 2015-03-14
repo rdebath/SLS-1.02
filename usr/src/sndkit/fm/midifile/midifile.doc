@@ -1,0 +1,462 @@
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+NAME
+     mfread,mfwrite - read and write a standard MIDI file
+
+SYNOPSIS
+     #include "mfread.h"
+
+     mfread ()
+
+     int (*Mf_getc) ();
+     int (*Mf_putc) ();
+     int (*Mf_error) (char *msg);
+     int (*Mf_header) (int format, int ntrks, int division);
+     int (*Mf_trackstart) ();
+     int (*Mf_trackend) ();
+     int (*Mf_noteon) (int chan, int pitch, int vol);
+     int (*Mf_noteoff) (int chan, int pitch, int vol);
+     int (*Mf_pressure) (int chan, int pitch, int pressure);
+     int (*Mf_parameter) (int chan, int control, int value);
+     int (*Mf_pitchbend) (int chan, int msb, int lsb);
+     int (*Mf_program) (int chan, int program);
+     int (*Mf_chanpressure) (int chan, int pressure);
+     int (*Mf_sysex) (int leng, char *msg);
+     int (*Mf_metamisc) (int type, int leng, int msg);
+     int (*Mf_seqspecific) (int type, int leng, int msg);
+     int (*Mf_seqnum) (int num);
+     int (*Mf_text) (int type, int leng, int msg);
+     int (*Mf_eot) ();
+     int (*Mf_timesig) (int numer, int denom, int clocks, int qnotes);
+     int (*Mf_smpte) (int hour, int min, int sec, int frame, int fract);
+     int (*Mf_tempo) (int microsecs);
+     int (*Mf_keysig) (int sharpflat, int minor);
+     int (*Mf_arbitrary) (int leng, int msg);
+     int Mf_nomerge;
+     long Mf_currtime;
+
+     mfwrite(int format, int ntracks, int division, FILE *fp)
+
+     int (*Mf_writetrack)(int track);
+     int (*Mf_writetempotrack)();
+
+     void mf_write_midi_event(delta, type, chan, data, size)
+     unsigned long delta;
+     unsigned int type,chan,size;
+     char *data;
+
+     void mf_write_meta_event(delta, type, data, size)
+     unsigned long delta;
+     unsigned int type,chan,size;
+     char *data;
+
+     void mf_write_tempo(tempo)
+     unsigned long tempo;
+
+
+
+Sun Release 4.1           Last change:                          1
+
+
+
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+     unsigned long mf_sec2ticks(float seconds, int division, int tempo)
+     float seconds;
+     int division;
+     unsigned int tempo;
+
+     float mf_ticks2sec(ticks, division, tempo)
+     unsigned long ticks;
+     int division;
+     unsigned int tempo;
+
+
+DESCRIPTION
+     The mfread function reads  and  inteprets  a  standard  MIDI
+     file.   To use it you need to understand the general form of
+     a MIDI file and the type of information it contains, but you
+     don't  need  to  know  much, if anything, about the detailed
+     format of the file and the mechanics of reading it  reliably
+     and portably.
+
+     The mfwrite function writes a standard MIDI file making  use
+     of  user-defined  functions  that  access the program's data
+     structure.   To  use  it  you  need  to  define   your   own
+     Mf_writetrack  routine and then make use of the write_* fam-
+     ily of routines to write out the  MIDI  data.   The  mfwrite
+     routine  takes  care of the file format and writing the file
+     and track chunk headers.
+
+
+READING STANDARD MIDI FILES
+     A single call to mfread will read an entire MIDI file.   The
+     interface  to  mfread  is  a set of external variables named
+     Mf_*, most of which are function pointers to be called  from
+     within  mfread  during the process of parsing the MIDI file.
+     Before calling mfread, the  only  requirement  is  that  you
+     assign  a  value  to  Mf_getc - a pointer to a function that
+     will return characters from the MIDI file, using -1 to indi-
+     cate  EOF.   All  the rest of the function pointers are ini-
+     tialized to NULL, and the default action for each is  to  do
+     nothing.   The  following is a complete program using mfread
+     that could serve as a 'syntax checker' for MIDI files:
+
+               #include <stdio.h>
+               #include "midifile.h"
+
+               mygetc()
+               {
+                    /* use standard input */
+                    return(getchar());
+               }
+
+               main()
+               {
+
+
+
+Sun Release 4.1           Last change:                          2
+
+
+
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+                    Mf_getc = mygetc;
+                    mfread();
+                    exit(0);
+               }
+
+     This takes advantage of the default action when an error  is
+     detected, which is to exit silently with a return code of 1.
+     An error function of your own can be used by giving a  value
+     to Mf_error; the function will be called with the error mes-
+     sage as an argument.  The other Mf_* variables can similarly
+     be  used  to call arbitrary functions while parsing the MIDI
+     file.  The descriptions below of the information  passed  to
+     these  functions  is sparse; refer to the MIDI file standard
+     for the complete descriptions.
+
+     Mf_header is the first function to be called, and its  argu-
+     ments  contain  information from the MIDI file's header; the
+     format (0,1, or 2), the number of tracks, and  the  division
+     of   a   quarter-note   that   defines   the   times  units.
+     Mf_trackstart and Mf_trackend are called  at  the  beginning
+     and end of each track.
+
+     Once inside a track, each separate message causes a function
+     to  be  called.   For  example,  each note-on message causes
+     Mf_noteon to be called with the channel, pitch,  and  volume
+     as  arguments.   The  time  at which the message occurred is
+     stored in Mf_currtime - one of the  few  external  variables
+     that  isn't  a function pointer.  The other channel messages
+     are handled in a similar and obvious fashion  -  Mf_noteoff,
+     Mf_pressure,  Mf_parameter,  Mf_pitchbend,  Mf_program,  and
+     Mf_chanpressure.  See the declarations above for  the  argu-
+     ments that are passed to each.
+
+     System exclusive messages are handled by  calling  Mf_sysex,
+     passing  as  arguments the message length and a pointer to a
+     static buffer containing the entire message.  The buffer  is
+     expanded  when  necessary;  memory  availability is the only
+     limit to its size.  Normally, 'continued' system  exclusives
+     are  automatically merged, and Mf_sysex is only called once.
+     It you want to disable this you can  set  Mf_nomerge  to  1,
+     causing Mf_sysex to be called once for each part of the mes-
+     sage.
+
+     Mf_seqnum is called by the  meta  message  that  provides  a
+     sequence  number, which if present must appear at the begin-
+     ning of a track.  The tempo meta message causes Mf_tempo  to
+     be  called;  its  argument is the number of microseconds per
+     MIDI quarter-note (24 MIDI clocks).  The  end-of-track  meta
+     message  causes Mf_eot to be called.  The key signature meta
+     message causes Mf_keysig to be called;  the  first  argument
+     conveys  the  number of sharps or flats, the second argument
+     is 1 if the key is minor.
+
+
+
+Sun Release 4.1           Last change:                          3
+
+
+
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+     The Mf_timesig and Mf_smpte functions are  called  when  the
+     corresponding  meta  messages  are  seen.  See the MIDI file
+     standard for a description of their arguments.
+
+     The text messages in the MIDI file standard are of the  fol-
+     lowing types:
+
+               0x01      Text Event
+               0x02      Copyright
+               0x03      Sequence/Track Name
+               0x04      Instrument
+               0x05      Lyric
+               0x06      Marker
+               0x07      Cue Point
+               0x08-0x0F Reserverd but Undefined
+
+     Mf_text is called for each of these; the arguments  are  the
+     type  number,  the message length, and a pointer to the mes-
+     sage buffer.
+
+     Misceallaneous meta messages  are  handled  by  Mf_metamisc,
+     sequencer-specific  messages  are handled by Mf_seqspecific,
+     and arbitrary "escape" messages (started with 0xF7) are han-
+     dled by Mf_arbitrary.
+
+READING EXAMPLE
+     The following is a strings-like program for MIDI files:
+
+               #include <stdio.h>
+               #include <ctype.h>
+               #include "midifile.h"
+
+               FILE *F;
+
+               mygetc() { return(getc(F)); }
+
+               mytext(type,leng,msg)
+               char *msg;
+               {
+                    char *p;
+                    char *ep = msg + leng;
+
+                    for ( p=msg; p<ep ; p++ )
+                         putchar( isprint(*p) ? *p : '?' );
+                    putchar('0);
+               }
+
+               main(argc,argv)
+               char **argv;
+               {
+                    if ( argc > 1 )
+                         F = fopen(argv[1],"r");
+
+
+
+Sun Release 4.1           Last change:                          4
+
+
+
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+                    else
+                         F = stdin;
+
+                    Mf_getc = mygetc;
+                    Mf_text = mytext;
+
+                    mfread();
+
+                    exit(0);
+               }
+
+
+WRITING STANDARD MIDI FILES
+     A single call to mfwrite will write  an  entire  MIDI  file.
+     Before  calling  mfwrite, you must assign values to function
+     pointers Mf_writetrack and Mf_putc.  The first is a  routine
+     to  access  your  MIDI data structure, which can make use of
+     other library routines to write the actual MIDI  data.   The
+     routine  Mf_writetrack  will  be  passed  a single parameter
+     which is the number of the track to be written.  The pointer
+     Mf_putc  should  be set to point to a routine that accepts a
+     charcter as input, writes that  character  to  a  file,  and
+     returns the value that was written.  In the case of a format
+     1 file, a routine has to be written to write  a  tempo  map,
+     and  assigned  to  the  function pointer Mf_writetempotrack.
+     This is because format 1 files assume the first track  writ-
+     ten is a tempo track.
+
+     mf_write_midi_event  and  mf_write_meta_event  are  routines
+     that  should  be  called  from your Mf_writetrack routine to
+     write out MIDI events.  The delta time param is  the  number
+     of  ticks  since the last event.  The int "type" is the type
+     of MIDI message. The int "chan" is the MIDI  channel,  which
+     can  be between 1 and 16.  The char pointer "data" points to
+     an array containing the data bytes, if any  exist.  The  int
+     "size" is the number of data bytes.
+
+     mf_sec2ticks and mf_ticks2sec are utility routines  to  help
+     you convert between the MIDI file parameter of ticks and the
+     more standard seconds. The int "division" is the same  divi-
+     sion  parameter from the file header, and tempo is expressed
+     in microseconds  per  MIDI  quarter-note,  or  "24ths  of  a
+     microsecond  per MIDI clock". The division has two meanings,
+     depending on whether bit 15 is set or not.   If  bit  15  of
+     division  is zero, bits 14 through 0 represent the number of
+     delta-time "ticks" which make up a quarter note.  If bit  15
+     of  division  is  a one, delta-times in a file correspond to
+     subdivisions of a second similiar to  SMPTE  and  MIDI  time
+     code.  In  this format bits 14 through 8 contain one of four
+     values - 24, -25, -29, or -30,  corresponding  to  the  four
+     standard  SMPTE and MIDI time code frame per second formats,
+     where  -29  represents  30  drop  frame.   The  second  byte
+
+
+
+Sun Release 4.1           Last change:                          5
+
+
+
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+     consisting  of  bits 7 through 0 corresponds the the resolu-
+     tion within a frame.  Refer the Standard MIDI Files 1.0 spec
+     for more details.
+
+
+WRITING EXAMPLE
+     The following is a simple  program  to  demonstrate  writing
+     MIDI  files.  The track would consist of a series of quarter
+     notes from lowest to highest in pitch at constant  velocity,
+     each separted by a quarter-note rest.
+
+               #include <stdio.h>
+               #include <ctype.h>
+               #include "midifile.h"
+
+               FILE *fp;
+               myputc(c) { return(putc(c,fp));}
+
+               int mywritetrack(track)
+               int track;
+               {
+                   int i;
+                   char data[2];
+
+                   /* 120 beats/per/second */
+                   mf_write_tempo((long)500000);
+
+                   for(i = 1 ; i < 128; i++){
+                      data[0] = i; /* note number */
+                      data[1] = 64; /* velocity */
+                      if(!mf_write_midi_event(480,note_on,1,data,2))
+                       return(-1);
+                      if(!mf_write_midi_event(480,note_off,1,data,2))
+                          return(-1);
+                   }
+
+                   return(1);
+               } /* end of write_track() */
+
+               main(argc,argv)
+               char **argv;
+               {
+                   if((fp = fopen(argv[1],"w")) == 0L)
+                    exit(1);
+
+                   Mf_putc = myputc;
+                   Mf_writetrack = mywritetrack;
+
+                   /* write a single track */
+                   mfwrite(0,1,480,fp);
+               }
+
+
+
+
+Sun Release 4.1           Last change:                          6
+
+
+
+
+
+
+MIDIFILE(3)            C LIBRARY FUNCTIONS            MIDIFILE(3)
+
+
+
+AUTHOR
+     Tim Thompson (att!twitch!glimmer!tjt)
+
+CONTRIBUTORS
+     Michael Czeiszperger (mike@pan.com)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sun Release 4.1           Last change:                          7
+
+
+

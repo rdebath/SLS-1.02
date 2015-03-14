@@ -1,0 +1,267 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+
+# 
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+
+RC=1
+TMPDIR=/tmp/XXXternal.$$
+
+clean(){
+    cd /
+    if [ $RC != 0 ] ; then
+	[ -d $TMPDIR ] && rm -r $TMPDIR
+	echo 
+	echo "Press any key to continue ...\c"
+	t=`/usr/local/lib/mm/mmgetchar`
+	echo
+    fi
+    exit $RC
+}
+trap "clean" 0 1 2 15
+
+mmreset 
+echo mmshowextern: $*
+
+if [ $# -lt 4 ] ; then
+    echo "Usage: mmshowextern type body-file access-type name [site [directory [mode]]]"
+    exit 1
+fi
+
+PAGER=${PAGER:-"more"}
+
+bodytype=$1
+bodyfile=$2
+atype=`echo $3 | tr '[A-Z] [a-z]'`
+name=$4
+
+if [ $# -gt 4 ] ; then
+    site=$4
+else 
+    site=""
+fi
+
+if [ $# -gt 5 ] ; then
+    dir=$5
+else
+    dir=""
+fi
+
+if [ $# -gt 6 ] ; then
+    mode=$6
+else
+    mode=""
+fi
+
+#
+# cut out headers, lcase, look for specific header, trim and print
+#
+
+ctype=`sed "/^$/q" $bodyfile | dd conv=lcase 2>/dev/null | \
+	sed -n 's/content-type: //p'`
+
+cenc=` sed "/^$/q" $bodyfile | dd conv=lcase 2>/dev/null |  \
+	sed -n 's/content-transfer-encoding: //p'`
+
+username=""
+pass=""
+
+
+mkdir $TMPDIR
+cd $TMPDIR
+
+NEWNAME="mm.ext.$$"
+NEEDSCONFIRMATION=1
+
+case $atype in
+
+    anon-ftp)
+	echo "This mail message contains a POINTER [ reference ] ; to data that is "
+	echo not included in the message itself.  Rather, the data can be retrieved 
+	echo automatically using  anonymous FTP to a site on the network.
+	;;
+
+    ftp)
+	echo "This mail message contains a POINTER [ reference ] ; to data that is "
+	echo not included in the message itself.  Rather, the data can be retrieved 
+	echo automatically using  the FTP protocol to a site on the network.
+	;;
+
+    mail-server)
+	cat > /tmp/ext.junk.$$ <<-EOF
+		This mail message contains a POINTER [ reference ] ; to data 
+		that is not included in the message itself.  Rather, the data 
+		can be retrieved by sending a special mail message to a mail 
+		server on the network.  However, doing this automatically is 
+		slightly dangerous, because  someone might be using this 
+		mechanism to cause YOU to send obnoxious mail.  For that reason,
+		the mail message that WOULD be sent is being shown to you
+		first for your approval.
+		
+		This is the message that will be sent if you choose to go ahead
+		and retreive the external data:
+		
+		To: ${name}@${site}:
+		Subject: Automated Mail Server Request
+		
+	EOF
+	cat $bodyfile >> /tmp/ext.junk.$$
+	$PAGER /tmp/ext.junk.$$
+	rm /tmp/ext.junk.$$
+	;;
+
+    *)
+	# IGNORE ALL THE OTHERS -- AUTOMATIC FOR LOCAL-FILE, AFS.
+	NEEDSCONFIRMATION=0
+	;;
+esac
+
+if [ $NEEDSCONFIRMATION -eq 1 ] ; then
+	echo ""
+	echo -n "Do you want to proceed with retrieving the external data [y] ? "
+	ANS=`/usr/local/lib/mm/mmgetchar`
+
+	if [ "$ANS" = "n" -o "$ANS" = "N"  ] ; then
+	    exit 0
+	fi
+fi
+
+case $atype in
+
+    anon-ftp|ftp)
+	if [ "$atype" = anon-ftp ] ; then
+	    username=anonymous
+	    pass=`whoami`@`hostname`
+	fi
+	if [ "$site" = "" ] ; then
+	    echo -n "Site for ftp access: "
+	    read site=
+	fi
+	if [ "$username" = "" ] ; then
+	    echo "User name at site ${site}: \c"
+	    read username
+	fi
+	if [ "$pass" = "" ] ; then
+	    echo "Password for user $username at site ${site}: \c"
+	    stty -echo
+	    read pass=
+	    stty echo
+	    echo ""
+	fi
+	if [ "$dir" = "" ] ; then
+	    DIRCMD=""
+	else
+	    DIRCMD="cd $dir"
+	fi
+	if [ "$mode" = "" ] ; then
+	    MODECMD=""
+	else
+	    MODECMD="type $mode"
+	fi
+	echo OBTAINING MESSAGE BODY USING FTP
+	echo SITE: $site USER $username
+	ftp -n <<-EOF
+		open $site
+		user $username $pass
+		$DIRCMD
+		$MODECMD
+		get $name $NEWNAME
+		quit
+	EOF
+	if [ ! -r $NEWNAME ] ; then
+	    echo FTP failed.
+	    exit 1
+	fi
+	;;
+    afs|local-file)
+	echo
+	echo
+	if [ ! -r $name ] ; then
+	    echo local file not found
+	    exit 1
+	fi
+    	NEWNAME=$name
+	echo GETTING BODY FROM FILE NAMED: $NEWNAME
+	;;
+    mail-server)  # A very special case
+	if [ "$bodyfile" = "" ] ; then
+	    echo mail-server access-type requires a body file
+	    exit 1
+	fi
+	echo Subject: Automated Mail Server Request > $NEWNAME
+	echo To: ${name}@${site} >> $NEWNAME
+	echo "" >> $NEWNAME
+	cat $bodyfile >> $NEWNAME
+	/usr/lib/sendmail -t  < $NEWNAME
+	if [ $? ] ; then
+	    echo sendmail failed
+	    rm -rf $TMPDIR
+	    exit 1
+	fi
+	rm -rf $TMPDIR
+	echo Your $ctype data has been requested from a mail server.
+	exit 0
+	;;
+    *)
+	echo UNRECOGNIZED ACCESS-TYPE
+	exit 1
+	;;
+esac
+
+if [ "$cenc" = base64 ] ; then
+	mmencode -u -b < $NEWNAME > OUT
+	mv OUT $NEWNAME
+
+elif [ "$cenc" = quoted-printable ] ; then
+	mmencode -u -q < $NEWNAME > OUT
+	mv OUT $NEWNAME
+fi
+
+metamail -b -c $ctype $NEWNAME
+
+
+#if [ $? ] ; then
+#	echo metamail failed
+#	rm -rf $TMPDIR
+#	exit 1
+#fi
+
+if [ "$NEWNAME" != "$name" ] ; then
+	echo ""
+	echo The data just displayed is stored in the file $TMPDIR/$NEWNAME
+	echo "Do you want to delete it?"
+	rm -i $NEWNAME
+fi
+
+cd /
+
+[ ! -f "$TMPDIR/$NEWNAME" ] && rmdir $TMPDIR
+
+RC=0
+exit 0

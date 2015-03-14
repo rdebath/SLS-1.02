@@ -1,0 +1,170 @@
+# This file is a Tcl script to test out Tk's interactions with
+# the window manager, including the "wm" command.  It is organized
+# in the standard fashion for Tcl tests.
+#
+# Don't "source" definitions if they're already been "sourced".
+# This allows manual users the flexibility to run only those
+# tests which they wish to and in the verbosity they wish, while 
+# at the same time allowing automated scripts to execute commands 
+# of the form:       tclTest < expr.test 
+
+if {[string compare test [info procs test]] == 1} {
+    source defs
+}
+
+set i 1
+foreach geom {+20+80 +80+20 +0+0 -0-0 +0-0 -0+0 -10-5 -10+5 +10-5} {
+    catch {destroy .t}
+    test wm-1.$i {initial window position} {
+	toplevel .t -width 200 -height 150
+	wm geom .t $geom
+	update
+	wm geom .t
+    } 200x150$geom
+    incr i
+}
+
+set i 1
+catch {destroy .t}
+toplevel .t -width 100 -height 150
+wm geom .t +200+200
+update
+foreach geom {+20+80 +80+20 +0+0 -0-0 +0-0 -0+0 -10-5 -10+5 +10-5} {
+    test wm-2.$i {moving window while mapped} {
+	wm geom .t $geom
+	update
+	wm geom .t
+    } 100x150$geom
+    incr i
+}
+
+set i 1
+foreach geom {+20+80 +80+20 +0+0 -0-0 +0-0 -0+0 -10-5 -10+5 +10-5} {
+    test wm-3.$i {moving window while iconified} {
+	wm iconify .t
+	after 200
+	wm geom .t $geom
+	update
+	wm deiconify .t
+	wm geom .t
+    } 100x150$geom
+    incr i
+}
+
+set i 1
+foreach geom {+20+80 +80+20 +0+0 -0-0 +0-0 -0+0 -10-5 -10+5 +10-5} {
+    test wm-3.$i {moving window while withdrawn} {
+	wm withdraw .t
+	after 200
+	wm geom .t $geom
+	update
+	wm deiconify .t
+	wm geom .t
+    } 100x150$geom
+    incr i
+}
+
+test wm-4.1 {compounded state changes} {
+    catch {destroy .t}
+    toplevel .t -width 200 -height 100
+    wm geometry .t +100+100
+    update
+    wm withdraw .t
+    wm deiconify .t
+    winfo ismapped .t
+} 1
+test wm-4.2 {compounded state changes} {
+    catch {destroy .t}
+    toplevel .t -width 200 -height 100
+    wm geometry .t +100+100
+    update
+    wm withdraw .t
+    wm deiconify .t
+    wm withdraw .t
+    winfo ismapped .t
+} 0
+test wm-4.3 {compounded state changes} {
+    catch {destroy .t}
+    toplevel .t -width 200 -height 100
+    wm geometry .t +100+100
+    update
+    wm iconify .t
+    wm deiconify .t
+    wm iconify .t
+    wm deiconify .t
+    winfo ismapped .t
+} 1
+test wm-4.4 {compounded state changes} {
+    catch {destroy .t}
+    toplevel .t -width 200 -height 100
+    wm geometry .t +100+100
+    update
+    wm iconify .t
+    wm deiconify .t
+    wm iconify .t
+    winfo ismapped .t
+} 0
+test wm-4.5 {compounded state changes} {
+    catch {destroy .t}
+    toplevel .t -width 200 -height 100
+    wm geometry .t +100+100
+    update
+    wm iconify .t
+    wm withdraw .t
+    winfo ismapped .t
+} 0
+test wm-4.6 {compounded state changes} {
+    catch {destroy .t}
+    toplevel .t -width 200 -height 100
+    wm geometry .t +100+100
+    update
+    wm iconify .t
+    wm withdraw .t
+    wm deiconify .t
+    winfo ismapped .t
+} 1
+
+catch {destroy .t}
+toplevel .t -width 200 -height 100
+wm geom .t +10+10
+update
+test wm-5.1 {size changes} {
+    .t config -width 180 -height 150
+    update
+    wm geom .t
+} 180x150+10+10
+test wm-5.2 {size changes} {
+    wm geom .t 250x60
+    .t config -width 170 -height 140
+    update
+    wm geom .t
+} 250x60+10+10
+test wm-5.3 {size changes} {
+    wm geom .t 250x60
+    .t config -width 170 -height 140
+    wm geom .t {}
+    update
+    wm geom .t
+} 170x140+10+10
+test wm-5.4 {size changes} {
+    wm minsize .t 1 1
+    update
+    puts stdout "Please resize the window with the mouse, then hit return: " \
+	    nonewline
+    flush stdout
+    gets stdin
+    update
+    set width [winfo width .t]
+    set height [winfo height .t]
+    .t config -width 230 -height 110
+    update
+    incr width -[winfo width .t]
+    incr height -[winfo height .t]
+    wm geom .t {}
+    update
+    set w2 [winfo width .t]
+    set h2 [winfo height .t]
+    .t config -width 114 -height 261
+    update
+    list $width $height $w2 $h2 [wm geom .t]
+} {0 0 230 110 114x261+10+10}

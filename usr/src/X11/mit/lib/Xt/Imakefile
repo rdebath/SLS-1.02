@@ -1,0 +1,216 @@
+XCOMM $XConsortium: Imakefile,v 1.93 91/09/18 14:29:25 rws Exp $
+#define DoNormalLib NormalLibXt
+#define DoSharedLib SharedLibXt
+#define DoDebugLib DebugLibXt
+#define DoProfileLib ProfileLibXt
+#include <Library.tmpl>
+
+#ifndef MotifBC
+#define MotifBC NO
+#endif
+
+#ifdef RsArchitecture
+REQUIREDLIBS = $(XLIBSRC)/libX11.a
+#endif
+
+/* config options */
+
+XFILESEARCHPATHDEFAULT = XFileSearchPathDefault
+/* don't place spaces at the beginning of these lines, hp bug */
+XTERRORPREFIX = XtErrorPrefix
+XTWARNINGPREFIX = XtWarningPrefix
+
+#if UnalignedReferencesAllowed
+  ALIGN_DEFINES = -DUNALIGNED
+#endif
+#if DoSharedLib && defined(SharedAllocateLocalDefines)
+#undef AllocateLocalDefines
+#define AllocateLocalDefines SharedAllocateLocalDefines
+#endif
+        DEFINES = AllocateLocalDefines $(ALIGN_DEFINES)
+     DB_DEFINES = -DERRORDB=\"$(LIBDIR)/XtErrorDB\" \
+		  -DXTERROR_PREFIX=\"$(XTERRORPREFIX)\" \
+		  -DXTWARNING_PREFIX=\"$(XTWARNINGPREFIX)\"
+   SRCH_DEFINES = -DXFILESEARCHPATHDEFAULT=\"$(XFILESEARCHPATHDEFAULT)\"
+#if Malloc0ReturnsNull
+  ALLOC_DEFINES = -DMALLOC_0_RETURNS_NULL
+#endif
+#if MotifBC
+     BC_DEFINES = -DMOTIFBC
+#endif
+
+   INSTALLFLAGS = $(INSTINCFLAGS)
+       LINTLIBS = $(LINTXLIB)
+
+HEADERS = \
+	Composite.h \
+	CompositeP.h \
+	Constraint.h \
+	ConstrainP.h \
+	Core.h \
+	CoreP.h \
+	Intrinsic.h \
+	IntrinsicP.h \
+	Object.h \
+	ObjectP.h \
+	RectObj.h \
+	RectObjP.h \
+	Shell.h \
+	ShellP.h \
+	StringDefs.h \
+	Vendor.h \
+	VendorP.h
+
+SRCS = \
+	ActionHook.c \
+	Alloc.c \
+	ArgList.c \
+	Callback.c \
+	ClickTime.c \
+	Composite.c \
+	Constraint.c \
+	Convert.c \
+	Converters.c \
+	Core.c \
+	Create.c \
+	Destroy.c \
+	Display.c \
+	Error.c \
+	Event.c \
+	EventUtil.c \
+	Functions.c \
+	GCManager.c \
+	Geometry.c \
+	GetActKey.c \
+	GetResList.c \
+	GetValues.c \
+	Initialize.c \
+	Intrinsic.c \
+	Keyboard.c \
+	Manage.c \
+	NextEvent.c \
+	Object.c \
+	PassivGrab.c \
+	Pointer.c \
+	Popup.c \
+	PopupCB.c \
+	RectObj.c \
+	Resources.c \
+	Selection.c \
+	SetSens.c \
+	SetValues.c \
+	SetWMCW.c \
+	Shell.c \
+	StringDefs.c \
+	TMaction.c \
+	TMgrab.c \
+	TMkey.c \
+	TMparse.c \
+	TMprint.c \
+	TMstate.c \
+	VarCreate.c \
+	VarGet.c \
+	Varargs.c \
+	Vendor.c \
+	sharedlib.c
+
+OBJS = \
+	ActionHook.o \
+	Alloc.o \
+	ArgList.o \
+	Callback.o \
+	ClickTime.o \
+	Composite.o \
+	Constraint.o \
+	Convert.o \
+	Converters.o \
+	Core.o \
+	Create.o \
+	Destroy.o \
+	Display.o \
+	Error.o \
+	Event.o \
+	EventUtil.o \
+	Functions.o \
+	GCManager.o \
+	Geometry.o \
+	GetActKey.o \
+	GetResList.o \
+	GetValues.o \
+	Initialize.o \
+	Intrinsic.o \
+	Keyboard.o \
+	Manage.o \
+	NextEvent.o \
+	Object.o \
+	PassivGrab.o \
+	Pointer.o \
+	Popup.o \
+	PopupCB.o \
+	RectObj.o \
+	Resources.o \
+	Selection.o \
+	SetSens.o \
+	SetValues.o \
+	SetWMCW.o \
+	Shell.o \
+	StringDefs.o \
+	TMaction.o \
+	TMgrab.o \
+	TMkey.o \
+	TMparse.o \
+	TMprint.o \
+	TMstate.o \
+	VarCreate.o \
+	VarGet.o \
+	Varargs.o \
+	Vendor.o
+
+#if SharedDataSeparation
+UNSHAREDOBJS = StringDefs.o sharedlib.o
+#else
+UNSHAREDOBJS = sharedlib.o
+#endif
+
+LibraryObjectRule()
+
+SpecialLibObjectRule(Intrinsic.o,$(ICONFIGFILES),$(SRCH_DEFINES))
+SpecialLibObjectRule(Error.o,$(ICONFIGFILES),$(DB_DEFINES))
+SpecialLibObjectRule(Alloc.o,NullParameter,$(ALLOC_DEFINES))
+SpecialLibObjectRule(Converters.o,$(ICONFIGFILES),$(BC_DEFINES))
+#if DoSharedLib
+SpecialObjectRule(sharedlib.o,,$(SHLIBDEF))
+#endif
+
+#if DoSharedLib
+#if DoNormalLib
+SharedLibraryTarget(Xt,$(SOXTREV),$(OBJS),shared,..)
+#else
+SharedLibraryTarget(Xt,$(SOXTREV),$(OBJS),.,.)
+#endif
+SharedLibraryDataTarget(Xt,$(SOXTREV),$(UNSHAREDOBJS))
+InstallSharedLibrary(Xt,$(SOXTREV),$(USRLIBDIR))
+InstallSharedLibraryData(Xt,$(SOXTREV),$(USRLIBDIR))
+#endif
+#if DoNormalLib
+NormalLibraryTarget(Xt,$(OBJS))
+InstallLibrary(Xt,$(USRLIBDIR))
+#endif
+#if ProfileLibXt
+ProfiledLibraryTarget(Xt,$(OBJS))
+InstallLibrary(Xt_p,$(USRLIBDIR))
+#endif
+#if DebugLibXt
+DebuggedLibraryTarget(Xt,$(OBJS))
+InstallLibrary(Xt_d,$(USRLIBDIR))
+#endif
+
+LintLibraryTarget(Xt,$(SRCS))
+InstallLintLibrary(Xt,$(LINTLIBDIR))
+
+BuildIncludes($(HEADERS),.,.)
+InstallMultiple($(HEADERS),$(INCDIR))
+
+DependTarget()
+
+NormalLintTarget($(SRCS))

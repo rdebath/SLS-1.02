@@ -1,0 +1,2 @@
+defsub	general
+mustsub	general

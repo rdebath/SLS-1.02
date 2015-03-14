@@ -1,0 +1,107 @@
+# Commands covered:  glob
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright 1991 Regents of the University of California
+# Permission to use, copy, modify, and distribute this
+# software and its documentation for any purpose and without
+# fee is hereby granted, provided that this copyright notice
+# appears in all copies.  The University of California makes no
+# representations about the suitability of this software for any
+# purpose.  It is provided "as is" without express or implied
+# warranty.
+#
+# $Header: /user6/ouster/tcl/tests/RCS/glob.test,v 1.18 92/11/02 08:59:19 ouster Exp $ (Berkeley)
+
+if {[string compare test [info procs test]] == 1} then {source defs}
+
+# First, create some subdirectories to use for testing.
+
+exec rm -rf globTest
+exec mkdir globTest globTest/a1 globTest/a2 globTest/a3
+exec mkdir globTest/a1/b1 globTest/a1/b2 globTest/a2/b3
+exec cat << abc > globTest/x1.c
+exec cat << abc > globTest/y1.c
+exec cat << abc > globTest/z1.c
+exec cat << abc > "globTest/weird name.c"
+exec cat << abc > globTest/.1
+exec cat << abc > globTest/a1/b1/x2.c
+exec cat << abc > globTest/a1/b2/y2.c
+
+test glob-1.1 {simple globbing} {glob a} a
+test glob-1.2 {simple globbing} {glob aaa bbb ccc} {aaa bbb ccc}
+
+test glob-2.1 {globbing with braces} {glob "{a1,a2}"} "a1 a2"
+test glob-2.2 {globbing with braces} {glob a/{x,y}{123,456}/z} \
+	"a/x123/z a/x456/z a/y123/z a/y456/z"
+
+test glob-3.1 {asterisks and question marks} {lsort [glob g*/*.c]} \
+	"{globTest/weird name.c} globTest/x1.c globTest/y1.c globTest/z1.c"
+test glob-3.2 {asterisks and question marks} {lsort [glob globTest/?1.c]} \
+	"globTest/x1.c globTest/y1.c globTest/z1.c"
+test glob-3.3 {asterisks and question marks} {lsort [glob */*/*/*.c]} \
+	"globTest/a1/b1/x2.c globTest/a1/b2/y2.c"
+test glob-3.4 {asterisks and question marks} {lsort [glob globTest/*]} \
+	"globTest/a1 globTest/a2 globTest/a3 {globTest/weird name.c} globTest/x1.c globTest/y1.c globTest/z1.c"
+test glob-3.5 {asterisks and question marks} {lsort [glob globTest/.*]} \
+	"globTest/. globTest/.. globTest/.1"
+test glob-3.6 {asterisks and question marks} {lsort [glob globTest/*/*]} \
+	"globTest/a1/b1 globTest/a1/b2 globTest/a2/b3"
+test glob-3.7 {asterisks and question marks} {lsort [glob {globTest/[xy]1.*}]} \
+	"globTest/x1.c globTest/y1.c"
+
+# The tests immediately below can only be run at Berkeley, where
+# the file-system structure is well-known.
+
+if {[string compare [glob ~] /users/ouster] == 0} {
+    test glob-4.1 {tildes} {glob ~/.csh*} "/users/ouster/.cshrc"
+    test glob-4.2 {tildes} {glob ~/.csh*} "/users/ouster/.cshrc"
+} 
+
+test glob-5.1 {error conditions} {
+    list [catch {glob} msg] $msg
+} {1 {wrong # args: should be "glob ?-nocomplain? name ?name ...?"}}
+test glob-5.2 {error conditions} {
+    list [catch {glob a/{b,c,d}/\{} msg] $msg
+} {1 {unmatched open-brace in file name}}
+test glob-5.3 {error conditions} {
+    list [catch {glob goo/*} msg] $msg
+} {1 {no files matched glob pattern "goo/*"}}
+test glob-5.4 {error conditions} {
+    list [catch {glob goo/* x*z foo?q} msg] $msg
+} {1 {no files matched glob patterns "goo/* x*z foo?q"}}
+test glob-5.5 {error conditions} {
+    list [catch {lsort [glob globTest/*.c goo/*]} msg] $msg
+} {0 {{globTest/weird name.c} globTest/x1.c globTest/y1.c globTest/z1.c}}
+test glob-5.6 {error conditions} {
+    list [catch {glob ~no-one} msg] $msg
+} {1 {user "no-one" doesn't exist}}
+test glob-5.7 {error conditions} {
+    set home $env(HOME)
+    unset env(HOME)
+    set x [list [catch {glob ~/*} msg] $msg]
+    set env(HOME) $home
+    set x
+} {1 {couldn't find HOME environment variable to expand "~/*"}}
+
+exec chmod 000 globTest
+if {$user != "root"} {
+    test glob-6.1 {setting errorCode variable} {
+	string tolower [list [catch {glob globTest/*} msg]  $msg $errorCode]
+    } {1 {couldn't read directory "globtest": permission denied} {unix eacces {permission denied}}}
+}
+exec chmod 755 globTest
+
+test glob-7.1 {-nocomplain option} {
+    list [catch {glob -nocomplai} msg] $msg
+} {0 -nocomplai}
+test glob-7.2 {-nocomplain option} {
+    list [catch {glob -nocomplain} msg] $msg
+} {1 {wrong # args: should be "glob ?-nocomplain? name ?name ...?"}}
+test glob-7.3 {-nocomplain option} {
+    list [catch {glob -nocomplain goo/*} msg] $msg
+} {0 {}}
+
+exec rm -rf globTest

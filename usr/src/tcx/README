@@ -1,0 +1,132 @@
+	TCX - Transparently Compressed Executables (For Unix)
+
+				by
+
+	   Stewart Forster, University Of Melbourne, 1993
+
+TCX is a system designed for the transparent decompression, execution
+and recompression of executables under Unix.  It allows configuration
+options such as the type of compression system used (compress(1),
+gzip(1), your own local system etc), timeouts between recompressions,
+and emergency directories in case a decompression fails from shortage
+of disk space.  The system is designed with a reasonable amount of
+robustness in mind, such as in the event of system crashes, or races
+on trying to uncompress, compress or execute something.
+
+	Currently TCX is only proven to run on Irix 4.*, Ultrix 4.2
+or higher, and SunOs 4.1.1 or higher.  It may run on other releases
+of these OS's but has not been tested.  It should also be relatively
+easy to port to other OS's as much of the code is fairly straight
+forward.
+
+	The system is used here at the Department of Computer Science
+University Of Melbourne, and in other departments on campus.  This is
+the first official release of TCX to the world, so please feel free
+to comment or help in bug fixes and machine reports by sending email
+to slf@cs.mu.OZ.AU
+
+---------------------------------------------------------------------
+
+			INSTALLATION
+
+TCX is a small package with just the following files. If you don't
+have these three file, get a complete distribution.
+
+		config.h
+		tcx.c
+		untcx.c
+
+First read the "FURTHER INFO" section below before configuring TCX
+for your system, since it may influence some of your decisions.
+
+To configure TCX, edit the config.h file.  There are enough directions
+therein to help you configure for your system.  TCX relies on the
+compression system you use to barf when the filesystem gets full
+and return a fail exit code.  If the compression system you use
+doesn't do this, you run the risk of losing files. The GNU gzip
+package is known to do the correct safety checks and exit accordingly.
+
+Once done editing the config file, edit the Makefile to set the C
+compiler and libraries for your system, and compile.
+Don't worry if your optimizer complains of no exit points in the
+procedures called "check_tcxd_mode", "untcx_and_exec_local", and
+"untcx_and_exec_nfs" when compiling untcx.c, these are normal.
+
+The tcx, and untcx executables must be placed at the pathnames you
+specified for them in config.h, if they are not there, the system
+will NOT work. eg.
+
+	cp tcx /usr/local/bin/tcx
+	cp untcx /usr/local/bin/untcx
+
+Untcx must also be installed setuid, so issue the following command.
+
+	chown root /usr/local/bin/untcx
+	chmod 4711 /usr/local/bin/untcx 	(or path you chose)
+
+Do not install the "tcx" executable setuid to anyone.
+
+and copy the manual pages to your regular man directory and read them.
+
+	The installation is now complete.
+
+----------------------------------------------------------------------
+
+		TESTING YOUR INSTALLATION
+
+You can now try running "tcx" on an innocuous executable to transform
+it, and then try running it.  Wait for the timeout interval you
+specified (after disuse, which means not even reading the file) and it
+should recompress.  If it doesn't recompress after about twice the
+interval specified, check the following.
+
+1) Access times on the file. MAKE SURE it wasn't touched before suspecting
+   something is wrong.
+2) That the daemon mode for untcx started correctly.  The pid should be
+   stored in ENFSDIR/.lock.  Assuming ENFSDIR is /tmp/exec as in the
+   distributed config file, issue
+
+	ps `cat /tmp/exec/.lock`   and check that the daemon started.
+
+   If it didn't, there is a minor problem with permissions, or maybe
+   you specified a read-only file system for ENFSDIR.
+3) Check if you installed tcx where PATHTCX in the config file said
+   where it was.
+4) Check that the uncompressor is where PATHUNPACK in the the config
+   file says it is.
+
+If all else comes to nought, look into the source code, or mail your
+system configuration and config file to slf@cs.mu.OZ.AU, and I'll
+try and see what can be done.
+
+----------------------------------------------------------------------
+
+	FUTHER INFO / POTENTIAL BUGS
+
+Users may experience a slight delay when a TCX executable is started up
+due the decompression phase.  If this becomes a problem for large
+executables, you should probably discourage use of TCX on these huge
+binaries.  The "gzip" system decompresses at around 500-700K/sec on the
+systems I tested it on, which are all around the 25 SPECmark rating.
+
+Don't use TCX on NFS mounted shell scripts which rely on `dirname $0`
+because TCX cannot fool the shell into giving it a spoof $0, like it
+can with binaries.  This may be the only case (other than setuid
+programs) where TCX will break something.
+
+----------------------------------------------------------------------
+
+		THANKS
+
+Special thanks go to Robert Elz, who provided invaluable input,
+suggestions and clarifications on the whole idea.
+
+Thanks also to Jeff Shultz who provided some potential "sticky" cases
+which gave me some more work to do (plus made tcx more robust).
+
+Many thanks go the the overwhelming input provided by many people
+around the world, all interested in seeing TCX working correctly on
+their system.  Your input is what makes good software better.
+
+				Stewart.
+

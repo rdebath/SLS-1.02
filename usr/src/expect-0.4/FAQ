@@ -1,0 +1,479 @@
+This is the Frequent-Asked-Questions (FAQ) file for Expect
+
+This file represents questions I've received (with answers I've given)
+about subjects that don't fit in the man page for one reason or
+another.  I suppose I could've stripped off the headers, but it seems
+more realistic to see actual people who've asked the questions.
+Thanks to everyone who asked.
+
+Hopefully, no one is embarrassed by seeing their name here.  If
+anything, this probably reflects most poorly on me because it shows a
+number of ideas other people would like me to add to Expect, that I
+haven't.
+
+Long rows of hyphens separate the different topics.  In cases where
+I've reprinted the original question-letter and my answer, the two are
+separated by a short row of hyphens.
+
+The papers listed in the README file should also be consulted for highly
+technical or philosophical discussion of the implementation, design and
+practical application of Expect.
+
+-Don
+
+Here is a short summary of each question/answer.  You can search for
+the number, for example, "#4" once you've found the subject you're
+looking for.
+
+#1 Why does expect need to be setuid root on Cray?
+#2 Why isn't there an expect mailing list?
+#3 How do you pronounce "Ousterhout" anyway?  (Or "Libes" for that matter?)
+#4 How about distributing a test suite - or - just what are those other
+	programs further down in the Makefile? 
+#5 Can expect automatically generate a script from watching a session?
+#6 What do you think about the Perl rewrite of Expect?
+#7 Why should I learn yet another language (Tcl) instead of writing my
+	interaction in <a language I already know>.
+#8 How come I get "ioctl(set): Inappropriate ..., bye recursed" ...
+--------------------------------------------------------------------------
+#1
+From: libes (Don Libes)
+To: u70217@f.nersc.gov (Lori Wong)
+Subject: setuid in expect
+Date: Thu, 24 Oct 91 16:15:20 EDT
+
+>     I have been running expect now under UNICOS 6.1 and CSOS 1.0 (Cray
+>Computer Corporation's OS).  The two machines that I am running expect
+>on have stringent security features, one of which is to limit setuid
+>privileges to specific individuals.  I was wondering if you would be
+>kind enough to explain the purpose of the setuid that is needed by expect
+>and whether it could be compiled to run without having to have setuid
+>privilege?  I know it has to do with spawning and communicating with
+>the various spawned tasks, but don't know enough of the details to be
+>able to explain why expect specifically needs setuid and whether or not
+>it could cause a security problem (could someone use it to enter into
+>the system and wreak havoc, for example?).  Right now, I've limited
+>the access of expect to my group, but need to know what the security
+>implications are if I open it to all users.  I'd appreciate any light
+>you can shed on this subject...
+
+Root-access is needed to open a pty under Unicos.  Thus, all programs
+accessing ptys must be setuid root.  If you do an "ls -l" of programs
+like "script", "xterm", etc, you'll see this.
+
+I have no idea why this is.  The requirement was probably for security
+reasons to begin with, but it has the ironic effect of making more
+programs require setuid and therefore greater possibility of errant
+setuid programs.
+
+In fact, there is one known Unicos bug relating to the way uids are
+switched at exec time which requires further special coding.  If you
+search for "Cray" in the Expect source you will see significant chunks
+of code to get around the problem.
+
+I don't know if this reassures you any.  All I can tell you is that a
+number of Cray experts have looked into the situation and are happy
+with the current implementation of Expect.
+
+Don
+--------------------------------------------------------------------------
+#2
+From: libes (Don Libes)
+To: dclark@nas.nasa.gov (David R. Clark)
+Subject: Mailing list for expect
+Date: Mon, 23 Sep 91 18:21:28 EDT
+
+>Would be nice if their were an expect mailing list.  I would use it more
+>often, and be made aware of other users.  
+
+Perhaps I'm too myopic, but I don't see the need for it.  I typically
+get two or three expect questions a week, which I answer myself.
+
+For one reason or another (usually a bug fix, but often, just revising
+the documentation), I update expect about once every two weeks.
+Personally, I'd hate being on the other end of something like this.
+Who needs patches every two weeks for problems that probably aren't
+even relevant to you?
+
+>It would be helpful, too, if this served as an area for swapping programs.
+>Many of the things that I want to do are done by others already.
+
+Send me things that you'd like to distribute.  I'll either include
+them with expect or put it in a publicly accessible directory so other
+people can get it.  Yes, I know it's not as good as getting notified
+via a mailing list, but actually I doubt there's such a need.  The
+reality is that most of the programs expect is applied to have
+poorly defined interfaces.  There are few portable expect scripts.
+
+For example, you can't even write a guaranteed-portable script that
+knows what a shell prompt looks like because everyone customizes them!
+And the ftp scripts don't work on everyone's ftp because the ftp user
+interface is not specified by the standard, so everyone's is
+different.  And so on.
+
+There is a Tcl newsgroup, comp.lang.tcl, which many expect users read.
+It's pretty good for asking questions about Tcl, and there isn't that
+much traffic that an occasional Expect question isn't looked upon
+favorably.  Indeed, some of the sharpest Tcl hackers read the mailing
+list, so I post news about new-releases of expect there first.  The
+newsgroup is gatewayed to a mailing list (tcl@sprite.berkeley.edu)
+which is further described in the Tcl documentation.
+
+Don
+--------------------------------------------------------------------------
+#3
+From: ouster@sprite.Berkeley.EDU (John Ousterhout)
+To: libes@cme.nist.gov
+Subject: Re: pronunciation?
+Date: Tue, 29 May 90 21:26:10 PDT
+
+Those of us in the family pronounce it "OH-stir-howt", where the
+first syllable rhymes with "low", the second with "purr", and the
+third with "doubt".  Unfortunately this isn't the correct Dutch
+pronounciation for a name spelled this way (someplace along
+the line it got misspelled:  it was originally "Oosterhout"), nor
+is it what you'd guess if you use common sense.  So, we've gotten
+used to responding to almost anything.
+
+					-John-
+
+I suppose I should say something in kind.  "Libes" is pronounced
+"Lee-bus" with stress on the first syllable.  Like John, though, I've
+gotten used to responding to anything close. - Don
+--------------------------------------------------------------------------
+#4
+From: libes (Don Libes)
+To: vik@sequent.com
+Subject: testing expect
+Date: Mon, 17 Sep 90 14:33:51 EDT
+
+>This is the header of the shar I have of expect.  The
+>following files referred to in the Makefile were not
+>included:
+>	test/Makefile
+>	test/checkall
+>	ptytest
+>	dumb.c
+>	exho.c
+>
+>Is there a newer shar that has the test programs?
+
+No.  These files are part of a test suite that I use.  However, I'm
+not distributing them (yet) because they are too fragile.  (One of our
+less experienced students wrote them, and he didn't do a very good
+job, I'm afraid.  I have to go back and clean them up at some point.)
+But it's not high on my priority list.
+
+In the meantime, try some of the programs distributed in the test
+directory.  They are a strong indication of whether expect works or
+not.  If you any problems with them, let me know.
+
+Don
+--------------------------------------------------------------------------
+#5
+From: libes (Don Libes)
+To: pete@willow24.cray.com
+Subject: expect
+Date: Fri, 12 Oct 90 17:16:47 EDT
+
+>I like "expect" and am thinking of using it to help automate the
+>testing of interactive programs.  It would be useful if expect had a
+>"watch me" mode, where it "looks over the shoulder" of the user and
+>records his keystrokes for later use in an expect script.
+>
+>(Red Ryder and other Macintosh telecommunications packages offer this
+>sort of thing.  You log onto Compuserve once in "watch me" mode, and
+>RR keeps track of the keystrokes/prompts.  When you're done you have a
+>script that can be used to log onto Compuserve automatically.)   
+
+I'd like to see how they do it.  The major problem is when you type
+characters, they are invariably echoed.  So if you "interact" with a
+system and type "finger", what expect sees is that
+you typed 'f',
+computer typed 'f',
+you typed 'i',
+computer typed 'i',
+you typed 'n',
+computer typed 'n',
+...
+
+I.e. expect has no way of knowing that you weren't waiting to see the
+computer say 'f', before you typed 'f'.
+
+You'd have to handle problems like this, kind of guessing if the
+computer is echoing or you are really waiting for the response.  The
+system actually doesn't echo exactly what you type, making this even
+harder.  And there are other problems: sometimes characters get lumped
+together rather than sent separately, sometimes echoing is turned off
+for you.
+
+If you run expect in debug mode while doing "interact", you'll see
+what I mean.
+
+Given that you'd have to do such severe editing of an automatically
+produced script, I figure writing the script from scratch is easier.
+
+Actually, I suggest you used the interact facility (or the UNIX script
+program) and just edit the output.  Invariably, you want to change a
+lot of text to *s and add alternatives (i.e. a lot of editing) anyway.
+
+Do you have to do much editing with scripts that Red Ryder produces?
+How does it handle these problems?  Does it support regular
+expressions and alternation?  (Obviously, a computer-generated script
+can't generate these automatically.)  Do you have to tell it whether
+you are full/half-duplex or what kind of line-termination characters
+you are using?
+
+Is there anything else in Red Ryder that would be useful in expect?
+
+>Before I look into adding a "watch me" feature, I thought I should
+>ask: has this been done already?
+
+You're welcome to give it a shot.  I'd be interested to see what you
+come up with.
+
+Don
+
+------------------
+
+From: (Pete TerMaat) <pete@willow.cray.com>
+To: libes@cme.nist.gov (Don Libes)
+Subject: Re: expect 
+Date: Thu, 17 Jan 91 12:30:01 -0600
+
+ > >I like "expect" and am thinking of using it to help automate the
+ > >testing of interactive programs.  It would be useful if expect had a
+ > >"watch me" mode, where it "looks over the shoulder" of the user and
+ > >records his keystrokes for later use in an expect script.
+ > >
+ > >(Red Ryder and other Macintosh telecommunications packages offer this
+ > >sort of thing.  You log onto Compuserve once in "watch me" mode, and
+ > >RR keeps track of the keystrokes/prompts.  When you're done you have a
+ > >script that can be used to log onto Compuserve automatically.)   
+ > 
+ > I'd like to see how they do it.  The major problem is when you type
+ > characters, they are invariably echoed.
+
+ > You'd have to handle problems like this, kind of guessing if the
+ > computer is echoing or you are really waiting for the response.
+
+That appears to be what Red Ryder does.  It works surprisingly well
+for line-oriented things.  It produces unnecessarily lengthy (though
+still working) scripts when you make a lot of corrections by
+backspacing.  And it isn't suitable for character-oriented things like
+editors, where there is no notion of a prompt.
+
+ > If you run expect in debug mode while doing "interact", you'll see
+ > what I mean.
+
+Ah, thanks for the tip.  I hadn't appreciated the problem.
+
+ > Actually, I suggest you used the interact facility (or the UNIX script
+ > program) and just edit the output.  Invariably, you want to change a
+ > lot of text to *s and add alternatives (i.e. a lot of editing) anyway.
+
+I'm working with text editors and document viewers, so for every
+character typed there can be a lot of output.  It wouldn't make sense
+for me to wade through all that output and trim it down.
+
+Writing the scripts from scratch, as you suggested, is currently my
+best approach.  I'm also experimenting with a command which logs just
+the input.
+
+ > Do you have to do much editing with scripts that Red Ryder produces?
+
+Here's an example from Microphone (another Macintosh communications
+program), which is not as sophisticated in its watchme mode as Red
+Ryder.  I had it watch me while I typed "echo this is a test" to the
+shell.  It's pretty stupid, but (to my surprise) the script
+nevertheless works, without any editing.
+
+	6   Wait for Text  "% "
+	7   Send Text String  "echo"
+	8   Wait for Text  "% ech"
+	9   Send Text String  " "
+	10  Wait for Text  "echo "
+	11  Send Text String  "this"
+	12  Wait for Text  "o thi"
+	13  Send Text String  " "
+	14  Wait for Text  "this "
+	15  Send Text String  "is a "
+	16  Wait for Text  "is a "
+	17  Send Text String  "te"
+	18  Wait for Text  " a te"
+	19  Send Text String  "st"
+	20  Wait for Text  " test"
+	21  Send Text String  "^M"
+	22  Wait for Line Containing  " test"
+
+Here's an example of the same thing done with Red Ryder watching.
+Much better!
+
+	PROMPT % 
+	PAUSE
+	TYPE echo this is a test^M
+	PROMPT % 
+
+Red Ryder appears to keep track of what was typed and eliminate that
+from any possible prompts.  As you pointed out, what was typed is not
+always what was printed, but in my experience (mostly using it to dial
+up to UNIX sites) this hasn't been a problem.
+
+ > How does it handle these problems?  Does it support regular
+ > expressions and alternation?  (Obviously, a computer-generated script
+ > can't generate these automatically.)  
+
+No, just literals.  Red Ryder won't go back further than the last line
+of output, which usually works better than Microphone's more generous
+approach. 
+
+ > Do you have to tell it whether you are full/half-duplex or what
+ > kind of line-termination characters you are using?
+
+Since it's a communications program it already has the info, but I
+don't know that it uses this information when it creates the scripts.
+
+ > Is there anything else in Red Ryder that would be useful in expect?
+
+Good question.  I think expect has these programs beat though, with
+the exception of a watchme feature.  A visual interface would be nice,
+as one thing that I miss from Red Ryder is the status line, which
+tells you the current command.  (I know you can sort of simulate this
+by tracing the TCL code.)  Some of my expect scripts are long and it's
+helpful to know what they are sending/expecting when they pause/hang.
+As long as I'm dreaming, it would also be nice if I could single-step
+through a script by pressing a "single-step" button.  I guess these
+are more TCL issues than expect issues.
+
+Microphone has a nice interface for novices.  You can write a script
+with very little typing by pointing and clicking from menus of
+keywords.  Red Ryder's language is less verbose and probably more
+powerful, but neither is as powerful/flexible as expect/TCL.
+
+ > >Before I look into adding a "watch me" feature, I thought I should
+ > >ask: has this been done already?
+ > 
+ > You're welcome to give it a shot.  I'd be interested to see what you
+ > come up with.
+
+Since it's not quite so useful for character-oriented editors as for
+line-oriented things, I've decided for now just to write the scripts
+from scratch.
+
+I'll say again that I like the tool a lot--nice work!  There are other
+people here using it for things like the testing of ksh, which
+responds differently to signals when not used interactively.
+
+I have some mods to make expect run on a Cray.  I was sort of waiting
+to see if the mods are Cray-specific or System V specific before
+forwarding them, but if you would like to incorporate them right away
+I will send them.
+
+-- Pete
+
+--------------------------------------------------------------------------
+#6
+From: libes@cme.nist.gov (Don Libes)
+Subject: Re: Expect.pl, alpha release
+Date: 2 Nov 90 03:06:40 GMT
+
+In article <1990Nov2.003228.22744@iwarp.intel.com> merlyn@iwarp.intel.com (Randal Schwartz) writes:
+>The motivation for writing this package is the fact
+>that Don Libes doesn't like Perl. :-)
+
+I've never said anything like that, nor is it true (although I will admit
+that I've had a lot of trouble learning Perl.)  Fact is, I've written
+several Perl hacks, at least one of which is used daily at my site.
+
+>The matchup of expect<->tcl and expect.pl<->Perl made for some weird
+>design tradeoffs.  I may start from mostly scratch and do everything
+>right.  That is probably why I hesitate to implement the rest of the
+>functions... they really don't fit in a Perl environment.
+
+Actually, I discussed these issues with several people during the
+development of expect.  The approach I took effectively sealed off the
+user from the underlying C implementation, substituting the more shell-
+like Tcl language and reducing the ability to screw themselves somehow.
+
+In the approach you took, the user language IS Perl, which provides
+incredible power and flexibility.  The primary disadvantage is that
+the user may have to learn Perl, which is hard.
+
+Also, as you noticed, some of the features (like logging) are a problem
+for Perl.  Oh, and as you suspected, recursive invocations are useful -
+consider writing scripts that are half automated and half interactive,
+like the fsck script I showed at the LISA conference.
+
+Please don't get me wrong.  I think Perl is very useful.  I desperately
+want a copy of your book.  And I consider it a compliment that you
+followed my implementation as faithfully as you did.  Though, I did
+think some of your Perl code pretty weird!
+
+Actually, in my USENIX paper I stated that I fully expected someone to
+incorporate the expect primitives into a shell, Perl, whatever.  I was
+just showing proof of concept.  It just happened to turn out to be
+worth keeping around.
+
+In fact, I owe a lot for it to John Ousterhout who wrote Tcl.
+
+Don Libes          libes@cme.nist.gov      ...!uunet!cme-durer!libes
+--------------------------------------------------------------------------
+#7
+From: libes (Don Libes)
+To: Aamod Sane <sane@cs.uiuc.edu>
+Cc: libes
+Subject: Re: Expect, Tcl, programmed dialogue etc.
+Date: Mon, 2 Sep 91 15:47:14 EDT
+
+>	>>A friend told me about "expect". But then, I have to know the
+>	>>idiocies of "tcl". I would like to know if there is an alternative
+>	>>to expect that is also useful in other places, so that I do not
+>	>>have to spend time getting used to tcl for just this one tool.
+>
+>	Your reasoning is shortsighted.  Tcl is a language that can be used in
+>	other applications.  It won't be a waste of your time to learn it.
+>
+>I have nothing against tcl as such.
+>The reluctance to learn it comes mainly from the feeling that half my
+>life seems to be spent learning new languages that differ very little
+>from existing ones, and differ in annoying little details at that.
+>To add to the misery, every implementation has its own
+>idiosyncracies...:-(
+
+Ironically, Tcl was written specifically to halt this very problem.
+
+The author recognized that every utility seems to have its own
+idiosyncratic .rc file or programming language.  Tcl was designed as a
+general-purpose language that could be included with any utility, to
+avoid having everyone hack up their own new language.
+
+In this context, your statements to the newsgroup do Tcl a great
+disservice.
+
+Don
+------------------------------------------------------------------------
+#8
+From: james@Solbourne.COM (James B. Davis)
+To: libes@cme.nist.gov
+Subject: How come I get "ioctl(set): Inappropriate ..., bye recursed" ...
+Date: Tue, 10 Dec 91 10:47:21 MST
+
+Every time I ^C out of a expect script run I get:
+
+ioctl(set): Inappropriate ioctl for device
+bye recursed
+
+Is this standard or am I doing something wrong?
+
+james@solbourne.com
+---------------
+From: Michael Grant <mgrant@xdr.ncsl.nist.gov>
+Subject: Re: How come I get "ioctl(set): Inappropriate ..., bye recursed" ...
+Date: Tue, 10 Dec 91 16:05:01 EST
+
+The problem was that I hadn't run the fixincludes shellscript and
+recompiled gcc with itself during gcc installation.  I recompiled gcc
+with itself, then ran the fixincludes script, the messages went away.
+
+Michael Grant
+

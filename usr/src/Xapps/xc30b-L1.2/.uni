@@ -1,0 +1,51 @@
+#.uni
+# sample script to call CompuServe, go to the UnixForum,
+# and enter terminal mode
+
+	debug "on"		# turn on verbose script reporting
+	tty "on"		# echo received characters to screen
+	set bps 2400	# numbers don't need literal quotes
+
+	if ! linked; then		# dial if we haven't already
+		dial "9687790"
+	endif
+
+	while ! waitfor "CONNECT" 35	# redial forever
+	do
+		redial
+	done
+
+	pause 2				# wait for network to catch up
+
+	# wait for a "User ID" prompt, but put a cap on how long
+	transmit "^C"
+	assign counter eq 1
+	while ! waitfor " ID" 20
+	do
+		incr counter
+		if counter morethan 5; then quit; endif
+		transmit "^C"
+	done
+
+	pause 2				# wait for network to catch up
+	transmit "72160,1341^M"		# send user ID number (PPN)
+
+	# if no "Password:" prompt in 20 seconds, bomb out
+	if ! waitfor "word" 20 ; then quit; endif
+
+	pause 1; transmit "My*Password^M"
+
+	waitfor "!" 20
+
+	transmit "g unixfo^M"
+
+	# if we don't see "Welcome", we're not in the Forum
+	if ! waitfor "Welcome" 20
+	then				# <- NEVER forget the "then"!
+		transmit "bye^M"
+		quit			# this is total program death
+	else
+		beep			# just a personal touch
+	endif
+
+	exit				# enter terminal mode

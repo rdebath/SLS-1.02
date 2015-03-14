@@ -1,0 +1,1659 @@
+diff -cC5 /tmp/lpr/cmds.c lpr/cmds.c
+*** /tmp/lpr/cmds.c	Fri Jul  1 01:00:19 1988
+--- lpr/cmds.c	Thu Nov 19 20:13:20 1992
+***************
+*** 27,37 ****
+  #include <sys/time.h>
+  
+  /*
+   * kill an existing daemon and disable printing.
+   */
+! abort(argc, argv)
+  	char *argv[];
+  {
+  	register int c, status;
+  	register char *cp1, *cp2;
+  	char prbuf[100];
+--- 27,37 ----
+  #include <sys/time.h>
+  
+  /*
+   * kill an existing daemon and disable printing.
+   */
+! cmd_abort(argc, argv)
+  	char *argv[];
+  {
+  	register int c, status;
+  	register char *cp1, *cp2;
+  	char prbuf[100];
+***************
+*** 68,77 ****
+--- 68,78 ----
+  abortpr(dis)
+  {
+  	register FILE *fp;
+  	struct stat stbuf;
+  	int pid, fd;
++ 	struct flock fl;
+  
+  	bp = pbuf;
+  	if ((SD = pgetstr("sd", &bp)) == NULL)
+  		SD = DEFSPOOL;
+  	if ((LO = pgetstr("lo", &bp)) == NULL)
+***************
+*** 107,121 ****
+--- 108,130 ----
+  	 */
+  	if ((fp = fopen(line, "r")) == NULL) {
+  		printf("\tcannot open lock file\n");
+  		return;
+  	}
++ #if 0
+  	if (!getline(fp) || flock(fileno(fp), LOCK_SH|LOCK_NB) == 0) {
++ #endif
++ 	  fl.l_type = F_RDLCK;
++ 	  fl.l_whence = 0; /* start of file. */
++ 	  fl.l_start = 0;
++ 	  fl.l_len = 0; /* until EOF */
++ 	  if (!getline(fp) || fcntl (fileno(fp), F_SETLK, &fl) < 0) {
+  		(void) fclose(fp);	/* unlocks as well */
+  		printf("\tno daemon to abort\n");
+  		return;
+  	}
++ 
+  	(void) fclose(fp);
+  	if (kill(pid = atoi(line), SIGTERM) < 0)
+  		printf("\tWarning: daemon (pid %d) not killed\n", pid);
+  	else
+  		printf("\tdaemon (pid %d) killed\n", pid);
+***************
+*** 158,168 ****
+  		}
+  		cleanpr();
+  	}
+  }
+  
+! select(d)
+  struct direct *d;
+  {
+  	int c = d->d_name[0];
+  
+  	if ((c == 't' || c == 'c' || c == 'd') && d->d_name[1] == 'f')
+--- 167,177 ----
+  		}
+  		cleanpr();
+  	}
+  }
+  
+! cmd_select(d)
+  struct direct *d;
+  {
+  	int c = d->d_name[0];
+  
+  	if ((c == 't' || c == 'c' || c == 'd') && d->d_name[1] == 'f')
+***************
+*** 209,219 ****
+  
+  	for (lp = line, cp = SD; *lp++ = *cp++; )
+  		;
+  	lp[-1] = '/';
+  
+! 	nitems = scandir(SD, &queue, select, sortq);
+  	if (nitems < 0) {
+  		printf("\tcannot examine spool directory\n");
+  		return;
+  	}
+  	if (nitems == 0)
+--- 218,228 ----
+  
+  	for (lp = line, cp = SD; *lp++ = *cp++; )
+  		;
+  	lp[-1] = '/';
+  
+! 	nitems = scandir(SD, &queue, cmd_select, sortq);
+  	if (nitems < 0) {
+  		printf("\tcannot examine spool directory\n");
+  		return;
+  	}
+  	if (nitems == 0)
+***************
+*** 431,440 ****
+--- 440,450 ----
+  {
+  	register int fd;
+  	register char *cp1, *cp2;
+  	char buf[1024];
+  	struct stat stbuf;
++ 	struct flock fl;
+  
+  	bp = pbuf;
+  	if ((SD = pgetstr("sd", &bp)) == NULL)
+  		SD = DEFSPOOL;
+  	if ((LO = pgetstr("lo", &bp)) == NULL)
+***************
+*** 465,475 ****
+--- 475,492 ----
+  	/*
+  	 * Write the message into the status file.
+  	 */
+  	(void) sprintf(line, "%s/%s", SD, ST);
+  	fd = open(line, O_WRONLY|O_CREAT, 0664);
++ 	  fl.l_type = F_WRLCK;
++ 	  fl.l_whence = 0; /* start of file. */
++ 	  fl.l_start = 0;
++ 	  fl.l_len = 0; /* until EOF */
++ 	  if (fd < 0 || fcntl (fd, F_SETLKW, &fl) < 0) {
++ #if 0
+  	if (fd < 0 || flock(fd, LOCK_EX) < 0) {
++ #endif
+  		printf("\tcannot create status file\n");
+  		return;
+  	}
+  	(void) ftruncate(fd, 0);
+  	if (argc <= 0) {
+***************
+*** 647,656 ****
+--- 664,674 ----
+  prstat()
+  {
+  	struct stat stbuf;
+  	register int fd, i;
+  	register struct direct *dp;
++ 	struct flock fl;
+  	DIR *dirp;
+  
+  	bp = pbuf;
+  	if ((SD = pgetstr("sd", &bp)) == NULL)
+  		SD = DEFSPOOL;
+***************
+*** 684,704 ****
+--- 702,732 ----
+  	else if (i == 1)
+  		printf("\t1 entry in spool area\n");
+  	else
+  		printf("\t%d entries in spool area\n", i);
+  	fd = open(line, O_RDONLY);
++ #if 0
+  	if (fd < 0 || flock(fd, LOCK_SH|LOCK_NB) == 0) {
++ #endif
++ 	  fl.l_type = F_RDLCK;
++ 	  fl.l_whence = 0; /* start of file. */
++ 	  fl.l_start = 0;
++ 	  fl.l_len = 0; /* until EOF */
++ 	  if (fd < 0 || fcntl (fd, F_SETLK, &fl) < 0) {
+  		(void) close(fd);	/* unlocks as well */
+  		printf("\tno daemon present\n");
+  		return;
+  	}
+  	(void) close(fd);
+  	putchar('\t');
+  	(void) sprintf(line, "%s/%s", SD, ST);
+  	fd = open(line, O_RDONLY);
+  	if (fd >= 0) {
++ 	        fcntl(fd, F_SETLKW, &fl);
++ #if 0
+  		(void) flock(fd, LOCK_SH);
++ #endif
+  		while ((i = read(fd, line, sizeof(line))) > 0)
+  			(void) fwrite(line, 1, i, stdout);
+  		(void) close(fd);	/* unlocks as well */
+  	}
+  }
+***************
+*** 848,862 ****
+--- 876,896 ----
+   * the control file.
+   */
+  touch(q)
+  	struct queue *q;
+  {
++ #if 0
+  	struct timeval tvp[2];
+  
+  	tvp[0].tv_sec = tvp[1].tv_sec = --mtime;
+  	tvp[0].tv_usec = tvp[1].tv_usec = 0;
+  	return(utimes(q->q_name, tvp));
++ #else
++ 	struct utimbuf ub;
++ 	ub.actime = ub.modtime = --mtime;
++ 	return (utime(q->q_name, &ub));
++ #endif
+  }
+  
+  /*
+   * Checks if specified job name is in the printer's queue.
+   * Returns:  negative (-1) if argument name is not in the queue.
+
+diff -cC5 /tmp/lpr/cmdtab.c lpr/cmdtab.c
+*** /tmp/lpr/cmdtab.c	Fri Jul  1 01:00:19 1988
+--- lpr/cmdtab.c	Thu Nov 19 20:00:26 1992
+***************
+*** 23,33 ****
+   * lpc -- command tables
+   */
+  
+  #include "lpc.h"
+  
+! int	abort(), clean(), enable(), disable(), down(), help();
+  int	quit(), restart(), start(), status(), stop(), topq(), up();
+  
+  char	aborthelp[] =	"terminate a spooling daemon immediately and disable printing";
+  char	cleanhelp[] =	"remove cruft files from a queue";
+  char	enablehelp[] =	"turn a spooling queue on";
+--- 23,33 ----
+   * lpc -- command tables
+   */
+  
+  #include "lpc.h"
+  
+! int	cmd_abort(), clean(), enable(), disable(), down(), help();
+  int	quit(), restart(), start(), status(), stop(), topq(), up();
+  
+  char	aborthelp[] =	"terminate a spooling daemon immediately and disable printing";
+  char	cleanhelp[] =	"remove cruft files from a queue";
+  char	enablehelp[] =	"turn a spooling queue on";
+***************
+*** 41,51 ****
+  char	stophelp[] =	"stop a spooling daemon after current job completes and disable printing";
+  char	topqhelp[] =	"put job at top of printer queue";
+  char	uphelp[] =	"enable everything and restart spooling daemon";
+  
+  struct cmd cmdtab[] = {
+! 	{ "abort",	aborthelp,	abort,		1 },
+  	{ "clean",	cleanhelp,	clean,		1 },
+  	{ "enable",	enablehelp,	enable,		1 },
+  	{ "exit",	quithelp,	quit,		0 },
+  	{ "disable",	disablehelp,	disable,	1 },
+  	{ "down",	downhelp,	down,		1 },
+--- 41,51 ----
+  char	stophelp[] =	"stop a spooling daemon after current job completes and disable printing";
+  char	topqhelp[] =	"put job at top of printer queue";
+  char	uphelp[] =	"enable everything and restart spooling daemon";
+  
+  struct cmd cmdtab[] = {
+! 	{ "abort",	aborthelp,	cmd_abort,	1 },
+  	{ "clean",	cleanhelp,	clean,		1 },
+  	{ "enable",	enablehelp,	enable,		1 },
+  	{ "exit",	quithelp,	quit,		0 },
+  	{ "disable",	disablehelp,	disable,	1 },
+  	{ "down",	downhelp,	down,		1 },
+
+diff -cC5 /tmp/lpr/common.c lpr/common.c
+*** /tmp/lpr/common.c	Fri Jul  1 01:00:19 1988
+--- lpr/common.c	Thu Nov 19 12:12:53 1992
+***************
+*** 59,68 ****
+--- 59,72 ----
+  short	PX;		/* page width in pixels */
+  short	PY;		/* page length in pixels */
+  short	BR;		/* baud rate if lp is a tty */
+  int	FC;		/* flags to clear if lp is a tty */
+  int	FS;		/* flags to set if lp is a tty */
++ int     IFC;		/* input flags to clear if lp is a tty. */
++ int     IFS;		/* input flags to set if lp is a tty. */
++ int     CFC;		/* cflags to clear if lp is a tty. */
++ int     CFS;		/* cflags to set if lp is a tty. */
+  int	XC;		/* flags to clear for local mode */
+  int	XS;		/* flags to set for local mode */
+  short	RS;		/* restricted to those with local accounts */
+  
+  char	line[BUFSIZ];
+***************
+*** 107,117 ****
+  	 */
+  retry:
+  	s = rresvport(&lport);
+  	if (s < 0)
+  		return(-1);
+! 	if (connect(s, (caddr_t)&sin, sizeof(sin), 0) < 0) {
+  		err = errno;
+  		(void) close(s);
+  		errno = err;
+  		if (errno == EADDRINUSE) {
+  			lport--;
+--- 111,121 ----
+  	 */
+  retry:
+  	s = rresvport(&lport);
+  	if (s < 0)
+  		return(-1);
+! 	if (connect(s, (caddr_t)&sin, sizeof(sin)) < 0) {
+  		err = errno;
+  		(void) close(s);
+  		errno = err;
+  		if (errno == EADDRINUSE) {
+  			lport--;
+
+diff -cC5 /tmp/lpr/displayq.c lpr/displayq.c
+*** /tmp/lpr/displayq.c	Fri Jul  1 01:00:20 1988
+--- lpr/displayq.c	Thu Nov 19 12:05:29 1992
+***************
+*** 132,142 ****
+--- 132,152 ----
+  			if (sendtorem)
+  				printf("%s: ", host);
+  			printf("Warning: %s is down: ", printer);
+  			fd = open(ST, O_RDONLY);
+  			if (fd >= 0) {
++ 			  struct flock fl;
++ 			  fl.l_type = F_RDLCK;
++ 			  fl.l_whence = 0; /* start of file. */
++ 			  fl.l_start = 0;
++ 			  fl.l_len = 0; /* until EOF */
++ 			  /* should check this for errors like deadlock
++ 			     etc. */
++ 			  ioctl (fd, F_SETLKW, &fl);
++ #if 0
+  				(void) flock(fd, LOCK_SH);
++ #endif
+  				while ((i = read(fd, line, sizeof(line))) > 0)
+  					(void) fwrite(line, 1, i, stdout);
+  				(void) close(fd);	/* unlocks as well */
+  			} else
+  				putchar('\n');
+***************
+*** 174,184 ****
+--- 184,203 ----
+  				 */
+  				if (sendtorem)
+  					printf("%s: ", host);
+  				fd = open(ST, O_RDONLY);
+  				if (fd >= 0) {
++ 				  struct flock fl;
++ 				  fl.l_type = F_RDLCK;
++ 				  fl.l_whence = 0; /* start of file. */
++ 				  fl.l_start = 0;
++ 				  fl.l_len = 0; /* until EOF */
++ 				  /* should check for errors here. */
++ 				  fcntl (fd, F_SETLKW, &fl);
++ #if 0
+  					(void) flock(fd, LOCK_SH);
++ #endif
+  					while ((i = read(fd, line, sizeof(line))) > 0)
+  						(void) fwrite(line, 1, i, stdout);
+  					(void) close(fd);	/* unlocks as well */
+  				} else
+  					putchar('\n');
+
+diff -cC5 /tmp/lpr/lp.h lpr/lp.h
+*** /tmp/lpr/lp.h	Fri Jul  1 01:00:21 1988
+--- lpr/lp.h	Thu Nov 19 11:41:33 1992
+***************
+*** 18,27 ****
+--- 18,28 ----
+   */
+  
+  /*
+   * Global definitions for the line printer system.
+   */
++ #define __USE_BSD
+  
+  #include <stdio.h>
+  #include <sys/param.h>
+  #include <sys/file.h>
+  #include <sys/dir.h>
+***************
+*** 32,44 ****
+  #include <netdb.h>
+  #include <pwd.h>
+  #include <syslog.h>
+  #include <signal.h>
+  #include <sys/wait.h>
+! #include <sgtty.h>
+  #include <ctype.h>
+  #include <errno.h>
+  #include "lp.local.h"
+  
+  extern int	DU;		/* daeomon user-id */
+  extern int	MX;		/* maximum number of blocks to copy */
+  extern int	MC;		/* maximum number of copies allowed */
+--- 33,48 ----
+  #include <netdb.h>
+  #include <pwd.h>
+  #include <syslog.h>
+  #include <signal.h>
+  #include <sys/wait.h>
+! /* #include <sgtty.h>*/
+! #include <termios.h>
+  #include <ctype.h>
+  #include <errno.h>
++ #include <fcntl.h>
++ #include <unistd.h>
+  #include "lp.local.h"
+  
+  extern int	DU;		/* daeomon user-id */
+  extern int	MX;		/* maximum number of blocks to copy */
+  extern int	MC;		/* maximum number of copies allowed */
+***************
+*** 71,82 ****
+  extern short	PW;		/* page width */
+  extern short	PX;		/* page width in pixels */
+  extern short	PY;		/* page length in pixels */
+  extern short	PL;		/* page length */
+  extern short	BR;		/* baud rate if lp is a tty */
+! extern int	FC;		/* flags to clear if lp is a tty */
+! extern int	FS;		/* flags to set if lp is a tty */
+  extern int	XC;		/* flags to clear for local mode */
+  extern int	XS;		/* flags to set for local mode */
+  extern short	RS;		/* restricted to those with local accounts */
+  
+  extern char	line[BUFSIZ];
+--- 75,90 ----
+  extern short	PW;		/* page width */
+  extern short	PX;		/* page width in pixels */
+  extern short	PY;		/* page length in pixels */
+  extern short	PL;		/* page length */
+  extern short	BR;		/* baud rate if lp is a tty */
+! extern int	FC;		/* output flags to clear if lp is a tty */
+! extern int	FS;		/* output flags to set if lp is a tty */
+! extern int     IFC;		/* input flags to clear if lp is a tty. */
+! extern int     IFS;		/* input flags to set if lp is a tty. */
+! extern int     CFC;		/* cflags to clear if lp is a tty. */
+! extern int     CFS;		/* cflags to set if lp is a tty. */
+  extern int	XC;		/* flags to clear for local mode */
+  extern int	XS;		/* flags to set for local mode */
+  extern short	RS;		/* restricted to those with local accounts */
+  
+  extern char	line[BUFSIZ];
+***************
+*** 89,98 ****
+--- 97,109 ----
+  extern int	errno;
+  
+  /*
+   * Structure used for building a sorted list of control files.
+   */
++ 
++ #define MAXNAMLEN PATH_MAX
++ 
+  struct queue {
+  	time_t	q_time;			/* modification time */
+  	char	q_name[MAXNAMLEN+1];	/* control file name */
+  };
+  
+
+diff -cC5 /tmp/lpr/lpc.c lpr/lpc.c
+*** /tmp/lpr/lpc.c	Mon Nov 21 03:11:03 1988
+--- lpr/lpc.c	Thu Nov 19 21:21:26 1992
+***************
+*** 213,223 ****
+  			columns = 1;
+  		lines = (NCMDS + columns - 1) / columns;
+  		for (i = 0; i < lines; i++) {
+  			for (j = 0; j < columns; j++) {
+  				c = cmdtab + j * lines + i;
+! 				printf("%s", c->c_name);
+  				if (c + lines >= &cmdtab[NCMDS]) {
+  					printf("\n");
+  					break;
+  				}
+  				w = strlen(c->c_name);
+--- 213,224 ----
+  			columns = 1;
+  		lines = (NCMDS + columns - 1) / columns;
+  		for (i = 0; i < lines; i++) {
+  			for (j = 0; j < columns; j++) {
+  				c = cmdtab + j * lines + i;
+! 				if (c->c_name != NULL)
+! 				  printf("%s", c->c_name);
+  				if (c + lines >= &cmdtab[NCMDS]) {
+  					printf("\n");
+  					break;
+  				}
+  				w = strlen(c->c_name);
+
+diff -cC5 /tmp/lpr/lpd.c lpr/lpd.c
+*** /tmp/lpr/lpd.c	Fri Jul  1 01:00:22 1988
+--- lpr/lpd.c	Thu Nov 19 23:29:50 1992
+***************
+*** 67,76 ****
+--- 67,77 ----
+  {
+  	int f, funix, finet, options, defreadfds, fromlen;
+  	struct sockaddr_un sun, fromunix;
+  	struct sockaddr_in sin, frominet;
+  	int omask, lfd;
++ 	struct flock fl;
+  
+  	gethostname(host, sizeof(host));
+  	name = argv[0];
+  
+  	while (--argc > 0) {
+***************
+*** 109,120 ****
+  	lfd = open(MASTERLOCK, O_WRONLY|O_CREAT, 0644);
+  	if (lfd < 0) {
+  		syslog(LOG_ERR, "%s: %m", MASTERLOCK);
+  		exit(1);
+  	}
+  	if (flock(lfd, LOCK_EX|LOCK_NB) < 0) {
+! 		if (errno == EWOULDBLOCK)	/* active deamon present */
+  			exit(0);
+  		syslog(LOG_ERR, "%s: %m", MASTERLOCK);
+  		exit(1);
+  	}
+  	ftruncate(lfd, 0);
+--- 110,129 ----
+  	lfd = open(MASTERLOCK, O_WRONLY|O_CREAT, 0644);
+  	if (lfd < 0) {
+  		syslog(LOG_ERR, "%s: %m", MASTERLOCK);
+  		exit(1);
+  	}
++ #if 0
+  	if (flock(lfd, LOCK_EX|LOCK_NB) < 0) {
+! #endif
+! 	  fl.l_type = F_WRLCK;
+! 	  fl.l_whence = 0; /* start of file. */
+! 	  fl.l_start = 0;
+! 	  fl.l_len = 0; /* until EOF */
+! 	  if (fcntl (lfd, F_SETLK, &fl) < 0) {
+! 		if (errno == EWOULDBLOCK || errno == EAGAIN)	
+! 		  /* active deamon present */
+  			exit(0);
+  		syslog(LOG_ERR, "%s: %m", MASTERLOCK);
+  		exit(1);
+  	}
+  	ftruncate(lfd, 0);
+***************
+*** 167,177 ****
+  			syslog(LOG_ERR, "printer/tcp: unknown service");
+  			mcleanup();
+  		}
+  		sin.sin_family = AF_INET;
+  		sin.sin_port = sp->s_port;
+! 		if (bind(finet, &sin, sizeof(sin), 0) < 0) {
+  			syslog(LOG_ERR, "bind: %m");
+  			mcleanup();
+  		}
+  		defreadfds |= 1 << finet;
+  		listen(finet, 5);
+--- 176,186 ----
+  			syslog(LOG_ERR, "printer/tcp: unknown service");
+  			mcleanup();
+  		}
+  		sin.sin_family = AF_INET;
+  		sin.sin_port = sp->s_port;
+! 		if (bind(finet, &sin, sizeof(sin)) < 0) {
+  			syslog(LOG_ERR, "bind: %m");
+  			mcleanup();
+  		}
+  		defreadfds |= 1 << finet;
+  		listen(finet, 5);
+***************
+*** 217,230 ****
+  		}
+  		(void) close(s);
+  	}
+  }
+  
+! reapchild()
+  {
+! 	union wait status;
+! 
+  	while (wait3(&status, WNOHANG, 0) > 0)
+  		;
+  }
+  
+  mcleanup()
+--- 226,239 ----
+  		}
+  		(void) close(s);
+  	}
+  }
+  
+! reapchild(int sig)
+  {
+! 	int status;
+! 	signal (sig, reapchild);
+  	while (wait3(&status, WNOHANG, 0) > 0)
+  		;
+  }
+  
+  mcleanup()
+***************
+*** 380,389 ****
+--- 389,467 ----
+  			printjob();
+  		}
+  	}
+  }
+  
++ 
++ int
++ _validuser(FILE *hostf, const char *rhost, const char *luser,
++ 	const char *ruser, int baselen)
++ {
++ 	char *user;
++ 	char ahost[MAXHOSTNAMELEN];
++ 	register char *p;
++ 
++ 	while (fgets(ahost, sizeof (ahost), hostf)) {
++ 		p = ahost;
++ 		while (*p != '\n' && *p != ' ' && *p != '\t' && *p != '\0') {
++ 			*p = isupper(*p) ? tolower(*p) : *p;
++ 			p++;
++ 		}
++ 		if (*p == ' ' || *p == '\t') {
++ 			*p++ = '\0';
++ 			while (*p == ' ' || *p == '\t')
++ 				p++;
++ 			user = p;
++ 			while (*p != '\n' && *p != ' ' && *p != '\t' && *p != '\0')
++ 				p++;
++ 		} else
++ 			user = p;
++ 		*p = '\0';
++ 		if (_checkhost(rhost, ahost, baselen) &&
++ 		    !strcmp(ruser, *user ? user : luser)) {
++ 			return (0);
++ 		}
++ 	}
++ 	return (-1);
++ }
++ 
++ int
++ _checkhost(const char *rhost, const char *lhost, int len)
++ {
++ 	static char ldomain[MAXHOSTNAMELEN + 1];
++ 	static char *domainp = NULL;
++ 	static int nodomain = 0;
++ 	register char *cp;
++ 
++ 	if (len == -1)
++ 		return(!strcmp(rhost, lhost));
++ 	if (strncmp(rhost, lhost, len))
++ 		return(0);
++ 	if (!strcmp(rhost, lhost))
++ 		return(1);
++ 	if (*(lhost + len) != '\0')
++ 		return(0);
++ 	if (nodomain)
++ 		return(0);
++ 	if (!domainp) {
++ 		if (gethostname(ldomain, sizeof(ldomain)) == -1) {
++ 			nodomain = 1;
++ 			return(0);
++ 		}
++ 		ldomain[MAXHOSTNAMELEN] = (char) NULL;
++ 		if ((domainp = index(ldomain, '.')) == (char *)NULL) {
++ 			nodomain = 1;
++ 			return(0);
++ 		}
++ 		for (cp = ++domainp; *cp; ++cp)
++ 			if (isupper(*cp))
++ 				*cp = tolower(*cp);
++ 	}
++ 	return(!strcmp(domainp, rhost + len +1));
++ }
++ 
++ 
+  #define DUMMY ":nobody::"
+  
+  /*
+   * Check to see if the from host has access to the line printer.
+   */
+***************
+*** 421,431 ****
+  		} else {
+  			*cp++ = isupper(*sp) ? tolower(*sp++) : *sp++;
+  		}
+  	}
+  	*cp = '\0';
+! 	hostf = fopen("/etc/hosts.equiv", "r");
+  again:
+  	if (hostf) {
+  		if (!_validuser(hostf, ahost, DUMMY, DUMMY, baselen)) {
+  			(void) fclose(hostf);
+  			return;
+--- 499,509 ----
+  		} else {
+  			*cp++ = isupper(*sp) ? tolower(*sp++) : *sp++;
+  		}
+  	}
+  	*cp = '\0';
+! 	hostf = fopen("/usr/etc/inet/hosts.equiv", "r");
+  again:
+  	if (hostf) {
+  		if (!_validuser(hostf, ahost, DUMMY, DUMMY, baselen)) {
+  			(void) fclose(hostf);
+  			return;
+***************
+*** 432,441 ****
+  		}
+  		(void) fclose(hostf);
+  	}
+  	if (first == 1) {
+  		first = 0;
+! 		hostf = fopen("/etc/hosts.lpd", "r");
+  		goto again;
+  	}
+  	fatal("Your host does not have line printer access");
+  }
+--- 510,519 ----
+  		}
+  		(void) fclose(hostf);
+  	}
+  	if (first == 1) {
+  		first = 0;
+! 		hostf = fopen("/usr/etc/inet/hosts.lpd", "r");
+  		goto again;
+  	}
+  	fatal("Your host does not have line printer access");
+  }
+
+diff -cC5 /tmp/lpr/lpr.c lpr/lpr.c
+*** /tmp/lpr/lpr.c	Fri Jul  1 01:00:24 1988
+--- lpr/lpr.c	Thu Nov 19 19:42:13 1992
+***************
+*** 40,49 ****
+--- 40,50 ----
+  #include <grp.h>
+  #include <signal.h>
+  #include <ctype.h>
+  #include <syslog.h>
+  #include "lp.local.h"
++ #include <errno.h>
+  
+  char    *tfname;		/* tmp copy of cf before linking */
+  char    *cfname;		/* daemon control files, linked from tf's */
+  char    *dfname;		/* data files */
+  
+***************
+*** 87,97 ****
+  /*ARGSUSED*/
+  main(argc, argv)
+  	int argc;
+  	char *argv[];
+  {
+! 	extern struct passwd *getpwuid();
+  	struct passwd *pw;
+  	struct group *gptr;
+  	extern char *itoa();
+  	register char *arg, *cp;
+  	char buf[BUFSIZ];
+--- 88,98 ----
+  /*ARGSUSED*/
+  main(argc, argv)
+  	int argc;
+  	char *argv[];
+  {
+! /*	extern struct passwd *getpwuid();*/
+  	struct passwd *pw;
+  	struct group *gptr;
+  	extern char *itoa();
+  	register char *arg, *cp;
+  	char buf[BUFSIZ];
+***************
+*** 538,548 ****
+  	if ((fd = open(file, O_RDONLY)) < 0) {
+  		printf("%s: cannot open %s\n", name, file);
+  		return(-1);
+  	}
+  	if (read(fd, &execb, sizeof(execb)) == sizeof(execb))
+! 		switch(execb.a_magic) {
+  		case A_MAGIC1:
+  		case A_MAGIC2:
+  		case A_MAGIC3:
+  #ifdef A_MAGIC4
+  		case A_MAGIC4:
+--- 539,549 ----
+  	if ((fd = open(file, O_RDONLY)) < 0) {
+  		printf("%s: cannot open %s\n", name, file);
+  		return(-1);
+  	}
+  	if (read(fd, &execb, sizeof(execb)) == sizeof(execb))
+! 		switch(N_MAGIC(execb)) {
+  		case A_MAGIC1:
+  		case A_MAGIC2:
+  		case A_MAGIC3:
+  #ifdef A_MAGIC4
+  		case A_MAGIC4:
+***************
+*** 630,646 ****
+--- 631,657 ----
+  {
+  	register int c, len, fd, n;
+  	register char *cp;
+  	char buf[BUFSIZ];
+  	char *mktemp();
++ 	struct flock fl;
+  
+  	(void) sprintf(buf, "%s/.seq", SD);
+  	if ((fd = open(buf, O_RDWR|O_CREAT, 0661)) < 0) {
+  		printf("%s: cannot create %s\n", name, buf);
+  		exit(1);
+  	}
++ #if 0
+  	if (flock(fd, LOCK_EX)) {
++ #endif
++ 	  fl.l_type = F_WRLCK;
++ 	  fl.l_whence = 0; /* start of file. */
++ 	  fl.l_start = 0;
++ 	  fl.l_len = 0; /* until EOF */
++ 	  if (fcntl (fd, F_SETLKW, &fl) < 0) {
++ 		if (errno == EWOULDBLOCK || errno == EAGAIN)	
++ 
+  		printf("%s: cannot lock %s\n", name, buf);
+  		exit(1);
+  	}
+  	n = 0;
+  	if ((len = read(fd, buf, sizeof(buf))) > 0) {
+
+diff -cC5 /tmp/lpr/printcap.c lpr/printcap.c
+*** /tmp/lpr/printcap.c	Fri Jul  1 01:00:25 1988
+--- lpr/printcap.c	Thu Nov 19 23:29:33 1992
+***************
+*** 49,59 ****
+  #define	tgetflag pgetflag
+  #define tdecode pdecode
+  #define tnchktc	pnchktc
+  #define	tnamatch pnamatch
+  #undef E_TERMCAP
+! #define E_TERMCAP "/etc/printcap"
+  #define V6
+  #endif
+  
+  static	FILE *pfp = NULL;	/* printcap data base file pointer */
+  static	char *tbuf;
+--- 49,59 ----
+  #define	tgetflag pgetflag
+  #define tdecode pdecode
+  #define tnchktc	pnchktc
+  #define	tnamatch pnamatch
+  #undef E_TERMCAP
+! #define E_TERMCAP "/usr/etc/printcap"
+  #define V6
+  #endif
+  
+  static	FILE *pfp = NULL;	/* printcap data base file pointer */
+  static	char *tbuf;
+
+diff -cC5 /tmp/lpr/printjob.c lpr/printjob.c
+*** /tmp/lpr/printjob.c	Fri Jul  1 01:00:26 1988
+--- lpr/printjob.c	Thu Nov 19 21:53:06 1992
+***************
+*** 63,82 ****
+  char	width[10] = "-w";	/* page width in characters */
+  char	length[10] = "-l";	/* page length in lines */
+  char	pxwidth[10] = "-x";	/* page width in pixels */
+  char	pxlength[10] = "-y";	/* page length in pixels */
+  char	indent[10] = "-i0";	/* indentation size in characters */
+! char	tmpfile[] = "errsXXXXXX"; /* file name for filter output */
+  
+  printjob()
+  {
+  	struct stat stb;
+  	register struct queue *q, **qp;
+  	struct queue **queue;
+  	register int i, nitems;
+  	long pidoff;
+  	int count = 0;
+  	extern int abortpr();
+  
+  	init();					/* set up capabilities */
+  	(void) write(1, "", 1);			/* ack that daemon is started */
+  	(void) close(2);			/* set up log file */
+--- 63,83 ----
+  char	width[10] = "-w";	/* page width in characters */
+  char	length[10] = "-l";	/* page length in lines */
+  char	pxwidth[10] = "-x";	/* page width in pixels */
+  char	pxlength[10] = "-y";	/* page length in pixels */
+  char	indent[10] = "-i0";	/* indentation size in characters */
+! char	pj_tmpfile[] = "errsXXXXXX"; /* file name for filter output */
+  
+  printjob()
+  {
+  	struct stat stb;
+  	register struct queue *q, **qp;
+  	struct queue **queue;
+  	register int i, nitems;
+  	long pidoff;
+  	int count = 0;
++ 	struct flock fl;
+  	extern int abortpr();
+  
+  	init();					/* set up capabilities */
+  	(void) write(1, "", 1);			/* ack that daemon is started */
+  	(void) close(2);			/* set up log file */
+***************
+*** 84,100 ****
+  		syslog(LOG_ERR, "%s: %m", LF);
+  		(void) open("/dev/null", O_WRONLY);
+  	}
+  	setgid(getegid());
+  	pid = getpid();				/* for use with lprm */
+! 	setpgrp(0, pid);
+  	signal(SIGHUP, abortpr);
+  	signal(SIGINT, abortpr);
+  	signal(SIGQUIT, abortpr);
+  	signal(SIGTERM, abortpr);
+  
+! 	(void) mktemp(tmpfile);
+  
+  	/*
+  	 * uses short form file names
+  	 */
+  	if (chdir(SD) < 0) {
+--- 85,101 ----
+  		syslog(LOG_ERR, "%s: %m", LF);
+  		(void) open("/dev/null", O_WRONLY);
+  	}
+  	setgid(getegid());
+  	pid = getpid();				/* for use with lprm */
+! 	setpgid(0, pid);
+  	signal(SIGHUP, abortpr);
+  	signal(SIGINT, abortpr);
+  	signal(SIGQUIT, abortpr);
+  	signal(SIGTERM, abortpr);
+  
+! 	(void) mktemp(pj_tmpfile);
+  
+  	/*
+  	 * uses short form file names
+  	 */
+  	if (chdir(SD) < 0) {
+***************
+*** 106,117 ****
+  	lfd = open(LO, O_WRONLY|O_CREAT, 0644);
+  	if (lfd < 0) {
+  		syslog(LOG_ERR, "%s: %s: %m", printer, LO);
+  		exit(1);
+  	}
+  	if (flock(lfd, LOCK_EX|LOCK_NB) < 0) {
+! 		if (errno == EWOULDBLOCK)	/* active deamon present */
+  			exit(0);
+  		syslog(LOG_ERR, "%s: %s: %m", printer, LO);
+  		exit(1);
+  	}
+  	ftruncate(lfd, 0);
+--- 107,125 ----
+  	lfd = open(LO, O_WRONLY|O_CREAT, 0644);
+  	if (lfd < 0) {
+  		syslog(LOG_ERR, "%s: %s: %m", printer, LO);
+  		exit(1);
+  	}
++ #if 0
+  	if (flock(lfd, LOCK_EX|LOCK_NB) < 0) {
+! #endif
+! 	  fl.l_type = F_WRLCK;
+! 	  fl.l_whence = 0; /* start of file. */
+! 	  fl.l_start = 0;
+! 	  fl.l_len = 0; /* until EOF */
+! 	  if (fcntl (lfd, F_SETLK, &fl) < 0) {
+! 		if (errno == EWOULDBLOCK || errno == EAGAIN)	
+  			exit(0);
+  		syslog(LOG_ERR, "%s: %s: %m", printer, LO);
+  		exit(1);
+  	}
+  	ftruncate(lfd, 0);
+***************
+*** 208,218 ****
+  			if (!SF && !tof)
+  				(void) write(ofd, FF, strlen(FF));
+  			if (TR != NULL)		/* output trailer */
+  				(void) write(ofd, TR, strlen(TR));
+  		}
+! 		(void) unlink(tmpfile);
+  		exit(0);
+  	}
+  	goto again;
+  }
+  
+--- 216,226 ----
+  			if (!SF && !tof)
+  				(void) write(ofd, FF, strlen(FF));
+  			if (TR != NULL)		/* output trailer */
+  				(void) write(ofd, TR, strlen(TR));
+  		}
+! 		(void) unlink(pj_tmpfile);
+  		exit(0);
+  	}
+  	goto again;
+  }
+  
+***************
+*** 427,437 ****
+  	register int n;
+  	register char *prog;
+  	int fi, fo;
+  	char *av[15], buf[BUFSIZ];
+  	int pid, p[2], stopped = 0;
+! 	union wait status;
+  	struct stat stb;
+  
+  	if (lstat(file, &stb) < 0 || (fi = open(file, O_RDONLY)) < 0)
+  		return(ERROR);
+  	/*
+--- 435,445 ----
+  	register int n;
+  	register char *prog;
+  	int fi, fo;
+  	char *av[15], buf[BUFSIZ];
+  	int pid, p[2], stopped = 0;
+! 	int status;
+  	struct stat stb;
+  
+  	if (lstat(file, &stb) < 0 || (fi = open(file, O_RDONLY)) < 0)
+  		return(ERROR);
+  	/*
+***************
+*** 566,588 ****
+  	fo = pfd;
+  	if (ofilter > 0) {		/* stop output filter */
+  		write(ofd, "\031\1", 2);
+  		while ((pid = wait3(&status, WUNTRACED, 0)) > 0 && pid != ofilter)
+  			;
+! 		if (status.w_stopval != WSTOPPED) {
+  			(void) close(fi);
+  			syslog(LOG_WARNING, "%s: output filter died (%d)",
+! 				printer, status.w_retcode);
+  			return(REPRINT);
+  		}
+  		stopped++;
+  	}
+  start:
+  	if ((child = dofork(DORETURN)) == 0) {	/* child */
+  		dup2(fi, 0);
+  		dup2(fo, 1);
+! 		n = open(tmpfile, O_WRONLY|O_CREAT|O_TRUNC, 0664);
+  		if (n >= 0)
+  			dup2(n, 2);
+  		for (n = 3; n < NOFILE; n++)
+  			(void) close(n);
+  		execv(prog, av);
+--- 574,596 ----
+  	fo = pfd;
+  	if (ofilter > 0) {		/* stop output filter */
+  		write(ofd, "\031\1", 2);
+  		while ((pid = wait3(&status, WUNTRACED, 0)) > 0 && pid != ofilter)
+  			;
+! 		if (!WIFSTOPPED(status)) {
+  			(void) close(fi);
+  			syslog(LOG_WARNING, "%s: output filter died (%d)",
+! 				printer, WEXITSTATUS(status));
+  			return(REPRINT);
+  		}
+  		stopped++;
+  	}
+  start:
+  	if ((child = dofork(DORETURN)) == 0) {	/* child */
+  		dup2(fi, 0);
+  		dup2(fo, 1);
+! 		n = open(pj_tmpfile, O_WRONLY|O_CREAT|O_TRUNC, 0664);
+  		if (n >= 0)
+  			dup2(n, 2);
+  		for (n = 3; n < NOFILE; n++)
+  			(void) close(n);
+  		execv(prog, av);
+***************
+*** 589,599 ****
+  		syslog(LOG_ERR, "cannot execv %s", prog);
+  		exit(2);
+  	}
+  	(void) close(fi);
+  	if (child < 0)
+! 		status.w_retcode = 100;
+  	else
+  		while ((pid = wait(&status)) > 0 && pid != child)
+  			;
+  	child = 0;
+  	prchild = 0;
+--- 597,607 ----
+  		syslog(LOG_ERR, "cannot execv %s", prog);
+  		exit(2);
+  	}
+  	(void) close(fi);
+  	if (child < 0)
+! 		status = 0x100; /* should do a reprint. */
+  	else
+  		while ((pid = wait(&status)) > 0 && pid != child)
+  			;
+  	child = 0;
+  	prchild = 0;
+***************
+*** 604,625 ****
+  		}
+  	}
+  	tof = 0;
+  	if (!WIFEXITED(status)) {
+  		syslog(LOG_WARNING, "%s: Daemon filter '%c' terminated (%d)",
+! 			printer, format, status.w_termsig);
+  		return(ERROR);
+  	}
+! 	switch (status.w_retcode) {
+  	case 0:
+  		tof = 1;
+  		return(OK);
+  	case 1:
+  		return(REPRINT);
+  	default:
+  		syslog(LOG_WARNING, "%s: Daemon filter '%c' exited (%d)",
+! 			printer, format, status.w_retcode);
+  	case 2:
+  		return(ERROR);
+  	}
+  }
+  
+--- 612,633 ----
+  		}
+  	}
+  	tof = 0;
+  	if (!WIFEXITED(status)) {
+  		syslog(LOG_WARNING, "%s: Daemon filter '%c' terminated (%d)",
+! 			printer, format, WTERMSIG(status));
+  		return(ERROR);
+  	}
+! 	switch (WEXITSTATUS(status)) {
+  	case 0:
+  		tof = 1;
+  		return(OK);
+  	case 1:
+  		return(REPRINT);
+  	default:
+  		syslog(LOG_WARNING, "%s: Daemon filter '%c' exited (%d)",
+! 			printer, format, WEXITSTATUS(status));
+  	case 2:
+  		return(ERROR);
+  	}
+  }
+  
+***************
+*** 945,956 ****
+  			break;
+  		case NOACCT:
+  			printf("\ncould not be printed without an account on %s\n", host);
+  			break;
+  		case FILTERERR:
+! 			if (stat(tmpfile, &stb) < 0 || stb.st_size == 0 ||
+! 			    (fp = fopen(tmpfile, "r")) == NULL) {
+  				printf("\nwas printed but had some errors\n");
+  				break;
+  			}
+  			printf("\nwas printed but had the following errors:\n");
+  			while ((i = getc(fp)) != EOF)
+--- 953,964 ----
+  			break;
+  		case NOACCT:
+  			printf("\ncould not be printed without an account on %s\n", host);
+  			break;
+  		case FILTERERR:
+! 			if (stat(pj_tmpfile, &stb) < 0 || stb.st_size == 0 ||
+! 			    (fp = fopen(pj_tmpfile, "r")) == NULL) {
+  				printf("\nwas printed but had some errors\n");
+  				break;
+  			}
+  			printf("\nwas printed but had the following errors:\n");
+  			while ((i = getc(fp)) != EOF)
+***************
+*** 1005,1015 ****
+  /*
+   * Kill child processes to abort current job.
+   */
+  abortpr()
+  {
+! 	(void) unlink(tmpfile);
+  	kill(0, SIGINT);
+  	if (ofilter > 0)
+  		kill(ofilter, SIGCONT);
+  	while (wait(0) > 0)
+  		;
+--- 1013,1024 ----
+  /*
+   * Kill child processes to abort current job.
+   */
+  abortpr()
+  {
+!   
+! 	(void) unlink(pj_tmpfile);
+  	kill(0, SIGINT);
+  	if (ofilter > 0)
+  		kill(ofilter, SIGCONT);
+  	while (wait(0) > 0)
+  		;
+***************
+*** 1113,1122 ****
+--- 1122,1140 ----
+  		FS = 0;
+  	if ((XC = pgetnum("xc")) < 0)
+  		XC = 0;
+  	if ((XS = pgetnum("xs")) < 0)
+  		XS = 0;
++ 	if ((IFC = pgetnum("ifc")) < 0)
++ 		IFC = 0;
++ 	if ((IFS = pgetnum("ifs")) < 0)
++ 		IFS = 0;
++ 	if ((CFC = pgetnum("cfc")) < 0)
++ 		CFC = 0;
++ 	if ((CFS = pgetnum("cfs")) < 0)
++ 		CFS = 0;
++ 
+  	tof = !pgetflag("fo");
+  }
+  
+  /*
+   * Acquire line printer or remote connection.
+***************
+*** 1225,1261 ****
+  /*
+   * setup tty lines.
+   */
+  setty()
+  {
+! 	struct sgttyb ttybuf;
+  	register struct bauds *bp;
+  
+  	if (ioctl(pfd, TIOCEXCL, (char *)0) < 0) {
+  		syslog(LOG_ERR, "%s: ioctl(TIOCEXCL): %m", printer);
+  		exit(1);
+  	}
+  	if (ioctl(pfd, TIOCGETP, (char *)&ttybuf) < 0) {
+  		syslog(LOG_ERR, "%s: ioctl(TIOCGETP): %m", printer);
+  		exit(1);
+  	}
+  	if (BR > 0) {
+  		for (bp = bauds; bp->baud; bp++)
+  			if (BR == bp->baud)
+  				break;
+  		if (!bp->baud) {
+  			syslog(LOG_ERR, "%s: illegal baud rate %d", printer, BR);
+  			exit(1);
+  		}
+  		ttybuf.sg_ispeed = ttybuf.sg_ospeed = bp->speed;
+  	}
+  	ttybuf.sg_flags &= ~FC;
+  	ttybuf.sg_flags |= FS;
+  	if (ioctl(pfd, TIOCSETP, (char *)&ttybuf) < 0) {
+  		syslog(LOG_ERR, "%s: ioctl(TIOCSETP): %m", printer);
+  		exit(1);
+  	}
+  	if (XC || XS) {
+  		int ldisc = NTTYDISC;
+  
+  		if (ioctl(pfd, TIOCSETD, &ldisc) < 0) {
+  			syslog(LOG_ERR, "%s: ioctl(TIOCSETD): %m", printer);
+--- 1243,1299 ----
+  /*
+   * setup tty lines.
+   */
+  setty()
+  {
+! /*	struct sgttyb ttybuf;*/
+!         struct termios ttyios;
+  	register struct bauds *bp;
+  
+  	if (ioctl(pfd, TIOCEXCL, (char *)0) < 0) {
+  		syslog(LOG_ERR, "%s: ioctl(TIOCEXCL): %m", printer);
+  		exit(1);
+  	}
++ 	if (ioctl (pfd, TCGETS, &ttyios) < 0) {
++ #if 0
+  	if (ioctl(pfd, TIOCGETP, (char *)&ttybuf) < 0) {
++ #endif
+  		syslog(LOG_ERR, "%s: ioctl(TIOCGETP): %m", printer);
+  		exit(1);
+  	}
++ 
+  	if (BR > 0) {
+  		for (bp = bauds; bp->baud; bp++)
+  			if (BR == bp->baud)
+  				break;
+  		if (!bp->baud) {
+  			syslog(LOG_ERR, "%s: illegal baud rate %d", printer, BR);
+  			exit(1);
+  		}
++ 		ttyios.c_cflag = bp->speed;
++ #if 0
+  		ttybuf.sg_ispeed = ttybuf.sg_ospeed = bp->speed;
++ #endif
+  	}
++ 	ttyios.c_oflag &= ~FC;
++ 	ttyios.c_oflag |= FS;
++ 	ttyios.c_lflag &= ~XC;
++ 	ttyios.c_lflag |= XS;
++ 	ttyios.c_iflag &= ~IFC;
++ 	ttyios.c_iflag |= IFS;
++ 	ttyios.c_cflag &= ~CFC;
++ 	ttyios.c_cflag |= CFS;
++ #if 0
+  	ttybuf.sg_flags &= ~FC;
+  	ttybuf.sg_flags |= FS;
+  	if (ioctl(pfd, TIOCSETP, (char *)&ttybuf) < 0) {
++ #endif
++ 	  if (ioctl (pfd, TCSETS, &ttyios) < 0) {
+  		syslog(LOG_ERR, "%s: ioctl(TIOCSETP): %m", printer);
+  		exit(1);
+  	}
++ #if 0
+  	if (XC || XS) {
+  		int ldisc = NTTYDISC;
+  
+  		if (ioctl(pfd, TIOCSETD, &ldisc) < 0) {
+  			syslog(LOG_ERR, "%s: ioctl(TIOCSETD): %m", printer);
+***************
+*** 1272,1297 ****
+--- 1310,1347 ----
+  		if (ioctl(pfd, TIOCLBIS, &XS) < 0) {
+  			syslog(LOG_ERR, "%s: ioctl(TIOCLBIS): %m", printer);
+  			exit(1);
+  		}
+  	}
++ #endif
+  }
+  
+  /*VARARGS1*/
+  status(msg, a1, a2, a3)
+  	char *msg;
+  {
+  	register int fd;
+  	char buf[BUFSIZ];
++ 	struct flock fl;
+  
+  	umask(0);
+  	fd = open(ST, O_WRONLY|O_CREAT, 0664);
++ #if 0
+  	if (fd < 0 || flock(fd, LOCK_EX) < 0) {
++ #endif
++ 	  fl.l_type = F_WRLCK;
++ 	  fl.l_whence = 0; /* start of file. */
++ 	  fl.l_start = 0;
++ 	  fl.l_len = 0; /* until EOF */
++ 	  if (fd < 0 || fcntl (fd, F_SETLKW, &fl) < 0) {
+  		syslog(LOG_ERR, "%s: %s: %m", printer, ST);
+  		exit(1);
+  	}
+  	ftruncate(fd, 0);
+  	sprintf(buf, msg, a1, a2, a3);
+  	strcat(buf, "\n");
+  	(void) write(fd, buf, strlen(buf));
+  	(void) close(fd);
+  }
++ 
++ 
++ 
+
+diff -cC5 /tmp/lpr/recvjob.c lpr/recvjob.c
+*** /tmp/lpr/recvjob.c	Fri Jul  1 01:00:27 1988
+--- lpr/recvjob.c	Thu Nov 19 23:22:51 1992
+***************
+*** 23,45 ****
+   * Receive printer jobs from the network, queue them and
+   * start the printer daemon.
+   */
+  
+  #include "lp.h"
+- #include <sys/fs.h>
+  
+  char	*sp = "";
+  #define ack()	(void) write(1, sp, 1);
+  
+  char    tfname[40];		/* tmp copy of cf before linking */
+  char    dfname[40];		/* data files */
+  int	minfree;		/* keep at least minfree blocks available */
+  char	*ddev;			/* disk device (for checking free space) */
+- int	dfd;			/* file system device descriptor */
+- 
+  char	*find_dev();
+  
+  recvjob()
+  {
+  	struct stat stb;
+  	char *bp = pbuf;
+  	int status, rcleanup();
+--- 23,49 ----
+   * Receive printer jobs from the network, queue them and
+   * start the printer daemon.
+   */
+  
+  #include "lp.h"
+  
++ #include <linux/fs.h>
++ #define minor(x) MINOR(x)
++ #define major(x) MAJOR(x)
++ 
+  char	*sp = "";
+  #define ack()	(void) write(1, sp, 1);
+  
+  char    tfname[40];		/* tmp copy of cf before linking */
+  char    dfname[40];		/* data files */
+  int	minfree;		/* keep at least minfree blocks available */
++ #if 0
+  char	*ddev;			/* disk device (for checking free space) */
+  char	*find_dev();
++ #endif
+  
++ 
+  recvjob()
+  {
+  	struct stat stb;
+  	char *bp = pbuf;
+  	int status, rcleanup();
+***************
+*** 73,92 ****
+  			exit(1);
+  		}
+  	} else if (stat(SD, &stb) < 0)
+  		frecverr("%s: %s: %m", printer, SD);
+  	minfree = read_number("minfree");
+  	ddev = find_dev(stb.st_dev, S_IFBLK);
+  	if ((dfd = open(ddev, O_RDONLY)) < 0)
+  		syslog(LOG_WARNING, "%s: %s: %m", printer, ddev);
+  	signal(SIGTERM, rcleanup);
+  	signal(SIGPIPE, rcleanup);
+  
+  	if (readjob())
+  		printjob();
+  }
+! 
+  char *
+  find_dev(dev, type)
+  	register dev_t dev;
+  	register int type;
+  {
+--- 77,98 ----
+  			exit(1);
+  		}
+  	} else if (stat(SD, &stb) < 0)
+  		frecverr("%s: %s: %m", printer, SD);
+  	minfree = read_number("minfree");
++ #if 0
+  	ddev = find_dev(stb.st_dev, S_IFBLK);
+  	if ((dfd = open(ddev, O_RDONLY)) < 0)
+  		syslog(LOG_WARNING, "%s: %s: %m", printer, ddev);
++ #endif
+  	signal(SIGTERM, rcleanup);
+  	signal(SIGPIPE, rcleanup);
+  
+  	if (readjob())
+  		printjob();
+  }
+! #if 0
+  char *
+  find_dev(dev, type)
+  	register dev_t dev;
+  	register int type;
+  {
+***************
+*** 112,122 ****
+  	}
+  	closedir(dfd);
+  	frecverr("cannot find device %d, %d", major(dev), minor(dev));
+  	/*NOTREACHED*/
+  }
+! 
+  /*
+   * Read printer jobs sent by lpd and copy them to the spooling directory.
+   * Return the number of jobs successfully transfered.
+   */
+  readjob()
+--- 118,128 ----
+  	}
+  	closedir(dfd);
+  	frecverr("cannot find device %d, %d", major(dev), minor(dev));
+  	/*NOTREACHED*/
+  }
+! #endif
+  /*
+   * Read printer jobs sent by lpd and copy them to the spooling directory.
+   * Return the number of jobs successfully transfered.
+   */
+  readjob()
+***************
+*** 140,150 ****
+  		} while (*cp++ != '\n');
+  		*--cp = '\0';
+  		cp = line;
+  		switch (*cp++) {
+  		case '\1':	/* cleanup because data sent was bad */
+! 			rcleanup();
+  			continue;
+  
+  		case '\2':	/* read cf file */
+  			size = 0;
+  			while (*cp >= '0' && *cp <= '9')
+--- 146,156 ----
+  		} while (*cp++ != '\n');
+  		*--cp = '\0';
+  		cp = line;
+  		switch (*cp++) {
+  		case '\1':	/* cleanup because data sent was bad */
+! 			rcleanup(-1);
+  			continue;
+  
+  		case '\2':	/* read cf file */
+  			size = 0;
+  			while (*cp >= '0' && *cp <= '9')
+***************
+*** 163,173 ****
+  			if (!chksize(size)) {
+  				(void) write(1, "\2", 1);
+  				continue;
+  			}
+  			if (!readfile(tfname, size)) {
+! 				rcleanup();
+  				continue;
+  			}
+  			if (link(tfname, cp) < 0)
+  				frecverr("%s: %m", tfname);
+  			(void) unlink(tfname);
+--- 169,179 ----
+  			if (!chksize(size)) {
+  				(void) write(1, "\2", 1);
+  				continue;
+  			}
+  			if (!readfile(tfname, size)) {
+! 				rcleanup(-1);
+  				continue;
+  			}
+  			if (link(tfname, cp) < 0)
+  				frecverr("%s: %m", tfname);
+  			(void) unlink(tfname);
+***************
+*** 254,266 ****
+--- 260,276 ----
+  
+  /*
+   * Check to see if there is enough space on the disk for size bytes.
+   * 1 == OK, 0 == Not OK.
+   */
++ #include <sys/vfs.h>
+  chksize(size)
+  	int size;
+  {
++ 	struct statfs fsbuf;
++   	int spacefree;
++ #if 0
+  	struct stat stb;
+  	register char *ddev;
+  	int spacefree;
+  	struct fs fs;
+  
+***************
+*** 267,279 ****
+  	if (dfd < 0 || lseek(dfd, (long)(SBOFF), 0) < 0)
+  		return(1);
+  	if (read(dfd, (char *)&fs, sizeof fs) != sizeof fs)
+  		return(1);
+  	spacefree = freespace(&fs, fs.fs_minfree) * fs.fs_fsize / 1024;
+! 	size = (size + 1023) / 1024;
+  	if (minfree + size > spacefree)
+  		return(0);
+  	return(1);
+  }
+  
+  read_number(fn)
+  	char *fn;
+--- 277,296 ----
+  	if (dfd < 0 || lseek(dfd, (long)(SBOFF), 0) < 0)
+  		return(1);
+  	if (read(dfd, (char *)&fs, sizeof fs) != sizeof fs)
+  		return(1);
+  	spacefree = freespace(&fs, fs.fs_minfree) * fs.fs_fsize / 1024;
+! #endif
+! 	/* under linux this should be easy. */
+!         if (statfs (SD, &fsbuf) < 0)
+! 	  return (0); /* can't stat it, better not use it. */
+! 
+!         spacefree = fsbuf.f_bfree * fsbuf.f_bsize;
+! 	size = (size + fsbuf.f_bsize-1) / fsbuf.f_bsize;
+  	if (minfree + size > spacefree)
+  		return(0);
++ 
+  	return(1);
+  }
+  
+  read_number(fn)
+  	char *fn;
+***************
+*** 292,304 ****
+  }
+  
+  /*
+   * Remove all the files associated with the current job being transfered.
+   */
+! rcleanup()
+  {
+! 
+  	if (tfname[0])
+  		(void) unlink(tfname);
+  	if (dfname[0])
+  		do {
+  			do
+--- 309,322 ----
+  }
+  
+  /*
+   * Remove all the files associated with the current job being transfered.
+   */
+! rcleanup(int sig)
+  {
+!   /* reset the signal. */
+!   if (sig >= 0) signal (sig, rcleanup);
+  	if (tfname[0])
+  		(void) unlink(tfname);
+  	if (dfname[0])
+  		do {
+  			do
+***************
+*** 310,319 ****
+  }
+  
+  frecverr(msg, a1, a2)
+  	char *msg;
+  {
+! 	rcleanup();
+  	syslog(LOG_ERR, msg, a1, a2);
+  	putchar('\1');		/* return error code */
+  	exit(1);
+  }
+--- 328,337 ----
+  }
+  
+  frecverr(msg, a1, a2)
+  	char *msg;
+  {
+! 	rcleanup(-1);
+  	syslog(LOG_ERR, msg, a1, a2);
+  	putchar('\1');		/* return error code */
+  	exit(1);
+  }
+

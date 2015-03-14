@@ -1,0 +1,287 @@
+.\" @(#)man/man1/pathto.an	1.5 8/2/92 03:32:31
+.TH PATHTO X_MAN1_EXT_X "1 February 1988" "Local"
+.SH NAME
+pathto, uupath \- calculate mail paths
+.SH SYNOPSIS
+.B pathto
+.RB " [ " \-tdnsv " ] "
+.IR address " ..."
+.br
+.B uupath
+.RB " [ " \-tsv " ] "
+[
+.IR sitename | domain | path
+]
+.IR " ..."
+.br
+.SH DESCRIPTION
+These commands query the mail routing databases to
+determine which paths will be used in sending mail to
+the specified hosts or addresses.
+.PP
+The
+.IR pathto (X_MAN1_EXT_X)
+command takes the address of a user and determines the path that
+.IR smail (X_MAN8_EXT_X)
+would use for delivery.
+For historical reasons, the resulting path is rewritten as a
+UUCP-style
+.RI `!' -path
+by default,
+even though this form may not be used by smail for delivery.
+The leading sitename in the path is the site towards which
+.IR smail (X_MAN8_EXT_X)
+will make a delivery.
+The leading sitename may be followed by a route to the target
+of the address if the leading sitename and target are different.
+The remainder of the argument, if anything, is added on to the end.
+This command advises you on how
+.IR smail (X_MAN8_EXT_X)
+will handle an address but does not give the actual
+address that
+.IR smail (X_MAN8_EXT_X)
+will use, unless the
+.B \-n
+option given.
+.PP
+The
+.IR uupath (X_MAN1_EXT_X)
+command attempts to compute paths from your machine to other machines.
+If the argument is the name of a site such as
+.I nsavax,
+or
+.I nsavax.nsa.gov,
+or if it is the name of a domain such as
+.I .nsa.gov,
+then the
+.IR uupath (X_MAN1_EXT_X)
+program will try to produce a path to that site or domain.
+If the argument is a
+.RI `!' -path ,
+then
+.I uupath
+computes a route to the first site, and appends the
+remainder of the path onto it.
+For historical reasons, the
+resultant string will be
+.I ``%s'',
+if the host is the local host.
+.PP
+It is important to note that
+.I uupath
+arguments relate to
+.IR sitenames ,
+while the
+.I pathto
+arguments relate to
+.IR "addresses of users" .
+The command:
+.RS
+
+uupath namei
+
+.RE
+will compute a path to the SITE named
+.I namei,
+while the command:
+.RS
+
+pathto namei
+
+.RE
+will ``compute a path'' to the USER named
+.I namei
+on the local machine.
+.SH OPTIONS
+All three commands take hosts
+and addresses from the arguments,
+or from standard input if none are
+given as arguments.
+The following options are recognized:
+.TP
+.B \-s
+If
+.I smart-host
+routing is enabled in the
+.I smail
+routing databases,
+then
+.B \-s
+will cause smart-host routing used as a last resort
+in computing paths.
+By default, smart-host
+routing is not taken into account by these commands.
+A smart-host router will
+route an address to a remote host
+that supposedly has a larger or more up-to-date routing
+database than the local host.
+.TP
+.B \-d
+By default,
+.I pathto
+does not examine what will happen when mail is actually
+delivered to the final user(s).
+If the final users are on the local system, then
+.B \-d
+will apply any aliasing, forwarding or mailing lists
+expansions.
+The order and number of arguments will not necessarily correspond to the
+order and number of output address when this option is used.
+.TP
+.B \-n
+.I uupath
+will always produce a pure UUCP path,
+and by default so will
+will
+.IR pathto ,
+in the interest of backward compatibility.
+The
+.B \-n
+flag
+will generate
+other addressing forms if they
+would actually be used by
+.I smail
+for delivery.  With the \fB\-n\fP option, the \fIpathto\fP command
+will print the next-hop host that a particular address would be sent
+to (or it will print ``local'' if the address would be delivered
+locally), and it will print the address that smail will give to the
+next-hop.  The next-hop host and the address are separated by :: and
+some whitespace.
+.TP
+.B \-t
+Announce the name of the transport that would be used in delivering to
+an address, if the transport is known.  Local addresses that are not
+resolved using the
+.B \-d
+flag will not produce a tranport because the specific local transport
+cannot determined without applying the directors.
+.TP
+.B \-v
+Be verbose, announcing each important state of address resolution as
+it occurs.  The verbose messages are written to standard error.
+.SH EXAMPLES
+The following examples assume the following
+routing configuration will be used
+to compute path information:
+.IP a. 4n
+a list of known local host names:
+.IR amdahl ,
+.I uts.amdahl.com
+and
+.IR amdahl.com .
+.IP b. 4n
+a
+.IR pathalias (X_MAN8_EXT_X)
+database containing the lines:
+
+.in +.5i
+.ta 1.5i
+.nf
+\&.nsa.gov	namei!nsavax!%s
+amdahl	%s
+glotz	namei!glotz!%s
+kgbvax	name!walldrug!kgbvax!%s
+namei	namei!%s
+nsavax	namei!glotz!nsavax!%s
+.fi
+.in -.5i
+.DT
+
+where each path will use
+.I UUX
+for delivery.
+.IP c. 4n
+a known network connection to the host
+.IR eek ,
+which is also known as
+.IR eek.uts.amdahl.com .
+.IP d. 4n
+domains of the form
+.I [number.number.number.number]
+are recognized as internet
+numbers to be delivered using TCP/IP.
+.IP e. 4n
+the path
+.I namei!glotz!nsavax
+is used as a smart-host path
+for addresses the localhost cannot route.
+.PP
+The following commands, in italic, will
+produce the corresponding output:
+
+.RS +.5i
+$
+.I "uupath nsavax mit-prep uts.amdahl.com"
+.br
+namei!glotz!nsavax
+.br
+uupath: no route found to mit-prep
+.br
+%s
+
+$
+.I "uupath \-s mit-prep!rms"
+.br
+namei!glotz!nsavax!mit-prep!rms
+
+$
+.I "pathto @eek.uts.amdahl.com:rms@prep.ai.mit.edu"
+.br
+eek!prep.ai.mit.edu!rms
+
+$
+.I "pathto \-n @[192.2.12.3]:rms@prep.ai.mit.edu"
+.br
+[192.2.12.3] :: rms@prep.ai.mit.edu
+
+$
+.I "pathto brown@nsavax"
+.br
+namei!glotz!nsavax!brown
+
+.RS -.5i
+.SH DIAGNOSTICS
+An error message will be written to standard error
+if there is a syntax error in an address,
+or if no path can be found for an address
+and smart-host routing is not being used.
+In case of such errors,
+these programs return an appropriate
+exit code from
+the file
+.IR /usr/include/sysexits.h ;
+e.g.,
+.I EX_DATAERR
+or
+.IR EX_NOHOST .
+.SH FILES
+.TP 2.5i
+.I "X_LIB_DIR_X/paths"
+Standard ascii path database.
+.TP 2.5i
+.I "X_LIB_DIR_X/routers"
+Smail routing configuration.
+.SH SEE ALSO
+.IR smail (X_MAN8_EXT_X),
+.IR smail (X_MAN5_EXT_X),
+.IR pathalias (X_MAN8_EXT_X)
+and
+.IR pathalias (X_MAN5_EXT_X).
+.SH BUGS
+Your local site does not always know a correct path to every site.
+.PP
+Routing is only as good as your routing information.
+Smail cannot compensate for out-of-date or poorly syncronized
+databases.
+.SH COPYRIGHT
+Copyright(C)1987, 1988 Ronald S. Karr and Landon Curt Noll
+.br
+Copyright(C)1992 Ronald S. Karr
+.br
+See a file COPYING,
+distributed with the source code,
+or type
+.I "smail -bc"
+for distribution rights and restrictions
+associated with this software.

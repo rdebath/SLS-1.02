@@ -1,0 +1,59 @@
+helptext="
+# usage: opp files
+#
+# opp: simplification of output statements within Modula-2 modules and
+#      specifications for compiler construction tools
+#
+# Opp performs the following transformations on the files given as arguments:
+#
+#   @ ... @  becomes WriteS (f, ' ... '); (or WriteC (f, ' ... ');)
+#   @$       becomes WriteNl (f);
+#   %i ... % becomes WriteIdent (f, ...);
+#   %d ... % becomes WriteI (f, ... , 1);
+#   %l ... % becomes WriteCard (f, ... , 1);
+#   %c ... % becomes WriteC (f, ...);
+#   %h ... % becomes WriteN (f, ... , 1, 16);
+#   %o ... % becomes WriteN (f, ... , 1, 8);
+#   %s ... % becomes WriteString (f, ...);
+#   %r ... % becomes WriteR (f, ... , 1, 1, 1);
+#   ?        becomes WriteSpaces (f, Indent);
+#   ?i[0-9]  becomes INC (Indent, [0-9]);
+#   ?d[0-9]  becomes DEC (Indent, [0-9]);
+#
+# within @ ... @ the characters '\', '@', and '$' have to be escaped
+# by a preceding '\'.
+#
+# shorthand notations:
+#   @ ... @ @$ may be abbreviated @ ... $
+#   % ... % @$ may be abbreviated % ... $
+#   ?[di]2     may be abbreviated ?[di]
+#
+# The result of the transformation is written on the standard output.
+"
+: set -x
+sysid=.
+text="usage: opp files"
+status=0
+
+if test $# -eq 0
+then
+  echo "$helptext" | more
+  exit 0
+fi
+
+trap 'exit 1' 1 2 3 15
+
+files="$*"
+
+for file in $files
+do
+  if test ! -r $file
+  then
+    echo "opp: cannot open file $file" 1>&2
+    status=1
+  else
+    sed -f $sysid/opp.sed <$file
+  fi
+done
+
+exit $status

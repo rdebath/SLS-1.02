@@ -1,0 +1,68 @@
+.nf
+	kr	\fBport\fR	ksig, ihtim[, isig]
+	ar	\fBtone\fR	asig, khp[, istor]
+	ar	\fBatone\fR	asig, khp[, istor]
+	ar	\fBreson\fR	asig, kcf, kbw[, iscl, istor]
+	ar	\fBareson\fR	asig, kcf, kbw[, iscl, istor]
+.fi
+
+A control or audio signal is modified by a low- or band-pass recursive filter
+with variable frequency response.
+
+
+INITIALIZATION
+
+\fIisig\fR - initial (i.e. previous) value for internal feedback.
+The default value is 0.
+
+\fIistor\fR - initial disposition of internal data space.  Since filtering
+incorporates a feedback loop of previous output, the initial status of the
+storage space used is significant.  A zero value will clear the space; a
+non-zero value will allow previous information to remain.  The default
+value is 0.
+
+\fIiscl\fR - coded scaling factor for resonators.  A value of 1 signifies
+a peak response factor of 1, i.e.  all frequencies other than \fIkcf\fR
+are attenuated in accordance with the (normalized) response curve.
+A value of 2 raises the response factor so that its overall RMS value equals 1.
+(This intended equalization of input and ouput power assumes all frequencies
+are physically present; hence it is most applicable to white noise.)
+A zero value signifies no scaling of the signal, leaving that to some
+later adjustment (e.g. see \fBbalance\fR).  The default value is 0.
+
+
+PERFORMANCE
+
+\fBport\fR applies portamento to a step-valued control signal.  At each
+new step value, \fIksig\fR is low-pass filtered to move towards
+that value at a rate determined by \fIihtim.
+ihtim\fR is the "half-time" of the function (in seconds),
+during which the curve will traverse half the distance towards the 
+new value, then half as much again, etc., theoretically never reaching
+its asymptote.
+
+\fBtone\fR implements a first-order recursive low-pass filter in which the
+variable \fIkhp\fR (in c.p.s.) determines the response curve's half-power
+point.  Half power is defined as peak power / root 2.
+
+\fBreson\fR is a second-order filter in which \fIkcf\fR controls the center
+frequency, or cps position of the peak response, and \fIkbw\fR controls its
+bandwidth (the cps difference between the upper and lower half-power points).
+
+\fBatone, areson\fR are filters whose transfer functions are the
+complements of \fBtone\fR and \fBreson\fR.  \fBatone\fR is thus a form of
+high-pass filter and \fBareson\fR a notch filter whose transfer functions
+represent the "filtered out" apsects of their complements.  Note, however,
+that power scaling is not normalized in \fBatone, areson\fR, but remains
+the true complement of the corresponding unit.  Thus an audio signal,
+filtered by parallel matching \fBreson\fR and \fBareson\fR units, would
+under addition simply reconstruct the original spectrum.  This property is
+particularly useful for controlled mixing of different sources (e.g., see
+\fBlpreson\fR).
+
+Complex response curves such as those with multiple peaks can be obtained
+by using a bank of suitable filters in series.  (The resultant response is
+the product of the component responses.)  In such cases, the combined
+attenuation may result in a serious loss of signal power, but this can be
+regained by the use of \fBbalance\fR.
+.bp

@@ -1,0 +1,21 @@
+lisp.prg -c init.lsp
+lisp.prg -c defseq.lsp
+lisp.prg -c backquot.lsp
+lisp.prg -c defmacro.lsp
+lisp.prg -c macros1.lsp
+lisp.prg -c macros2.lsp
+lisp.prg -c defs1.lsp
+lisp.prg -c places.lsp
+lisp.prg -c floatpri.lsp
+lisp.prg -c type.lsp
+lisp.prg -c defstruc.lsp
+lisp.prg -c format.lsp
+lisp.prg -c user1.lsp
+lisp.prg -c user2.lsp
+lisp.prg -c trace.lsp
+lisp.prg -c macros3.lsp
+lisp.prg -c config.lsp
+lisp.prg -c compiler.lsp
+lisp.prg -c rexx.lsp
+lisp.prg -c editor.lsp
+

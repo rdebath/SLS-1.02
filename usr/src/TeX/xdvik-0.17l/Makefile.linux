@@ -1,0 +1,191 @@
+# Generated automatically from Makefile.in by configure.
+# Makefile for X dvi previewer.
+
+# Version number of this release.
+version = 0.17
+
+# Installation directories.
+prefix = /usr/TeX
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+manext = 1
+mandir = $(prefix)/man/man$(manext)
+
+# Default paths for you to override.  You can either change these and
+# run `make', or copy paths.h.in to paths.h and change
+# them manually.  These paths are overridden by various environment
+# variables; see the documentation.
+default_pk_path = /usr/TeX/lib/tex/fonts//:.
+default_gf_path = $(default_pk_path)
+
+# If a font can't be found at its stated size, we look for each of these
+# sizes in the order given.  This list is is overridden by the envvar
+# XDVISIZES.
+default_xdvisizes=329:328:300:360:432
+#default_xdvisizes=300:328.6:360:432:518.4:622:746.4
+#default_xdvisizes=100.46:120.6:144.7:173.6:208.3:250:300:328.6:360:432:518.4:622:746.4
+
+# If your X include files or libraries won't be found automatically by
+# the compiler or linker, define these appropriately:
+xincludedir = 
+xlibdir = 
+
+# If you want A4 paper by default, add -DA4.
+# If you are using X10, add -DX10.  Probably hasn't been tested in years.
+# See README for other things.
+DEFS = -DMSBITFIRST -DBMSHORT
+
+# Perhaps you will want to optimize here if you are not using GCC.
+CFLAGS = -s
+
+# Start of system configuration section.
+SHELL = /bin/sh
+srcdir = .
+VPATH = .
+
+CC = gcc -O2
+CPPFLAGS = -I. -I$(srcdir) $(DEFS) $(xincludedir)
+
+.c.o:
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+
+LIBS = -lXaw -lXmu -lXt -lXext -lX11  -lm  $(extralibs)
+LDFLAGS = $(xlibdir) $(CFLAGS) $(XLDFLAGS)
+
+INSTALL = /bin/install -c
+INSTALL_PROGRAM = $(INSTALL)
+INSTALL_DATA = $(INSTALL) -m 644
+
+pathsearch_objs = concat.o concat3.o dir-p.o file-p.o pathsrch.o xmalloc.o \
+xopendir.o xrealloc.o xstat.o xstrdup.o
+
+OBJS=xdvi.o dvi-init.o dvi-draw.o gf.o pk.o pxl-open.o tpic.o \
+ make-suffix.o $(pathsearch_objs)
+
+all:	xdvi xdvi.1
+
+xdvi:	$(OBJS)
+	$(CC) $(LDFLAGS) -o xdvi $(OBJS) $(LIBS)
+
+paths.h: paths.h.in Makefile Makefile.in
+	rm -f paths.h
+	echo "/* Generated from paths.h.in (`date`).  */" > paths.h
+	sed -e "s,replace-with-pk-path,$(default_pk_path)," \
+            -e "s,replace-with-gf-path,$(default_gf_path)," \
+            -e "s,replace-with-xdvisizes,$(default_xdvisizes)," \
+          $(srcdir)/paths.h.in >> paths.h
+
+# This is installed using $(manext); it doesn't matter that we are
+# building it as `.1'.
+xdvi.1: xdvi.man sedscript
+	sed -f sedscript < $(srcdir)/xdvi.man > xdvi.1
+
+sedscript: mksedscript
+	$(srcdir)/mksedscript $(default_pk_path) $(default_gf_path) \
+          $(default_xdvisizes) $(CFLAGS) > $@
+
+install: all
+	$(INSTALL_PROGRAM) xdvi $(bindir)/xdvi
+	$(INSTALL_DATA) xdvi.1 $(mandir)/xdvi.$(manext)
+
+distdir = xdvik-$(version)
+dist:
+	rm -rf $(distdir)
+	mkdir $(distdir)
+	ln AUTHORS ChangeLog README *.in *.h *.c $(distdir)
+	ln configure mksedscript xdvi.icon xdvi.man $(distdir)
+	cp -p $(gnu)/lib/aclocal.m4 $(distdir)
+	cp -p $(HOME)/gnu/gnuorg/COPYING* $(top_distdir)
+	rm -f $(distdir)/c-auto.h $(distdir)/paths.h
+	tar czf $(distdir). $(distdir)
+	rm -rf $(distdir)
+
+# Prevent GNU make 3 from overflowing arg limit on system V.
+.NOEXPORT:
+
+configure: configure.in
+	autoconf
+
+config.status: configure
+	sh configure --no-create
+
+Makefile: Makefile.in config.status
+	sh config.status
+
+depend: paths.h
+	$(CC) -MM *.c > /tmp/depend
+
+TAGS:
+	etags -t *.c *.h
+
+mostlyclean:
+	rm -f *.o xdvi *log core a.out
+
+clean: mostlyclean
+	rm -f sedscript xdvi.1 *.dvi *.pl
+
+distclean: clean
+	rm -f Makefile paths.h config.status c-auto.h
+
+realclean: distclean
+	rm -f TAGS
+
+extraclean: distclean
+	rm -f *gf *pk *.tfm *~ *\#* patch* *.orig *.rej
+
+# Dependencies:
+concat.o : concat.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h 
+concat3.o : concat3.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h 
+dir-p.o : dir-p.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h dirio.h xstat.h 
+dvi-draw.o : dvi-draw.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h dvi.h 
+dvi-init.o : dvi-init.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h dvi.h pxl-open.h 
+file-p.o : file-p.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h xstat.h 
+gf.o : gf.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h 
+make-suffix.o : make-suffix.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h 
+pathsrch.o : pathsrch.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h dirio.h pathsrch.h 
+pk.o : pk.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h 
+pxl-open.o : pxl-open.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h pathsrch.h pxl-open.h 
+tpic.o : tpic.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h 
+version.o : version.c 
+xdvi.o : xdvi.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h pxl-open.h xdvi.icon 
+xmalloc.o : xmalloc.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h 
+xopendir.o : xopendir.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h dirio.h 
+xrealloc.o : xrealloc.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h 
+xstat.o : xstat.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h c-pathch.h \
+  c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h xdvi.h \
+  lib.h types.h xstat.h 
+xstrdup.o : xstrdup.c config.h c-auto.h paths.h c-std.h c-memstr.h c-errno.h \
+  c-pathch.h c-pathmx.h c-limits.h c-namemx.h c-minmax.h c-seek.h c-fopen.h c-proto.h \
+  xdvi.h lib.h types.h 

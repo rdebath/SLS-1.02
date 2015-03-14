@@ -1,0 +1,150 @@
+#
+# Term program makefile.
+# valids targets are:
+#	all term linecheck test tags clean install realclean ${PROGS}
+PROG=term
+CC=gcc
+SHELL=/bin/sh
+# if use a NeXT machine, then replace CC with this line...
+# CC=gcc -DNeXT
+CPP=$(CC) -E
+# if useing a NeXT then use..
+# CPP=cc -E -DNeXT
+DEBUGFLAGS= $(DEBUG) -O
+CFLAGS= $(DEBUGFLAGS)
+  
+RM=rm -f
+LN=ln 
+# If the following fails to work, the change it to be
+# ar rc 
+# and uncomment the ranlib below.
+# on a sun you can use /usr/5bin/ar.
+AR=ar rc
+RANLIB= ranlib
+INSTALL= install
+INSTPGMFLAGS = -s
+MKDIR= mkdir
+BINDIR=/usr/local/bin
+MANDIR=/usr/man/man1
+#
+# Change this if yours is different.
+#
+CURSES= -ltermcap
+
+TERMOBJS=main.o serial.o misc.o link.o pty.o compress.o \
+		checksum.o meta.o statistics.o sevenbit.o \
+		client.a
+CLIENTOBJS=lib.o client.o terminal.o select.o socket.o connect.o
+
+TRSHELLOBJS=trshell.o client.a
+UPLOADOBJS=upload.o client.a
+RTELNETOBJS=rtelnet.o client.a
+REDIROBJS=redir.o client.a
+XCONNOBJS=xconn.o client.a
+STATOBJS=tmon.o client.a
+
+PROGS=term trsh tupload txconn tredir tmon
+
+MANPAGES=term.1 term_clients.1 term_setup.1 tupload.1 tredir.1 \
+	trsh.1 linecheck.1 tmon.1
+
+all: $(PROGS)
+  
+install: all
+	if [ ! -d $(DESTDIR)$(BINDIR) ]; then $(MKDIR) $(DESTDIR)$(BINDIR); \
+	else true; fi
+	for i in $(PROGS);\
+	do \
+	$(INSTALL) -c $(INSTPGMFLAGS)  $$i $(DESTDIR)$(BINDIR);\
+	done
+
+installman:
+	if [ ! -d $(DESTDIR)$(MANDIR) ]; then $(MKDIR) $(DESTDIR)$(MANDIR); \
+	else true; fi
+	for i in $(MANPAGES);\
+	do \
+	cp $$i $(DESTDIR)$(MANDIR);\
+	done
+ 
+client.a: $(CLIENTOBJS)
+	$(RM) client.a
+	$(AR) client.a $(CLIENTOBJS)
+# if you need ranlib, then uncomment the following
+	$(RANLIB) client.a
+
+term: $(TERMOBJS) 
+	$(CC) $(CFLAGS) -o term $(TERMOBJS)
+
+trsh: $(TRSHELLOBJS)
+	$(CC) $(CFLAGS) -o trsh $(TRSHELLOBJS)
+
+
+trcmd: $(RSYSTEMOBJS)
+	$(CC) $(CFLAGS) -o trcmd $(RSYSTEMOBJS)
+
+test: test.o
+	$(CC) $(CFLAGS) -o test test.o
+
+tupload: $(UPLOADOBJS) 
+	$(CC) $(CFLAGS) -o tupload $(UPLOADOBJS)
+
+tredir: $(REDIROBJS)
+	$(CC) $(CFLAGS) -o tredir $(REDIROBJS)
+
+txconn: $(XCONNOBJS)
+	$(CC) $(CFLAGS) -o txconn $(XCONNOBJS)
+
+tmon: $(STATOBJS)
+	$(CC) $(CFLAGS) -o tmon $(STATOBJS) $(CURSES)
+
+linecheck: linecheck.c terminal.o
+	$(CC) $(CFLAGS) -o linecheck linecheck.c terminal.o
+
+tags:
+	etags *.h *.c
+
+myclean:
+	$(RM) *~
+
+clean:
+	$(RM) *.o *.a core compress.debug out *~
+
+realclean: clean
+	$(RM) $(PROGS) test 1 linerem check trcmd linecheck TAGS
+
+
+depend dep:
+	sed '/\#\#\# Dependencies/q' < Makefile > tmp_make
+	for i in *.c ;do $(CPP) -M $$i;done >> tmp_make
+	mv tmp_make Makefile
+
+version: myclean diff
+	(cd ..;tar cf term.tar term/*.c term/*.h term/M* term/P* term/O* \
+	 term/I* term/R* term/C* term/T* term/*.1 )
+	(cd ..;compress term.tar)
+
+diff:
+	(cd ..;mv term term.new;tar xfz term.tar.Z;mv term term.old; \
+		mv term.new term;diff -c +new-file term.old term > term.diff; \
+		rm -rf term.old)
+
+#
+# The following targets are mostly for my personal use. I use them to 
+# update the remote version of term when I am developing.
+myver: myclean mydiff
+	(cd ..;tar cf t.tar term)
+	(cd ..;compress t.tar)
+
+mydiff:
+	(cd ..;mv term term.new; tar xfz t.tar.Z;mv term term.old; \
+		mv term.new term;diff -c +new-file term.old term > term.diff; \
+		rm -rf term.old)
+
+update: mydiff
+	(export TERMDIR=/root; \
+		cd ..;trsh rm term.diff;tupload term.diff; \
+		trsh termpatch)
+
+dummy:
+
+### Dependencies:

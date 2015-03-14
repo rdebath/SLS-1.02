@@ -1,0 +1,344 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 8
+%label{bevel}{?}
+%label{button}{9.3}
+%label{menu}{9.5}
+%label{adjustable}{?}
+%label{valuator}{?}
+%label{field-editor}{?}
+%label{widgetkit-styles}{9.1}
+%label{widgetkit-cursors}{9.2}
+%label{widgetkit-buttons}{9.4}
+%label{widgetkit-adjusters}{9.6}
+
+\begin{document}
+%
+%
+\chapter{WidgetKit}%
+%
+\float{figure}{9-\pagenumber{00}}%378.8 -642.8 -2
+\float{figure}{9-\pagenumber{00}}%378.8 -642.8 0
+WidgetKit defines operations for creating user interface objects with
+a concrete look-and-feel.  Typically, an application uses a widget
+kit to create specific components, such as pulldown menus, push buttons,
+and scrollbars.  WidgetKit isolates the application from specific
+look-and-feel issues and the details of how a concrete component is
+implemented.  Many components are defined using instances of existing
+classes.  For example, a push button with a string label is created
+using a button, label, and two bevel objects.
+
+\quad InterViews provides a base widget kit class for creating common
+user interface objects.  Subclasses are provided for implementing
+concrete objects based on the Motif (default) and OpenLook user interfaces.
+
+\quad WidgetKit::instance is a static member function that returns
+a default kit.  If a kit has not yet been created, WidgetKit::instance
+creates one using the session's style to determine which kit subclass
+to construct.%
+%
+\section{Style management}%
+%
+WidgetKit maintains a current style for use in customizing widgets.  The
+initial style is the root style for all windows.  WidgetKit defines
+the operations shown in Figure%
+%
+\code{void style(Style*);\
+Style* style() const;\
+void begin\_style(const String\&), end\_style();\
+void alias(const String\&);\
+void push\_style(), pop\_style();\
+void style\_changed(Style*);\
+const Font* font() const;\
+const Color* foreground() const;\
+const Color* background() const;%
+%
+\figurecaption{WidgetKit operations for style management\label{widgetkit-styles}}%
+%
+%0.240036 -470.16 0
+}%
+%
+ \ref{widgetkit-styles} for querying and modifying the style.
+
+\quad WidgetKit::style sets or gets the current style.  When the style
+is set or changed via a Style::attribute call, WidgetKit::style\_changed
+is called to allow WidgetKit subclasses to recompute information associated
+with the current style (such as colors for shading).
+
+\quad WidgetKit::begin\_style sets the current style to a newly-created
+style that is a child of the current style.  The given string is the
+name of the new style.  WidgetKit::alias adds an alias name for the
+current style.  Widget::end\_style returns the current style to what
+it was before the call to WidgetKit::begin\_style.  WidgetKit::push\_style
+and pop\_style save and restore the current style on a stack.
+
+\quad WidgetKit::font, foreground, and background return specific
+attribute information for the current style.  These operations are
+equivalent to (though potentially faster than) finding the string
+value of a style attribute and then looking up the resource with the
+given name.  For example, WidgetKit::font is the same as finding the
+attribute named \252font\272 and calling Font::lookup on the attribute's
+value.%
+%
+\section{Common cursors}%
+%
+WidgetKit provides operations to retrieve commonly-used cursors that
+might be shared among several widgets.  Figure%
+%
+\code{Cursor* hand\_cursor() const;\
+Cursor* lfast\_cursor() const;\
+Cursor* lufast\_cursor() const;\
+Cursor* ufast\_cursor() const;\
+Cursor* rufast\_cursor() const;\
+Cursor* rfast\_cursor() const;\
+Cursor* rdfast\_cursor() const;\
+Cursor* dfast\_cursor() const;\
+Cursor* ldfast\_cursor() const;%
+%
+\figurecaption{WidgetKit cursors\label{widgetkit-cursors}}%
+%
+%1.2 1.19995 1
+}%
+%
+ \ref{widgetkit-cursors} shows the currently-defined operations.  WidgetKit::hand\_cursor
+is the outline of a small hand.  WidgetKit::lfast\_cursor is a double-arrow
+pointing to the left that is typically used in continuous rate scrolling.  Similarly,
+the other \252fast\272 cursors are double-arrows pointing in various
+directions.%
+%
+\section{Bevels}%
+%
+On color displays, it is often desirable to frame objects with a beveled
+look to give a 3D appearance.  WidgetKit provides the following three
+functions for creating beveled frames:\smallskip
+\quad Glyph* inset\_frame(Glyph*) const;\
+\quad Glyph* outset\_frame(Glyph*) const;\
+\quad Glyph* bright\_inset\_frame(Glyph*) const;\smallskip
+WidgetKit:inset\_frame uses dark shading in the upper left and light
+shading in the lower right to make the contents of the frame appear
+to be recessed.  WidgetKit::outset\_frame reverses the shading to
+make the contents appear to project out of the frame.  WidgetKit::bright\_inset\_frame
+is like inset\_frame but uses a brighter background color and is thinner.%
+%
+\section{Labels}%
+%
+A label is a string of text with the current style's font and color.  WidgetKit
+provides two operations for creating labels:\smallskip
+\quad \quad Glyph* label(const char*) const;\
+\quad \quad Glyph* label(const String\&) const;%
+%
+\section{Buttons}%
+%
+A button is an input handler that can perform an action when pressed.
+Buttons manipulate a {\font{Times-Italic}telltale state} object so
+that  views (which are typically part of the button's body) can reflect
+the current state visually.  The button itself is a view so that it
+can damage the canvas when appropriate, freeing other views from the
+need to store update information.
+
+\quad A telltale state can be part of a {\font{Times-Italic}telltale
+group}.  When one member of a group is chosen, then the currently
+chosen state becomes unchosen.  Telltale groups are useful for implementing
+radio buttons.
+
+\quad Figure%
+%
+\code{interface Button : ActiveHandler, Observer \{\
+\quad Button(Glyph*,  Style*, TelltaleState*, Action*);\
+\quad TelltaleState* state() const;\
+\quad Action* action() const;\
+\};\smallskip
+typedef unsigned int TelltaleFlags;\smallskip
+interface TelltaleState : Resource, Observable \{\
+\quad TelltaleState(const TelltaleFlags = 0);\
+\quad enum \{\
+\quad \quad is\_enabled, is\_visible, is\_enabled\_visible, is\_active,
+is\_enabled\_active,\
+\quad \quad is\_visible\_active, is\_enabled\_visible\_active, is\_chosen,
+is\_enabled\_chosen,\
+\quad \quad is\_visible\_chosen, is\_enabled\_visible\_chosen,\
+\quad \quad is\_enabled\_active\_chosen, is\_active\_chosen,\
+\quad \quad is\_visible\_active\_chosen, is\_enabled\_visible\_active\_chosen,\
+\quad \quad is\_running, is\_choosable, is\_toggle,\
+\quad \quad max\_flags\
+\quad \};\smallskip
+\quad TelltaleFlags flags() const;\
+\quad void set(const TelltaleFlags, boolean);\
+\quad boolean test(const TelltaleFlags) const;\
+\quad void join(TelltaleGroup*);\
+\quad void leave\_group();\
+\};\smallskip
+interface TelltaleGroup : Resource \{\
+\quad void update(TelltaleState*);\
+\quad void remove(TelltaleState*);\
+\};%
+%
+\figurecaption{Button, TelltaleState, and TelltaleGroup protocols\label{button}.}%
+%
+%0.240013 -35.28 3
+}%
+%
+ \ref{button} shows the button, telltale state, and telltale group
+protocols.  Button just provides operations to access the associated
+telltale state and action.  TelltaleState defines a set of flags that
+define the current state.  TelltaleState::set and TelltaleState::test
+modify and query the current state, respectively.  TelltaleState::join
+and TelltaleState::leave\_group allow the state to be associated with
+a group.
+
+\quad Figure%
+%
+\code{Button* push\_button(const String\&, Action*) const;\
+Button* push\_button(Glyph*, Action*) const;\
+Button* default\_button(const String\&, Action*) const;\
+Button* default\_button(Glyph*, Action*) const;\
+Button* palette\_button(const String\&, Action*) const;\
+Button* palette\_button(Glyph*, Action*) const;\
+Button* check\_box(const String\&, Action*) const;\
+Button*  check\_box(Glyph*, Action*) const;\
+Button* radio\_button(TelltaleGroup*, const String\&, Action*) const;\
+\
+Glyph* push\_button\_look(Glyph*, TelltaleState*) const;\
+Glyph* default\_button\_look(Glyph*, TelltaleState*) const;\
+Glyph* palette\_button\_look(Glyph*, TelltaleState*) const;\
+Glyph* check\_box\_look(Glyph*, TelltaleState*) const;\
+Glyph* radio\_button\_look(Glyph*, TelltaleState*) const;%
+%
+\figurecaption{WidgetKit button operations\label{widgetkit-buttons}}%
+%
+%2.16003 2.16003 4
+}%
+%
+ \ref{widgetkit-buttons} shows the WidgetKit operations that return
+buttons.  Push button, default button, and palette button typically
+have a similar appearance.  Neither a push button or a default button
+can be chosen, whereas a palette button can.  A default button might
+have a different appearance to indicate to the user that it is the
+common choice.
+
+\quad A check box is a toggle button: choosing it when already chosen
+will cause it to become unchosen.  A radio button must belong to a
+telltale group so that within the group only one button is chosen
+at any given time.
+
+\quad For application-specific actions, it is necessary to define
+action callbacks for the relevant application classes.  In the case
+of quitting the application WidgetKit::quit can be used to return
+an action that calls Session::quit.%
+%
+\section{Menus}%
+%
+A menu is similar to a group of related buttons, called menu items.  Like
+a button, the look of a menu item is dependant on a telltalestate.  Menu
+items can have associated actions that are executed when the item
+is chosen.  Menus items can also have associated nested menus, in
+which case the submenu is opened when the item is highlighted.  Figure%
+%
+\code{Menu* menubar() const, * pulldown() const, * pullright() const;\
+MenuItem* menubar\_item(const String\&) const;\
+MenuItem* menubar\_item(Glyph*) const;\
+MenuItem* menu\_item(const String\&) const;\
+MenuItem* menu\_item(Glyph*) const;\
+MenuItem* check\_menu\_item(const String\&) const;\
+MenuItem* check\_menu\_item(Glyph*) const;\
+MenuItem* radio\_menu\_item(TelltaleGroup*, Glyph*) const;\
+MenuItem* menu\_item\_separator() const;\smallskip
+Glyph* menubar\_look() const, pulldown\_look() const, pullright\_look()
+const;\
+Glyph* menubar\_item\_look(Glyph*, TelltaleState*) const;\
+Glyph* menu\_item\_look(Glyph*, TelltaleState*) const;\
+Glyph* check\_menu\_item\_look(Glyph*, TelltaleState*) const;\
+Glyph* radio\_menu\_item \_look(Glyph*, TelltaleState*) const;\
+Glyph* menu\_item\_separator\_look() const;\medskip
+interface MenuItem : Observer \{\
+\quad MenuItem(Glyph*, TelltaleState*);\
+\quad Glyph* body() const;\
+\quad TelltaleState* state() const;\
+\quad void action(Action*);\
+\quad Action* action() const;\
+\quad void menu(Menu*, Window* = nil);\
+\quad Menu* menu() const;\
+\quad Window* window() const;\
+\};\smallskip
+interface Menu : InputHandler \{\
+\quad Menu(Glyph*, Style*, float x1, float y1, float x2, float y2);\
+\quad void append\_item(MenuItem*);\
+\quad void prepend\_item(MenuItem*);\
+\quad void insert\_item(GlyphIndex, MenuItem*);\
+\quad void remove\_item(GlyphIndex);\
+\quad void replace\_item(GlyphIndex, MenuItem*);\
+\quad GlyphIndex item\_count() const;\
+\quad MenuItem* item(GlyphIndex) const;\
+\quad void select(GlyphIndex);\
+\quad GlyphIndex selected() const;\
+\};%
+%
+\figurecaption{WidgetKit menu operations, menu, and menu item protocols\label{menu}.}%
+%
+%-1.67995 -23.7601 5
+}%
+%
+ \ref{menu}  shows the WidgetKit menu operations and the menu item
+and menu protocols.
+
+\quad WidgetKit::menubar creates a horizontal menu with a small amount
+of white space between items.  WidgetKit::pulldown and WidgetKit::pullright
+create vertical menus.  The top of a pulldown menu will be aligned
+to the bottom of the menubar, while a pullright's top will be aligned
+to the top right of its containing item.
+
+\quad WidgetKit::menubar\_item creates an item centered horizontally
+with a small amount of white space on each side.  WidgetKit::menu\_item
+creates a left-adjusted item, WidgetKit::check\_menu\_item creates
+a toggle item that looks like a check box when chosen.  WidgetKit::radio\_menu\_item
+creates an item that looks like a radio button.  WidgetKit::menu\_item\_separator
+returns an item for visually separating other items (such as a horizontal
+line).%
+%
+\section{Adjusters}%
+%
+Scrollbars and mover buttons are examples of interactive objects that
+\252adjust\272 the view shown by another object.  WidgetKit provides
+the operations shown in Figure%
+%
+\code{Glyph* hslider(Adjustable*) const;\
+Glyph* hscroll\_bar(Adjustable*) const;\
+Glyph* vslider(Adjustable*) const;\
+Glyph* vscroll\_bar(Adjustable*) const;\
+Glyph* panner(Adjustable*, Adjustable*) const;\smallskip
+Stepper* enlarger(Adjustable*) const;\
+Stepper* reducer(Adjustabel*) const;\
+Stepper* up\_mover(Adjustable*) const;\
+Stepper* down\_mover(Adjustable*) const;\
+Stepper* left\_mover(Adjustable*) const;\
+Stepper* right\_mover(Adjustable*) const;\smallskip
+Glyph* slider\_look(DimensionName, Adjustable*) const;\
+Glyph* scroll\_bar\_look(DimensionName, Adjustable*) const;\
+Glyph* panner\_look(Adjustable*, Adjustable*) const;\
+Glyph* enlarger\_look(TelltaleState*);\
+Glyph* reducer\_look(TelltaleState*);\
+Glyph* up\_mover\_look(TelltaleState*);\
+Glyph* down\_mover\_look(TelltaleState*);\
+Glyph* left\_mover\_look(TelltaleState*);\
+Glyph* right\_mover\_look(TelltaleState*);%
+%
+\figurecaption{WidgetKit adjuster operations\label{widgetkit-adjusters}}%
+%
+%-0.719971 -80.4001 6
+}%
+%
+ \ref{widgetkit-adjusters} to create common adjusters.
+
+\quad WidgetKit::hscroll\_bar and WidgetKit::vscroll\_bar return controls
+for scrolling a view in the horizontal and vertical dimensions, respectively.  WidgetKit::panner
+returns a control for scrolling two adjustables at once.  One adjustable
+is controlled by the horizontal position of the panner, one by the
+vertical position.  Typically, the same adjustable is passed to both
+parameters when creating a panners.\pagebreak
+\pagebreak
+
+
+%
+\end{document}

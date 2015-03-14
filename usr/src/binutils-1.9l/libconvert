@@ -1,0 +1,46 @@
+#! /bin/sh
+
+if [ $# != 2 ]
+then
+	echo 'usage: libconvert from.a to.a'
+	exit 1
+fi
+
+fromlib=$1
+tolib=$2
+
+#
+# Convert coff libc to a coff-encapsulated libc
+# suitable for linking with the GNU linker.
+#
+# Extract all members of /lib/libc.a (using coff ar).
+# Convert each using robotussin.
+# Create new libc (using gnu ar) with members in the same order as coff libc.
+
+# set -e makes this script exit if any command gets an error
+set -e
+
+case $fromlib in 
+/*) 	rel_fromlib=$fromlib ;;
+*) 	rel_fromlib=../$fromlib ;;
+esac
+
+case $tolib in
+/*)	rel_tolib=$tolib ;;
+*)	rel_tolib=../$tolib ;;
+esac
+
+/bin/rm -rf libconvert-tmp
+mkdir libconvert-tmp
+cd libconvert-tmp 
+/bin/ar x $rel_fromlib
+for i in *
+do
+	echo $i
+	../robotussin $i x
+	mv x $i
+done
+/bin/rm -f $rel_tolib
+lar rs $rel_tolib `/bin/ar t $rel_fromlib`
+cd ..
+/bin/rm -rf libconvert-tmp

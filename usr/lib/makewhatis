@@ -1,0 +1,131 @@
+#!/bin/sh
+# makewhatis: create the whatis database
+# Created: Sun Jun 14 10:49:37 1992
+# Revised: Wed Dec 23 14:22:44 1992 by root
+# Copyright 1992 Rickard E. Faith (faith@cs.unc.edu)
+# May be freely distributed and modified as long as copyright is retained.
+
+# Wed Dec 23 13:27:50 1992: Rik Faith (faith@cs.unc.edu) applied changes
+# based on Mitchum DSouza (mitchum.dsouza@mrc-apu.cam.ac.uk) cat patches.
+# Also, cleaned up code and make it work with NET-2 doc pages.
+
+
+PATH=/usr/bin:/bin
+
+for name in $*
+do
+case $name in
+    -u) update="-ctime 0";
+        continue;;
+    -c) pages=cat;
+        filter="col -bx";
+        continue;;
+    -*) echo "Usage: makewhatis -c -u [manpath]";
+        echo "       -c: build database from cat pages";
+        echo "       -u: update database with new pages";
+        echo "       [manpath]: man directory (default: /usr/man)";
+        exit;;
+     *) if [-d $name]
+        then
+            mandir=$name
+        else
+            echo "No such directory $name"
+            exit
+        fi;;
+esac
+done
+
+pages=${pages-man}
+export pages
+mandir=${mandir-/usr/man}
+filter=${filter-cat}
+
+cd $mandir
+
+for i in 1 2 3 4 5 6 7 8 9 n l
+do
+    if [ -d ${pages}$i ]
+    then
+        cd ${pages}$i
+        section=$i
+        export section
+        for j in `find . -name '*' ${update} -print`
+        do
+            if [ `basename $j .Z` != `basename $j` ]
+            then
+                Cat=zcat
+            else
+                Cat=cat
+            fi
+            ${Cat} ${j} | ${filter} |\
+            gawk 'BEGIN {after = 0; insh = 0;
+                        pages = ENVIRON["pages"];
+                        section = ENVIRON["section"]} {
+                if (($1 ~ /^\.[Ss][Hh]/ && $2 ~ /[Nn][Aa][Mm][Ee]/) ||
+                    (pages == "cat" && $1 ~ /^NAME/)) {
+                    if (!insh)
+                        insh = 1
+                    else {
+                        printf "\n"
+                        exit
+                    }
+                } else if (insh) {
+                    if ($1 ~ /^\.[Ss][HhYS]/ ||
+                        (pages == "cat" && $1 ~ /^S[yYeE]/)) {
+                        printf "\n"
+                        exit
+                    } else { # Substitutions after Tom Christiansen perl script
+                        gsub(/	/, " ")             # Translate tabs to spaces
+                        gsub(/  /, " ")             # Collapse spaces
+                        gsub(/  /, " ")             # Collapse spaces
+                        gsub(/  /, " ")             # Collapse spaces
+                        sub(/^[ ]/, "")             # Kill initial spaces
+                        sub(/-$/,"")                # Handle Hyphenations
+                        sub(/^.[IB] /, "")          # Kill bold and italics
+                        gsub(/\\f[PRIB0123]/, "")   # Kill font changes
+                        gsub(/\\s[-+0-9]*/, "")     # Kill size changes
+                        gsub(/\\&/, "")             # Kill \&
+                        gsub(/\\\((ru|ul)/, "_")    # Translate
+                        gsub(/\\\((mi|hy|em)/, "-") # Translate
+                        gsub(/\\\*\(../, "")        # Kill troff strings
+                        sub(/^\.\\\"/, "")          # Kill comments
+                        gsub(/\\/, "")              # Kill all backslashes
+                        if ($0 !~ / - / && $0 !~ / -$/ && $0 !~ /^- /) {
+                            if (after) {
+                                if ($1 !~ /^\.../ && $1 != "")
+                                    printf " %s", $0
+                                else {
+                                    printf "\n"
+                                    after = 0
+                                }
+                            } else {
+                                if ($1 !~ /^\.../ && $1 != "")
+                                    printf "%s ", $0
+                                else
+                                    printf "\n"
+                            }
+                        } else {
+                            after = 1
+                            if ($0 ~ / - /) {
+                                printf "%-20s", sprintf( "%s (%s)",
+                                    substr( $0, 0, match( $0, / - / )-1 ),
+                                        section )
+                                printf "%s", substr( $0, match( $0, / - / ) )
+                            } else if ($0 ~ / -$/) {
+                                printf "%-20s", sprintf( "%s (%s) -",
+                                    substr( $0, 0, match( $0, / -$/ )-1 ),
+                                        section )
+                            } else {
+                                printf "(%s) %s", section, $0
+                            }
+                        }
+                    }
+                }
+            }'
+            done
+        cd ..
+    fi
+done > /tmp/whatis$$
+sed '/^$/d' < /tmp/whatis$$ | sort | uniq > ${mandir}/whatis
+chmod 644 ${mandir}/whatis
+rm /tmp/whatis$$

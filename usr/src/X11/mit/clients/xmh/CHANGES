@@ -1,0 +1,128 @@
+
+		   CHANGES to xmh for X11R5
+
+For all users:
+--------------
+
+   All popup dialog boxes now respond to WM_DELETE_WINDOW protocol.
+
+   All popup dialog boxes now should correctly iconify when the window they
+are transient for is iconified.  Some popups will be positioned closer to the
+point of the most recent keypress or button press than they have been in the
+past.
+
+   Upon issuing the mh command "scan", xmh will force the argument
+"-noheaders" even when you have "-headers" in your .mh_profile.
+
+   When requesting to see a message that no longer exists, xmh will pop up
+an error dialog box, stating that it cannot open the named file.
+
+   When requesting to open a folder for reading or deletion which can no
+longer be found on the filesystem, xmh will pop up an error dialog box,
+stating that it cannot open the directory.
+
+   At start up, xmh now looks first at the MH environment variable for the
+location of the MH profile; if this environment variable is not set, then
+xmh does what it used to do: looks for .mh_profile in the user's home
+directory (from $HOME) and gets the path to the directory of folders from
+there, prepending $HOME if the path is not absolute; and finally falls back
+to $HOME/Mail as the directory of folders to operate upon.
+
+   The function LoadCheckFiles, which at the time you start up xmh, reads
+the previously undocumented file $HOME/.xmhcache, or if that is not found,
+looks at the value of InitialIncFile, is now run independently of the 
+value of the application resource CheckNewMail.  It used to run only when
+CheckNewMail was true.  This separates the functionality of 
+specifying files for inc to see as mail drops from the functionality of
+asking xmh to tell you when you have new mail.  Users can have multiple
+mail drops now when CheckNewMail is false.
+
+   Furthermore, xmh, in LoadCheckFiles, will not construct a file to inc 
+from by default; it will rely on MH's idea of a default and will not 
+pass -file <file> -truncate to inc unless the user has specified the
+mail drop(s).  Instead, if xmh doesn't know where to inc from, it relies
+upon MH.  When CheckNewMail is true and MailInterval > 0, xmh will rely 
+on the MH command msgchk to determine whether you have new mail, instead
+of doing stat on the known mail drop file.
+
+   This means POP users do no longer have to set the following
+set of resources in order to get xmh to inc without the -file argument:
+	Xmh.initialIncFile:
+	Xmh.checkNewMail:True
+	Xmh.checkFrequency:0
+POP users don't have to set any special xmh resources to use xmh.
+They should specify the inc host in their MH profile.
+
+   The default is to check for new mail every minute, and the default
+is to run msgchk.  This is a little expensive on some machines.
+
+   When xmh forks off a child process, it now effectively exec's the MH
+command in the user's path *before* looking in the directory specified 
+by the application resource mhPath.  It used to do the reverse.
+
+   When destroying a folder which is actually a symbolic link, xmh will
+no longer follow the link to destroy the actual directory and its contents.
+xmh will now simply remove the link.  
+
+   New resources allow you to have separate control over toc updates,
+checkpointing of messages which are being edited, and checking for new mail.
+New resources allow you to specify a bitmap to be displayed to the left
+of the folder name when a top level folder has mail waiting, or not.
+New resources allow you to suggest an icon bitmap to the window manager
+which can change state depending on whether there is new mail waiting for
+any folder.
+
+   The default value of SendBreakWidth has been changed to 2000, because
+it prevents diffs sent through xmh from being broken up when there are long
+lines.
+
+   A delete button has been added to the View window, to delete the viewed
+message.
+
+   The defaults specified in the application class defaults file have been
+weakened where possible, so that it is easier for users to specify 
+resources values which will have higher precedence.
+
+   New resource, ShowOnInc
+
+   Supports WM_SAVE_YOURSELF by checkpointing unsaved edits of messages.
+
+   When running with a click-to-set-input-focus window manager such as mwm,
+the input focus is now correct for compose windows.  As a side effect, users
+who specified accelerators for the title bar and button box of compose 
+windows will find that these accelerators no longer work.  It is impossible
+to use accelerators in those areas of the compose window.
+
+Especially for users who write customized xmh resources:
+--------------------------------------------------------
+
+New Actions, see the manual page:
+
+	XmhWMProtocols()
+	XmhShellCommand()
+	XmhCheckForNewMail()
+	XmhViewMarkDelete()
+
+Deleted actions, 
+	XmhCancelPick, replaced by XmhWMProtocols, but your old translations
+	will still work.
+
+
+For programmers who have code which they add to xmh:
+----------------------------------------------------
+This is guaranteed not to be a complete listing of interface changes.
+
+Interface changes:
+	DeterminePopupPosition		popup.c
+	PopupPrompt			popup.c
+	PopupError			popup.c
+	TocCheckForNewMail		toc.c
+	TocIncorporate			toc.c
+
+New interfaces:
+	PopupWarningHandler	called by Xt for all warnings.
+	CheckForNewMail		internal interface, does the obvious
+	TocHasMail		whether xmh believes a folder has new mail
+	TocFolderExists		check before opening
+	WMDeletePopup
+

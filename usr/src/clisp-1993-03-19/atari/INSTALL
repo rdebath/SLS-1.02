@@ -1,0 +1,217 @@
+Installation on Atari ST/TT (GEM version):
+------------------------------------------
+
+1. Install a GNU GCC development environment, either
+
+   A. a full development environment on Atari, or
+   B. a cross-compiling environment on a workstation and a small
+      development environment on Atari.
+
+   You will have to get the Dunning/Bammi/Ridderbusch port of GCC for Atari
+   via anonymous FTP. I use the FTP servers rusmv1.rus.uni-stuttgart.de,
+   directory soft/atari/gnu, and ?????.uni-paderborn.de .
+
+
+Case A:
+-------
+
+1. Get - the gul‰m shell,
+       - the gcc and gas binaries,
+       - the include files,
+       - the libraries, possibly with source,
+       - make,
+       - grep, diff, patch, gdb and the like.
+
+2. Convert the sources to the Atari ST character set.
+   They are distributed in ISO Latin-1 character set.
+   See file CONVERT.
+
+(To be continued.)
+
+
+Case B:
+-------
+
+We will compile to .s on the workstation and to the rest on Atari.
+
+1. For the workstation cross-compiling environment,
+   a. get and install the newest gcc,
+   b. get
+       - gcc 2.1 (or newer) sources as modified by Jwahar Bammi for
+         Atari ST,
+         [The essential parts are the tm-atari.h and the xm-atari.h files
+         as well as the modifications to the config.sub file.]
+       - the include files for the Atari ST gcc,
+      and install them (assuming your local prefix for GNU utilities is
+      '/usr/local/gnu') in /usr/local/gnu/atari :
+      /usr/local/gnu/atari/bin       will contain the cross-Atari gcc,
+      /usr/local/gnu/atari/include   unpack include.zoo here.
+      Just for reference in case of trouble:
+      /usr/local/gnu/atari/lib       unpack libsrc.zoo here.
+   c. build the cross-compiler:
+        cd /usr/local/gnu/gcc
+        configure --host=<HOST> --target=atari
+        make
+        make install
+      This will install a cross-compiler 'gcc-atari' in /usr/local/gnu/bin.
+      Make a symbolic link
+        ln -s /usr/local/gnu/bin/gcc-atari /usr/local/gnu/atari/bin/gcc
+
+   For the small development environment on Atari, get
+     - the gul‰m shell,
+     - the newest gcc2 binaries (e.g. gcc-2.2.2-pl3.zoo), including gas,
+     - the Atari libraries (e.g. libolb80.zoo),
+     - the gcc-atari documentation (e.g. gcc-doc-dvi.zoo).
+   I installed
+     - gul‰m in the root directory of drive E:
+       e:\dgulam.prg (dgulam is the german version of gulam), e:\dgulam.hlp
+       and gulam.g,
+     - the gcc package in E:\GNU :
+       e:\gnu\exec\gcc.ttp
+       e:\gnu\exec\gcc-as.ttp
+       e:\gnu\exec\gcc-ld.ttp
+                              The environment variable GCCEXEC or
+                              GCC_EXEC_PREFIX must point here.
+       e:\gnu\lib\crt0.o
+       e:\gnu\lib\*.olb
+                              The environment variable GNULIB must point here.
+       e:\gnu\temp\
+                              The environment variable TEMP must point here.
+
+2. (On the workstation.)
+   Prepare a directory for the compilation:
+
+         mkdir make.atari
+         cd make.atari
+         cp ../atari/makefile.cross makefile
+
+   The Atari ST version of CLISP won't run on an Atari TT (it requires a
+   68000 CPU and is not "24-bit clean"). If you are going to make the Atari TT
+   version, add -DATARITT to the line defining XCFLAGS in the makefile.
+
+3. Type
+
+         make config.lsp
+
+   and edit the contents of config.lsp appropriately for your site,
+   especially the definitions of short-site-name and long-site-name.
+
+   You may also choose to build the german version of CLISP by adding
+   -DDEUTSCH to the line defining CFLAGS in the makefile.
+
+4. Compile everything:
+
+         make init
+         make allc
+         make alls
+         make alllsp
+
+   Then
+
+         cd ..
+
+5. (On the workstation.)
+   Prepare the conversion utilities, as described in the file CONVERT.
+
+6. (Still on the workstation.)
+   Now it's time to transfer files to the Atari. Preparation:
+
+         mkdir transfer.atari
+         cd transfer.atari
+         cp ../atari/*.g .
+         cp ../atari/all_* .
+         cp ../atari/makefile.atari makefile
+         cp ../make.atari/*.s .
+         cp ../make.atari/*.lsp .
+
+   Transfer the *.s files and the *.lsp files to Atari, converting character
+   sets:
+
+         all-to-atari makefile *.g all_* *.lsp
+
+   [Note that the *.s files needn't be converted: they contain only Ascii
+   characters, and the Atari gcc as well as "the" Atari editor tempus.prg
+   accept files with NL instead of CR/LF as newline delimiter.]
+
+         cp -p * /pcfs
+   or
+         zoo a /pcfs/transfer.zoo *
+
+   [/pcfs is a PC filesystem I use for transferring to Atari.
+   Even with compression, all doesn't fit on a single disk.
+   You have to transfer it piece by piece:
+         zoo a /pcfs/trans1.zoo makefile *.g all_* *.lsp
+         zoo a /pcfs/trans2.zoo *.s
+   and change the disk between both commands.]
+
+   [When using kermit to transfer files over a serial connection, make sure
+   both kermits are running in binary mode.]
+
+   Get rid of the files in Atari character set, to avoid confusion:
+
+         rm makefile *.g all_* *.lsp
+
+         cd ..
+
+7. (On Atari ST.)
+   Start the gul‰m shell. It should load gulam.g.
+
+         cd e:\clisp
+
+   Get the files from the workstation:
+         cp a:\*.* .
+   or
+         zoo x a:\transfer.zoo
+
+8. Assemble the *.s files:
+
+         assemble.g
+
+   Link the *.o files together, building lisp.prg:
+
+         link.g
+
+   Run it and build lispinit.mem:
+
+         lisp.prg
+         > (load "init.lsp")
+         > (saveinitmem)
+         > (exit)
+
+   Build the *.fas files:
+
+         compile1.g
+
+   Or
+
+         make lisp.prg            makes the executable
+         make interpreted.mem     a memory image with everything uncompiled
+         make compiled.mem        makes all *.fas files and
+                                  a memory image with everything compiled
+         make manual              makes the documentation
+   The fourth step is the most time consuming.
+
+9. Make a directory for a lasting installation of CLISP, say D:\LIB\LISP.
+   Copy lisp.prg and compiled.mem there:
+
+         copy lisp.prg D:\LIB\LISP\lisp.prg
+         copy compiled.mem D:\LIB\LISP\lispinit.mem
+
+   Don't forget the documentation:
+
+         copy E:\CLISP\CLISP.* D:\LIB\LISP
+         copy E:\CLISP\IMPNOTES.TXT D:\LIB\LISP
+
+   You can now remove directory E:\CLISP and all its contents.
+
+
+Authors:
+--------
+
+        Bruno Haible                    Michael Stoll
+        Augartenstraﬂe 40               Gallierweg 39
+    D - W 7500 Karlsruhe 1          D - W 5300 Bonn 1
+        Germany                         Germany
+
+Email: haible@ma2s2.mathematik.uni-karlsruhe.de
+

@@ -1,0 +1,196 @@
+README for xsysinfo version 1.1.
+
+WHAT IS XSYSINFO:
+
+xsysinfo is an X application to display some Linux kernel
+parameters in graphical form. It is like a mix of top, free and xload
+with the difference that the values are shown in form of a horizontal bar.
+The displayed values are: CPU load, CPU idle, memory and swap sizes
+(details see below).
+
+Xsysinfo 1.1 runs at least under Linux 0.99pl2 with the proc filesystem
+(to get the CPU idle time, you also have to patch the kernel; the patch file
+is included in this archive). 
+
+
+WHAT HAVE CHANGED SINCE xsysinfo 1.0?
+
+o	proc filesystem
+
+   I have completely rewritten the code to get the kernel params. It now uses
+   the proc filesystem, which made the whole stuff a lot easier. Another
+   advantage of the proc fs is, that xsysinfo can run under normal permissions
+   and need not to be recompiled with every new kernel release. The only 
+   problem with the (current version of the) proc filesystem is, that it has 
+   no support for the CPU idle time. I made some changes to the kernel and 
+   added a new `file' /proc/idle to proc fs, which always reports the current 
+   total idle time of the CPU. That's why you have to apply the included patch
+   to the kernel. Maybe Linus will add this feature to future kernel 
+   releases...
+
+
+o	memory display changed
+
+   The two gauges for memory and cache sizes are now merged together. The
+   new gauge is still in form of a bar, but is subdivided into three `segments',
+   each displayed in a different color. The meaning of the three segments
+   is: buffer cache, shared part of memory, non-shared part of memory. The 
+   length of the whole bar is proportional to the amount of all used memory.
+
+
+o	more than one swap area supported
+
+   The gauge for swap size is now also subdivided, one `segment' for each
+   swap file/partition.
+
+
+o	gauges now can be disabled
+
+   Now it is possible to disable each of the gauges either through 
+   application resources or through command line options. 
+
+
+
+FOR THE IMPATIENT:
+
+If you want to take a look at xsysinfo, before you decide to install it,
+make sure the proc fs is mounted at /proc, then just type:
+
+  XAPPLRESDIR=. xsysinfo &
+
+or
+
+  XAPPLRESDIR=. xsysinfo -noidle &
+
+if the proc fs in your kernel doesn't supports the `idle' file.
+
+
+HOW TO INSTALL:
+
+There is a compiled xsysinfo included in the archive, which needs the new
+X distribution (XFree-1.1) with the 4.2 jump libs. If you  If you want to
+install this binary just type
+
+make install
+
+as root. xsysinfo runs under normal (755) permissions, so you don't have to
+make it setuid/setgid.
+
+NOTE: Use this way to install xsysinfo! `make install' not only copies the 
+binary to the right place, it also installs the system wide application 
+defaults file (XSysinfo). Without this file you'll get a running xsysinfo,
+but it won't look very nice... 
+
+NOTE: If you run the SLS release of Linux, you have to recompile xsysinfo,
+because the X version in current SLS distribution is still XFree-1.0. The
+binary version requires the 2.1 shared libs of XFree-1.1.
+
+If you want to create your own compiled version just type:
+
+xmkmf
+make
+
+(you'll need the programming package and the libraries from the XFree
+distribution to do this.)
+Now you can install it as described above.
+
+xsysinfo requires that the proc filesystem is compiled into the kernel
+(this is the default anyway) and that it is mounted on directory /proc.
+This is usually the case, if you have SLS or use the procps package from
+Michael K. Johnson. To check this just do an `ls' on /proc, which should
+give something like this:
+
+$ ls /proc
+1/       21/      27/      39/      42/      52/      kmsg     uptime
+14/      22/      28/      4/       44/      75/      loadavg
+15/      23/      29/      40/      46/      87/      meminfo
+20/      24/      38/      41/      47/      idle     self/
+
+To mount the proc filesystem, add the following line to your /etc/fstab:
+
+none            /proc           proc    defaults        # proc fs
+
+The file `/proc/idle' doesn't exists in the current implementation (0.99.pl3)
+of the proc fs, but it is required by xsysinfo to display the CPU idle time.
+There is a patch file (linux-99.2.idle.pch) included in this archive, which
+modifies the kernel to report the idle times. 
+
+It is not absolutely neccessary to patch the kernel: you can run xsysinfo
+with the idle gauge disabled (see options). 
+
+
+WHAT IS DISPLAYED:
+
+Xsysinfo displays the following values:
+
+  - CPU load
+	CPU load average between 0.000-1.000.
+
+  - CPU idle
+	percentage CPU idle time to real time.
+
+  - Memory
+	The memory gauge's bar is subdivided into three smaller parts, called 
+        `segments', with following values (from left to right):
+
+	o	amount of physical memory, which is not shared among
+		processes (i.e. private process data).
+
+	o	amount of physical memory, which is shared among
+		processes (i.e. mainly process code and const data)
+
+	o	physical memory used for the buffer cache
+
+	The length of the whole bar, which is the sum of these three values,
+	shows the amount of physical memory currently used by the system.
+
+  - Swap
+	The swap gauge is also subdivided into segments, one for each active
+	swap partition or swap file. The displayed value is the amount of 
+	swap space in use in that partition/file. The whole bar's length is
+	proportional to the total size of the swap space used by the system.
+
+
+
+COMMAND LINE OPTIONS:
+
+  xsysinfo accepts the following command line options:
+
+	-update <n>		set update rate to <n> seconds
+	-title (-notitle)	show (don't show) title string
+	-load  (-noload)	show (don't show) CPU load value
+	-idle  (-noidle)	show (don't show) CPU idle value
+	-mem   (-nomem)		show (don't show) Memory info
+	-swap  (-noswap)	show (don't show) Swap info
+	-help			show usage
+
+  You can also specify any of the standard toolkit options (see: manpage X(1)).
+
+
+
+CONFIGURATION:
+
+  As the most X programs, xsysinfo is highly configurable. Look at the file
+  XSysinfo.ad or /usr/X386/lib/X11/app-defaults/XSysinfo, if you have installed
+  the program already, and play around with the resources in it. Especially if 
+  you have a color monitor, you should change the current settings, to make the
+  gauges come up colored. As I just have a grayscale monitor, you'll probably
+  find the current color settings not quite good. So feel free to mail me
+  your favorite settings, I'll make the best one available in the next
+  release.
+
+
+ACKNOWLEDGMENTS:
+
+Thanks to Linus and the other kernel hackers, who made Linux to this great
+OS. 
+
+COMMENTS:
+
+Comments, bug reports, whishes etc... are welcome. Send them to me
+Gabor Herr (herr@iti.informatik.th-darmstadt.de).
+
+Have fun watching the kernel...
+
+
+Gabor

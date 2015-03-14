@@ -1,0 +1,97 @@
+.TH "SNDOUT" 1ircam local IRCAM "Local Manual"
+.SH NAME
+sndout 
+- write sound files.
+.SH SYNOPSIS
+.B sndout 
+[config_flags] [time_flags] [file]
+.nf
+time_flags:
+.RS .5i
+-bN	set begin time to N (use -1 to mean current EOF)
+-eN	set end time to N
+-dN	set duration to N
+.RE
+config_flags:
+.RS .5i
+-cN	number of channels: default: 1; 
+-RN	sampling rate: 0 to 48000.0, default: 16000.0;
+-i	input packing: s (short), f (float), default: f;
+-o	output packing s (short), f (float), default: s;
+-pN	file protection: 0000 - 0666, default: (0644)
+-n	do not overwrite an already existing file
+-h	help message, prints a summary of this list.
+.RE
+.fi
+.B sndout 
+reads headers for input data format, sampling rate and number of channels.
+If file already exists the header will overwrite file properties.
+Flags override header properties.
+.SH DESCRIPTION
+Sndout reads binary samples from the standard input, and writes them
+in a file.
+.SH The Flags
+All flags for 
+.B sndout 
+take options (except -h and -n), 
+that is, the flag must be followed
+by a value, with no intervening space.  
+.PP
+The flags for 
+.B sndout 
+are divided on whether they specify how the file
+is to be configured (config_flags) or where to start/stop writing samples
+into the file (time_flags).  When time_flags are used, it is assumed that
+you are modifying an existing file.
+.SH Config_Flags
+The -c flag sets the number of channels: 1 = mono, 2 = stereo, 4 = quad.
+.PP
+The -R flag sets the sampling rate.  At IRCAM, the default sampling rate
+is 16000.0 sample-frames per second.
+A sample frame contains one sample for each channel.
+.PP
+The -i and -o flags set the packing mode.
+Samples appearing on the standard input are expected to be binary floating
+point numbers (as indicated in the synopsis
+by the 'f' default for the input packing flag).
+Similarly, the -o packing flag determines the format of the samples
+in the sound file being written.  
+By default, samples are stored as shortsams (short integers)
+for compactness of storage, and so that
+they may be played through converters in realtime. 
+.SH Time_Flags
+Once a file is created, its contents can be overwritten, and possibly
+extended by use of the time_flags.  For instance, if file named "foo" 
+exists and is 1 second long, then
+.sp
+% sndin silencefile | sndout -b.3 -e.7 foo 
+.sp
+will cause the first .4 secs of the sound file silencefile to replace
+the contents of foo.
+If silencefile is longer
+than .4 secs, the remainder is not used.  If it is less than .4 secs,
+the remaining samples are unchanged.
+Here's another equivalent:
+.sp
+% sndin silencefile | sndout -b.3 -d.4 foo
+.sp
+.PP
+Simple arithmetic expressions and the postoperators 's', 'S' and 'K', 'm'
+and 'ms' are available and work as they do for sndin.  For instance, -b1KS 
+specifies beginning at the 1024'th sample frame.
+.PP
+A better way to concatenate to the end of a sound file is as follows:
+.sp
+% sndout -b-1 < samples
+.sp
+The '-1' operator specifies "the end of the file" and can be used
+to guarantee concatenating after the last valid sample.
+.SH Flags and Headers
+.B sndout
+reads headers as described in
+.I procom(3carl).
+It is gleans the input data format, the sampling rate and number of
+channels from the header.  If flags are given for these properties,
+they override the values obtained from the header.
+.SH SEE ALSO
+sndin(1ircam)

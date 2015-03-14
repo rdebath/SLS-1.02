@@ -1,0 +1,87 @@
+#ifdef BandAidCompiler
+#include BandAidCompiler
+#endif
+
+#if InstallXdmConfig
+#define IHaveSubdirs
+#define PassCDebugFlags 'CDEBUGFLAGS=$(CDEBUGFLAGS)'
+#endif
+
+#if HasDESLibrary
+DESDEFS = -DHASDES
+DESOBJS = xdmauth.o
+DESSRCS = xdmauth.c
+#else
+DESDEFS = 
+DESOBJS =
+DESSRCS = 
+#endif
+
+   XDMCONFIGDIR = XdmConfigurationSubdirectory
+        SUBDIRS = $(XDMCONFIGDIR)
+
+DEPLIBS = $(DEPXAWLIB) $(DEPXMULIB) $(DEPXTOOLLIB) $(DEPXLIB) \
+	  $(TOP)/lib/Xau/libXau.a $(TOP)/lib/Xdmcp/libXdmcp.a
+LOCAL_LIBRARIES = $(XAWLIB) $(XMULIB) $(XTOOLLIB) \
+		  $(TOP)/lib/Xau/libXau.a $(TOP)/lib/Xdmcp/libXdmcp.a $(XLIB)
+          SRCS1 = auth.c daemon.c server.c dpylist.c dm.c error.c \
+		  file.c greet.c reset.c resource.c protodpy.c policy.c \
+		  session.c socket.c util.c verify.c Login.c mitauth.c \
+		  cryptokey.c $(DESSRCS)
+          OBJS1 = auth.o daemon.o server.o dpylist.o dm.o error.o \
+		  file.o greet.o reset.o resource.o protodpy.o policy.o \
+		  session.o socket.o util.o verify.o Login.o mitauth.o \
+		  cryptokey.o $(DESOBJS)
+          SRCS2 = xdmshell.c 
+          OBJS2 = xdmshell.o 
+          SRCS4 = sessreg.c
+          OBJS4 = sessreg.o
+       PROGRAMS = xdm xdmshell sessreg
+
+#if !HasVoidSignalReturn
+     SIGDEFS = -DSIGNALRETURNSINT
+#endif
+        DEFINES = -DBINDIR=\"$(BINDIR)\" -DXDMDIR=\"$(XDMDIR)\" $(SIGDEFS) $(DESDEFS) ConnectionFlags
+
+/**/#
+/**/# Special definitions for compiling default resources; these parameters
+/**/# should be set in util/imake.includes/site.def or the appropriate .macros
+/**/# file in that directory.  The lack of initial spaces is to prevent imake
+/**/# from accidently turning the lines into rules by putting a leading tab.
+/**/#
+/**/# Do NOT change these lines!
+/**/#
+DEF_SERVER = $(BINDIR)/X
+DEF_USER_PATH = DefaultUserPath		/* no leading spaces or imake will */
+DEF_SYSTEM_PATH = DefaultSystemPath	/* indent as rule */
+BOURNE_SHELL = DefaultSystemShell
+CPP_PROGRAM = CppCmd
+RES_DEFINES = '-DDEF_SERVER_LINE=":0 secure $(DEF_SERVER) :0"' \
+		  '-DXRDB_PROGRAM="$(BINDIR)/xrdb"' \
+		  '-DDEF_SESSION="$(BINDIR)/xterm -ls"' \
+		  '-DDEF_USER_PATH="$(DEF_USER_PATH)"' \
+		  '-DDEF_SYSTEM_PATH="$(DEF_SYSTEM_PATH)"' \
+		  '-DDEF_SYSTEM_SHELL="$(BOURNE_SHELL)"' \
+		  '-DDEF_FAILSAFE_CLIENT="$(BINDIR)/xterm"' \
+		  '-DDEF_XDM_CONFIG="$(XDMDIR)/xdm-config"' \
+		  '-DDEF_AUTH_FILE="$(XDMDIR)/auth-server"' \
+		  '-DCPP_PROGRAM="$(CPP_PROGRAM)"'
+
+ComplexProgramTarget_1(xdm,$(LOCAL_LIBRARIES), /**/)
+SingleProgramTarget(xdmshell,$(OBJS2), /**/, /**/)
+SingleProgramTarget(sessreg,$(OBJS4), /**/, /**/)
+
+SpecialObjectRule(resource.o, $(ICONFIGFILES), $(RES_DEFINES))
+
+#ifdef IHaveSubdirs
+MakeDirectories(install,$(XDMDIR))
+MakeSubdirs($(SUBDIRS))
+#endif
+
+/*
+ * Don't install; let people read the instructions about putting in the
+ * abort-display() resource:
+ */
+#ifdef comment
+InstallProgramWithFlags(xdmshell,$(BINDIR), /**/)
+#endif

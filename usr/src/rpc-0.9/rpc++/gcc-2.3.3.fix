@@ -1,0 +1,229 @@
+There are two bugs in gcc-2.3.3 that I have reported together with
+fixes for gcc-2.2.2 previously.  The first bug is commented now (but
+not fixed), the second isn't fixed either (I can understand that.  It
+is hard to do it properly).  I'm repeating the bug report below
+together with new context diffs.  Please note that I have not
+re-debugged, I have simply found that the same patches make things
+work.  So maybe the comments are out of date.
+
+Bug1:
+
+Compiling this
+--------------------------------------------------
+// -*- c++ -*-
+
+class AnyRpcCallback
+{
+protected:
+
+public:
+  inline virtual ~AnyRpcCallback () {}
+  inline virtual void Do (void* in, void* out) = 0;
+};
+
+template<class T> class RpcCallback : public AnyRpcCallback
+{
+  typedef void (T::*Method)(void*, void*);
+
+private:
+  T* object;
+  void (T::*method)(void*, void*);
+
+public:
+  inline RpcCallback (T* o, void* m)
+    { object = o; method = m; }
+  inline void Do (void* in, void* out)
+    { (object->*method)(in, out); }
+};
+
+class Test
+{
+public:
+  void m (void*, void*);
+};
+
+void Test::m (void*, void*)
+{
+}
+
+main ()
+{
+  Test o;
+  AnyRpcCallback* cb = new RpcCallback<Test> (&o, &Test::m);
+}
+--------------------------------------------------
+results in cc1plus looping infinitely.
+
+I tracked the cause down: grokdeclarator does a pushlevel(0), then
+calls start_decl, which in turn calls grokdeclarator again which does
+a poplevel_class. This poplevel_class pops the level pushed by
+pushlevel(0) and so the poplevel performed by grokdeclarator to match
+its pushlevel(0) pops quite a different level! This can easily be
+observed by compiling cp-decl.c with -DDEBUG_CP_BINDING_LEVELS.
+
+In gcc-2.3.3 the problem seems to be known as it is commented.
+
+Here is a patch that fixes the bug. I don't think it hits the real
+cause of this problem, but it works.
+
+*** cp-decl.c.orig	Sat Jan  2 15:04:20 1993
+--- cp-decl.c	Sat Jan  2 15:06:18 1993
+***************
+*** 7245,7253 ****
+--- 7245,7260 ----
+  	  tree loc_typedecl;
+  	  register int i = sizeof (struct lang_decl_flags) / sizeof (int);
+  	  register int *pi;
++  	  struct binding_level *local_binding_level;
+  
+  	  /* keep `grokdeclarator' from thinking we are in PARM context.  */
+  	  pushlevel (0);
++  	  /* poplevel_class may be called by grokdeclarator which is called in
++  	     start_decl which is called below. In this case, our pushed level
++  	     may vanish and poplevel mustn't be called. So remember what we
++  	     have pushed and pop only if that is matched by 
++  	     current_binding_level later. mnl@dtro.e-technik.th-darmstadt.de */
++  	  local_binding_level = current_binding_level;
+  	  loc_typedecl = start_decl (declarator, declspecs, initialized, NULL_TREE);
+  
+  	  pi = (int *) permalloc (sizeof (struct lang_decl_flags));
+***************
+*** 7256,7262 ****
+  	  DECL_LANG_SPECIFIC (loc_typedecl) = (struct lang_decl *) pi;
+  	  /* This poplevel conflicts with the popclass over in
+  	     grokdeclarator.  See ``This popclass conflicts'' */
+! 	  poplevel (0, 0, 0);
+  
+  #if 0
+  	  if (TREE_CODE (TREE_TYPE (loc_typedecl)) == ENUMERAL_TYPE)
+--- 7263,7270 ----
+  	  DECL_LANG_SPECIFIC (loc_typedecl) = (struct lang_decl *) pi;
+  	  /* This poplevel conflicts with the popclass over in
+  	     grokdeclarator.  See ``This popclass conflicts'' */
+!  	  if (current_binding_level == local_binding_level)
+! 	    poplevel (0, 0, 0);
+  
+  #if 0
+  	  if (TREE_CODE (TREE_TYPE (loc_typedecl)) == ENUMERAL_TYPE)
+
+Bug2:
+
+Compiling this
+--------------------------------------------------
+// -*- c++ -*-
+
+class AnyRpcCallback
+{
+protected:
+
+public:
+  inline virtual ~AnyRpcCallback () {}
+  inline virtual void Do (void* in, void* out) = 0;
+};
+
+template<class T> class RpcCallback : public AnyRpcCallback
+{
+  typedef void (T::*Method)(void*, void*);
+  typedef void (T::*MethodN)(void*, void**);
+  typedef void (T::*Method1)(void*, void*);
+  typedef void (T::*Method2)(void*, void*, void*);
+
+private:
+  T* object;
+  void (T::*method)(void*, void*);
+
+public:
+  inline RpcCallback (T* o, void* m)
+    { object = o; method = m; }
+  inline void Do (void* in, void* out)
+    { (object->*method)(in, out); }
+};
+
+class Test
+{
+public:
+  void m (void*, void*);
+};
+
+main ()
+{
+  Test o;
+  AnyRpcCallback* cb = new RpcCallback<Test> (&o, &Test::m);
+}
+--------------------------------------------------
+results in cc1plus looping infinitely.
+
+The problem is that the "chain" field of the tree-nodes used by gcc
+for its internal representation is used for various purposes, and in
+the case of this template-local typedef, someone lost track of its usage.
+
+After parsing, the TYPE_DECL-node created for the typedef is appended
+to the scope via "pushlevel". Types in the current scope are linked
+using the "chain" field. At the same time, however, all components of
+the template are linked together during parsing using the same "chain"
+field. Parsing the second typedef, "pushlevel" makes the first typedef
+a successor of the second typedef and the subsequent catenation of
+components makes the second typedef a successor of the first typedef
+thus creating a loop.
+
+The resulting list of all components is used in routine
+"finish_struct".
+
+I think the most proper approach would be to use TREE_LIST nodes in
+the list of components as indirect references to the typedef-nodes.
+This is easy to achieve, it is, however, very hard to modify
+finish_struct in a way that it handles these indirection properly.
+Actually, I gave up when I tried to understand & modify the routine
+that removes the duplicate declarations from the list of components.
+
+There are two easier approaches: (1) Don't include typedefs in the
+list of components, (2) use copies of the typedef-node which have an
+unused chain field. The first approach assumes that finish_struct
+doesn't do anything with typedefs, so it wouldn't be important if they
+are missing from the list of components. If this is the case, however,
+it can't hurt to use copies of the typedef-nodes (copies of the
+originals that are linked in the scope-list), so the second approach
+is safer. It can only fail if finish_struct modifies the typedef-nodes
+and this modification is significant for the typedef-nodes in the
+scope-list (which are, of course, not modified. Only the copies are).
+
+So I think the patch is pretty safe. It fixes the problem and doesn't
+seem to introduce new ones. I'm aware that typedefs that are local to
+templates stretch language features to the limits, but it makes my
+C++ interface to RPCs real nice.
+
+*** cp-parse.y.orig	Sat Jan  2 15:17:13 1993
+--- cp-parse.y	Sat Jan  2 15:18:13 1993
+***************
+*** 2335,2341 ****
+  		      if (TREE_CODE (t) == ENUMERAL_TYPE && TREE_NONLOCAL_FLAG (t))
+  			$$ = grok_enum_decls (t, $2);
+  		      else
+! 			$$ = $2;
+  		    }
+  		  end_exception_decls ();
+  		}
+--- 2335,2357 ----
+  		      if (TREE_CODE (t) == ENUMERAL_TYPE && TREE_NONLOCAL_FLAG (t))
+  			$$ = grok_enum_decls (t, $2);
+  		      else
+! 			{
+!  			  /* if a component is a typedef, it is inserted
+!  			     in the list of nodes that make up the valid
+!  			     types in the scope. Thus its chain field is
+!  			     used and can't be used a second time for linking
+!  			     the components of the struct. So, we make a copy
+!  			     here. This apparently works. The proper thing
+!  			     to do, however, would be to use a TREE_LIST
+!  			     node to reference the typedef. I tried to rewrite
+!  			     finish_struct accordingly (i.e., ``dereference''
+!  			     components TREE_LIST before use, but I gave up.
+!  			     mnl@dtro.e-technik.th-darmstadt.de */
+!  			  if (TREE_CODE ($2) == TYPE_DECL)
+!  			    $$ = copy_node ($2);
+!  			  else
+! 			    $$ = $2;
+! 			}
+  		    }
+  		  end_exception_decls ();
+  		}

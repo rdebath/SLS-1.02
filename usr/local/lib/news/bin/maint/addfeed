@@ -1,0 +1,78 @@
+#! /bin/sh
+# addfeed - add an outbound feed
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/maint:$NEWSBIN/relay:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+usage="Usage: $0 [-L] [-f feedtype] sitename groups"
+
+feedtype=f
+local=
+while :
+do
+	case "$1" in
+	-L)	local=L ; shift ;;
+	-f)	case "$2" in
+		'')	echo "$usage" >&2; exit 1;;
+		esac
+		feedtype="$2"
+		shift
+		shift
+		;;
+	*)	break;;
+	esac
+done
+
+case $# in
+2)	;;
+*)	echo "$usage" >&2 ; exit 2	;;
+esac
+
+case "$1$2" in
+*:*)	echo "$usage" >&2 ; exit 2	;;
+esac
+if egrep -s "^$1:" $NEWSCTL/sys >/dev/null
+then
+	echo "$0: sys-file entry for \`$1' already exists" >&2
+	exit 1
+fi
+
+case "$2" in
+=*)	b="`echo $2 | sed 's/^=//'`"		# base system
+	groups="`awk -F: \"\\\$1 == \\\"$b\\\" {print \\\$2}\" $NEWSCTL/sys |
+						sed \"s;to\\.$b;to.$1;\"`"
+	;;
+*)	groups="$2"	;;
+esac
+case "$groups" in
+*/*)	;;
+*)	groups="$groups/all"	;;
+esac
+
+lock="$NEWSCTL/LOCK"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+while true
+do
+	if newslock $ltemp $lock
+	then
+		trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+		break
+	fi
+	echo 'news system locked, waiting...'
+	sleep 5
+done
+
+echo "$1:$groups:${local}${feedtype}:" >>$NEWSCTL/sys
+mkdir "$NEWSARTS/out.going/$1"
+
+if egrep -s "^($1|/default/)[ 	]" $NEWSCTL/batchparms >/dev/null
+then
+	: okay
+else
+	echo "$0: remember to add a line to \`batchparms' for \`$1'"
+fi

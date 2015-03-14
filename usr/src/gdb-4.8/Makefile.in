@@ -1,0 +1,1534 @@
+#
+# Makefile for directory with subdirs to build.
+#   Copyright (C) 1990, 1991, 1992 Free Software Foundation
+#
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
+#
+
+srcdir = .
+
+prefix = /usr/local
+
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+libdir = $(exec_prefix)/lib
+tooldir = $(libdir)
+
+program_transform_name =
+
+datadir = $(prefix)/lib
+mandir = $(prefix)/man
+man1dir = $(mandir)/man1
+man2dir = $(mandir)/man2
+man3dir = $(mandir)/man3
+man4dir = $(mandir)/man4
+man5dir = $(mandir)/man5
+man6dir = $(mandir)/man6
+man7dir = $(mandir)/man7
+man8dir = $(mandir)/man8
+man9dir = $(mandir)/man9
+infodir = $(prefix)/info
+includedir = $(prefix)/include
+docdir = $(datadir)/doc
+
+SHELL = /bin/sh
+
+INSTALL = cp
+INSTALL_PROGRAM = $(INSTALL)
+INSTALL_DATA = $(INSTALL)
+
+AS = as
+AR = ar
+AR_FLAGS = rc
+CC = cc
+CFLAGS = -g
+CXX = gcc
+CXXFLAGS = -g -O
+RANLIB = ranlib
+NM = nm
+GZIP = gzip
+
+BISON = bison -y
+LEX = `if [ -f $${rootme}/flex/flex ] ; \
+	then echo $${rootme}/flex/flex ; \
+	else echo flex ; fi`
+
+MAKEINFO = `if [ -f $${rootme}/texinfo/makeinfo/makeinfo ] ; \
+	then echo $${rootme}/texinfo/makeinfo/makeinfo ; \
+	else echo makeinfo ; fi`
+
+
+# libraries that may need to be augmented on a system-by-system basis
+X11_LIB = -lX11
+
+# compilers to use to create programs which must be run in the build
+# environment.
+CC_FOR_BUILD = $(CC)
+CXX_FOR_BUILD = $(CXX)
+
+SUBDIRS = "this is set via configure, don't edit this"
+OTHERS = 
+
+ALL = all.normal
+INSTALL_TARGET = install.all
+
+### for debugging
+#GCCVERBOSE=-v
+
+CC_FOR_TARGET = ` \
+  if [ -f $${rootme}/gcc/Makefile ] ; then \
+    echo $${rootme}/gcc/xgcc -B$${rootme}/gcc/; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(CC); \
+    else \
+      t='$(program_transform_name)'; echo gcc | sed -e '' $$t; \
+    fi; \
+  fi`
+
+GCC_FOR_TARGET = ` \
+  if [ -f $${rootme}/gcc/Makefile ] ; then \
+    echo $${rootme}/gcc/xgcc -B$${rootme}/gcc/; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(CC); \
+    else \
+      t='$(program_transform_name)'; echo gcc | sed -e '' $$t; \
+    fi; \
+  fi`
+
+
+CXX_FOR_TARGET = ` \
+  if [ -f $${rootme}/gcc/Makefile ] ; then \
+    echo $${rootme}/gcc/xgcc -B$${rootme}/gcc/; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(CXX); \
+    else \
+      t='$(program_transform_name)'; echo gcc | sed -e '' $$t; \
+    fi; \
+  fi`
+
+AS_FOR_TARGET = ` \
+  if [ -f $${rootme}/gas/Makefile ] ; then \
+    echo $${rootme}/gas/as.new ; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(AS); \
+    else \
+       t='$(program_transform_name)'; echo as | sed -e '' $$t ; \
+    fi \
+  fi`
+
+AR_FOR_TARGET = ` \
+  if [ -f $${rootme}/binutils/Makefile ] ; then \
+    echo $${rootme}/binutils/ar ; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(AR); \
+    else \
+       t='$(program_transform_name)'; echo ar | sed -e '' $$t ; \
+    fi \
+  fi`
+
+RANLIB_FOR_TARGET = ` \
+  if [ -f $${rootme}/binutils/Makefile ] ; then \
+    echo $${rootme}/binutils/ranlib ; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(RANLIB); \
+    else \
+       t='$(program_transform_name)'; echo ranlib | sed -e '' $$t ; \
+    fi \
+  fi`
+
+NM_FOR_TARGET = ` \
+  if [ -f $${rootme}/binutils/Makefile ] ; then \
+    echo $${rootme}/binutils/nm ; \
+  else \
+    if [ "$(host_canonical)" = "$(target_canonical)" ] ; then \
+      echo $(NM); \
+    else \
+       t='$(program_transform_name)'; echo nm | sed -e '' $$t ; \
+    fi \
+  fi`
+
+# FIXME: This is badly named.
+XTRAFLAGS = ` \
+  if [ -f $${rootme}/gcc/Makefile ] ; then \
+    if [ -f $${rootme}/newlib/Makefile ] ; then \
+      echo -I$${rootme}/newlib/targ-include -I$${srcroot}/newlib/libc/include -I$${rootme}/gcc/include -nostdinc ; \
+    else \
+      echo -I$${rootme}/gcc/include ; \
+    fi ; \
+  else \
+     echo ; \
+  fi`
+
+
+#### host and target specific makefile fragments come in here.
+###
+
+# Flags to pass down to all sub-makes.
+# Please keep these in alphabetical order.
+BASE_FLAGS_TO_PASS = \
+	"AR_FLAGS=$(AR_FLAGS)" \
+	"AR_FOR_TARGET=$(AR_FOR_TARGET)" \
+	"AS_FOR_TARGET=$(AS_FOR_TARGET)" \
+	"BISON=$(BISON)" \
+	"CC_FOR_BUILD=$(CC_FOR_BUILD)" \
+	"CC_FOR_TARGET=$(CC_FOR_TARGET)" \
+	"CFLAGS=$(CFLAGS)" \
+	"CXX_FOR_BUILD=$(CXX_FOR_BUILD)" \
+	"CXXFLAGS=$(CXXFLAGS)" \
+	"CXX_FOR_TARGET=$(CXX_FOR_TARGET)" \
+	"GCC_FOR_TARGET=$(GCC_FOR_TARGET)" \
+	"INSTALL=$(INSTALL)" \
+	"INSTALL_DATA=$(INSTALL_DATA)" \
+	"INSTALL_PROGRAM=$(INSTALL_PROGRAM)" \
+	"LDFLAGS=$(LDFLAGS)" \
+	"LEX=$(LEX)" \
+	"LOADLIBES=$(LOADLIBES)" \
+	"MAKEINFO=$(MAKEINFO)" \
+	"NM_FOR_TARGET=$(NM_FOR_TARGET)" \
+	"RANLIB_FOR_TARGET=$(RANLIB_FOR_TARGET)" \
+	"XTRAFLAGS_FOR_TARGET=$(XTRAFLAGS)" \
+	"exec_prefix=$(exec_prefix)" \
+	"prefix=$(prefix)" \
+	"tooldir=$(tooldir)" 
+
+# Flags to pass down to most sub-makes, in which we're building with
+# the host environment.
+# If any variables are added here, they must be added to do-*, below.
+EXTRA_HOST_FLAGS = \
+	'AR=$(AR)' \
+	'AS=$(AS)' \
+	'CC=$(CC)' \
+	'CXX=$(CXX)' \
+	'NM=$(NM)' \
+	'RANLIB=$(RANLIB)' \
+	'XTRAFLAGS='
+
+FLAGS_TO_PASS = $(BASE_FLAGS_TO_PASS) $(EXTRA_HOST_FLAGS)
+
+# Flags that are concerned with the location of the X11 include files
+# and library files
+X11_FLAGS_TO_PASS = \
+	"X11_INCLUDE_FLAGS=$(X11_INCLUDE_FLAGS)" \
+	"X11_LIB_FLAGS=$(X11_LIB_FLAGS)" \
+	"X11_LIB=$(X11_LIB)"
+
+# Shell case of subdirectories which are built with the target environment.
+TARGET_LIBS=libg++ | xiberty | newlib
+
+# Flags to pass down to makes which are built with the target environment.
+# The double $ decreases the length of the command line; the variables
+# are set in BASE_FLAGS_TO_PASS, and the sub-make will expand them.
+# If any variables are added here, they must be added to do-*, below.
+EXTRA_TARGET_FLAGS = \
+	'AR=$$(AR_FOR_TARGET)' \
+	'AS=$$(AS_FOR_TARGET)' \
+	'CC=$$(CC_FOR_TARGET)' \
+	'CXX=$$(CXX_FOR_TARGET)' \
+	'NM=$$(NM_FOR_TARGET)' \
+	'RANLIB=$$(RANLIB_FOR_TARGET)' \
+	'XTRAFLAGS=$$(XTRAFLAGS_FOR_TARGET)'
+
+TARGET_FLAGS_TO_PASS = $(BASE_FLAGS_TO_PASS) $(EXTRA_TARGET_FLAGS)
+
+# Flags to pass down to gcc.  gcc builds a library, libgcc.a, so it
+# unfortunately needs the native compiler and the target ar and
+# ranlib.
+# If any variables are added here, they must be added to do-*, below.
+EXTRA_GCC_FLAGS = \
+	'AR=$$(AR_FOR_TARGET)' \
+	'AS=$(AS)' \
+	'CC=$(CC)' \
+	'CXX=$(CXX)' \
+	'NM=$(NM)' \
+	'RANLIB=$$(RANLIB_FOR_TARGET)' \
+	'XTRAFLAGS='
+
+GCC_FLAGS_TO_PASS = $(BASE_FLAGS_TO_PASS) $(EXTRA_GCC_FLAGS)
+
+# The first rule in the file had better be this one.  Don't put any above it.
+all:	$(ALL)
+
+.PHONY: all check dvi info install-info install-info-dirs
+.PHONY: do-info do-check do-dvi do-install-info
+.PHONY: do-clean do-mostlyclean do-distclean do-realclean
+.NOEXPORT:
+
+# Do a target for all the subdirectories.  A ``make do-X'' will do a
+# ``make X'' in all subdirectories (because, in general, X depends on
+# fdo-X, a ``make X'' will also do this, but it may do additional work
+# as well).
+# This target ensures that $(BASE_FLAGS_TO_PASS) appears only once,
+# because it is so large that it can easily overflow the command line
+# length limit on some systems.
+do-info do-check do-dvi do-install-info do-clean do-mostlyclean do-distclean do-realclean:
+	@target=`echo $@ | sed -e 's/^do-//'`; \
+	rootme=`pwd`; export rootme; \
+	srcroot=`cd $(srcdir); pwd`; export srcroot; \
+	for i in $(SUBDIRS); do \
+	  if [ -f ./$$i/localenv ] || [ -f ./$$i/Makefile ]; then \
+	    case $$i in \
+	    $(TARGET_LIBS) ) \
+	      for flag in $(EXTRA_TARGET_FLAGS); do \
+		eval `echo "$$flag" | sed -e "s|^\(.*\)=\(.*\)|\1='\2'|"`; \
+	      done; \
+	      ;; \
+	    gcc) \
+	      for flag in $(EXTRA_GCC_FLAGS); do \
+		eval `echo "$$flag" | sed -e "s|^\(.*\)=\(.*\)|\1='\2'|"`; \
+	      done; \
+	      ;; \
+	    *) \
+	      for flag in $(EXTRA_HOST_FLAGS); do \
+		eval `echo "$$flag" | sed -e "s|^\(.*\)=\(.*\)|\1='\2'|"`; \
+	      done; \
+	      ;; \
+	    esac ; \
+	    export AR AS CC CXX NM RANLIB XTRAFLAGS; \
+	    if (cd ./$$i; \
+	        $(MAKE) $(BASE_FLAGS_TO_PASS) "AR=$${AR}" "AS=$${AS}" \
+			"CC=$${CC}" "CXX=$${CXX}" "NM=$${NM}" \
+			"RANLIB=$${RANLIB}" "XTRAFLAGS=$${XTRAFLAGS}" \
+			$${target}); \
+	    then true; else exit 1; fi; \
+	  else true; fi; \
+	done
+
+info: do-info
+check: do-check
+dvi: do-dvi
+
+install-info: install-info-dirs do-install-info dir.info
+	$(INSTALL_DATA) dir.info $(infodir)/dir.info
+
+do-install-info: install-info-dirs
+
+all.normal: all-m4 all-autoconf all-libiberty all-mmalloc \
+	all-byacc all-flex all-opcodes all-bfd all-ld all-gas all-tgas \
+	all-gcc all-binutils  all-libg++ all-readline all-sim all-gdb \
+	all-make all-rcs all-cvs all-diff all-grep \
+	all-patch all-emacs all-ispell all-etc \
+	all-tcl all-tk all-expect \
+	all-newlib \
+	all-gprof all-send_pr all-libm all-deja-gnu \
+	all-fileutils all-find all-gawk all-sed all-shellutils \
+	all-textutils all-time all-wdiff all-uudecode \
+	all-hello all-tar all-gzip all-indent all-recode
+
+
+all.cross: all-libiberty all-mmalloc all-gas all-byacc all-flex all-ld \
+	all-opcodes all-bfd all-readline all-sim \
+	all-gdb all-binutils all-gcc all-newlib \
+	all-deja-gnu
+
+.PHONY: clean distclean mostlyclean realclean local-clean local-distclean
+
+local-clean:
+	-rm -f *.a TEMP errs core *.o *~ \#* TAGS *.E
+
+local-distclean:
+	-rm -f Makefile config.status
+
+clean: do-clean local-clean
+mostlyclean: do-mostlyclean local-clean
+distclean: do-distclean local-clean local-distclean
+realclean: do-realclean local-clean local-distclean
+
+uninstall:
+	@echo "the uninstall target is not supported in this tree"
+
+install: $(INSTALL_TARGET) 
+	-parent=`echo $(man1dir)|sed -e 's@/[^/]*$$@@'`; \
+	if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi
+	-if [ -d $(man1dir) ] ; then true ; else mkdir $(man1dir) ; fi
+
+install.all: install-no-fixedincludes
+	@if [ -f ./gcc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gcc; \
+		$(MAKE) $(FLAGS_TO_PASS) install-headers) ; \
+	else \
+		true ; \
+	fi
+
+install-no-fixedincludes: install-dirs gcc-no-fixedincludes \
+	install-autoconf \
+	install-bfd \
+	install-binutils \
+	install-byacc \
+	install-cvs \
+	install-deja-gnu \
+	install-diff \
+	install-emacs \
+	install-etc \
+	install-expect \
+	install-fileutils \
+	install-find \
+	install-flex \
+	install-gas \
+	install-gawk \
+	install-gdb \
+	install-glob \
+	install-gprof \
+	install-grep \
+	install-gzip \
+	install-hello \
+	install-indent \
+	install-ispell \
+	install-ld \
+	install-libg++ \
+	install-libiberty \
+	install-libm \
+	install-m4 \
+	install-make \
+	install-mmalloc \
+	install-newlib \
+	install-opcodes \
+	install-patch \
+	install-rcs \
+	install-readline \
+	install-recode \	
+	install-sed \
+	install-send_pr \
+	install-shellutils \
+	install-sim \
+	install-tar \
+	install-tcl \
+	install-textutils \
+	install-time \
+	install-tk \
+	install-uudecode \
+	install-wdiff 
+
+# 
+# Install the gcc headers files, but not the fixed include files,
+# which we are not allowed to distribute.  This rule is very dependent
+# on the workings of the gcc Makefile.in.
+#
+gcc-no-fixedincludes:
+	@if [ -f ./gcc/Makefile ]; then \
+	  rm -rf gcc/tmp-include; \
+	  mv gcc/include gcc/tmp-include 2>/dev/null; \
+	  mkdir gcc/include; \
+	  touch gcc/stmp-fixincludes; \
+	  rm -f gcc/stmp-headers; \
+	  rootme=`pwd`; export rootme; \
+	  srcroot=`cd $(srcdir); pwd` ; export srcroot; \
+	  (cd ./gcc; \
+	   $(MAKE) $(GCC_FLAGS_TO_PASS) install); \
+	  rm -rf gcc/include; \
+	  mv gcc/tmp-include gcc/include 2>/dev/null; \
+	else true; fi
+
+install.cross: install-dirs install-libiberty install-mmalloc \
+        install-binutils install-opcodes install-byacc install-flex \
+        install-ld install-gas install-readline \
+        install-glob install-gdb install-mmalloc \
+        install-newlib \
+	install-gcc install-etc install-deja-gnu
+
+### gzip
+all-gzip: all-libiberty
+	@if [ -f ./gzip/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gzip; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-gzip: force
+	@if [ -f ./gzip/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gzip; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### hello
+all-hello: all-libiberty
+	@if [ -f ./hello/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./hello; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-hello: force
+	@if [ -f ./hello/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./hello; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### recode
+all-recode: all-libiberty
+	@if [ -f ./recode/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./recode; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-recode: force
+	@if [ -f ./recode/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./recode; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### indent
+all-indent: force
+	@if [ -f ./indent/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./indent; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-indent: force
+	@if [ -f ./indent/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./indent; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### tar
+all-tar: all-libiberty
+	@if [ -f ./tar/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./tar; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-tar: force
+	@if [ -f ./tar/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./tar; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+
+### deja-gnu
+all-deja-gnu: force
+	@if [ -f ./deja-gnu/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./deja-gnu; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-deja-gnu: force
+	@if [ -f ./deja-gnu/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./deja-gnu;	$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### autoconf
+all-autoconf: force
+	@if [ -f ./autoconf/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./autoconf; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-autoconf: force
+	@if [ -f ./autoconf/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./autoconf;	$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### etc
+all-etc: force
+	@if [ -f ./etc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./etc; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-etc: force
+	@if [ -f ./etc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./etc; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### libiberty
+all-libiberty: force
+	@if [ -f ./libiberty/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./libiberty; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-libiberty: force
+	@if [ -f ./libiberty/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./libiberty; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### xiberty
+all-xiberty: all-gcc all-newlib
+	@if [ -f ./xiberty/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./xiberty; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-xiberty: force
+	@if [ -f ./xiberty/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./xiberty; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### mmalloc
+all-mmalloc: force
+	@if [ -f ./mmalloc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./mmalloc; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-mmalloc: force
+	@if [ -f ./mmalloc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./mmalloc; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### texinfo
+all-texinfo: all-libiberty
+	@if [ -f ./texinfo/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./texinfo; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-texinfo: force
+	@if [ -f ./texinfo/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./texinfo; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### bfd
+all-bfd: force
+	@if [ -f ./bfd/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./bfd; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-bfd: force
+	@if [ -f ./bfd/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./bfd; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+
+### opcodes
+all-opcodes: force
+	@if [ -f ./opcodes/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./opcodes; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-opcodes: force
+	@if [ -f ./opcodes/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./opcodes; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### binutils
+all-binutils: all-opcodes all-libiberty all-bfd all-flex
+	@if [ -f ./binutils/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./binutils; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-binutils: force
+	@if [ -f ./binutils/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./binutils; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### newlib
+all-newlib: all-binutils all-ld all-gas all-gcc
+	@if [ -f ./newlib/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd` ; export srcroot ; \
+		(cd ./newlib; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-newlib: force
+	@if [ -f ./newlib/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd` ; export srcroot ; \
+		(cd ./newlib; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+
+### gprof
+all-gprof: all-libiberty all-bfd
+	@if [ -f ./gprof/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gprof; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-gprof: force
+	@if [ -f ./gprof/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gprof; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### byacc
+all-byacc: force
+	@if [ -f ./byacc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./byacc; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-byacc: force
+	@if [ -f ./byacc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./byacc; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### flex
+all-flex: all-libiberty
+	@if [ -f ./flex/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./flex; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-flex: force
+	@if [ -f ./flex/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./flex; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+### gcc
+all-gcc: all-libiberty all-byacc all-binutils all-gas
+	@if [ -f ./gcc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd` ; export srcroot ; \
+		(cd ./gcc; \
+		$(MAKE) $(GCC_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-gcc: force
+	@if [ -f ./gcc/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd` ; export srcroot ; \
+		(cd ./gcc; \
+		$(MAKE) $(GCC_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### readline
+all-readline: force
+	@if [ -f ./readline/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./readline; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-readline: force
+	@if [ -f ./readline/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./readline; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### glob
+all-glob: force
+	@if [ -f ./glob/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./glob; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-glob: force
+	@if [ -f ./glob/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./glob; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### gas
+all-gas: all-libiberty all-opcodes all-bfd
+	@if [ -f ./gas/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gas; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-gas: force
+	@if [ -f ./gas/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gas; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### gas
+all-tgas: all-libiberty all-bfd
+	@if [ -f ./tgas/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./tgas; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+
+### ld
+all-ld: all-libiberty all-bfd all-byacc all-flex
+	@if [ -f ./ld/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./ld; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-ld: force
+	@if [ -f ./ld/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./ld; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### gdb
+all-gdb: all-bfd all-opcodes all-libiberty all-mmalloc all-readline all-glob all-byacc
+	@if [ -f ./gdb/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gdb; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-gdb: force
+	@if [ -f ./gdb/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gdb; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### make
+all-make: all-libiberty
+	@if [ -f ./make/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./make; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-make: force
+	@if [ -f ./make/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./make; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### diff
+all-diff: all-libiberty
+	@if [ -f ./diff/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./diff; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-diff: force
+	@if [ -f ./diff/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./diff/; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### grep
+all-grep: force
+	@if [ -f ./grep/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./grep; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-grep: force
+	@if [ -f ./grep/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./grep; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### rcs
+all-rcs: force
+	@if [ -f ./rcs/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./rcs; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-rcs: force
+	@if [ -f ./rcs/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./rcs; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### cvs
+all-cvs: force
+	@if [ -f ./cvs/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./cvs; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-cvs: force
+	@if [ -f ./cvs/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./cvs; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### patch
+all-patch: force
+	@if [ -f ./patch/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./patch; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-patch: force
+	@if [ -f ./patch/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./patch; \
+		$(MAKE) $(FLAGS_TO_PASS) \
+			bindir=$(bindir) \
+			man1dir=$(man1dir) install) ; \
+	else \
+		true ; \
+	fi
+
+### emacs
+all-emacs: force
+	@if [ -f ./emacs/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./emacs; \
+		$(MAKE) $(FLAGS_TO_PASS) $(X11_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-emacs: force
+	@if [ -f ./emacs/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./emacs; \
+		$(MAKE) $(FLAGS_TO_PASS) $(X11_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### ispell
+all-ispell: all-emacs
+	@if [ -f ./ispell/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./ispell; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-ispell: force
+	@if [ -f ./ispell/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./ispell; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### send_pr
+all-send_pr: force
+	@if [ -f ./send_pr/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./send_pr; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-send_pr: force
+	@if [ -f ./send_pr/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./send_pr; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### libm
+all-libm: force
+	@if [ -f ./libm/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./libm; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-libm: force
+	@if [ -f ./libm/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./libm; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### libg++
+
+all-libg++: all-gas all-ld all-gcc all-xiberty all-newlib
+	@if [ -f ./libg++/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd` ; export srcroot ; \
+		(cd ./libg++; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-libg++: force
+	@if [ -f ./libg++/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd` ; export srcroot ; \
+		(cd ./libg++; \
+		$(MAKE) $(TARGET_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+### tcl
+all-tcl: 
+	@if [ -f ./tcl/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./tcl; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-tcl: force
+	@if [ -f ./tcl/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./tcl; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+
+### tk
+all-tk: all-tcl
+	@if [ -f ./tk/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./tk; \
+		$(MAKE) $(FLAGS_TO_PASS) $(X11_FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-tk: force
+	@if [ -f ./tk/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./tk; \
+		$(MAKE) $(FLAGS_TO_PASS) $(X11_FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### expect
+all-expect: all-tcl
+	@if [ -f ./expect/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./expect; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-expect: force
+	@if [ -f ./expect/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		srcroot=`cd $(srcdir); pwd`; export srcroot ; \
+		(cd ./expect; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### sim
+all-sim: all-bfd 
+	@if [ -f ./sim/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./sim; \
+		$(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-sim: force
+	@if [ -f ./sim/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./sim; \
+		$(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### fileutils
+all-fileutils: force
+	@if [ -f ./fileutils/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./fileutils; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-fileutils: force
+	@if [ -f ./fileutils/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./fileutils; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### find
+all-find: force
+	@if [ -f ./find/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./find; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-find: force
+	@if [ -f ./find/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./find; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### gawk
+all-gawk: force
+	@if [ -f ./gawk/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./gawk; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-gawk: force
+	@if [ -f ./gawk/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./gawk; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### m4
+all-m4: all-libiberty
+	@if [ -f ./m4/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./m4; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-m4: force
+	@if [ -f ./m4/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./m4; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### sed
+all-sed: force
+	@if [ -f ./sed/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./sed; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-sed: force
+	@if [ -f ./sed/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./sed; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### time
+all-time: force
+	@if [ -f ./time/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./time; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-time: force
+	@if [ -f ./time/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./time; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### wdiff
+all-wdiff: force
+	@if [ -f ./wdiff/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./wdiff; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-wdiff: force
+	@if [ -f ./wdiff/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./wdiff; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### uudecode
+all-uudecode: all-libiberty
+	@if [ -f ./uudecode/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./uudecode; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-uudecode: force
+	@if [ -f ./uudecode/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./uudecode; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### shellutils
+all-shellutils: force
+	@if [ -f ./shellutils/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./shellutils; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-shellutils: force
+	@if [ -f ./shellutils/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./shellutils; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+### textutils
+all-textutils: force
+	@if [ -f ./textutils/Makefile ] ; then \
+	  rootme=`pwd` ; export rootme ; \
+		(cd ./textutils; $(MAKE) $(FLAGS_TO_PASS) all) ; \
+	else \
+		true ; \
+	fi
+
+install-textutils: force
+	@if [ -f ./textutils/Makefile ] ; then \
+		rootme=`pwd` ; export rootme ; \
+		(cd ./textutils; $(MAKE) $(FLAGS_TO_PASS) install) ; \
+	else \
+		true ; \
+	fi
+
+
+
+### other supporting targets
+
+MAKEDIRS= \
+	$(prefix) \
+	$(exec_prefix) \
+	$(tooldir)
+
+#	$(bindir) \
+#	$(libdir) \
+#	$(includedir) \
+#	$(datadir) \
+#	$(docdir) \
+#	$(mandir) \
+#	$(man1dir) \
+#	$(man5dir)
+
+#	$(man2dir) \
+#	$(man3dir) \
+#	$(man4dir) \
+#	$(man6dir) \
+#	$(man7dir) \
+#	$(man8dir)
+
+install-dirs:
+	for i in $(MAKEDIRS) ; do \
+		echo Making $$i... ; \
+		parent=`echo $$i|sed -e 's@/[^/]*$$@@'`; \
+		if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi ; \
+		if [ ! -d $$i ] ; then \
+			if mkdir $$i ; then \
+				true ; \
+			else \
+				exit 1 ; \
+			fi ; \
+		else \
+			true ; \
+		fi ; \
+	done
+
+install-info-dirs:
+	if [ -d $(prefix) ] ; then true ; else mkdir $(prefix) ; fi
+	-parent=`echo $(infodir)|sed -e 's@/[^/]*$$@@'`; \
+	if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi
+	-if [ -d $(infodir) ] ; then true ; else mkdir $(infodir) ; fi
+
+dir.info: do-install-info
+	$(srcdir)/texinfo/gen-info-dir $(infodir) $(srcdir)/texinfo/dir.info-template > dir.info.new
+	mv -f dir.info.new dir.info
+
+dist:
+	@echo "Building a full distribution of this tree isn't done"
+	@echo "via 'make dist'.  Check out the etc/ subdirectory" 
+
+etags tags: TAGS
+
+TAGS:
+	etags `$(MAKE) ls`
+
+ls:
+	@echo Makefile
+	@for i in $(SUBDIRS); \
+	do \
+		(cd $$i; \
+			pwd=`pwd`; \
+			wd=`basename $$pwd`; \
+			for j in `$(MAKE) ls`; \
+			do \
+				echo $$wd/$$j; \
+			done) \
+	done
+
+force:
+
+# with the gnu make, this is done automatically.
+
+Makefile: $(srcdir)/Makefile.in $(host_makefile_frag) $(target_makefile_frag)
+	$(SHELL) ./config.status
+
+#
+# Build GDB distributions that contain BFD, Include, Libiberty, Readline, etc
+
+DEVO_SUPPORT= README Makefile.in configure configure.in \
+	config.guess config.sub config move-if-change
+ETC_SUPPORT= Makefile.in cfg-paper.texi configure.in configure.man \
+	configure.texi
+GDB_SUPPORT_DIRS= bfd include libiberty mmalloc opcodes readline glob
+GDB_SUPPORT_FILES= $(GDB_SUPPORT_DIRS)
+
+setup-dirs: force
+	./configure sun4
+	make clean
+	./configure -rm sun4
+	chmod og=u `find etc $(DEVO_SUPPORT) $(GDB_SUPPORT_FILES) -print`
+
+gdb.tar.Z: setup-dirs
+	(cd gdb; $(MAKE) -f Makefile.in make-proto-gdb.dir BISON="byacc")
+	$(MAKE) $(MFLAGS) -f Makefile.in make-gdb.tar.Z
+
+make-gdb.tar.Z: $(DEVO_SUPPORT) $(GDB_SUPPORT_DIRS) gdb texinfo/texinfo.tex
+	rm -rf proto-toplev; mkdir proto-toplev
+	ln -s ../gdb/proto-gdb.dir proto-toplev/gdb
+	(cd proto-toplev; for i in $(DEVO_SUPPORT) $(GDB_SUPPORT_DIRS); do \
+		ln -s ../$$i . ; \
+	done)
+	mkdir proto-toplev/etc
+	(cd proto-toplev/etc; for i in $(ETC_SUPPORT); do \
+		ln -s ../../etc/$$i . ; \
+	done)
+	# Put only one copy (four hard links) of COPYING in the tar file.
+	rm                          proto-toplev/bfd/COPYING
+	ln proto-toplev/gdb/COPYING proto-toplev/bfd/COPYING
+	rm                          proto-toplev/include/COPYING
+	ln proto-toplev/gdb/COPYING proto-toplev/include/COPYING
+	rm                          proto-toplev/readline/COPYING
+	ln proto-toplev/gdb/COPYING proto-toplev/readline/COPYING
+
+	# Take out texinfo and glob from configurable dirs
+	rm proto-toplev/configure.in
+	sed -e '/^host_tools=/s/texinfo //' \
+	    -e '/^host_libs=/s/glob //' \
+	    <configure.in >proto-toplev/configure.in
+
+	# Take out texinfo from a few places; make simple BISON=bison line.
+	rm proto-toplev/Makefile.in
+	sed -e '/^all\.normal: /s/\all-texinfo //' \
+	    -e '/^	install-texinfo /d' \
+	    -e '\/^BISON =/,\/^$$/c\
+		BISON = bison -y' \
+	<Makefile.in >proto-toplev/Makefile.in
+
+	mkdir proto-toplev/texinfo
+	ln -s ../../texinfo/texinfo.tex proto-toplev/texinfo/
+	ln -s ../../texinfo/tex3patch   proto-toplev/texinfo/
+	chmod og=u `find proto-toplev -print`
+	(VER=`sed <gdb/Makefile.in -n 's/VERSION = //p'`; \
+		echo "==> Making gdb-$$VER.tar.Z"; \
+		ln -s proto-toplev gdb-$$VER; \
+		tar cfh - gdb-$$VER \
+		| compress -v >gdb-$$VER.tar.Z)
+	$(GZIP) -d <gdb-$$VER.tar.Z | $(GZIP) -9 -v >gdb-$$VER.tar.z
+
+# end of Makefile.in

@@ -1,0 +1,80 @@
+: use /bin/sh
+# $Id: newsgroups.SH,v 4.4.3.1 1992/02/01 03:09:32 sob PATCH_3 sob $
+# 
+# $Log: newsgroups.SH,v $
+# Revision 4.4.3.1  1992/02/01  03:09:32  sob
+# Release 4.4 Patchlevel 3
+#
+# Revision 4.4.2.1  1991/12/01  18:05:42  sob
+# Patchlevel 2 changes
+#
+# Revision 4.4.1.1  1991/09/25  19:38:08  sob
+# various fixed
+#
+# Revision 4.4  1991/09/09  20:23:31  sob
+# release 4.4
+#
+# 
+# This software is Copyright 1991 by Stan Barber. 
+#
+# Permission is hereby granted to copy, reproduce, redistribute or otherwise
+# use this software as long as: there is no monetary profit gained
+# specifically from the use or reproduction of this software, it is not
+# sold, rented, traded or otherwise marketed, and this copyright notice is
+# included prominently in any copy made. 
+#
+# The author make no claims as to the fitness or correctness of this software
+# for any use whatsoever, and it is provided as is. Any use of this software
+# is at the user's own risk. 
+
+export PATH || (echo "OOPS, this isn't sh.  Desperation time.  I will feed myself to sh."; sh $0; kill $$)
+
+: syntax: newsgroups [pattern] [pipeflag]
+
+: System Dependencies
+
+: You might want to change pager to a "make column" program if you have one.
+: On the other hand, if your kernel does paging, cat would probably do.
+pager="/usr/bin/less"
+active="/usr/local/lib/news/active"
+
+case $active in
+~*) active=`/usr/local/lib/trn/filexp $active` ;;
+esac
+
+
+
+: End of system dependencies, hopefully
+
+
+if test $# -ge 2 ; then
+    pager=/bin/cat
+else
+    echo "Completely unsubscribed newsgroups:"
+fi
+
+dotdir=${DOTDIR-${HOME-$LOGDIR}}
+newsrc=${NEWSRC-$dotdir/.newsrc}
+
+: Throwing .newsrc into the pot twice is a lovely hack to prevent
+: bogus newsgroups from showing up as unsubscribed.
+
+/bin/cat $newsrc $newsrc $active | \
+/usr/bin/sed -n	-e '/^options/d' \
+	-e '/^[	 ]/d' \
+	-e '/^control/d' \
+	-e '/^to\./d' \
+ 	-e '/ x$/d' \
+	-e 's/^\([^ !:]*\)[ !:].*$/\1/' \
+	-e "/.*$1/p" | \
+/usr/bin/sort | /usr/bin/uniq -u | $pager
+if test $# -ge 2 ; then
+    exit
+fi
+echo -n "[Type return to continue] "
+read tmp
+echo ""
+echo "Unsubscribed but mentioned in $newsrc:"
+/usr/bin/sed -n < $newsrc \
+	-e "/$1.*!/"'s/^\([^!]*\)!.*$/\1/p' | \
+/usr/bin/sort | $pager

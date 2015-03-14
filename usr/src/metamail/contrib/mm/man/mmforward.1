@@ -1,0 +1,83 @@
+.TH mmforward ""
+.SH NAME
+mmforward - re-assemble multi-part messages
+.SH SYNOPSIS
+.HP
+\fB| /usr/local/mm/mmforward |\fR 
+.HP
+\fB/usr/local/mm/mmsavepart\ \fIfile id partnum totalnum\fR
+..
+.SH DESCRIPTION
+.P
+The
+.I mmforward
+script takes a message on 
+.I stdin.
+It looks in the headers to see if the message is a MIME
+message with the content type 
+.I message/partial.
+If it does find one the message is simply sent to 
+.I stdout.
+.P
+If a message/partial message is found 
+.I metamail 
+is called to process the message.
+.P
+.I Metamail
+will usually in turn call 
+.I mmsavepart
+to first reassemble the message and eventually when all
+of the parts are received to forward a new message to the
+user containing an external reference to the message.
+..
+The
+.I mmsavepart
+program will squirrel away the body of a MIME-format message that is of type 
+"message/partial" for later use.  
+When it is called on the last piece
+the resulting message is
+saved into a file and a message with a content type of
+.I message/external-message
+is sent to the user.
+..
+Mmsavepart is 
+intended to be called by metamail via a mailcap entry like the following
+in 
+.I /usr/local/lib/mm/fwd.mailcap:
+.nf
+        message/partial; \
+	    /usr/local/lib/mm/mmsavepart %s %{id} %{number} %{total}
+.fi
+.P
+..
+To use mmforward place something like the following
+in your 
+.I .forward
+file:
+.nf
+	| /usr/local/lib/mm/mmforward | filter 
+.fi
+.P
+There are several programs that can handle the mailbox delivery. 
+For example
+.I filter
+from the ELM mail package. 
+The
+.I deliver 
+program
+or 
+.I procmail
+will also work.
+..
+.SH SEE ALSO
+filter(1), metamail(1), mmshowpart(1), splitmail(1)
+.SH BUGS
+The parts are squirrelled away on /tmp, which means that /tmp can fill up 
+if you never get the remaining parts.  When the message is finally displayed, 
+via metamail, the parts are all discarded, which might also be seen as a bug 
+by some...
+.SH COPYRIGHT
+.SH AUTHOR
+Stuart Lynne 
+.br
+Adapated from showpart(1) by Nathaniel S. Borenstein, Bellcore

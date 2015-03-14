@@ -1,0 +1,1358 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+ 
+
+File: elisp,  Node: Character Case,  Prev: Formatting Strings,  Up: Strings and Characters
+
+Character Case
+==============
+
+   The character case functions change the case of single characters
+or of the contents of strings.  The functions convert only alphabetic
+characters (the letters `A' through `Z' and `a' through `z'); other
+characters are not altered.  The functions do not modify the strings
+that are passed to them as arguments.
+
+   The examples below use the characters `X' and `x' which have ASCII
+codes 88 and 120 respectively.
+
+ * Function: downcase STRING-OR-CHAR
+     This function converts a character or a string to lower case.
+
+     When the argument to `downcase' is a string, the function
+     creates and returns a new string in which each letter in the
+     argument that is upper case is converted to lower case.  When
+     the argument to `downcase' is a character, `downcase' returns
+     the corresponding lower case character.  This value is an
+     integer.  If the original character is lower case, or is not a
+     letter, then the value equals the original character.
+
+          (downcase "The cat in the hat")
+               => "the cat in the hat"
+          
+          (downcase ?X)
+               => 120
+
+ * Function: upcase STRING-OR-CHAR
+     This function converts a character or a string to upper case.
+
+     When the argument to `upcase' is a string, the function creates
+     and returns a new string in which each letter in the argument
+     that is lower case is converted to upper case.
+
+     When the argument to `upcase' is a character, `upcase' returns
+     the corresponding upper case character.  This value is an integer.
+     If the original character is upper case, or is not a letter,
+     then the value equals the original character.
+
+          (upcase "The cat in the hat")
+               => "THE CAT IN THE HAT"
+          
+          (upcase ?x)
+               => 88
+
+ * Function: capitalize STRING-OR-CHAR
+     This function capitalizes strings or characters.  If
+     STRING-OR-CHAR is a string, the function creates and returns a
+     new string, whose contents are a copy of STRING-OR-CHAR in which
+     each word has been capitalized.  This means that the first
+     character of each word is converted to upper case, and the rest
+     are converted to lower case.
+
+     The definition of a word is any sequence of consecutive
+     characters that are assigned to the word constituent category in
+     the current syntax table (*Note Syntax Class Table::).
+
+     When the argument to `capitalize' is a character, `capitalize'
+     has the same result as `upcase'.
+
+          (capitalize "The cat in the hat")
+               => "The Cat In The Hat"
+          
+          (capitalize "THE 77TH-HATTED CAT")
+               => "The 77th-Hatted Cat"
+
+             (capitalize ?x)
+               => 88
+
+
+
+File: elisp,  Node: Lists,  Next: Sequences Arrays Vectors,  Prev: Strings and Characters,  Up: Top
+
+Lists
+*****
+
+   A "list" represents a sequence of zero or more elements (which may
+be any Lisp objects).  The important difference between lists and
+vectors is that two or more lists can share part of their structure;
+in addition, you can insert or delete elements in a list without
+copying the whole list.
+
+* Menu:
+
+* Cons Cells::          How lists are made out of cons cells.
+* Lists as Boxes::                 Graphical notation to explain lists.
+* List-related Predicates::        Is this object a list?  Comparing two lists.
+* List Elements::       Extracting the pieces of a list.
+* Building Lists::      Creating list structure.
+* Modifying Lists::     Storing new pieces into an existing list.
+* Sets And Lists::      A list can represent a finite mathematical set.
+* Association Lists::   A list can represent a finite relation or mapping.
+
+ 
+
+File: elisp,  Node: Cons Cells,  Next: Lists as Boxes,  Prev: Lists,  Up: Lists
+
+Lists and Cons Cells
+====================
+
+   Lists in Lisp are not a primitive data type; they are built up
+from "cons cells".  A cons cell is a data object which represents an
+ordered pair.  It records two Lisp objects, one labeled as the CAR,
+and the other labeled as the CDR.  (These names are traditional.)
+
+   A list is made by chaining cons cells together, one cons cell per
+element.  By convention, the CARs of the cons cells are the elements
+of the list, and the CDRs are used to chain the list: the CDR of each
+cons cell is the following cons cell.  The CDR of the last cons cell
+is `nil'.  This asymmetry between the CAR and the CDR is entirely a
+matter of convention; at the level of cons cells, the CAR and CDR
+slots have the same characteristics.
+
+   The symbol `nil' is considered a list as well as a symbol; it is
+the list with no elements.  Therefore, the CDR of any nonempty list L
+is a list containing all the elements of L except the first.  For
+convenience, the symbol `nil' is considered to have `nil' as its CDR
+(and also as its CAR).
+
+
+
+File: elisp,  Node: Lists as Boxes,  Next: List-related Predicates,  Prev: Cons Cells,  Up: Lists
+
+Lists as Linked Pairs of Boxes
+==============================
+
+   A cons cell can be illustrated as a pair of boxes.  The first box
+represents the CAR and the second box represents the CDR.  Here is an
+illustration of the two-element list, `(tulip lily)', made from two
+cons cells:
+
+      ---------------         ---------------
+     |car    |cdr    |       |car    |cdr    |
+     | tulip |   o---------->| lily  |  nil  |
+     |       |       |       |       |       |
+      ---------------         ---------------
+
+   Each pair of boxes represents a cons cell.  Each box "refers to",
+"points to" or "contains" a Lisp object.  (These terms are
+synonymous.)  The first box, which is the CAR of the first cons cell,
+contains the symbol `tulip'.  The arrow from the CDR of the first
+cons cell to the second cons cell indicates that the CDR of the first
+cons cell points to the second cons cell.
+
+   The same list can be illustrated in a different sort of box
+notation like this:
+
+         ___ ___      ___ ___
+        |___|___|--> |___|___|--> nil
+          |            |
+          |            |
+           --> tulip    --> lily
+
+   Here is a more complex illustration, this time of the
+three-element list, `((pine needles) oak maple)', the first element
+of which is a two-element list:
+
+         ___ ___      ___ ___      ___ ___
+        |___|___|--> |___|___|--> |___|___|--> nil
+          |            |            |
+          |            |            |
+          |             --> oak      --> maple
+          |
+          |     ___ ___      ___ ___
+           --> |___|___|--> |___|___|--> nil
+                 |            |
+                 |            |
+                  --> pine     --> needles
+
+   The same list is represented in the first box notation like this:
+
+      ---------------         ---------------         ---------------
+     |car    |cdr    |       |car    |cdr    |       |car    |cdr    |
+     |   o   |   o---------->|  oak  |   o---------->| maple |  nil  |
+     |   |   |       |       |       |       |       |       |       |
+      -- | ----------         ---------------         ---------------
+         |
+         |
+         |        ---------------         -----------------
+         |       |car    |cdr    |       |car      |cdr    |
+          ------>| pine  |   o---------->| needles |  nil  |
+                 |       |       |       |         |       |
+                  ---------------         -----------------
+
+   *Note List Type::, for the read and print syntax of lists, and for
+more "box and arrow" illustrations of lists.
+
+
+
+File: elisp,  Node: List-related Predicates,  Next: List Elements,  Prev: Lists as Boxes,  Up: Lists
+
+Predicates on Lists
+===================
+
+   The following predicates test whether a Lisp object is an atom, is
+a cons cell or is a list, or whether it is the distinguished object
+`nil'.  (Many of these tests can be defined in terms of the others,
+but they are used so often that it is worth having all of them.)
+
+ * Function: consp OBJECT
+     This function returns `t' if OBJECT is a cons cell, `nil'
+     otherwise.  `nil' is not a cons cell, although it *is* a list.
+
+ * Function: atom OBJECT
+     This function returns `t' if OBJECT is an atom, `nil' otherwise.
+     All objects except cons cells are atoms.  The symbol `nil' is an
+     atom and is also a list; it is the only Lisp object which is both.
+
+          (atom OBJECT) == (not (consp OBJECT))
+
+ * Function: listp OBJECT
+     This function returns `t' if OBJECT is a cons cell or `nil'. 
+     Otherwise, it returns `nil'.
+
+          (listp '(1))
+               => t
+          (listp '())
+               => t
+
+ * Function: nlistp OBJECT
+     This function is the opposite of `listp': it returns `t' if
+     OBJECT is not a list.  Otherwise, it returns `nil'.
+
+          (listp OBJECT) == (not (nlistp OBJECT))
+
+ * Function: null OBJECT
+     This function returns `t' if OBJECT is `nil', and returns `nil'
+     otherwise.  This function is identical to `not', but as a matter
+     of clarity we use `null' when OBJECT is considered a list and
+     `not' when it is considered a truth value (see `not' in *Note
+     Combining Conditions::).
+
+          (null '(1))
+               => nil
+          (null '())
+               => t
+
+
+
+File: elisp,  Node: List Elements,  Next: Building Lists,  Prev: List-related Predicates,  Up: Lists
+
+Accessing Elements of Lists
+===========================
+
+ * Function: car CONS-CELL
+     This function returns the value pointed to by the first pointer
+     of the cons cell CONS-CELL.  Expressed another way, this
+     function returns the CAR of CONS-CELL.
+
+     As a special case, if CONS-CELL is `nil', then `car' is defined
+     to return `nil'; therefore, any list is a valid argument for
+     `car'.  An error is signaled if the argument is not a cons cell
+     or `nil'.
+
+          (car '(a b c))
+               => a
+          (car '())
+               => nil
+
+ * Function: cdr CONS-CELL
+     This function returns the value pointed to by the second pointer
+     of the cons cell CONS-CELL.  Expressed another way, this
+     function returns the CDR of CONS-CELL.
+
+     As a special case, if CONS-CELL is `nil', then `cdr' is defined
+     to return `nil'; therefore, any list is a valid argument for
+     `cdr'.  An error is signaled if the argument is not a cons cell
+     or `nil'.
+
+          (cdr '(a b c))
+               => (b c)
+          (cdr '())
+               => nil
+
+ * Function: car-safe OBJECT
+     This function lets you take the CAR of a cons cell while
+     avoiding errors for other data types.  It returns the CAR of
+     OBJECT if OBJECT is a cons cell, `nil' otherwise.  This is in
+     contrast to `car', which signals an error if OBJECT is not a list.
+
+          (car-safe OBJECT)
+          ==
+          (let ((x OBJECT))
+            (if (consp x)
+                (car x)
+              nil))
+
+ * Function: cdr-safe OBJECT
+     This function lets you take the CDR of a cons cell while
+     avoiding errors for other data types.  It returns the CDR of
+     OBJECT if OBJECT is a cons cell, `nil' otherwise.  This is in
+     contrast to `cdr', which signals an error if OBJECT is not a list.
+
+          (cdr-safe OBJECT)
+          ==
+          (let ((x OBJECT))
+            (if (consp x)
+                (cdr x)
+              nil))
+
+ * Function: nth N LIST
+     This function returns the Nth element of LIST.  Elements are
+     numbered starting with zero, so the CAR of LIST is element
+     number zero.  If the length of LIST is N or less, the value is
+     `nil'.
+
+     If N is less than zero, then the first element is returned.
+
+          (nth 2 '(1 2 3 4))
+               => 3
+          (nth 10 '(1 2 3 4))
+               => nil
+          (nth -3 '(1 2 3 4))
+               => 1
+          
+          (nth n x) == (car (nthcdr n x))
+
+ * Function: nthcdr N LIST
+     This function returns the Nth cdr of LIST.  In other words, it
+     removes the first N links of LIST and returns what follows.
+
+     If N is less than or equal to zero, then all of LIST is
+     returned.  If the length of LIST is N or less, the value is `nil'.
+
+          (nthcdr 1 '(1 2 3 4))
+               => (2 3 4)
+          (nthcdr 10 '(1 2 3 4))
+               => nil
+          (nthcdr -3 '(1 2 3 4))
+               => (1 2 3 4)
+
+
+
+File: elisp,  Node: Building Lists,  Next: Modifying Lists,  Prev: List Elements,  Up: Lists
+
+Building Cons Cells and Lists
+=============================
+
+   Many functions build lists, as lists reside at the very heart of
+Lisp.  `cons' is the fundamental list-building function; however, it
+is interesting to note that `list' is used more times in the source
+code for Emacs than `cons'.
+
+ * Function: cons OBJECT1 OBJECT2
+     This function is the fundamental function used to build new list
+     structure.  It creates a new cons cell, making OBJECT1 the CAR,
+     and OBJECT2 the CDR.  It then returns the new cons cell.  The
+     arguments OBJECT1 and OBJECT2 may be any Lisp objects, but most
+     often OBJECT2 is a list.
+
+          (cons 1 '(2))
+               => (1 2)
+          (cons 1 '())
+               => (1)
+          (cons 1 2)
+               => (1 . 2)
+
+     `cons' is often used to add a single element to the front of a
+     list.  This is called "consing the element onto the list".  For
+     example:
+
+          (setq list (cons newelt list))
+
+ * Function: list &rest OBJECTS
+     This function creates a list with OBJECTS as its elements.  The
+     resulting list is always `nil'-terminated.  If no OBJECTS are
+     given, the empty list is returned.
+
+          (list 1 2 3 4 5)
+               => (1 2 3 4 5)
+          (list 1 2 '(3 4 5) 'foo)
+               => (1 2 (3 4 5) foo)
+
+             (list)
+               => nil
+
+ * Function: make-list LENGTH OBJECT
+     This function creates a list of length LENGTH, in which all the
+     elements have the identical value OBJECT.  Compare `make-list'
+     with `make-string' (*note Creating Strings::.).
+
+          (make-list 3 'pigs)
+               => (pigs pigs pigs)
+          (make-list 0 'pigs)
+               => nil
+
+ * Function: append &rest SEQUENCES
+     This function returns a list containing all the elements of
+     SEQUENCES.  The SEQUENCES may be lists, vectors, strings, or
+     integers.  All arguments except the last one are copied, so none
+     of them are altered.
+
+     The final argument to `append' may be any object but it is
+     typically a list.  The final argument is not copied or
+     converted; it becomes part of the structure of the new list.
+
+     Here is an example:
+
+          (setq trees '(pine oak))
+               => (pine oak)
+          (setq more-trees (append '(maple birch) trees))
+               => (maple birch pine oak)
+          
+          trees
+               => (pine oak)
+          more-trees
+               => (maple birch pine oak)
+          (eq trees (cdr (cdr more-trees)))
+               => t
+
+     You can see what happens by looking at a box diagram.  The
+     variable `trees' is set to the list `(pine oak)' and then the
+     variable `more-trees' is set to the list `(maple birch pine oak)'.
+     However, the variable `trees' continues to refer to the original
+     list:
+
+          more-trees                trees
+          |                           |
+          |     ___ ___      ___ ___   -> ___ ___      ___ ___
+           --> |___|___|--> |___|___|--> |___|___|--> |___|___|--> nil
+                 |            |            |            |
+                 |            |            |            |
+                  --> maple    -->birch     --> pine     --> oak
+
+     An empty sequence contributes nothing to the value returned by
+     `append'.  As a consequence of this, a final `nil' argument
+     forces a copy of the previous argument.
+
+          trees
+               => (pine oak)
+          (setq wood (append trees ()))
+               => (pine oak)
+          wood
+               => (pine oak)
+          (eq wood trees)
+               => nil
+
+     This once was the standard way to copy a list, before the
+     function `copy-sequence' was invented.  *Note Sequences Arrays
+     Vectors::.
+
+     With the help of `apply', we can append all the lists in a list
+     of lists:
+
+          (apply 'append '((a b c) nil (x y z) nil))
+               => (a b c x y z)
+
+     If no SEQUENCES are given, `nil' is returned:
+
+          (append)
+               => nil
+
+     In the special case where one of the SEQUENCES is an integer
+     (not a sequence of integers), it is first converted to a string
+     of digits making up the decimal print representation of the
+     integer.  This special case exists for compatibility with
+     Mocklisp, and we don't recommend you take advantage of it.  If
+     you want to convert an integer in this way, use `format' (*note
+     Formatting Strings::.) or `int-to-string' (*note String
+     Conversion::.).
+
+          (setq trees '(pine oak))
+               => (pine oak)
+          (char-to-string ?\054)
+               => "6"
+          (setq longer-list (append trees 6 '(spruce)))
+               => (pine oak 54 spruce)
+          (setq x-list (append trees 6 6))
+               => (pine oak 54 . 6)
+
+     See `nconc' in *Note Rearrangement::, for another way to join
+     lists without copying.
+
+ * Function: reverse LIST
+     This function creates a new list whose elements are the elements
+     of LIST, but in reverse order.  The original argument LIST is
+     *not* altered.
+
+          (setq x '(1 2 3 4))
+               => (1 2 3 4)
+          (reverse x)
+               => (4 3 2 1)
+          x
+               => (1 2 3 4)
+
+
+
+File: elisp,  Node: Modifying Lists,  Next: Sets And Lists,  Prev: Building Lists,  Up: Lists
+
+Modifying Existing List Structure
+=================================
+
+   You can modify the CAR and CDR contents of a cons cell with the
+primitives `setcar' and `setcdr'.
+
+     Common Lisp note: Common Lisp uses functions `rplaca' and
+     `rplacd' to alter list structure; they change structure the same
+     way as `setcar' and `setcdr', but the Common Lisp functions
+     return the cons cell while `setcar' and `setcdr' return the new
+     CAR or CDR.
+
+* Menu:
+
+* Setcar::          Replacing an element in a list.
+* Setcdr::          Replacing part of the list backbone.
+                      This can be used to remove or add elements.
+* Rearrangement::   Reordering the elements in a list; combining lists.
+
+ 
+
+File: elisp,  Node: Setcar,  Next: Setcdr,  Prev: Modifying Lists,  Up: Modifying Lists
+
+Altering List Elements with `setcar'
+------------------------------------
+
+   Changing the CAR of a cons cell is done with `setcar' and replaces
+one element of a list with a different element.
+
+ * Function: setcar CONS OBJECT
+     This function stores OBJECT as the new CAR of CONS, replacing
+     its previous CAR.  It returns the value OBJECT.  For example:
+
+          (setq x '(1 2))
+               => (1 2)
+          (setcar x '4)
+               => 4
+          x
+               => (4 2)
+
+   When a cons cell is part of the shared structure of several lists,
+storing a new CAR into the cons changes one element of each of these
+lists.  Here is an example:
+
+     ;; Create two lists that are partly shared.
+     (setq x1 '(a b c))
+          => (a b c)
+     (setq x2 (cons 'z (cdr x1)))
+          => (z b c)
+     
+     ;; Replace the CAR of a shared link.
+     (setcar (cdr x1) 'foo)
+          => foo
+     x1                           ; Both lists are changed.
+          => (a foo c)
+     x2
+          => (z foo c)
+     
+     ;; Replace the CAR of a link that is not shared.
+     (setcar x1 'baz)
+          => baz
+     x1                           ; Only one list is changed.
+          => (baz foo c)
+     x2
+          => (z foo c)
+
+   Here is a graphical depiction of the shared structure of the two
+lists X1 and X2, showing why replacing `b' changes them both:
+
+             ___ ___        ___ ___      ___ ___
+     x1---> |___|___|----> |___|___|--> |___|___|--> nil
+              |        -->   |            |
+              |       |      |            |
+               --> a  |       --> b        --> c
+                      |
+            ___ ___   |
+     x2--> |___|___|--
+             |
+             |
+              --> z
+
+   Here is an alternative form of box diagram, showing the same
+relationship:
+
+     x1:
+      ---------------         ---------------         ---------------
+     |car    |cdr    |       |car    |cdr    |       |car    |cdr    |
+     |   a   |   o---------->|   b   |   o---------->|   c   |  nil  |
+     |       |       |    -->|       |       |       |       |       |
+      ---------------    |    ---------------         ---------------
+                         |
+     x2:                 |
+      ---------------    |
+     |car    |cdr    |   |
+     |   z   |   o-------
+     |       |       |
+      ---------------
+
+
+
+File: elisp,  Node: Setcdr,  Next: Rearrangement,  Prev: Setcar,  Up: Modifying Lists
+
+Altering the CDR of a List
+--------------------------
+
+   The lowest-level primitive for modifying a CDR is `setcdr':
+
+ * Function: setcdr CONS OBJECT
+     This function stores OBJECT into the cdr of CONS.  The value
+     returned is OBJECT, not CONS.
+
+   Here is an example of replacing the CDR of a list with a different
+list.  All but the first element of the list are removed in favor of
+a different sequence of elements.  The first element is unchanged,
+because it resides in the CAR of the list, and is not reached via the
+CDR.
+
+     (setq x '(1 2 3))
+          => (1 2 3)
+     (setcdr x '(4))
+          => (4)
+
+        x
+          => (1 4)
+
+   You can delete elements from the middle of a list by altering the
+CDRs of the cons cells in the list.  For example, here we delete the
+second element, `b', from the list `(a b c)', by changing the CDR of
+the first cell:
+
+     (setq x1 '(a b c))
+          => (a b c)
+     (setcdr x1 '(c))
+          => (c)
+     x1
+          => (a c)
+
+   Here is the result in box notation:
+
+                          -----------------------
+                         |                       |
+      ---------------    |    ---------------    |    ---------------
+     |car    |cdr    |   |   |car    |cdr    |    -->|car    |cdr    |
+     |   a   |   o-------    |   b   |   o---------->|   c   |  nil  |
+     |       |       |       |       |       |       |       |       |
+      ---------------         ---------------         ---------------
+
+The second cons cell, which previously held the element `b', still
+exists and its CAR is still `b', but it no longer forms part of this
+list.
+
+   It is equally easy to insert a new element by changing CDRs:
+
+     (setq x1 '(a b c))
+          => (a b c)
+     (setcdr x1 (cons 'd (cdr x1)))
+          => (d b c)
+     x1
+          => (a d b c)
+
+   Here is this result in box notation:
+
+      ---------------         ---------------         ---------------
+     |car    |cdr    |       |car    |cdr    |       |car    |cdr    |
+     |   a   |   o   |    -->|   b   |   o---------->|   c   |  nil  |
+     |       |   |   |   |   |       |       |       |       |       |
+      ---------- | --    |    ---------------         ---------------
+                 |       |
+           ------         -------
+          |                      |
+          |    ---------------   |
+          |   |car    |cdr    |  |
+           -->|   d   |   o------
+              |       |       |
+               ---------------
+
+
+
+File: elisp,  Node: Rearrangement,  Prev: Setcdr,  Up: Modifying Lists
+
+Functions that Rearrange Lists
+------------------------------
+
+   Here are some functions that rearrange lists "destructively" by
+modifying the CDRs of their component cons cells.  We call these
+functions "destructive" because the original lists passed as
+arguments to them are chewed up to produce a new list that is
+subsequently returned.
+
+ * Function: nconc &rest LISTS
+     This function returns a list containing all the elements of LISTS.
+     Unlike `append' (*note Building Lists::.), the LISTS are *not*
+     copied.  Instead, the last CDR of each of the LISTS is changed
+     to refer to the following list.  The last of the LISTS is not
+     altered.  For example:
+
+          (setq x '(1 2 3))
+               => (1 2 3)
+          (nconc x '(4 5))
+               => (1 2 3 4 5)
+          x
+               => (1 2 3 4 5)
+
+     Since the last argument of `nconc' is not itself modified, it is
+     reasonable to use a constant list, such as `'(4 5)', as is done
+     in the above example.  For the same reason, the last argument
+     need not be a list:
+
+          (setq x '(1 2 3))
+               => (1 2 3)
+          (nconc x 'z)
+               => (1 2 3 . z)
+          x
+               => (1 2 3 . z)
+
+     A common pitfall is to use a quoted constant list as a non-last
+     argument to `nconc'.  If you do this, your program will change
+     each time you run it!  Here is what happens:
+
+          (defun add-foo (x)                ; This function should add
+            (nconc '(foo) x))               ; `foo' to the front of its arg.
+          
+          (symbol-function 'add-foo)
+               => (lambda (x) (nconc (quote (foo)) x))
+          
+          (setq xx (add-foo '(1 2)))        ; It seems to work.
+               => (foo 1 2)
+          (setq xy (add-foo '(3 4)))        ; What happened?
+               => (foo 1 2 3 4)
+          (eq xx xy)
+               => t
+          
+          (symbol-function 'add-foo)
+               => (lambda (x) (nconc (quote (foo 1 2 3 4) x)))
+
+ * Function: nreverse LIST
+     This function reverses the order of the elements of LIST. 
+     Unlike `reverse', `nreverse' alters its argument destructively
+     by reversing the CDRs in the cons cells forming the list.  The
+     cons cell which used to be the last one in LIST becomes the
+     first cell of the value.
+
+     For example:
+
+          (setq x '(1 2 3 4))
+               => (1 2 3 4)
+          x
+               => (1 2 3 4)
+          (nreverse x)
+               => (4 3 2 1)
+          ;; The cell that was first is now last.
+          x
+               => (1)
+
+     To avoid confusion, we usually store the result of `nreverse'
+     back in the same variable which held the original list:
+
+          (setq x (nreverse x))
+
+     Here is the `nreverse' of our favorite example, `(a b c)',
+     presented graphically:
+
+          Original list head:                                 Reversed list:
+           ---------------         ---------------         ---------------
+          |car    |cdr    |       |car    |cdr    |       |car    |cdr    |
+          |   a   |  nil  |<--    |   b   |   o   |<--    |   c   |   o   |
+          |       |       |   |   |       |   |   |   |   |       |   |   |
+           ---------------    |    ---------- | --    |    ---------- | --
+                              |               |       |               |
+                               ---------------         ---------------
+
+ * Function: sort LIST PREDICATE
+     This function sorts LIST stably, though destructively, and
+     returns the sorted list.  It compares elements using PREDICATE. 
+     A stable sort is one in which elements with equal sort keys
+     maintain their relative order before and after the sort. 
+     Stability is important when successive sorts are used to order
+     elements according to different criteria.
+
+     The argument PREDICATE must be a function that accepts two
+     arguments.  It is called with two elements of LIST.  To get an
+     increasing order sort, the PREDICATE should return `t' if the
+     first element is "less than" the second, or `nil' if not.
+
+     The destructive aspect of `sort' is that it rearranges the cons
+     cells forming LIST by changing CDRs.  A nondestructive sort
+     function would create new cons cells to store the elements in
+     their sorted order.  If you wish to sort a list without
+     destroying the original, copy it first with `copy-sequence'.
+
+     The CARs of the cons cells are not changed; the cons cell that
+     originally contained the element `a' in LIST still has `a' in
+     its CAR after sorting, but it now appears in a different
+     position in the list due to the change of CDRs.  For example:
+
+          (setq nums '(1 3 2 6 5 4 0))
+               => (1 3 2 6 5 4 0)
+          (sort nums '<)
+               => (0 1 2 3 4 5 6)
+          nums
+               => (1 2 3 4 5 6)
+
+     Note that the list in `nums' no longer contains 0; this is the
+     same cons cell that it was before, but it is no longer the first
+     one in the list.  Don't assume a variable that formerly held the
+     argument now holds the entire sorted list!  Instead, save the
+     result of `sort' and use that.  Most often we store the result
+     back into the variable that held the original list:
+
+          (setq nums (sort nums '<))
+
+     *Note Sorting::, for more functions that perform sorting.  See
+     `documentation' in *Note Accessing Documentation::, for a useful
+     example of `sort'.
+
+   See `delq', in *Note Sets And Lists::, for another function that
+modifies cons cells.
+
+
+
+File: elisp,  Node: Sets And Lists,  Next: Association Lists,  Prev: Modifying Lists,  Up: Lists
+
+Using Lists as Sets
+===================
+
+   A list can represent an unordered mathematical set--simply
+consider a value an element of a set if it appears in the list, and
+ignore the order of the list.  To form the union of two sets, use
+`append' (as long as you don't mind having duplicate elements).  Two
+other useful functions for sets are `memq' and `delq'.
+
+     Common Lisp note: Common Lisp has functions `union' (which
+     avoids duplicate elements) and `intersection' for set
+     operations, but GNU Emacs Lisp does not have them.  You can
+     write them in Lisp if you wish.
+
+ * Function: memq OBJECT LIST
+     This function tests to see whether OBJECT is a member of LIST. 
+     If it is, `memq' returns a list starting with the first
+     occurrence of OBJECT.  Otherwise, it returns `nil'.  The letter
+     `q' in `memq' says that it uses `eq' to compare OBJECT against
+     the elements of the list.  For example:
+
+          (memq 2 '(1 2 3 2 1))
+               => (2 3 2 1)
+          (memq '(2) '((1) (2)))   ; `(2)' and `(2)' are not `eq'.
+               => nil
+
+ * Function: delq OBJECT LIST
+     This function removes all elements `eq' to OBJECT from LIST.
+
+     Elements at the front of the list are removed (when necessary)
+     simply by advancing down the list and returning a sublist that
+     starts after those elements:
+
+          (delq 'a '(a b c))
+          ==
+          (cdr '(a b c))
+
+     When an element to be deleted appears in the middle of the list,
+     removing it involves changing the CDRs (*note Setcdr::.).
+
+          (setq sample-list '(1 2 3 (4)))
+               => (1 2 3 (4))
+          (delq 1 sample-list)
+               => (2 3 (4))
+          sample-list
+               => (1 2 3 (4))
+          (delq 2 sample-list)
+               => (1 3 (4))
+          sample-list
+               => (1 3 (4))
+
+     Note that `(delq 2 sample-list)' removes the second element of
+     `sample-list', but `(delq 1 sample-list)' does not remove the
+     first element--it just returns a shorter list.  Don't assume
+     that a variable which formerly held the argument LIST now has
+     fewer elements, or that it still holds the original list! 
+     Instead, save the result of `delq' and use that.  Most often we
+     store the result back into the variable that held the original
+     list:
+
+          (setq flowers (delq 'rose flowers))
+
+     In the following example, the `(4)' that `delq' attempts to
+     match and the `(4)' in the `sample-list' are not `eq':
+
+          (delq '(4) sample-list)
+               => (1 3 (4))
+
+
+
+File: elisp,  Node: Association Lists,  Prev: Sets And Lists,  Up: Lists
+
+Association Lists
+=================
+
+   An "association list", or "alist" for short, records a mapping
+from keys to values.  It is a list of cons cells called
+"associations": the CAR of each cell is the "key", and the CDR is the
+"associated value".  (This usage of "key" is not related to the term
+"key sequence"; it means any object which can be looked up in a table.)
+
+   Here is an example of an alist.  The key `pine' is associated with
+the value `cones'; the key `oak' is associated with `acorns'; and the
+key `maple' is associated with `seeds'.
+
+     '((pine . cones)
+       (oak . acorns)
+       (maple . seeds))
+
+   The associated values in an alist may be any Lisp objects; so may
+the keys.  For example, in the following alist, the symbol `a' is
+associated with the number `1', and the string `"b"' is associated
+with the *list* `(2 3)', which is the CDR of the alist element:
+
+     ((a . 1) ("b" 2 3))
+
+   Sometimes it is better to design an alist to store the associated
+value in the CAR of the CDR of the element.  Here is an example:
+
+     '((rose red) (lily white) (buttercup yellow)))
+
+Here we regard `red' as the value associated with `rose'.  One
+advantage of this method is that you can store other related
+information--even a list of other items--in the CDR of the CDR.  One
+disadvantage is that you cannot use `rassq' (see below) to find the
+element containing a given value.  When neither of these
+considerations is important, the choice is a matter of taste, as long
+as you are consistent about it for any given alist.
+
+   Note that the same alist shown above could be regarded as having
+the associated value in the CDR of the element; the the value
+associated with `rose' would be the list `(red)'.
+
+   Association lists are often used to record information that you
+might otherwise keep on a stack, since new associations may be added
+easily to the front of the list.  When searching an association list
+for an association with a given key, the first one found is returned,
+if there is more than one.
+
+   In Emacs Lisp, it is *not* an error if an element of an
+association list is not a cons cell.  The alist search functions
+simply ignore such elements.  Many other versions of Lisp signal
+errors in such cases.
+
+   Note that property lists are similar to association lists in
+several respects.  A property list behaves like an association list
+in which each key can occur only once.  *Note Property Lists::, for a
+comparison of property lists and association lists.
+
+ * Function: assoc KEY ALIST
+     This function returns the first association for KEY in ALIST. 
+     It compares KEY against the alist elements using `equal' (*note
+     Equality Predicates::.).  It returns `nil' if no association in
+     ALIST has a CAR `equal' to KEY.  For example:
+
+          (setq trees '((pine . cones) (oak . acorns) (maple . seeds)))
+               => ((pine . cones) (oak . acorns) (maple . seeds))
+          (assoc 'oak trees)
+               => (oak . acorns)
+          (cdr (assoc 'oak trees))
+               => acorns
+          (assoc 'birch trees)
+               => nil
+
+     Here is another example in which the keys and values are not
+     symbols:
+
+          (setq needles-per-cluster
+                '((2 . ("Austrian Pine" "Red Pine"))
+                  (3 . "Pitch Pine")
+                  (5 . "White Pine")))
+          
+          (cdr (assoc 3 needles-per-cluster))
+               => "Pitch Pine"
+          (cdr (assoc 2 needles-per-cluster))
+               => ("Austrian Pine" "Red Pine")
+
+ * Function: assq KEY ALIST
+     This function is like `assoc' in that it returns the first
+     association for KEY in ALIST, but it makes the comparison using
+     `eq' instead of `equal'.  `assq' returns `nil' if no association
+     in ALIST has a CAR `eq' to KEY.  This function is used more
+     often than `assoc', since `eq' is faster than `equal' and most
+     alists use symbols as keys.  *Note Equality Predicates::.
+
+          (setq trees '((pine . cones) (oak . acorns) (maple . seeds)))
+          
+          (assq 'pine trees)
+               => (pine . cones)
+
+     On the other hand, `assq' is not usually useful in alists where
+     the keys may not be symbols:
+
+          (setq leaves
+                '(("simple leaves" . oak)
+                  ("compound leaves" . horsechestnut)))
+          
+          (assq "simple leaves" leaves)
+               => nil
+          (assoc "simple leaves" leaves)
+               => ("simple leaves" . oak)
+
+ * Function: rassq ALIST VALUE
+     This function returns the first association with value VALUE in
+     ALIST.  It returns `nil' if no association in ALIST has a CDR
+     `eq' to VALUE.
+
+     `rassq' is like `assq' except that the CDR of the ALIST
+     associations is tested instead of the CAR.  You can think of
+     this as "reverse `assq'", finding the key for a given value.
+
+     For example:
+
+          (setq trees '((pine . cones) (oak . acorns) (maple . seeds)))
+          
+          (rassq 'acorns trees)
+               => (oak . acorns)
+          (rassq 'spores trees)
+               => nil
+
+     Note that `rassq' cannot be used to search for a value stored in
+     the CAR of the CDR of an element:
+
+          (setq colors '((rose red) (lily white) (buttercup yellow)))
+          
+          (rassq 'white colors)
+               => nil
+
+     In this case, the CDR of the association `(lily white)' is not
+     the symbol `white', but rather the list `(white)'.  This can be
+     seen more clearly if the association is written in dotted pair
+     notation:
+
+          (lily white) == (lily . (white))
+
+ * Function: copy-alist ALIST
+     This function returns a two-level deep copy of ALIST: it creates
+     a new copy of each association, so that you can alter the
+     associations of the new alist without changing the old one.
+
+          (setq needles-per-cluster
+                '((2 . ("Austrian Pine" "Red Pine"))
+                  (3 . "Pitch Pine")
+                  (5 . "White Pine")))
+          =>
+          ((2 "Austrian Pine" "Red Pine")
+           (3 . "Pitch Pine")
+           (5 . "White Pine"))
+          
+          (setq copy (copy-alist needles-per-cluster))
+          =>
+          ((2 "Austrian Pine" "Red Pine")
+           (3 . "Pitch Pine")
+           (5 . "White Pine"))
+          
+          (eq needles-per-cluster copy)
+               => nil
+          (equal needles-per-cluster copy)
+               => t
+          (eq (car needles-per-cluster) (car copy))
+               => nil
+          (cdr (car (cdr needles-per-cluster)))
+               => "Pitch Pine"
+          (eq (cdr (car (cdr needles-per-cluster)))
+              (cdr (car (cdr copy))))
+               => t
+
+
+
+File: elisp,  Node: Sequences Arrays Vectors,  Next: Symbols,  Prev: Lists,  Up: Top
+
+Sequences, Arrays, and Vectors
+******************************
+
+   Recall that the "sequence" type is the union of three other Lisp
+types: lists, vectors, and strings.  In other words, any list is a
+sequence, any vector is a sequence, and any string is a sequence. 
+The common property that all sequences have is that each is an
+ordered collection of elements.
+
+   An "array" is a single primitive object directly containing all
+its elements.  Therefore, all the elements are accessible in constant
+time.  The length of an existing array cannot be changed.  Both
+strings and vectors are arrays.  A list is a sequence of elements,
+but it is not a single primitive object; it is made of cons cells,
+one cell per element.  Therefore, elements farther from the beginning
+of the list take longer to access, but it is possible to add elements
+to the list or remove elements.  The elements of vectors and lists
+may be any Lisp objects.  The elements of strings are all characters.
+
+   The following diagram shows the relationship between these types:
+
+                 ___________________________________
+                |                                   |
+                |          Sequence                 |
+                |  ______   ______________________  |
+                | |      | |                      | |
+                | | List | |         Array        | |
+                | |      | |  ________   _______  | |   
+                | |______| | |        | |       | | |
+                |          | | String | | Vector| | |
+                |          | |________| |_______| | |
+                |          |______________________| |
+                |___________________________________|
+
+           The Relationship between Sequences, Arrays, and Vectors
+
+* Menu:
+
+* Sequence Functions::    Functions that accept any kind of sequence.
+* Arrays::                Characteristics of arrays in Emacs Lisp.
+* Array Functions::       Functions specifically for arrays.
+* Vectors::               Functions specifically for vectors.
+
+ 
+
+File: elisp,  Node: Sequence Functions,  Next: Arrays,  Prev: Sequences Arrays Vectors,  Up: Sequences Arrays Vectors
+
+Sequences
+=========
+
+   In Emacs Lisp, a "sequence" is either a list, a vector or a
+string.  The common property that all sequences have is that each is
+an ordered collection of elements.  This section describes functions
+that accept any kind of sequence.
+
+ * Function: sequencep OBJECT
+     Returns `t' if OBJECT is a list, vector, or string, `nil'
+     otherwise.
+
+ * Function: copy-sequence SEQUENCE
+     Returns a copy of SEQUENCE.  The copy is the same type of object
+     as the original sequence, and it has the same elements in the
+     same order.
+
+     Storing a new element into the copy does not affect the original
+     SEQUENCE, and vice versa.  However, the elements of the new
+     sequence are not copies; they are identical (`eq') to the
+     elements of the original.  Therefore, changes made within these
+     elements, as found via the copied sequence, are also visible in
+     the original sequence.
+
+     See also `append' in *Note Building Lists::, `concat' in *Note
+     Creating Strings::, and `vconcat' in *Note Vectors::, for others
+     ways to copy sequences.
+
+          (setq bar '(1 2))
+               => (1 2)
+          (setq x (vector 'foo bar))
+               => [foo (1 2)]
+          (setq y (copy-sequence x))
+               => [foo (1 2)]
+          
+          (eq x y)
+               => nil
+          (equal x y)
+               => t
+          (eq (elt x 1) (elt y 1))
+               => t
+          
+          ;; Replacing an element of one sequence.
+          (aset x 0 'quux)
+          x => [quux (1 2)]
+          y => [foo (1 2)]
+          
+          ;; Modifying the inside of a shared element.
+          (setcar (aref x 1) 69)
+          x => [quux (69 2)]
+          y => [foo (69 2)]
+
+ * Function: length SEQUENCE
+     Returns the number of elements in SEQUENCE.  If SEQUENCE is a
+     cons cell that is not a list (because the final CDR is not
+     `nil'), a `wrong-type-argument' error is signaled.
+
+          (length '(1 2 3))
+              => 3
+          (length nil)
+              => 0
+          (length "foobar")
+              => 6
+          (length [1 2 3])
+              => 3
+
+ * Function: elt SEQUENCE INDEX
+     This function returns the element of SEQUENCE indexed by INDEX. 
+     Legitimate values of INDEX are integers ranging from 0 up to one
+     less than the length of SEQUENCE; other values produce an
+     `args-out-of-range' error.
+
+          (elt [1 2 3 4] 2)
+               => 3
+          (elt '(1 2 3 4) 2)
+               => 3
+          (char-to-string (elt "1234" 2))
+               => "3"
+          (elt [1 2 3 4] 4)
+               error-->Args out of range: [1 2 3 4], 4
+          (elt [1 2 3 4] -1)
+               error-->Args out of range: [1 2 3 4], -1
+
+     This function duplicates `aref' (*note Array Functions::.) and
+     `nth' (*note List Elements::.), except that it works for any
+     kind of sequence.
+
+
+
+File: elisp,  Node: Arrays,  Next: Array Functions,  Prev: Sequence Functions,  Up: Sequences Arrays Vectors
+
+Arrays
+======
+
+   An "array" object refers directly to a number of other Lisp
+objects, called the elements of the array.  Any element of an array
+may be accessed in constant time.  In contrast, an element of a list
+requires access time that is proportional to the position of the
+element in the list.
+
+   When you create an array, you must specify how many elements it has.
+The amount of space allocated depends on the number of elements. 
+Therefore, it is impossible to change the size of an array once it is
+created.  You cannot add or remove elements.  However, you can
+replace an element with a different value.
+
+   Emacs defines two types of array, both of which are
+one-dimensional: "strings" and "vectors".  A vector is a general
+array; its elements can be any Lisp objects.  A string is a
+specialized array; its elements must be characters (i.e., integers
+between 0 and 255).  Each type of array has its own read syntax. 
+*Note String Type::, and *Note Vector Type::.
+
+   Both kinds of arrays share these characteristics:
+
+   * The first element of an array has index zero, the second element
+     has index 1, and so on.  This is called "zero-origin" indexing. 
+     For example, an array of four elements has indices 0, 1, 2, and 3.
+
+   * The elements of an array may be referenced or changed with the
+     functions `aref' and `aset', respectively (*note Array
+     Functions::.).
+
+   In principle, if you wish to have an array of characters, you
+could use either a string or a vector.  In practice, we always choose
+strings for such applications, for three reasons:
+
+   * They occupy one-fourth the space of a vector of the same elements.
+
+   * Strings are printed in a way that shows the contents more
+     clearly as characters.
+
+   * Many of the specialized editing and I/O facilities of Emacs
+     accept only strings.  For example, you cannot insert a vector of
+     characters into a buffer the way you can insert a string.  *Note
+     Strings and Characters::.
+
+
+
+File: elisp,  Node: Array Functions,  Next: Vectors,  Prev: Arrays,  Up: Sequences Arrays Vectors
+
+Functions that Operate on Arrays
+================================
+
+   In this section, we describe the functions that accept both
+strings and vectors.
+
+ * Function: arrayp OBJECT
+     This function returns `t' if OBJECT is an array (i.e., either a
+     vector or a string).
+
+          (arrayp [a])
+          => t
+          (arrayp "asdf")
+          => t
+
+ * Function: aref ARRAY INDEX
+     This function returns the INDEXth element of ARRAY.  The first
+     element is at index zero.
+
+          (setq primes [2 3 5 7 11 13])
+               => [2 3 5 7 11 13]
+          (aref primes 4)
+               => 11
+          (elt primes 4)
+               => 11
+          
+          (aref "abcdefg" 1)
+               => 98           ; `b' is ASCII code 98.
+
+      See also the function `elt', in *Note Sequence Functions::.
+
+ * Function: aset ARRAY INDEX OBJECT
+     This function sets the INDEXth element of ARRAY to be OBJECT. 
+     It returns OBJECT.
+
+          (setq w [foo bar baz])
+               => [foo bar baz]
+          (aset w 0 'fu)
+               => fu
+          w
+               => [fu bar baz]
+          
+          (setq x "asdfasfd")
+               => "asdfasfd"
+          (aset x 3 ?Z)
+               => 90
+          x
+               => "asdZasfd"
+
+     If ARRAY is a string and OBJECT is not a character, a
+     `wrong-type-argument' error results.
+
+ * Function: fillarray ARRAY OBJECT
+     This function fills the array ARRAY with pointers to OBJECT,
+     replacing any previous values.  It returns ARRAY.
+
+          (setq a [a b c d e f g])
+               => [a b c d e f g]
+          (fillarray a 0)
+               => [0 0 0 0 0 0 0]
+          a
+               => [0 0 0 0 0 0 0]
+          (setq s "When in the course")
+               => "When in the course"
+          (fillarray s ?-)
+               => "------------------"
+
+     If ARRAY is a string and OBJECT is not a character, a
+     `wrong-type-argument' error results.
+
+   The general sequence functions `copy-sequence' and `length' are
+often useful for objects known to be arrays.  *Note Sequence
+Functions::.
+
+

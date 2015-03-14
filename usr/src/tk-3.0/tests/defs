@@ -1,0 +1,51 @@
+# This file contains support code for the Tcl test suite.  It is
+# normally sourced by the individual files in the test suite before
+# they run their tests.  This improved approach to testing was designed
+# and initially implemented by Mary Ann May-Pumphrey of Sun Microsystems.
+
+set VERBOSE 0
+set TESTS {}
+
+proc print_verbose {test_name test_description contents_of_test answer} {
+    puts stdout "\n"
+    puts stdout "==== $test_name $test_description"
+    puts stdout "==== Contents of test case:"
+    puts stdout "$contents_of_test"
+    puts stdout "==== Result was:"
+    puts stdout "$answer"
+}
+
+proc test {test_name test_description contents_of_test passing_results} {
+    global VERBOSE
+    global TESTS
+    if {[string compare $TESTS ""] != 0} then {
+	set ok 0
+	foreach test $TESTS {
+	    if [string match $test $test_name] then {
+		set ok 1
+		break
+	    }
+        }
+	if !$ok then return
+    }
+    set answer [uplevel $contents_of_test]
+    if {[string compare $answer $passing_results] == 0} then { 
+	if $VERBOSE then {
+	    print_verbose $test_name $test_description $contents_of_test $answer
+	    puts stdout "++++ $test_name PASSED"
+	}
+    } else { 
+	print_verbose $test_name $test_description $contents_of_test $answer 
+	puts stdout "---- Result should have been:"
+	puts stdout "$passing_results"
+	puts stdout "---- $test_name FAILED" 
+    }
+}
+
+proc dotests {file args} {
+    global TESTS
+    set savedTests $TESTS
+    set TESTS $args
+    source $file
+    set TESTS $savedTests
+}

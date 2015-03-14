@@ -1,0 +1,33 @@
+#! /bin/sh
+# histfrom - get history-file entries between two dates
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+case $# in
+1)	start="$1"
+	end="now"
+	;;
+2)	start="$1"
+	end="$2"
+	;;
+*)	echo "Usage: $0 startdate [enddate]" >&2
+	exit 2
+	;;
+esac
+if start=`getdate "$start"` && end=`getdate "$end"`
+then
+	: okay
+else
+	exit 1
+fi
+
+egrep '	.*	' $NEWSCTL/history | awk -F'	' '{
+	n = split($2, subf, "~")
+	arrived = subf[1]
+	if (arrived >= '$start' && arrived <= '$end')
+		print
+}'

@@ -1,0 +1,1267 @@
+Info file: configure,    -*-Text-*-
+produced by texinfo-format-buffer
+from file: configure.texi
+
+
+This document attempts to describe the Cygnus Support version of `configure'.
+
+Copyright (C) 1991, 1992 Cygnus Support Permission is granted to make and
+distribute verbatim copies of this manual provided the copyright notice and
+this permission notice are preserved on all copies.
+
+Permission is granted to copy and distribute modified versions of this manual
+under the conditions for verbatim copying, provided that the entire resulting
+derived work is distributed under the terms of a permission notice identical to
+this one.
+
+Permission is granted to copy and distribute translations of this manual into
+another language, under the above conditions for modified versions, except that
+this permission notice may be stated in a translation approved by Cygnus
+Support.
+
+
+START-INFO-DIR-ENTRY
+* configure: (configure.info).	Cygnus configure.
+END-INFO-DIR-ENTRY
+
+
+File: configure, Node: top, Next: What Configure Does, Prev: (dir), Up: (dir)
+
+top
+***
+
+This file documents the configuration system used and distributed by Cygnus
+Support.
+
+* Menu:
+
+* What Configure Does::		What Configure Does
+* Invoking::			Invoking
+* Using Configure::		Using Configure
+* Porting::			Porting with Configure
+* Reference::			Gory details described
+* Known Bugs::			Known Bugs
+* Variables Index::		Variable Index
+* Concept Index::		Concept Index
+
+ -- The Detailed Node Listing ---
+
+Using Configure
+
+* Install Locations::		Where to install things once they are built
+* Build Directories::		Where to build object files
+* Host::			Telling `configure' what will source will
+			  be built
+* Target::			Telling `configure' what the source will
+			  target
+* Local Conventions::		Adding information about local conventions
+
+Install Locations
+
+* prefix::		Changing the default install directory
+* exec_prefix::		How to separate host independent files
+			  from host dependent files when
+			  installing for multiple hosts
+* Install Details::	Full descriptions of all installation
+			  subdirectories
+
+Porting with Configure
+
+* Programs::			Adding configure to new programs
+* Hosts and Targets::		Adding hosts and targets
+* Sites::			Adding site info
+
+Gory details described
+
+* Makefile Extensions::		Extensions to the GNU coding standards
+* configure.in::		The format of the configure.in file
+* config.status::		config.status
+* Makefile Fragments::		Makefile Fragments
+
+The format of the `configure.in' file
+
+* Minimal::			A minimal configure.in
+* Configure Variables::		Variables available to configure.in
+* Declarations::		For each invocation
+* Per-host::			For each host
+* Per-target::			For each target
+* Post-target::			After each target
+* Example::			An example configure.in
+
+
+
+File: configure, Node: What Configure Does, Next: Invoking, Prev: top, Up: top
+
+What Configure Does
+*******************
+
+`configure' prepares source directories for building working programs.  A
+program cannot be built until its source has been configured.  When configure
+runs, it does the following things.
+
+*Create build directories*
+     (see *Note Build Directories::).  When you run `configure' with the
+     `-srcdir=' option, it uses the current directory as build directory,
+     creating under it a directory tree that parallels the directory structure
+     under the source directory.  (See *Note Invoking::).
+
+*Generate makefiles*
+     A makefile template from the source directory, usually called
+     `Makefile.in', is copied to an output file in the build directory.  The
+     output file is usually named `Makefile'.  `configure' places definitions
+     for a number of standard makefile macros at the beginning of the output
+     file.  If `-prefix=' or `-exec_prefix' were specified on the `configure'
+     command line, corresponding makefile variables are set accordingly.  If
+     host, target, or site specific makefile fragments exist, these are
+     inserted into the output file.  (See *Note Makefiles: (make)Makefiles.)
+
+*Generate `.gdbinit' If the source directory contains a*
+     `.gdbinit' file and the build directory is not the same as the source
+     directory, a `.gdbinit' file is created in the build directory.  This
+     `.gdbinit' file contains `dir' commands and a `source' command, which will
+     cause the `.gdbinit' file from the source directory to be read by GDB, and
+     will allow GDB to find source files in either the source directory or the
+     build directory.  (see *Note Command Files: (gdb)Command Files.)
+
+*Make symbolic links*
+     Most directories have some symbolic links with generic names built
+     pointing to specific files in the source directory.  If the system where
+     `configure' runs cannot support symbolic links, hard links are used
+     instead.
+
+*Miscellaneous*
+     If the source directory has special needs, they are handled by shell
+     script fragments stored with the source.  Usually there are no special
+     needs, but sometimes they involve changes to the output makefile.
+
+*Generate `config.status'*
+     `configure' creates a shell script named `config.status' in the build
+     directory.  This shell script, when run from the build directory, will
+     reconfigure the build directory (but not its subdirectories).  This is
+     most often used to have a `Makefile' update itself automatically if a new
+     source directory is available.
+
+*Recursion*
+     If the source directory has subdirectories that should also be configured,
+     `configure' is called for each.
+
+
+File: configure, Node: Invoking, Next: Using Configure, Prev: What Configure Does, Up: top
+
+Invoking
+********
+
+The usual way to invoke `configure' is as follows:
+     configure HOST This prepares the source to be compiled in a HOST
+environment with programs and files to be installed in `/usr/local'.
+
+`configure' prepares the source as you specify by selecting and using script
+and Makefile fragments prepared in advance, and stored with the source.
+`configure''s command line options also allow you to specify other aspects of
+the source configuration:
+
+`-exec_prefix=DIR'
+     Configure the source to install host dependent files in DIR.
+
+     This option sets the `configure' variable `exec_prefix'.  Generated
+     Makefiles will have their `exec_prefix' variables set to this value. (See
+     *Note Install Details::.)
+
+`-gas'
+     Configure to use the GNU assembler.
+
+`-help'
+     Display a quick summary of how to invoke `configure'.
+
+`-host=HOST'
+     FIXME-soon: I don't think this option should be documented.
+
+`-nfp'
+     *No floating point* unit available on the target; configure to avoid
+     dependencies on hardware floating point.
+
+`-norecursion'
+     Configure only this directory; ignore any subdirectories.  This is used by
+     the executable shell script `config.status' to reconfigure the current
+     directory.  (see *Note config.status::).
+
+`-prefix=DIR'
+     Configure the source to install programs and files under directory `DIR'.
+
+     This option sets the `configure' variable `prefix'.  Generated Makefiles
+     will have their `prefix' variables set to this value.  (See *Note Install
+     Details::.)
+
+`-recurring'
+     This option is used internally by `configure' when recurring on
+     subdirectories.  Its sole purpose is to suppress status output.  You can
+     override this effect with the `-verbose' option.
+
+`-rm'
+     *Remove* the configuration specified by HOST and the other command-line
+     options, rather than creating it.
+
+`-site=SITE'
+     Generate Makefiles using site specific Makefile fragments for SITE.  See
+     also *Note Sites::.
+
+`-srcdir=_DIR'
+     Build Makefiles to use the sources located in directory `DIR'.  The build
+     directory is assumed to be `.'.
+
+`-target=TARGET'
+     Requests that the sources be configured to target the TARGET machine.  If
+     no target is specified explicitly, the target is assumed to be the same as
+     the host.
+
+`-tmpdir=TMPDIR'
+     Use the directory TMPDIR for `configure''s temporary files.  The default
+     is the value of the environment variable TMPDIR, or `/tmp' if the
+     environment variable is not set.
+
+`-verbose'
+`-v'
+     Print status lines for each directory configured.  Normally, only the
+     status lines for the initial working directory are printed.
+
+`-x'
+     Use MIT style X11 header files and libraries on the host, even if they are
+     not normally available.
+
+
+File: configure, Node: Using Configure, Next: Porting, Prev: Invoking, Up: top
+
+Using Configure
+***************
+
+The choices and options available at configuration time generally have valid
+defaults, but the defaults do not cover all cases.  The choices available
+include install locations, build directories, host, target, and local
+conventions.
+
+* Menu:
+
+* Install Locations::		Where to install things once they are built
+* Build Directories::		Where to build object files
+* Host::			Telling `configure' what will source will
+			  be built
+* Target::			Telling `configure' what the source will
+			  target
+* Local Conventions::		Adding information about local conventions
+
+
+File: configure, Node: Install Locations, Next: Build Directories, Prev: Using Configure, Up: Using Configure
+
+Install Locations
+=================
+
+Using the default configuration, `make install' creates a single tree of files,
+some of which are programs.  The location of this tree is determined by the
+value of the variable `prefix'.  The default value of `prefix' is `/usr/local'.
+This is often correct for native tools installed on only one host.
+
+* Menu:
+
+* prefix::		Changing the default install directory
+* exec_prefix::		How to separate host independent files
+			  from host dependent files when
+			  installing for multiple hosts
+* Install Details::	Full descriptions of all installation
+			  subdirectories
+
+
+File: configure, Node: prefix, Next: exec_prefix, Prev: Install Locations, Up: Install Locations
+
+Changing the default install directory
+--------------------------------------
+
+In the default configuration, all files are installed in subdirectories of
+`/usr/local'.  The location is determined by the value of the `configure'
+variable `prefix'; in turn, this determines the value of the Makefile variable
+of the same name (`prefix').
+
+You can also set the value of the Makefile variable `prefix' explicitly each
+time you invoke `make' if you are so inclined; but because many programs have
+this location compiled in, you must specify the `prefix' value consistently on
+each invocation of `make', or you will end up with a broken installation.
+
+To make this easier, the value of the `configure' variable `prefix' can be set
+on the command line to `configure' using the option `-prefix='.
+
+
+
+File: configure, Node: exec_prefix, Next: Install Details, Prev: prefix, Up: Install Locations
+
+Installing for multiple hosts
+-----------------------------
+
+By default, host dependent files are installed in subdirectories of
+`EXEC_PREFIX'.  The location is determined by the value of the `configure'
+variable `exec_prefix', which determines the value of the Makefile variable
+`exec_prefix'.  This makes it simpler to install for a single host, and
+simplifies changing the default location for the install tree; but the default
+doesn't allow for multiple hosts to effectively share host independent files.
+
+To configure so that multiple hosts can share common files, use something like:
+
+     configure HOST1 -prefix=/usr/gnu -exec_prefix=/usr/gnu/H-host1
+     make all info install install-info clean
+
+     configure HOST2 -prefix=/usr/gnu -exec_prefix=/usr/gnu/H-host2
+     make all info install install-info
+
+The first line configures the source for HOST1 to place host specific programs
+in subdirectories of `/usr/gnu/H-HOST1'.
+
+The second line builds and installs all programs for HOST1, including both host
+independent and host specific files.
+
+The third line reconfigures the source for HOST2 to place host specific
+programs in subdirectories of `/usr/gnu/H-HOST2'.
+
+The fourth line builds and installs all programs for HOST2.  Host specific
+files are installed in new directories, but the host independent files are
+installed *on top of* the host independent files installed for HOST1.  This
+results in a single copy of the host independent files, suitable for use by
+both hosts.
+
+
+File: configure, Node: Install Details, Prev: exec_prefix, Up: Install Locations
+
+Full descriptions of all installation subdirectories
+----------------------------------------------------
+
+During any install, a number of standard directories are created.  Their names
+are determined by Makefile variables.  Some of the defaults for Makefile
+variables can be changed at configure time using command line options to
+`configure'.  For more information on the standard directories or the Makefile
+variables, please refer to `standards.text'.
+
+Note that `configure' does not create the directory `srcdir' at any time.
+`srcdir' is not an installation directory.
+
+You can override all makefile variables on the command line to `make'.  (See
+*Note Overriding Variables: (make)Overriding.)  If you do so, you will need to
+specify the value precisely the same way for each invocation of `make', or you
+risk ending up with a broken installation.  This is because many programs have
+the locations of other programs or files compiled into them.  If you find
+yourself overriding any of the variables frequently, you should consider site
+dependent Makefile fragments.  See also *Note Sites::.
+
+During `make install', a number of standard directories are created and
+populated.  The following Makefile variables define them.  Those whose defaults
+are set by corresponding `configure' variables are marked "Makefile and
+configure".
+
+ -- Makefile and configure: prefix
+     The root of the installation tree.  You can set its Makefile default with
+     the `-prefix=' command line option to `configure'.  (*Note Invoking::.)
+     The default value for `prefix' is `/usr/local'.
+
+ -- Makefile: bindir
+     A directory for binary programs that users can run.  The default value for
+     `bindir' depends on `prefix'; `bindir' is normally changed only indirectly
+     through `prefix'.  The default value for `bindir' is `$(prefix)/bin'.
+
+ -- Makefile and configure: exec_prefix
+     A directory for host dependent files.  You can specify the Makefile
+     default value by using the `-exec_prefix=' option to `configure'.  (See
+     also *Note Invoking::.)  The default value for `exec_prefix' is
+     `$(prefix)'.
+
+ -- Makefile: libdir
+     A directory for libraries and support programs.  The default value for
+     `libdir' depends on `prefix'; `libdir' is normally changed only indirectly
+     through `prefix'.  The default value for `libdir' is `$(prefix)/lib'.
+
+ -- Makefile: mandir
+     A directory for `man' format documentation ("man pages").  The default
+     value for `mandir' depends on `prefix'; `mandir' is normally changed only
+     indirectly through `prefix'.  The default value for `mandir' is
+     `$(prefix)/man'.
+
+ -- Makefile: manNdir
+     There are eight variables named `man1dir', `man2dir', etc.  They name the
+     specific directories for each man page section.  For example, `man1dir'
+     holds `emacs.1' (the man page for the emacs program), while `man5dir'
+     holds `rcsfile.5' (the man page describing the `rcs' data file format).
+     The default value for any of the `manNdir' variables depends indirectly on
+     `prefix', and is normally changed only through `prefix'.  The default
+     value for `manNdir' is `$(mandir)/manN'.
+
+ -- Makefile: manext
+     *Not supported by `configure'*.  The GNU coding standards do not call for
+     `man1ext', `man2ext', so the intended use for `manext' is apparently not
+     parallel to `mandir'.  Its use is not clear.  (See also *Note Makefile
+     Extensions::.)
+
+ -- Makefile: infodir
+     A directory for *info* format documentation.  The default value for
+     `infodir' depends indirectly on `prefix'; `infodir' is normally changed
+     only through `prefix'.  The default value for `infodir' is
+     `$(prefix)/info'.
+
+ -- Makefile: docdir
+     A directory for any documentation that is in a format other than those
+     used by `info' or `man'.  The default value for `docdir' depends
+     indirectly on `prefix'; `docdir' is normally changed only through
+     `prefix'.  The default value for `docdir' is `$(datadir)/doc'.  *This
+     variable is an extension to the GNU coding standards*.  (See also *Note
+     Makefile Extensions::.)
+
+ -- Makefile: includedir
+     A directory for the header files accompanying the libraries installed in
+     `libdir'.  The default value for `includedir' depends on `prefix';
+     `includedir' is normally changed only indirectly through `prefix'.  The
+     default value for `includedir' is `$(prefix)/include'.
+
+
+File: configure, Node: Build Directories, Next: Host, Prev: Install Locations, Up: Using Configure
+
+Build Directories
+=================
+
+Normally, `configure' builds a `Makefile' and symbolic links in the same
+directory as the source files.  This is the typical UN*X way to build programs,
+but it has limitations.  For instance, using this approach, you can only build
+for one host at a time.
+
+We refer to the directories where `configure' builds a Makefile as the *build
+directories* or sometimes as *objdir* because these are the directories in
+which `make' will build object files, among other things.
+
+The default build directory is the same as the source directory.  You can use a
+different build directory with a sequence like the following:
+
+     mkdir BUILDDIR
+     cd BUILDDIR
+     configure HOST -srcdir=SOURCEDIRECTORY
+
+where BUILDDIR is the directory where you wish to build, HOST is the host for
+which you want to build, and SOURCEDIRECTORY is the directory containing the
+source files.
+
+If you were to do this twice with different values for BUILDDIR and HOST, then
+you could `make' for both at the same time.
+
+
+File: configure, Node: Host, Next: Target, Prev: Build Directories, Up: Using Configure
+
+Host
+====
+
+The arguments to `configure' are *hosts*.  By *host* we mean the environment in
+which the source will be compiled.  This need not necessarily be the same as
+the physical machine involved, although it usually is.
+
+For example, if some obscure machine running an operating system other than
+UN*X had the GNU POSIX emulation libraries available, it would be possible to
+configure most GNU source for a POSIX system and build it on the obscure host.
+
+For more on this topic, see *Note Host Environments: (cfg-paper)Host
+Environments.
+
+
+File: configure, Node: Target, Next: Local Conventions, Prev: Host, Up: Using Configure
+
+Target
+======
+
+For building native development tools, or most of the other GNU tools, you need
+not worry about the target.  The *target* of a configuration defaults to the
+same as the *host*.
+
+For building cross development tools, please see *Note Building Development
+Environments: (cfg-paper)Building Development Environments.
+
+
+File: configure, Node: Local Conventions, Prev: Target, Up: Using Configure
+
+Local Conventions
+=================
+
+If you find that a tool does not get configured to your liking, or if
+`configure''s conventions differ from your local conventions, you should
+probably consider site specific Makefile fragments.  See also *Note Sites::.
+
+These are probably not the right choice for options that can be set from the
+`configure' command line or for differences that are host or target dependent.
+
+
+File: configure, Node: Porting, Next: Reference, Prev: Using Configure, Up: top
+
+Porting with Configure
+**********************
+
+This section explains how to add programs, host and target configuration names,
+and site-specific information to Cygnus configure.
+
+* Menu:
+
+* Programs::			Adding configure to new programs
+* Hosts and Targets::		Adding hosts and targets
+* Sites::			Adding site info
+
+
+
+File: configure, Node: Programs, Next: Hosts and Targets, Prev: Porting, Up: Porting
+
+Adding Configure To New Programs
+================================
+
+If you are writing a new program, you probably shouldn't worry about porting
+issues or configure until it is running reasonably on some host.  Then refer
+back to this section.
+
+If the program in question currently has a configure script that meets the
+criteria set out by `standards.text', please do not add Cygnus configure.  It
+should be possible to add this program without change to a Cygnus configure
+style source tree.
+
+If the program is not target dependent, please consider using `autoconf'
+instead of Cygnus configure.  `autoconf' will be available soon from the FSF.
+
+To add Cygnus configure to an existing program, do the following:
+
+Make sure the Makefile conforms to GNU standard
+     The coding standard for GNU Makefiles is described in `standards.text'.
+
+Add Cygnus extensions to the Makefile
+     These are described in *Note Makefile Extensions::.
+
+Move host support from Makefile to fragments
+     This usually involves finding sections of the Makefile that say things
+     like "uncomment these lines for host foo" and moving them to a new file
+     called `./config/mh-foo'. For more information, see *Note Hosts and
+     Targets::.
+
+Choose defaults
+     If the program has compile time options that determine the way the program
+     should behave, chose reasonable defaults and make these Makefile
+     variables.  Be sure the variables are assigned their default values before
+     the `####' line so that site specific Makefile fragments can override them
+     (*Note Extensions to the GNU coding standards: Makefile Extensions.).
+
+Locate configuration files
+     If there is configuration information in header files or source files,
+     separate it in such a way that the files have a generic name.  Then move
+     the specific instances of those files into the `./config' directory.
+
+Separate host and target information
+     Some programs already have this information separated.  If yours does not,
+     you will need to separate these two kinds of configuration information.
+     "Host specific" information is the information needed to compile the
+     program.  "Target specific" information is information on the format of
+     data files that the program will read or write.  This information should
+     live in separate files in the `./config' directory with names that reflect
+     the configuration for which they are intended.
+
+     At this point you might skip this step and simply move on.  If you do, you
+     should end up with a program that can be configured only to build native
+     tools, that is, tools for which the host system is also the target system.
+     Later, you could attempt to build a cross tool and separate out the target
+     specific information by figuring out what went wrong.  This is often
+     simpler than combing through all of the source code.
+
+Write `configure.in'
+     Usually this involves writing shell script fragments to map from canonical
+     configuration names into the names of the configuration files.  These
+     files will then be linked at configure time from the specific instances of
+     those files in `./config' to file in the build directory with more generic
+     names.  (see also *Note Build Directories::).  The format of configure.in
+     is described in *Note configure.in::.
+
+Rename `Makefile' to `Makefile.in'
+
+At this point you should have a program that can be configured using Cygnus
+`configure'.
+
+
+File: configure, Node: Hosts and Targets, Next: Sites, Prev: Programs, Up: Porting
+
+Adding hosts and targets
+========================
+
+To add a host or target to a program that already uses Cygnus configure, do the
+following.
+
+
+   * Make sure the new configuration name is represented in `config.sub'.  If
+     not, add it.  For more details, see the comments in the shell script
+     `config.sub'.
+
+   * If you are adding a host configuration, look in `configure.in', in the
+     per-host section.  Make sure that your configuration name is represented
+     in the mapping from host configuration names to configuration files.  If
+     not, add it.  Also see *Note configure.in::.
+
+   * If you are adding a target configuration, look in `configure.in', in the
+     per-target section.  Make sure that your configuration name is represented
+     in the mapping from target configuration names to configuration files.  If
+     not, add it.  Also see *Note configure.in::.
+
+   * Look in `configure.in' for the variables `files', `links',
+     `host_makefile_frag', and `target_makefile_frag'.  The values assigned to
+     these variables are the names of the configuration files, relative to
+     `srcdir' that the program uses.  Make sure that copies of the files exist
+     for your host.  If not, create them.  See also *Note Configure
+     Variables::.
+
+This should be enough to configure for a new host or target configuration name.
+Getting the program to compile and run properly remains the hard work of the
+port.
+
+
+File: configure, Node: Sites, Prev: Hosts and Targets, Up: Porting
+
+Adding site info
+================
+
+If some of the Makefile defaults are not right for your site, you can build
+site specific Makefile fragments.  To do this, do the following.
+
+
+   * Choose a name for your site.  It must be less than eleven characters for
+     now.
+
+   * If the program source does not have a `./config' directory, create it.
+
+   * Create a file called `./config/ms-SITE' where SITE is the name of your
+     site.  In it, set whatever Makefile variables you need to override to
+     match your site's conventions.
+
+   * Configure the program with:
+
+          configure ... +site=SITE
+
+
+
+File: configure, Node: Reference, Next: Known Bugs, Prev: Porting, Up: top
+
+Gory details described
+**********************
+
+Here we describe the backend support.
+
+* Menu:
+
+* Makefile Extensions::		Extensions to the GNU coding standards
+* configure.in::		The format of the configure.in file
+* config.status::		config.status
+* Makefile Fragments::		Makefile Fragments
+
+
+File: configure, Node: Makefile Extensions, Next: configure.in, Prev: Reference, Up: Reference
+
+Extensions to the GNU coding standards
+======================================
+
+
+The following additions to the GNU coding standards are required for Cygnus
+configure to work properly.
+
+   * The Makefile must contain exactly one line starting with `####'.  This
+     line should follow any default macro definitions but precede any rules.
+     Host, target, and site specific Makefile fragments will be inserted
+     immediately after this line.  If the line is missing, the fragments will
+     not be inserted.
+
+Cygnus adds the following targets to our Makefiles.  Their existence is not
+required for Cygnus configure, but they are documented here for completeness.
+
+`info'
+     Build all info files from texinfo source.
+
+`install-info'
+     Install all info files.
+
+`clean-info'
+     Remove all info files and any intermediate files that can be generated
+     from texinfo source.
+
+`stage1'
+`stage2'
+`stage3'
+`stage4'
+`de-stage1'
+`de-stage2'
+`de-stage3'
+`de-stage4'
+`bootstrap'
+`comparison'
+`Makefile'
+     These targets are in transition and may be removed shortly.
+
+In addition, the following Makefile targets have revised semantics:
+
+`install'
+     Should *not* depend on the target `all'.  If the program is not already
+     built, `make install' should fail.  This allows you to install programs
+     even when `make' would otherwise determine them to be out of date.  This
+     can happen when the result of a `make all' is transported via tape to
+     another machine for installation as well as in a number of other cases.
+
+`clean'
+     Should remove any file that can be regenerated by the Makefile, excepting
+     only the Makefile itself, and any links created by configure.  That is,
+     `make all clean' should return all directories to their original
+     condition.  If this is not done, then:
+
+          configure HOST1 ; make all clean ; configure HOST2 ; make all
+
+     will fail because of intermediate files intended for HOST1.
+
+Cygnus adds the following macros to all `Makefile.in' files, but you are not
+required to use them to run Cygnus configure.
+
+`docdir'
+     The directory in which to install any documentation that is not either a
+     man page or an info file.  For man pages, see mandir, for info, see
+     infodir.
+
+`includedir'
+     The directory in which to install any headers files that should be made
+     available to users.  This is distinct from the `gcc' include directory
+     which is intended for `gcc' only.  Files in `includedir' may be used by
+     `cc' as well.
+
+In addition, the following macros have revised semantics.  Most of them
+describe installation directories; see also *Note Full description of all
+installation subdirectories: Install Details.
+
+
+`manext'
+     is not used.  The intended usage is not clear.  For example, if you have a
+     `foo.man' and a `bar.man', and `foo.man' is destined for
+     `/usr/local/lib/man/man1/foo.1' while `bar.man' is destined for
+     `/usr/local/lib/man/man5/bar.5', then what is the desired value of
+     `manext'?
+
+`datadir'
+     is used for host independent data files.
+
+`mandir'
+     The default path for `mandir' depends on `prefix'.
+
+`infodir'
+     The default path for `infodir' depends on `prefix'.
+
+`BISON'
+     is assumed to have a `yacc' calling convention.  To use `bison', use
+     `BISON=bison -y'.
+
+Cygnus Makefiles also conform to one additional restriction:
+
+   * When libraries are installed, the line containing the call to
+     `INSTALL_DATA' should always be followed by a line containing a call to
+     `RANLIB' on the installed library.  This is to accomodate systems that use
+     `ranlib'.  Systems that do not use `ranlib' can set `RANLIB' to `echo' in
+     a host specific Makefile fragment.
+
+
+File: configure, Node: configure.in, Next: config.status, Prev: Makefile Extensions, Up: Reference
+
+The format of the `configure.in' file
+=====================================
+
+A `configure.in' file for Cygnus configure consists of a "per-invocation"
+section, followed by a "per-host" section, followed by a "per-target" section,
+optionally followed by a "post-target" section.  Each section is a shell script
+fragment, which is sourced by the configure shell script at an appropriate
+time.  Values are passed among configure and the shell fragments through a set
+of shell variables.  When each section is being interpreted (sourced) by the
+shell, the shell's current directory is the build directory, and any files
+created by the section (or referred to by the section) will be relative to the
+build directory.  To reference files in other places (such as the source
+directory), prepend a shell variable such as `srcdir' to the desired file name.
+
+The beginning of the `configure.in' file begins the per-invocation section.
+
+A line beginning with `# Per-host:' begins the per-host section.
+
+A line beginning with `# Per-target:' begins the per-target section.
+
+If it exists, the post-target section begins with `# Per-target:'.
+
+* Menu:
+
+* Minimal::			A minimal configure.in
+* Configure Variables::		Variables available to configure.in
+* Declarations::		For each invocation
+* Per-host::			For each host
+* Per-target::			For each target
+* Post-target::			After each target
+* Example::			An example configure.in
+
+
+File: configure, Node: Minimal, Next: Configure Variables, Prev: configure.in, Up: configure.in
+
+A minimal `configure.in'
+------------------------
+
+A minimal `configure.in' consists of four lines.
+
+     srctrigger=foo.c
+     srcname="source for the foo program"
+     # Per-host:
+     # Per-target:
+
+The `Per-host' and `Per-target' lines divide the file into the three required
+sections.  The `srctrigger' line names a file.  `configure' checks to see that
+this file exists in the source directory before configuring.  If the
+`srctrigger' file does not exist, `configure' uses the value of `srcname' to
+print an error message about not finding the source.
+
+This particular example uses no links, and only the default host, target, and
+site specific Makefile fragments if they exist.
+
+
+File: configure, Node: Configure Variables, Next: Declarations, Prev: Minimal, Up: configure.in
+
+Variables available to configure.in
+-----------------------------------
+
+
+The following variables pass information between the standard parts of
+`configure' and the shell-script fragments in `configure.in':
+
+ -- Variable: srctrigger
+     Contains the name of a source file that is expected to live in the source
+     directory.  You must usually set this in the per-invocation section of
+     `configure.in'.  Configure tests to see that this file exists.  If the
+     file does not exist, configure prints an error message.  This is used as a
+     sanity check that configure.in matches the source directory.
+
+ -- Variable: srcname
+     Contains the name of the source collection contained in the source
+     directory.  You must usually set this in the per-invocation section of
+     `configure.in'.  If the file named in `srctrigger' does not exist,
+     configure uses the value of this variable when it prints the error
+     message.
+
+ -- Variable: configdirs
+     Contains the names of any subdirectories where `configure' should recur.
+     You must usually set this in the per-invocation section of `configure.in'.
+     If `Makefile.in' contains a line starting with `SUBDIRS =', then it will
+     be replaced with an assignment to `SUBDIRS' using the value of
+     `configdirs'.  This can be used to determine which directories to
+     configure and build depending on the host and target configurations.
+
+ -- Variable: host
+     Contains the name that the user entered for the host.  Since many things
+     that the user could enter would map to the same output from `config.sub',
+     this variable is innappropriate to use for picking available
+     configurations.  For that, use `host_cpu', `host_vendor', and/or
+     `host_os'.  This variable is useful, however, for error messages.
+
+ -- Variable: host_cpu
+     Contains the first element of the canonical triple representing the host
+     as returned by `config.sub'.  This is occasionally used to distinguish
+     between minor variations of a particular vendor's operating system and
+     sometimes to determine variations in binary format between the host and
+     the target.
+
+ -- Variable: host_vendor
+     Contains the second element of the canonical triple representing the host
+     as returned by `config.sub'.  This is usually used to distinguish betwen
+     the numerous variations between *common* operating systems.
+
+ -- Variable: host_os
+     Contains the the third element of the canonical triple representing the
+     host as returned by `config.sub'.
+
+ -- Variable: target
+     Contains the name that the user entered for the target.  Since many things
+     that the user could enter would map to the same canonical triple, this
+     variable is innappropriate to use for picking available configurations.
+     For that, use `target_cpu', `target_vendor', and/or `target_os'.  This
+     variable is useful, however, for error messages.
+
+ -- Variable: target_cpu
+     Contains the first element of the canonical triple representing the target
+     as returned by `config.sub'.  This is used heavily by programs involved in
+     building programs, like the compiler, assembler, linker, etc.  Most
+     programs will not need the `target' variables at all, but this one could
+     conceivably be used to build a program, for instance, that operated on
+     binary data files whose byte order or alignment differ from the system
+     where the program is running.
+
+ -- Variable: target_vendor
+     Contains the second element of the canonical triple representing the
+     target as returned by `config.sub'.  This is usually used to distinguish
+     betwen the numerous variations between *common* operating systems or
+     object file formats.  Sometimes it is used to switch between different
+     flavors of user interfaces.
+
+ -- Variable: target_os
+     Contains the the third element of the canonical triple representing the
+     target as returned by `config.sub'.  This variable is used by development
+     tools to distinguish between subtle variations in object file formats that
+     some vendors use across operating system releases.  It might also be use
+     to decide which libraries to build or what user interface the tool should
+     provide.
+
+ -- Variable: nfp
+     Is set to `true' if the user invoked configure with the `-nfp' command
+     line option, otherwise it is empty.  This is a request to target machines
+     with *no floating point* unit, even if the targets ordinarily have
+     floating point units available.  This option has no negation.
+
+ -- Variable: gas
+     Is set to `true' if the user invoked configure with the `-gas' command
+     line option, otherwise it is empty.  This is a request to assume that all
+     target machines have GAS available even if they ordinarily do not.  The
+     converse option `-no-gas' is not available.
+
+ -- Variable: x
+     Is set to `true' if the user invoked configure with the `-x' command line
+     option, otherwise it is empty.  This is a request to assume that MIT X11
+     compatible headers files and libraries are available on all hosts,
+     regardless of what is normally available on them.
+
+ -- Variable: srcdir
+     Is set to the name of the directory containing the source for this
+     program.  This will be different from `.' if the user has specified the
+     `-srcdir=' option.  Note that `srcdir' is not necessarily an absolute
+     path.
+
+ -- Variable: host_makefile_frag
+     If set by `configure.in', this variable should be the name a file,
+     relative to `srcdir' to be included in the resulting Makefile.  If the
+     named file does not exist, `configure' will print a warning message.  This
+     variable is not set by `configure'.
+
+ -- Variable: target_makefile_frag
+     If set by `configure.in', this variable should be the name of a file,
+     relative to `srcdir', to be included in the resulting Makefile.  If the
+     named file does not exist, `configure' will print a warning message.  This
+     variable is not set by `configure'.
+
+ -- Variable: site_makefile_frag
+     Is set to a file name representing to the default Makefile fragment for
+     this host.  It may be set in `configure.in' to override this default.
+     Normally `site_makefile_frag' is empty, but will have a value if the user
+     specified `-site=' on the command line.  It is probably not a good idea to
+     override this variable from `configure.in', since that may defeat the
+     `configure' user's intentions.
+
+ -- Variable: Makefile
+     Is set to the name of the generated `Makefile'.  Normally this value is
+     precisely `Makefile' but some programs may want something else.
+
+ -- Variable: removing
+     Is normally empty but will be set to some non-empty value if the user
+     specified `-rm' on the command line.  That is, if `removing' is non-empty,
+     then configure is *removing* a configuration rather than creating one.
+
+ -- Variable: files
+     If this variable is non-empty following the `per-target:' section, then
+     each word in its value will be the target of a symbolic link named in the
+     corresponding word from the `links' variable.
+
+ -- Variable: links
+     If the `files' variable is non-empty following the `per-target:' section,
+     then `configure' creates symbolic links with the first word of `links'
+     pointing to the first word of `files', the second word of `links' pointing
+     to the second word of `files', and so on.
+
+
+File: configure, Node: Declarations, Next: Per-host, Prev: Configure Variables, Up: configure.in
+
+For each invocation
+-------------------
+
+
+`configure' sources the entire shell script fragment from the start of
+`configure.in' up to a line beginning with `# Per-host:' immediately after
+parsing command line arguments.  The variables `srctrigger' and `srcname'
+*must* be set here.
+
+You might also want to set the variable `configdirs' here.
+
+
+File: configure, Node: Per-host, Next: Per-target, Prev: Declarations, Up: configure.in
+
+For each host
+-------------
+
+The per-host section of `configure.in' starts with the line that begins with `#
+Per-host:' and ends before a line beginning with `# Per-target:'.  `configure'
+sources the per-host section once for each host.
+
+This section usually contains a big case statement using the variables
+`host_cpu', `host_vendor', and `host_os' to determine appropriate values for
+`host_makefile_frag' and `files', although `files' is not usually set here.
+Usually, it is set at the end of the per-target section after determining the
+names of the target specific configuration files.
+
+
+File: configure, Node: Per-target, Next: Post-target, Prev: Per-host, Up: configure.in
+
+For each target
+---------------
+
+The per-target section of `configure.in' starts with the line that begins with
+`# Per-target:' and ends before the line that begins with `# Post-target:', if
+there is such a line.  Otherwise the per-target section extends to the end of
+the file.  `configure' sources the per-target section once for each target
+before building any files, directories, or links.
+
+This section usually contains a big case statement using the variables called
+`target_cpu', `target_vendor', and `target_os' to determine appropriate values
+for `target_makefile_frag' and `files'.  The last lines in the per-target
+section normally set the variables `files' and `links'.
+
+
+File: configure, Node: Post-target, Next: Example, Prev: Per-target, Up: configure.in
+
+After each target
+-----------------
+
+The post-target section is optional.  If it exists, the post-target section
+starts with a line beginning with `# Post-target:' and extends to the end of
+the file.  If it exists, `configure' sources this section once for each target
+after building all files, directories, or links.
+
+This section is seldom needed, but you can use it to edit the Makefile
+generated by `configure'.
+
+
+File: configure, Node: Example, Prev: Post-target, Up: configure.in
+
+An example `configure.in'
+-------------------------
+
+Here is a small example of a `configure.in' file.
+
+     # This file is a collection of shell script fragments used to tailor
+     # a template configure script as appropriate for this directory.  
+     # For more information, see configure.texi.
+
+     configdirs=
+     srctrigger=warshall.c
+     srcname="bison"
+
+     # per-host:
+     case "${host_os}" in
+     m88kbcs)
+     	host_makefile_frag=config/mh-delta88
+     	;;
+     esac
+
+     # per-target:
+
+     files="bison_in.hairy"
+     links="bison.hairy"
+
+     # post-target:
+
+
+File: configure, Node: config.status, Next: Makefile Fragments, Prev: configure.in, Up: Reference
+
+`config.status'
+===============
+
+
+The final step in configuring a directory is to create an executable shell
+script, `config.status'.  The main purpose of this file is to allow the
+Makefile for the current directory to rebuild itself, if necessary.  For this
+reason, `config.status' uses the `-norecursion' option to `configure', and is
+therefore probably inappropriate for reconfiguring a tree of source code.
+
+
+File: configure, Node: Makefile Fragments, Prev: config.status, Up: Reference
+
+Makefile Fragments
+==================
+
+
+Cygnus `configure' uses three types of Makefile fragments.  In a generated
+Makefile they appear in the order target fragment, host fragment, and site
+fragment.  This allows host fragments to override target fragments, and site
+fragments to override both.
+
+Host specific Makefile fragments conventionally reside in the `./config'
+directory with names of the form `mh-HOST'.  They are used for hosts that
+require odd options to the standard compiler and for compile time options based
+on the host configuration.
+
+Target specific Makefile fragments conventionally reside in the `./config'
+directory with names of the form `mt-TARGET'.  They are used for target
+dependent compile time options.
+
+Site specific Makefile fragments conventionally reside in the `./config'
+directory with names of the form `ms-SITE'.  They are used to override host and
+target independent compile time options.  Note that you can also override these
+options on the `make' invocation line.
+
+
+File: configure, Node: Known Bugs, Next: Variables Index, Prev: Reference, Up: top
+
+Known Bugs
+**********
+
+
+We know of the following bugs:
+
+
+   * There is no way to query about known hosts, known targets, or the porting
+     or testing status of any configuration.
+
+   * The negations to the options `-gas', `-x', and `-nfp' are not available.
+
+
+
+File: configure, Node: Variables Index, Next: Concept Index, Prev: Known Bugs, Up: top
+
+Variable Index
+**************
+
+
+* Menu:
+
+* bindir:                       Install Details.        32.
+* bindir:                       Install Details.        34.
+* configdirs:                   Configure Variables.    25.
+* docdir:                       Install Details.        75.
+* docdir:                       Install Details.        77.
+* exec_prefix:                  Install Details.        37.
+* exec_prefix:                  Install Details.        39.
+* files:                        Configure Variables.    140.
+* gas:                          Configure Variables.    93.
+* host:                         Configure Variables.    33.
+* host_cpu:                     Configure Variables.    40.
+* host_makefile_frag:           Configure Variables.    111.
+* host_os:                      Configure Variables.    52.
+* host_vendor:                  Configure Variables.    447.
+* includedir:                   Install Details.        83.
+* includedir:                   Install Details.        85.
+* infodir:                      Install Details.        69.
+* infodir:                      Install Details.        71.
+* libdir:                       Install Details.        43.
+** libdir:                       Install Details.        45.
+** links:                        Configure Variables.    145.
+* Makefile:                     Configure Variables.    131.
+* mandir:                       Install Details.        48.
+* mandir:                       Install Details.        50.
+* manext:                       Install Details.        63.
+* manext:                       Install Details.        65.
+* manNdir:                      Install Details.        54.
+* manNdir:                      Install Details.        56.
+* nfp:                          Configure Variables.    87.
+* prefix:                       Install Details.        27.
+* prefix:                       Install Details.        29.
+* removing:                     Configure Variables.    135.
+* site_makefile_frag:           Configure Variables.    123.
+* srcdir:                       Configure Variables.    105.
+* srcname:                      Configure Variables.    18.
+* srctrigger:                   Configure Variables.    11.
+* target:                       Configure Variables.    56.
+* target_cpu:                   Configure Variables.    63.
+* target_makefile_frag:         Configure Variables.    117.
+* target_os:                    Configure Variables.    79.
+* target_vendor:                Configure Variables.    72.
+* x:                            Configure Variables.    99.
+
+
+File: configure, Node: Concept Index, Prev: Variables Index, Up: top
+
+Concept Index
+*************
+
+
+* Menu:
+
+* Backends:                     Reference.              5.
+* BISON:                        Makefile Extensions.    99.
+* Bison `configure.in':         Example.                4.
+* bootstrap:                    Makefile Extensions.    47.
+** bugs:                         Known Bugs.             5.
+* Build directories:            Build Directories.      4.
+* Building for multiple hosts:  Build Directories.      4.
+* Building for multiple targets: Build Directories.     4.
+* Changing the default install directory: prefix.       4.
+* clean:                        Makefile Extensions.    51.
+* clean-info:                   Makefile Extensions.    26.
+* comparison:                   Makefile Extensions.    49.
+* config.status:                config.status.          5.
+* configure.in:                  configure.in.           4.
+* `configure.in' interface:     Configure Variables.    5.
+* Configuring for multiple hosts: exec_prefix.          4.
+* Cygnus extensions:            Makefile Extensions.    5.
+* datadir:                      Makefile Extensions.    87.
+* Declarations section:         Declarations.           5.
+* de-stage1:                    Makefile Extensions.    39.
+* de-stage2:                    Makefile Extensions.    41.
+* de-stage3:                    Makefile Extensions.    43.
+* de-stage4:                    Makefile Extensions.    45.
+* docdir:                       Makefile Extensions.    63.
+* example `configure.in':       Example.                4.
+* host shell-script fragment:   Per-host.               4.
+* includedir:                   Makefile Extensions.    69.
+* info:                         Makefile Extensions.    18.
+* infodir:                      Makefile Extensions.    95.
+* install:                      Makefile Extensions.    43.
+* install-info:                 Makefile Extensions.    22.
+* Installing host independent files:  exec_prefix.       4.
+* Makefile:                     Makefile Extensions.    51.
+* Makefile extensions:          Makefile Extensions.    5.
+* Makefile fragments:           Makefile Fragments.     5.
+* mandir:                       Makefile Extensions.    91.
+* manext:                       Makefile Extensions.    79.
+* Minimal `configure.in' example: Minimal.              5.
+* objdir:                       Build Directories.      4.
+* Object directories:           Build Directories.      4.
+* Per-host section:             configure.in.           18.
+* per-host section:             Per-host.               4.
+* Per-invocation section:       configure.in.           16.
+* Per-target section:           configure.in.           20.
+* per-target section:           Per-target.             4.
+* Porting:                      Porting.                4.
+* Post-target section:          configure.in.           22.
+* Prefix directory:             prefix.                 4.
+* sample `configure.in':        Example.                4.
+* Sharing host independent files: exec_prefix.          4.
+* stage1:                       Makefile Extensions.    31.
+* stage2:                       Makefile Extensions.    33.
+* stage3:                       Makefile Extensions.    35.
+* stage4:                        Makefile Extensions.    37.
+* subdirs:                      Build Directories.      4.
+* target shell-script fragment: Per-target.             4.
+* The `exec_prefix' directory:  exec_prefix.            4.
+* Where to install:             Install Locations.      4.
+
+Tag table:
+Node: top962
+Node: What Configure Does2755
+Node: Invoking5519
+Node: Using Configure8414
+Node: Install Locations9091
+Node: prefix9811
+Node: exec_prefix10702
+Node: Install Details12292
+Node: Build Directories16811
+Node: Host17938
+Node: Target18571
+Node: Local Conventions18992
+Node: Porting19486
+Node: Programs19884
+Node: Hosts and Targets23444
+Node: Sites24966
+Node: Reference25639
+Node: Makefile Extensions26007
+Node: configure.in29823
+Node: Minimal31337
+Node: Configure Variables32122
+Node: Declarations39656
+Node: Per-host40099
+Node: Per-target40781
+Node: Post-target41554
+Node: Example42060
+Node: config.status42712
+Node: Makefile Fragments43225
+Node: Known Bugs44310
+Node: Variables Index44658
+Node: Concept Index47321
+
+End tag table

@@ -1,0 +1,41 @@
+# I've seen window managers which couldn't handle aspect ratio hints.
+# Uncomment if you have resize problems.
+#XVIER_ASPECT = -DXVIER_WM_ASPECT_BUG
+
+# Some systems don't provide FD_SET #define's. HP 9000 and IBM RS6000
+# are handled in xvier.h, but on other systems you can uncomment this.
+#NO_FD_SET = -DNO_FD_SET
+
+# If "select" is missing, but you have "poll", try this:
+#NO_SELECT = -DNO_SELECT
+
+# And if "getdtablesize" is missing, use the following:
+#NO_GETDTABSIZE = -DNO_GETDTABSIZE
+
+CFLAGS = -O $(XVIER_ASPECT) $(NO_FD_SET) $(NO_SELECT) $(NO_GETDTABSIZE)
+X11LIB = -lX11
+DESTDIR = /usr/local/bin
+PROGDESTDIR = /usr/local/lib
+PROGDEST = -DPROGNAME=\"$(PROGDESTDIR)/xvier_prog\"
+MANDESTDIR = /usr/local/man
+MANSECT = 6
+
+all:	xvier xvier_prog
+
+xvier:	xvier.c xvier.h qdown.xbm qleft.xbm qright.xbm qup.xbm\
+		qdownm.xbm qleftm.xbm qrightm.xbm qupm.xbm patchlevel.h
+	$(CC) -o xvier $(CFLAGS) $(PROGDEST) xvier.c $(X11LIB)
+
+xvier_prog:	vier.o vierinit.o
+	$(CC) -o xvier_prog vier.o vierinit.o
+
+vier.o:     vier.h vier.c xvier.h
+vierinit.o: vier.h vierinit.c xvier.h
+
+install: all xvier.man
+	cp xvier_prog $(PROGDESTDIR)
+	cp xvier $(DESTDIR)
+	cp xvier.man $(MANDESTDIR)/man$(MANSECT)/xvier.$(MANSECT)
+
+clean::
+	-rm *.o *~ xvier vier core xvier_prog

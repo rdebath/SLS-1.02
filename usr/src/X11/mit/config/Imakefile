@@ -1,0 +1,71 @@
+/* $Header: /home/x_cvs/mit/config/Imakefile,v 1.7 1992/09/03 13:15:22 dawes Exp $ */
+/*
+ * $XConsortium: Imakefile,v 1.14 91/12/02 11:24:14 rws Exp $
+ * 
+ * This is used to recreate imake.  Makefile.ini is used to generate imake
+ * the first time.
+ */
+
+DEPLIBS = 
+HEADERS = imakemdep.h 
+CFFILES = $(HEADERS) *.rules *.tmpl site.def *.bac *.cf
+CPP_PROGRAM = CppCmd
+INCLUDES = -I$(BUILDINCDIR)
+DEFINES = $(SIGNAL_DEFINES) $(BOOTSTRAPCFLAGS) -DCPP_PROGRAM=\"$(CPP_PROGRAM)\"
+
+#ifdef MacIIArchitecture
+XBSDLIB = /**/
+#endif
+
+#if NeedInetEmulLib
+XINETLIB = /**/
+#endif
+
+#if X386Server || X386MonoServer
+
+/*
+ * This is so we don't have to change the toplevel Imakefile
+ * We let make 'Makefiles' regenerate X386Conf.tmpl and the updated Makefile
+ */
+
+IMAKE_CMD=$(IMAKE)
+
+Makefiles::
+	$(RM) Makefile.x386
+	$(IMAKE) -DMakefileX386 -s Makefile.x386
+	$(MAKE) $(MFLAGS) -f Makefile.x386 X386Conf.tmpl
+	$(MAKE) $(MFLAGS) Makefile
+	$(RM) Makefile.x386
+
+#ifdef MakefileX386
+#if X386MonoServer
+#define X386Vga2Args VGA2DRIVER X386Vga2Drivers
+#else
+#define X386Vga2Args
+#endif
+#if X386Server
+#define X386VgaArgs VGADRIVER X386Vga256Drivers
+#else
+#define X386VgaArgs
+#endif
+X386Conf.tmpl::
+	$(RM) $@
+	$(SHELL) x386config.sh X386VgaArgs X386Vga2Args RENDERER FontRenderers
+#endif
+
+#endif
+
+#undef ImakeDependency
+#define ImakeDependency(dummy) @@\
+Makefile::  imake
+
+SimpleProgramTarget(imake)
+
+BuildIncludes($(HEADERS),config,..)
+
+InstallMultipleDestFlags(install,$(CFFILES),$(CONFIGDIR),$(INSTDATFLAGS))
+
+depend::
+
+clean::
+	$(RM) ccimake

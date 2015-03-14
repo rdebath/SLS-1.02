@@ -1,0 +1,711 @@
+:
+# Guess values for system-dependant variables and create `Makefile'.
+# Copyright (C) 1991 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+# Usage: configure [+srcdir=DIR] [+host=HOST] [+gas] [+nfp] [TARGET]
+# All args except +srcdir=DIR are ignored.
+
+trap 'rm -f conftest conftest.c uttest; exit 1' 1 3 15
+
+set +u # Make sure unset variables are ok.
+
+# A filename unique to this package, relative to the directory that
+# configure is in, which we can look for to find out if srcdir is correct.
+unique_file=./man.c
+
+for arg in $*; do
+  # Handle +srcdir with a space before the argument.
+  if [ x$next_srcdir = xyes ]; then srcdir=$arg; next_srcdir=
+  # Handle +host with a space before the argument.
+  elif [ x$next_host = xyes ]; then next_host=
+  else 
+    case $arg in
+     -srcdir=* | +srcdir=* | +srcdi=* | +srcd=* | +src=* | +sr=* | +s=*)
+	srcdir=`echo $arg | sed 's/[+-]s[a-z]*=//'` ;;
+     -srcdir | +srcdir | +srcdi | +srcd | +src | +sr | +s)
+	next_srcdir=yes ;;
+     -host=* | +host=* | +hos=* | +ho=* | +h=*) ;;
+     -host | +host | +hos | +ho | +h)
+	next_host=yes ;;
+     -gas | +gas | +ga | +g) ;;
+     -nfp | +nfp | +nf | +n) ;;
+     *) ;;
+    esac
+  fi
+done
+
+# Find the source files, if location was not specified.
+if [ x$srcdir = x ]; then
+  srcdirdefaulted=yes; srcdir=.
+  if [ ! -r $unique_file ]; then srcdir=`pwd`/..; fi
+fi
+if [ $srcdir != . ]; then VPATH='VPATH = $(srcdir)'; fi
+
+if [ ! -r $srcdir/$unique_file ]; then
+  if [ x$srcdirdefaulted = xyes ]; then
+    echo "$0: Can not find sources in \`.' or \`..'." 1>&2
+  else
+    echo "$0: Can not find sources in \`${srcdir}'." 1>&2
+  fi
+  exit 1
+fi
+
+if test "$RANDOM" = "$RANDOM"; then
+  # Plain old Bourne shell.
+  echo checking for gcc
+  test -z "$CC" -a -n "`gcc 2>&1`" && CC="gcc -O"
+else
+  # ksh, bash or zsh.  ksh and zsh write "command not found" to stderr.
+  echo checking for gcc
+  test -z "$CC" && type gcc && CC="gcc -O"
+fi
+
+CC=${CC-cc}
+INCLUDEDIR=${INCLUDEDIR-/usr/include}
+
+rm -f conftest conftest.c
+compile="$CC $DEFS conftest.c -o conftest $LIBS >/dev/null 2>&1"
+
+# Check for various header files.
+
+echo checking for ANSI C header files
+echo "#include <stdlib.h>
+#include <string.h>
+main() { exit(0); strerror(0); }" > conftest.c
+eval $compile
+if test -s conftest && ./conftest 2>/dev/null; then
+  DEFS="$DEFS -DSTDC_HEADERS"
+fi
+rm -f conftest conftest.c
+
+echo checking for POSIX.1 header files
+echo "#include <unistd.h>
+main() {
+#ifdef _POSIX_VERSION
+exit(0);
+#else
+exit(1);
+#endif
+}" > conftest.c
+eval $compile
+if test -s conftest && ./conftest 2>/dev/null; then
+  DEFS="$DEFS -DPOSIX"
+fi
+rm -f conftest conftest.c
+
+echo checking for BSD string and memory functions
+echo "#include <strings.h>
+main() { exit(0); rindex(0, 0); bzero(0, 0); }" > conftest.c
+eval $compile
+if test -s conftest && ./conftest 2>/dev/null; then :
+  else DEFS="$DEFS -DUSG"
+fi
+rm -f conftest conftest.c
+
+echo checking whether sys/types.h defines uid_t
+echo '#include <sys/types.h>
+main() { uid_t x; exit(0); }' > conftest.c
+eval $compile
+if test -s conftest && ./conftest 2>/dev/null; then :
+else
+  uid_t=`awk '/pw_uid;/ {print $1}' $INCLUDEDIR/pwd.h`
+  DEFS="$DEFS -Duid_t=${uid_t} -Dgid_t=${uid_t}"
+fi
+rm -f conftest conftest.c
+
+# Check whether various functions exist.
+
+# Functions we provide replacements for.
+for func in strdup
+do
+  echo checking for $func
+  echo "main() { exit(0); } t () { ${func}(); }" > conftest.c
+  eval $compile
+  if test -s conftest && ./conftest 2>/dev/null; then :
+  else LIBOBJS="$LIBOBJS ${func}.o"
+  fi
+  rm -f conftest conftest.c
+done
+
+echo checking for Xenix
+if test -f /xenix; then
+  LIBS="$LIBS -lx"
+  case "$DEFS" in
+  *SYSNDIR*) ;;
+  *) LIBS="-ldir $LIBS" ;; # Make sure -ldir precedes any -lx.
+  esac
+fi
+
+echo checking how to get alloca
+echo '
+#ifdef __GNUC__
+#define alloca __builtin_alloca
+#else
+#ifdef sparc
+#include <alloca.h>
+#else
+#ifdef _AIX
+ #pragma alloca
+#else
+char *alloca ();
+#endif
+#endif
+#endif
+main() { char *p = (char *) alloca(1); exit(0); }' > conftest.c
+eval $compile
+if test -s conftest && ./conftest 2>/dev/null; then :
+elif test -d /usr/ucblib; then LIBS="$LIBS -L/usr/ucblib -lucb"
+elif test -f /usr/lib/libPW.a; then LIBS="$LIBS -lPW"
+else DEFS="$DEFS -DALLOCA_MISSING"
+fi
+rm -f conftest conftest.c
+
+# first determine how to suppress newline on echo command (stolen from
+# Perl's Configure...
+
+echo "Checking echo to see how to suppress newlines..."
+(echo "hi there\c" ; echo " ") >conftest
+if grep c conftest >/dev/null 2>&1 ; then
+    echo "...using -n."
+    n='-n'
+    c=''
+else
+    cat <<'EOM'
+...using \c
+EOM
+    n=''
+    c='\c'
+fi
+rm -f conftest
+echo $n "Type carriage return to continue.  Your cursor should be here-->$c"
+read ans
+
+# Ask the installer where various things are located.
+
+echo ""
+echo $n "Do you have the nroff source for man pages?  [yes] $c"
+ok=false
+while test "$ok" = "false"
+do
+  read yesno
+  if test "$yesno" = "" || test "$yesno" = "yes"
+  then
+    ok=true
+    ans=true
+  elif test "$yesno" = "no"
+  then
+    ok=true
+    ans=false
+  else
+    ok=false
+    echo "You must enter yes or no"
+  fi
+done
+
+if test "$ans" = "false"
+then
+  troff=""
+  nroff=""
+  eqn=""
+  neqn=""
+  tbl=""
+  col=""
+  vgrind=""
+  refer=""
+  grap=""
+  pic=""
+  pager="/usr/local/bin/less -sC"
+
+  FILTERS=pager
+else
+  troff="/usr/local/bin/groff -Tps -man"
+  nroff="/usr/local/bin/groff -Tascii -man"
+  eqn="/usr/local/bin/geqn -Tps"
+  neqn="/usr/local/bin/geqn -Tascii"
+  tbl="/usr/local/bin/gtbl"
+  col="/usr/bin/col"
+  vgrind="/usr/bin/vgrind"
+  refer="/usr/bin/refer"
+  grap="/usr/bin/grap"
+  pic="/usr/local/bin/gpic"
+  pager="/usr/local/bin/less -sC"
+
+  FILTERS="troff nroff eqn neqn tbl col vgrind refer grap pic pager"
+fi
+
+echo ""
+echo "If you don't have one of the following programs, enter \`missing'."
+echo "It's best to enter absolute pathnames so that man won't have to"
+echo "depend on the user's path to work properly.  Default values are"
+echo "given in square brackets.  The answers given are only checked to"
+echo "see if the programs exist, not to see see if the given flags are"
+echo "correct."
+
+for filter in $FILTERS
+do
+  found=false
+  while test "$found" = "false"
+  do
+    echo ""
+    echo $n "$filter command to use [`eval echo $"$filter"`] $c"
+    read tmp
+    if test -n "$tmp"
+    then
+      if test "$tmp" = "missing"
+      then
+        if test "$filter" = "pager"
+        then
+          found=false
+          echo "You must have a pager!"
+        else
+          found=true
+          eval $filter=""
+        fi
+      elif test -f `echo $tmp | awk '{print $1}'`
+      then
+        found=true
+        eval $filter=\""$tmp"\"
+      else
+        found=false
+        echo ""
+        echo "`echo $tmp | awk '{print $1}'` doesn't seem to exist!  Try again or enter \`missing'"
+      fi
+    elif test -f `eval echo $"$filter" | awk '{print $1}'`
+    then
+      found=true
+    else
+      found=false
+      echo ""
+      echo "`eval echo $"$filter" | awk '{print $1}'` doesn't seem to exist!  Try again or enter \`missing'"
+    fi
+  done
+done
+
+if test -n "$troff"; then DEFS="$DEFS -DHAS_TROFF"; fi
+if test "$nroff" = ""; then DEFS="$DEFS -DNROFF_MISSING"; fi
+
+# How should man be installed?
+
+bindir="/usr/local/bin"
+libdir="/usr/local/lib"
+mandir="/usr/local/man/man1"
+
+for d in bindir libdir mandir
+do
+  case $d in
+    bindir)
+      echo ""
+      echo $n "where should executables be installed?  [${bindir}] $c" ;;
+    libdir)
+      echo ""
+      echo $n "where should manpath.config be installed?  [${libdir}] $c" ;;
+    mandir)
+      echo ""
+      echo $n "where should man pages be installed? [${mandir}] $c" ;;
+  esac
+  dir=`eval echo $"$d"`
+  ok=false
+  while test "$ok" = "false"
+  do
+    read tmpdir
+    if test "$tmpdir" = "" && test "$dir" != ""
+    then
+      if test -d $dir
+      then
+        ok=true
+        eval $d=$dir
+      else
+        ok=false
+        echo ""
+        echo "$dir doesn't seem to exist!  Try again!"
+      fi
+    elif test -d "$tmpdir"
+    then
+      ok=true
+      eval $d=$tmpdir
+    else
+      ok=false
+      echo ""
+      echo "$tmpdir doesn't seem to exist!  Try again!"
+    fi
+  done
+done
+
+tmpext=1
+echo ""
+echo $n "What extension should installed man pages have? [${tmpext}] $c"
+read manext
+if test "$manext" = ""; then manext=$tmpext; fi
+
+echo ""
+echo "Do you want to install man setuid to some user who owns all the"
+echo $n "man pages? [yes] $c"
+ok=false
+while test "$ok" = "false"
+do
+  read yesno
+  if test "$yesno" = "" || test "$yesno" = "yes"
+  then
+    ok=true
+    ans=true
+  elif test "$yesno" = "no"
+  then
+    ok=true
+    ans=false
+  else
+    ok=false
+    echo "You must enter yes or no"
+  fi
+done
+
+if test "$ans" = "true"
+then
+  man_user=daemon
+  man_mode=4711
+  echo ""
+  echo $n "What user will own the man pages? [${man_user}] $c"
+  read user
+  if test "$user" != ""; then man_user=$user; fi
+  echo ""
+  echo $n "What mode should the installed man have? [${man_mode}] $c"
+  read mode
+  if test "$mode" != ""; then man_mode=$mode; fi
+  man_install_flags="-m $man_mode -o $man_user"
+  DEFS="$DEFS -DSECURE_MAN_UID"
+fi
+
+# What sections do we anticipate?
+
+tmpsections="1 n l 6 8 2 3 4 5 7 p o"
+echo ""
+echo "Enter the man page sections your system uses, separated by"
+echo "spaces, and in the order they should be searched."
+echo $n "[${tmpsections}] $c"
+read sects
+if test "$sects" != ""; then tmpsections=$sects; fi
+for sect in $tmpsections
+do
+  sections="$sections \"$sect\","
+  sec_list="$sec_list $sect,"
+done
+sections="$sections NULL"
+
+if test "$nroff" != ""
+then
+  echo ""
+  echo $n "Compress formatted pages? [yes] $c"
+  ok=false
+  while test "$ok" = "false"
+  do
+    read yesno
+    if test "$yesno" = "" || test "$yesno" = "yes"
+    then
+      ok=true
+      ans=true
+    elif test "$yesno" = "no"
+    then
+      ok=true
+      ans=false
+    else
+      ok=false
+      echo "You must enter yes or no"
+    fi
+  done
+
+  if test "$ans" = "true"
+  then
+    DO_COMPRESSION=true
+    compress="/usr/ucb/compress -c"
+    echo ""
+    echo "What program should be used to compress the formatted pages?"
+    echo $n "Note that it must work as a filter! [${compress}] $c"
+    found=false
+    while test "$found" = "false"
+    do
+      read tmp
+      if test -n "$tmp"
+      then
+        if test -f `echo $tmp | awk '{print $1}'`
+        then
+          found=true
+          compress=$tmp
+        else
+          found=false
+          echo ""
+          echo "`echo $tmp | awk '{print $1}'` doesn't seem to exist!  Try again!"
+        fi
+      elif test -f `echo "$compress" | awk '{print $1}'`
+      then
+        found=true
+      else
+        found=false
+        echo ""
+        echo "`echo "$compress" | awk '{print $1}'` doesn't seem to exist!  Try again!"
+      fi
+    done
+    case $compress in
+      *compress*) ext=Z ;;
+      *freeze*) ext=F ;;
+      *yabba*) ext=Y ;;
+      *) ext="" ;;
+    esac
+    echo ""
+    echo "What (single character) extension should be added to"
+    if test "$ext" = ""
+    then
+      echo "compressed files?"
+    else
+      echo $n "compressed files?  [${ext}] $c"
+    fi
+    ok=false
+    while test "$ok" = "false"
+    do
+      read tmp_ext
+      if test "$tmp_ext" = "" && test "$ext" != ""
+      then
+        ok=true
+        compress_ext=$ext
+      elif test "$tmp_ext" != ""
+      then
+        ok=true
+        compress_ext=$tmp_ext
+      fi
+    done
+  else
+    DO_COMPRESSION=false
+  fi
+fi
+
+echo ""
+echo $n "Cope with compressed formatted pages? [yes] $c"
+ok=false
+while test "$ok" = "false"
+do
+  read yesno
+  if test "$yesno" = "" || test "$yesno" = "yes"
+  then
+    ok=true
+    ans=true
+  elif test "$yesno" = "no"
+  then
+    ok=true
+    ans=false
+  else
+    ok=false
+    echo "You must enter yes or no"
+  fi
+done
+
+if test "$ans" = "true"
+then
+  DO_UNCOMPRESSION=true
+  zcat="/usr/ucb/zcat"
+  fcat="/usr/local/bin/fcat"
+  unyabba="/usr/local/bin/unyabba"
+  echo ""
+  echo "If you don't have one of the following programs, enter \`missing'."
+  echo "It's best to enter absolute pathnames so that man won't have to"
+  echo "depend on the user's path to work properly.  Default values are"
+  echo "given in square brackets.  The answers given are only checked to"
+  echo "see if the programs exist, not to see see if the given flags are"
+  echo "correct."
+  for filter in zcat fcat unyabba
+  do
+    found=false
+    while test "$found" = "false"
+    do
+      echo ""
+      case $filter in
+        zcat)
+          echo "Command to use for .Z files (standard compress)"
+          echo $n "[`eval echo $"$filter"`] $c" ;;
+        fcat)
+          echo "Command to use for .F files (freeze/melt from net posting)"
+          echo $n "[`eval echo $"$filter"`] $c" ;;
+        unyabba)
+          echo "Command to use for .Y files (yabba/unyabba from net posting)"
+          echo $n "[`eval echo $"$filter"`] $c" ;;
+        esac
+      read tmp
+      if test -n "$tmp"
+      then
+        if test "$tmp" = "missing"
+        then
+          found=true
+          eval $filter=""
+        elif test -f `echo $tmp | awk '{print $1}'`
+        then
+          found=true
+          eval $filter="$tmp"
+        else
+          found=false
+          echo ""
+          echo "`echo $tmp | awk '{print $1}'` doesn't seem to exist!  Try again or enter \`missing'"
+        fi
+      elif test -f `eval echo $"$filter" | awk '{print $1}'`
+      then
+        found=true
+      else
+        found=false
+        echo ""
+        echo "`eval echo $"$filter" | awk '{print $1}'` doesn't seem to exist!  Try again or enter \`missing'"
+      fi
+    done
+  done
+else
+  DO_UNCOMPRESSION=false
+fi
+
+if test "$DO_COMPRESSION" = "true" && test "$DO_UNCOMPRESSION" = "true"
+then
+  DEFS="$DEFS -DCOMPRESS"
+elif test "$DO_COMPRESSION" = "true"
+then
+  DEFS="$DEFS -DDO_COMPRESS"
+elif test "$DO_UNCOMPRESSION" = "true"
+then
+  DEFS="$DEFS -DDO_UNCOMPRESS"
+fi
+
+echo ""
+echo "Do you want man to be able to handle directory trees for"
+echo $n "alternate systems? [yes] $c"
+ok=false
+while test "$ok" = "false"
+do
+  read yesno
+  if test "$yesno" = "" || test "$yesno" = "yes"
+  then
+    ok=true
+    ans=true
+  elif test "$yesno" = "no"
+  then
+    ok=true
+    ans=false
+  else
+    ok=false
+    echo "You must enter yes or no"
+  fi
+done
+
+if test "$ans" = "true"
+then
+  DEFS="$DEFS -DALT_SYSTEMS"
+fi
+
+man=$bindir/man
+manpath=$bindir/manpath
+apropos=$bindir/apropos
+whatis=$bindir/whatis
+makewhatis=$libdir/makewhatis
+config_file=$libdir/manpath.config
+
+trap 'rm -f Makefile config.status; exit 1' 1 3 15
+
+for dir in .
+do
+  test -d $dir || mkdir $dir
+  echo "# Generated automatically from Makefile.in by the"     > $dir/Makefile
+  echo "# configure script."                                  >> $dir/Makefile
+  echo "#"                                                    >> $dir/Makefile
+  echo "# If you haven't read the file README yet, now would" >> $dir/Makefile
+  echo "# be a good time to do so."                           >> $dir/Makefile
+  echo "Creating $dir/Makefile from $srcdir/$dir/Makefile.in"
+  sed -e "
+s,@srcdir@,$srcdir,
+s,@VPATH@,$VPATH,
+s,@CC@,$CC,
+s,@DEFS@,$DEFS,
+s,@LIBS@,$LIBS,
+s,@LIBOBJS@,$LIBOBJS,
+s,@troff@,$troff,
+s,@pager@,$pager,
+s,@bindir@,$bindir,
+s,@libdir@,$libdir,
+s,@mandir@,$mandir,
+s,@manext@,$manext,
+s,@man_install_flags@,$man_install_flags,
+s,@man@,$man,
+s,@manpath@,$manpath,
+s,@apropos@,$apropos,
+s,@whatis@,$whatis,
+s,@makewhatis@,$makewhatis,
+s,@config_file@,$config_file,
+s/@sections@/$sections/
+s/@sec_list@/$sec_list/
+" $srcdir/$dir/Makefile.in >> $dir/Makefile
+done
+
+echo "Creating config.h from $srcdir/config.h.in"
+sed -e "
+s,@troff@,$troff,
+s,@nroff@,$nroff,
+s,@eqn@,$eqn,
+s,@neqn@,$neqn,
+s,@tbl@,$tbl,
+s,@col@,$col,
+s,@vgrind@,$vgrind,
+s,@refer@,$refer,
+s,@grap@,$grap,
+s,@pic@,$pic,
+s,@fcat@,$fcat,
+s,@zcat@,$zcat,
+s,@unyabba@,$unyabba,
+s,@compress@,$compress,
+s,@compress_ext@,$compress_ext,
+s,@pager@,$pager,
+s,@bindir@,$bindir,
+s,@libdir@,$libdir,
+s,@man@,$man,
+s,@manpath@,$manpath,
+s,@apropos@,$apropos,
+s,@whatis@,$whatis,
+s,@makewhatis@,$makewhatis,
+s,@config_file@,$config_file,
+s,@man_user@,$man_user,
+s/@sections@/$sections/
+s/@sec_list@/$sec_list/
+" $srcdir/config.h.in > config.h
+
+echo "CC            = $CC
+DEFS          = $DEFS
+LIBOBJS       = $LIBOBJS
+troff         = $troff
+nroff         = $nroff
+eqn           = $eqn
+neqn          = $neqn
+tbl           = $tbl
+col           = $col
+vgrind        = $vgrind
+refer         = $refer
+grap          = $grap
+pic           = $pic
+pager         = $pager
+bindir        = $bindir
+libdir        = $libdir
+mandir        = $mandir
+manext        = $manext
+apropos       = $apropos
+whatis        = $whatis
+config_file   = $config_file
+man_user      = $man_user
+install_flags = $man_install_flags
+sections      = $sections" > config.status
+
+echo ""
+echo "Don't forget to edit the file manpath.config to match your site."
+echo ""

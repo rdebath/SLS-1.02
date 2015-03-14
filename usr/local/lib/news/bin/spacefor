@@ -1,0 +1,71 @@
+#! /bin/sh
+# spacefor - determine available disk space
+# About how many things of $1 bytes will fit in the available space for
+# stuff of type $2 ("incoming", "articles", "control", "outbound $3",
+# or "archive") without cramping things too badly?
+#
+# You'll have to change this -- your blocksize, minimum-free-desired amounts,
+# and df output format will probably differ, and you may need to name
+# your filesystems explicitly.  Note that all amounts are expressed in
+# target-filesystem blocks, not some arbitrary absolute unit.  (Absolute
+# units might be better but there is no agreement on what they should be.)
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+# punt to server if necessary
+if test -r $NEWSCTL/server
+then
+	server="`cat $NEWSCTL/server`"
+	me="`hostname`"
+	if test " $server" != " $me"
+	then
+		exec rsh $server -n /bin/sh -c "'PATH=$PATH `basename $0` $*'"
+		# does not return
+	fi
+fi
+
+# head off special case
+case "$1" in
+0)	echo 10000 ; exit 0 ;;
+esac
+
+# argument to df, df units, and free space desired (in df units)
+dfunit=1024			# default df unit (bytes)
+case "$2" in
+incoming)	arg="$NEWSARTS/in.coming" ; desire=5000 ;;
+articles)	arg="$NEWSARTS" ; desire=5000 ;;
+control)	arg="$NEWSCTL" ; desire=3000 ;;		# for expire, mostly
+outbound)	arg="/usr/spool/uucp" ; desire=10000 ;;	# ignore $3
+archive)	arg="$NEWSARTS" ; desire=1 ;;		# system-specific
+*)		echo "$0: bad type argument \`$2'!!" >&2
+		exit 2 ;;
+esac
+
+# In the following, the initialization of nf determines which field the
+# block count comes from, and the one for nr determines which line.  For
+# System V, the Makefile edits in a sed which tries to strip silliness
+# off in a reasonably System-V-variant-independent way.  Expr would be
+# faster than awk, but on a 16-bit machine, expr does 16-bit arithmetic,
+# which isn't enough.
+
+# this is set up for the stupid 4BSD df
+df $arg | awk "BEGIN { nf = 4 ; nr = 2 }
+	NR == nr && NF >= nf {
+		nb = (\$nf - $desire) * $dfunit / $1
+		if (nb > 10000)
+			nb = 10000	# ensure representable as integer
+		nb = int(nb)
+		if (nb <= 0)
+			print 0
+		else
+			print nb
+		exit
+	}
+	NR == nr && NF < nf {		# idiotic Berkeley continuation
+		nr += 1
+		nf -= 1
+	}"

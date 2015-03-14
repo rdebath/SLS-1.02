@@ -1,0 +1,68 @@
+#! /bin/sh
+# Usage: target [dirname [cc]]
+# Examples:
+#   target make.gcc gcc
+#   target make.cc cc
+#   target obj
+
+DIRNAME=$1
+COMPILER=$2
+if [ "$COMPILER" != "" ] ; then
+  export CC="$2"
+fi
+if [ "$DIRNAME" = "" ] ; then
+  DIRNAME=src
+  chmod a+x $DIRNAME/configure
+  chmod a+x $DIRNAME/readline/configure
+  echo "executing $DIRNAME/configure ..."
+  cd $DIRNAME
+  ./configure
+  echo "executing $DIRNAME/readline/configure ..."
+  cd readline
+  ./configure
+else
+
+# checking how to copy files
+echo "blabla" > conftest.x
+err=`/bin/sh -c "cp -p conftest.x conftest.y 2>&1"`
+if test -z "$err"; then
+  CP='cp -p'
+else
+  CP='cp'
+fi
+rm -f conftest*
+
+  if [ ! -d $DIRNAME ] ; then
+    mkdir $DIRNAME
+  fi
+  for f in glob readline readline/doc readline/examples ; do
+    if [ ! -d $DIRNAME/$f ] ; then
+      mkdir $DIRNAME/$f
+    fi
+    ( cd src
+      for g in $f/* ; do
+        if [ -f $g ] ; then
+          if [ "$g" = readline/Makefile ] ; then
+            $CP -i $g ../$DIRNAME/$g
+          else
+            rm -f ../$DIRNAME/$g
+            ln $g ../$DIRNAME/$g || $CP -f $g ../$DIRNAME/$g
+          fi
+        fi
+      done
+    )
+  done
+  for f in configure unixconf.h.in makemake.in ; do
+    rm -f $DIRNAME/$f
+    ln src/$f $DIRNAME/$f || $CP -f src/$f $DIRNAME/$f
+  done
+  chmod a+x $DIRNAME/configure
+  chmod a+x $DIRNAME/readline/configure
+  echo "executing $DIRNAME/configure ..."
+  cd $DIRNAME
+  ./configure --srcdir=../src
+  echo "executing $DIRNAME/readline/configure ..."
+  cd readline
+  ./configure --srcdir=../../src/readline
+fi
+

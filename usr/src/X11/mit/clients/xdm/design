@@ -1,0 +1,53 @@
+To: treese@athena.mit.edu
+Subject: xlogin
+--------
+
+Design discussion concerning an Xlogin program.
+
+	Xlogin can't use either the vanilla init ttys file, nor the magic
+4.3 ttys file -- each of these is based on the notion of one tty per
+login-session.  This 'tty' notion permeates init, so I don't think we can
+easily ask people to change it.
+
+	Xlogin will (then) need to be yet-another-daemon which keeps a
+session running on the display.  It will probably be started from /etc/rc.
+An alternative position would have Xlogin started from /etc/ttys, by
+assigning an unused pty to be dedicated for this purpose, and having Xlogin
+disable it (by keeping the master half open).
+
+	In either case, Xlogin will start up the server and present a simple
+dialog box in the center of an otherwise blank screen, prompting for
+login/password.  After verification, it will (optionally) execute a shell
+script ("/etc/Xrc") (as root) and then switch user-id's and execute a shell
+script in the home-directory of the user (".Xrc").  On termination of that
+shell script, (or of the X server) Xlogin will reinitialize the server and
+start over.
+
+I expect the .Xrc file to look something like:
+
+	#
+	# sample .Xrc file
+	#
+	xclock &
+	xload &
+	xterm &
+	twm
+
+As the final line causes the script to terminate exactly when twm
+terminates, this uses the window manager as a session manager.
+
+	If no .Xrc file exists, Xlogin will start xterm.
+
+The various parameters for Xlogin will be resources on the root window,
+loaded by Xlogin each time it starts the server from /etc/Xdb (or some other
+more imaginative file-name).  This is an attempt to make it a bit more
+customizable without having source access.
+
+Files involved:
+
+	/etc/Xlogin		- init/getty/login combo for X
+	/etc/Xdb		- initial display resources
+	/etc/Xrc		- startup commands
+
+	~/.Xrc			- per-user session script
+

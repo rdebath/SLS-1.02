@@ -1,0 +1,1 @@
+double getload(void);

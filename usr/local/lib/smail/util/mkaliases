@@ -1,0 +1,55 @@
+#!/bin/sh
+# @(#)util/mkaliases.sh	1.4 7/11/92 11:40:01
+#
+#    Copyright (C) 1987, 1988 Ronald S. Karr and Landon Curt Noll
+#    Copyright (C) 1992  Ronald S. Karr
+# 
+# See the file COPYING, distributed with smail, for restriction
+# and warranty information.
+
+# mkaliases - create an aliases database for a smail aliasfile director
+#
+# Usage: mkaliases
+#
+# Rebuilds the aliasfile specified in /local/newspak-1.2/smail-3.1.28/conf/EDITME.
+# Different types for the aliasfile are rebuilt in different ways.
+# In the case of lsearch, verification is performed on the file,
+# but no other changes are made.
+
+PATH='/usr/local/lib/smail/util:/usr/bin:/bin:/usr/bin:/usr/local/bin'; export PATH
+ALIASES_FILE='/usr/lib/aliases'
+ALIASES_TYPE='lsearch'
+
+case "$ALIASES_TYPE" in
+
+bsearch )
+	ALIASES_DIR="`echo "$ALIASES_FILE" | sed 's,/[^/]*$,,'`"
+	case "$ALIASES_FILE" in
+
+	*.sort)	TEXT_FILE="`basename "$ALIASES_FILE" .sort`" ;;
+	* )	TEXT_FILE="`basename "$ALIASES_FILE"`".txt ;;
+
+	esac
+	if mkline "$ALIASES_DIR/$TEXT_FILE" |
+		wc -lc |
+		awk '{ print $1 " entries, " $2 " bytes total" }'
+	then :; else exit 1; fi
+	mkline "$ALIASES_DIR/$TEXT_FILE" |
+		mksort -f > "$ALIASES_DIR/.$TEXT_FILE"
+	mv -f "$ALIASES_DIR/.$TEXT_FILE" "$ALIASES_FILE"
+	;;
+
+dbm )	mkline "$ALIASES_FILE" | mkdbm -f -v -o "$ALIASES_FILE" ;;
+
+lsearch ) mkline "$ALIASES_FILE" | wc -lc |
+		awk '{ print $1 " entries, " $2 " bytes total" }'
+	;;
+
+yp | aliasyp )
+	echo "$0: aliases database maintained over YP";;
+
+* )	echo "$0: unknown file type, $ALIASES_TYPE, for $ALIASES_FILE" ;;
+
+esac
+
+exit 0

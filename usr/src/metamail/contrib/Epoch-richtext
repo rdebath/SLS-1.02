@@ -1,0 +1,159 @@
+The following was provided by  Dave Edmondson <davided@sco.COM>.  It is a first step towards native (built-in) support for the MIME 'richtext' type in a GNU Epoch window.
+----------------------------------------------------------------
+i did knock up this small piece of lisp, which given a buffer in
+richtext format, makes an attempt at showing it as it should be.  it's
+pretty grungy, but might be useful.  note that the buffer must contain
+nothing except the richtext stuff - it doesn't parse a mail message or
+anything.
+
+dave.
+
+(setq roman-font "-*-helvetica-medium-r-*-14-*")
+(setq bold-font "-*-helvetica-bold-r-*-14-*")
+(setq italic-font "-*-helvetica-medium-o-*-14-*")
+
+(setq rt-roman (epoch::make-style))
+(epoch::set-style-font rt-roman roman-font)
+
+(setq rt-bold (epoch::make-style))
+(epoch::set-style-font rt-bold bold-font)
+
+(setq rt-italic (epoch::make-style))
+(epoch::set-style-font rt-italic italic-font)
+
+(setq rt-underline (epoch::make-style))
+(epoch::set-style-font rt-underline roman-font)
+(epoch::set-style-underline rt-underline (foreground))
+
+(defun rt-buffer ()
+  "given that the current buffer is in richtext format, make it look
+presentable using buttons"
+  (interactive)
+  
+  (epoch::font roman-font)
+
+  ;; remove all of the newlines - they are spurious
+  (goto-char (point-min))
+  (replace-regexp "\n" "")
+
+  (goto-char (point-min))
+
+  (while (re-search-forward "<\\([^>]*\\)>" nil t)
+    (progn
+      (setq command (buffer-substring (match-beginning 1) (match-end 1)))
+      (rt-parse-command command (match-beginning 0))
+      )
+    )
+  (goto-char (point-min))
+  (replace-regexp "<[^>]*>" "")
+  )
+
+(defun rt-parse-command (command place)
+  "given a richtext command, do something"
+  (if (string-equal "nl" command)
+      (insert "\n");
+    )
+  (if (string-equal "lt" command)
+      ;(insert "<")
+      (message "oops - <")
+    )
+  (if (string-equal "np" command)
+      (insert "\n")
+    )
+  (if (string-equal "bold" command)
+      (setq bold-start place)
+    )
+  (if (string-equal "/bold" command)
+      (epoch::add-button bold-start place rt-bold)
+    )
+  (if (string-equal "italic" command)
+      (setq italic-start place)
+    )
+  (if (string-equal "/italic" command)
+      (epoch::add-button italic-start place rt-italic)
+    )
+  (if (string-equal "underline" command)
+      (setq underline-start place)
+    )
+  (if (string-equal "/underline" command)
+      (epoch::add-button underline-start place rt-underline)
+    )
+  (if (string-equal "excerpt" command)
+      (setq excerpt-start place)
+    )
+  (if (string-equal "/excerpt" command)
+      (save-excursion
+	(narrow-to-region excerpt-start place)
+	(goto-char excerpt-start)
+	(replace-regexp "^" "> ")
+	(widen)
+	)
+    )
+  (if (string-equal "signature" command)
+      (setq signature-start place)
+    )
+  (if (string-equal "/signature" command)
+      (save-excursion
+	(narrow-to-region signature-start place)
+	(goto-char signature-start)
+	(replace-regexp "^" "+ ")
+	(widen)
+	)
+    )
+  (if (string-equal "center" command)
+      (setq center-start place)
+    )
+  (if (string-equal "/center" command)
+      (center-region center-start place)
+    )
+
+  ;; things that richtext.c know about that i don't
+  (if (or
+       (string-equal "bigger" command)
+       (string-equal "/bigger" command)
+       )
+      (message "Don't support bigger yet.")
+    )
+  (if (or
+       (string-equal "flushleft" command)
+       (string-equal "/flushleft" command)
+       )
+      (message "Don't support flushleft yet.")
+    )
+  (if (or
+       (string-equal "flushright" command)
+       (string-equal "/flushright" command)
+       )
+      (message "Don't support flushright yet.")
+    )
+  (if (or
+       (string-equal "indent" command)
+       (string-equal "/indent" command)
+       )
+      (message "Don't support indent yet.");
+    )
+  (if (or
+       (string-equal "indentright" command)
+       (string-equal "/indentright" command)
+       )
+      (message "Don't support indentright yet.");
+    )
+  (if (or
+       (string-equal "outdent" command)
+       (string-equal "/outdent" command)
+       )
+      (message "Don't support outdent yet.");
+    )
+  (if (or
+       (string-equal "outdentright" command)
+       (string-equal "/outdentright" command)
+       )
+      (message "Don't support outdentright yet.");
+    )
+  (if (or
+       (string-equal "paragraph" command)
+       (string-equal "/paragraph" command)
+       )
+      (message "Don't support paragraph yet.");
+    )
+  )

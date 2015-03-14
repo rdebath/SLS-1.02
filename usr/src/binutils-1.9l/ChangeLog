@@ -1,0 +1,1647 @@
+Wed Apr 17 15:33:33 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* Make version number be 1.9.
+
+Wed Apr 10 18:19:15 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* strip.c (xmalloc): Handle allocation request of 0 (make it 1).
+
+Tue Apr  9 13:40:31 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* strip.c (rewrite_file_symbols): Instead of tell(fd),
+	use the more portable lseek(fd, 0L, 1).
+
+Mon Apr  8 17:31:17 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* Makefile: Replaced mis-spelled and obsolete -DPIGNAL_MISSING
+	by -DSYS_SIGLIST_MISSING in sample CFLAGS for COFF systems.
+
+Sun Mar 31 23:06:42 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* Increment version number to 1.8.
+
+Fri Mar 29 15:29:55 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* ld.c (do_relocation_warnings): Add some paranoia checking
+	in case of a corrupted binary.
+
+Thu Mar 28 17:21:24 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* ld.c (subfile_wanted_p): Not quite as minimalist:
+	If a subfile defines a common that is needed (i.e. currently
+	undefined), don't load the subfile, just define the undefined
+	symbol as a common.
+	This brings back some of the logic from Roland's change.
+	It is needed to handle a dubious libc.a in SunOS.
+
+Sat Mar 23 13:25:07 1991  Per Bothner  (bothner at pogo.gnu.ai.mit.edu)
+
+	* ld.c (subfile_wanted_p): Try a minimalist approach:
+	Treat an existing common definition as a true definition
+	wrt the decision as to whether a subfile is needed -
+	i.e. don't pull in the subfile in that case.
+
+Tue Mar 19 01:01:34 1991  Per Bothner  (bothner at mole.ai.mit.edu)
+
+	* ld.c (subfile_wanted_p): A compromise solution, suggested by Mike:
+	Restore the old #if 1 behavior, with the following changes:
+	+ allow a library member to grow a common symbol only if some other
+	library member is already known to reference that symbol
+	+ allow a library member to replace a common symbol with some other
+	definition if some other library member is already known to
+	reference that symbol.
+
+Sun Mar 17 00:47:44 1991  Per Bothner  (bothner at pogo.ai.mit.edu)
+
+	* Makefile: Add $(LIBS) to dependencies for most programs,
+	to make sure signame.o and alloca.o get built when needed.
+	* ar.c: Don't include fcntl.h again if USG.
+	* ar.c: Initialize program_name variable.
+	* ar.c:  Changes from Arnold Robbins <arnold@audiofax.com>:
+        "gnu ar didn't properly use just the trailing component
+	 of filenames.  If creating an archive, it would put members in
+	 with names like ./foo.  If updating an archive with a member
+         foo with /some/path/foo, the new file would get appended to
+         the archive instead of replacing the old one."
+	So add basename routine to skip directory prefix, and use it
+	to name archive elements with just the basename.
+	Also some System V stuff:
+	"System V machines (of course) use a slightly different version
+        of the archive format header, and allow a leading '-' on the
+        flags.  Also, the temp file name didn't allow for 14 character
+        file names."
+	I (Per) incorporated these changes. It seemed reasonable to always
+	allow an initial '-' to the flags.
+	* ar.c: Improved argc/argv/usage() checking.
+	* ar.c: Unlink if we fail to open after "touch" for create.
+	* gprof.c: Reformat, adding white space between = and &.
+	Without it, pcc thinks it's an old-style &=.
+	* ld.c: Code for ns32000 from Jyrki Kuoppala <jkp@sauna.hut.fi>,
+	some of it by Ian Dall.
+	* ld.c (subfile_wanted_p): For now, undo the change made for 1.7.
+	(It causes problems, and anyway I'm unconvinced by the justification.)
+	* ranlib.c (main): Removed emulation of psignal when PSIGNAL_MISSING
+	is defined, since there is a version in signame.c.
+
+Thu Mar  7 17:29:09 1991  Mike Haertel  (mike at ducky)
+
+	* a.out.gnu.h [sequent && i386]:  Changes to support the
+	sequent symmetry.
+	* ar.c (update_symdefs):  Loop to original_num_symdefs rather
+	than nsymdefs, since the latter changes inside the loop.
+	* gprof.c (main):  Divide by (nhist - 1) to get the correct
+	histogram increment.
+	* hp-bin/hpxt.c (process_archive_entry):  Deal correctly with
+	names containing '/'.
+	* ld.c [tek4300, LARMAG]:  Add UTek support.
+	[hp300]: Mark the filename symbol with N_FN|N_EXT not N_TEXT.
+	(deduce_file_type):  Remove forward reference to coffheader.
+	(read_a_out_header):  Likewise.
+	(read_a_out_header) [NMAGIC]:  Adjust orig_data_address when
+	reading NMAGIC files.
+	(enter_global_ref):  Update symbol's last_library_ref for
+	use by subfile_wanted_p().
+	(subfile_wanted_p):  Never use a library member to define
+	a common symbol unless some other library member already known
+	to be needed references that symbol.
+	(do_file_warnings):  Warn for multiply defined N_ABS symbols.
+	(do_warnings:  Warn if -e entry symbol is never defined.
+	(perform_relocation):  Make sure we never carry out of the
+	relocation masked bits.
+	(getsym):  Clear last_library_ref to NULL when initializing
+	a new symbol, for subfile_wanted_p().
+	ranlib.c [PSIGNAL_MISSING]:  Don't use psignal().
+	strip.c (file_close):  Use -1 for invalid descriptor flag value.
+	(read_file_symbols):  Close the file if an error occurs.
+	(rewrite_file_symbols):  Use ~ prefixed temp file to avoid
+	problems with 14 character limits on file names.  Use open()
+	instead of creat() since the file will need to be read later.
+	Be sure to close all input files.  Cast lseek() arguments
+	correctly.
+
+Wed Nov 28 23:42:48 1990  Jim Kingdon and Roland McGrath  (roland@ai.mit.edu)
+
+	* ld.c (subfile_wanted_p): If the subfile has a common def of
+	a symbol already defined as common, look at the subfile's def
+	to find the largest-sized common def.  But do not include the
+	subfile if the symbol is already defined at all.
+
+Mon Oct 15 13:07:24 1990  Mike Haertel  (mike at albert.ai.mit.edu)
+
+	* ld.c (digest_symbols):  Align the end of the data segment
+	to sizeof (double) after allocating set vectors, not before.	
+
+Wed Sep 26 12:51:05 EDT 1990	Jay Fenlason (hack@ai.mit.edu)
+
+	* gprof.c  When closing /dev/kmem, use fclose instead of ck_fclose
+	because some systems erroniously return NOT_OWNER on close. . .
+
+Mon Sep  3 18:14:35 1990  Mike Haertel  (mike at wookumz.ai.mit.edu)
+
+	* ar.c (insert_in_map): Always insert __.SYMDEF at the front
+	of the archive.
+
+Mon Aug 13 19:01:27 1990  Chris Hanson  (cph at kleph)
+
+	* ranlib.c (main): Remove emulation of `psignal' from last
+	change.  There is already an emulation that was accidentally
+	omitted from the last release.
+
+Thu Aug  9 13:57:53 1990  Chris Hanson  (cph at kleph)
+
+	* hp-bin/ioutil.c (iou_open): Remove external declaration of
+	`open', which conflicts with that supplied in hp-ux 7.0.
+
+	* hp-bin/hpxt.c: Add compile-time test that signals an error
+	if this file is compiled on the wrong kind of machine.
+
+	* nm.c (getpagesize): Add emulation for USG machines.  This is
+	needed for GNU malloc, and perhaps should be placed there
+	instead.
+
+	* strip.c, ar.c: Make conditionalization of BSD features be
+	more selective.  Previously these features were not used if
+	USG was defined -- but HP-UX supports them.
+
+	* ranlib.c (main): Add emulation of `psignal' for USG
+	machines.
+
+Tue Jul 10 02:07:08 1990  David J. MacKenzie  (djm at apple-gunkies)
+
+	* ar.c: Remove unused variables.
+	(copy_out_member): Declare `outname' as char *.
+	Use `program_name' instead of hardcoded "ar" in messages.
+
+	* robotussin.c: Use `program_name' instead of hardcoded
+	"robotussin" in messages.
+
+	* objdump.c: Indent.  Declare a lot of functions void.
+	Improve comments.  Rename option variables to reflect their
+	meanings rather than the short option names.
+	Use error instead of fprintf and perror.  Include filename in messages.
+	(main): Exit with 0 status normally.  Change +reloc to +relocation.
+	(dump_file): Renamed from doit.
+	(dump_reloc1): Do nothing if sun and sparc (structure isn't defined).
+	(getpagesize): Add emulations for USG and sparc, copied from ld.c.
+
+	* size.c: Declare some functions void.  Use `program_name'
+	instead of hardcoded "size" in messages.
+
+	* gprof.c, robotussin.c: Use VPRINTF_MISSING, to be consistent
+	with error.c.
+
+	* nm.c: Declare some functions void.  Remove unused variables.
+
+	* strip.c: Declare some functions void.
+	Make `strip_symbols' and `discard_locals' enums instead of ints.
+	Remove unused variables.
+	(fatal, error_with_file, usage): Use `program_name' instead of
+	hardcoded "strip".
+	(main): Set `program_name'.
+	(error, error_with_file, perror_file, perror_name, fatal,
+	print_file_name, prline_file_name): Replace with a single
+	`error' function, and change callers.
+
+Fri Jul  6 01:22:26 1990  David J. MacKenzie  (djm at apple-gunkies)
+
+	* ranlib.c (main): Print usage message if no files given.
+	(usage): New function.
+	Global: Use `program_name' instead of hardcoded "ranlib" in
+	messages. 
+
+Thu Jul  5 11:31:12 1990  David J. MacKenzie  (djm at apple-gunkies)
+
+	* Makefile (dist): Put the list of files to distribute into
+	the Makefile instead of ARCHLIST.  Include signame.c and not TAGS.
+	(ranlib): Link with signame.o.
+
+Thu Jun 28 17:03:51 1990  Mike Haertel  (mike at ducky)
+
+	* ld.c: (compute_mach_o_section_offsets):  Bug fix for -r.
+	(relocate_file_addresses): Replace ~N_EXT with N_TYPE,
+	undoing earlier change which broke -g.
+
+Wed Jun 20 13:34:11 1990  Mike Haertel  (mike at thor.acc.stolaf.edu)
+
+	* gprof.c: Make qsort compare functions take const void *
+	arguments for compatibility with the standard.
+
+Tue Jun 19 19:23:41 1990  Mike Haertel  (mike at ducky)
+
+	* ld.c: (do_file_warnings, do_relocation_warnings):
+	Always print the object file name in error messages,
+	even if we also know a source file name.  Use
+	print_file_name() to properly print the names of
+	files that came from libraries.
+	(getpagesize): Fake getpagesize() for sun 4's.
+
+Wed Jun 13 13:11:21 1990  Mike Haertel  (mike at ducky)
+
+	* Makefile: (ld): Link the demangler.
+	* cplus-dem.c: Don't include <memory.h> on NeXT.
+	* ld.c:	Include <sys/resource.h> unless USG.
+	(demangler): New variable; unconditionally set
+	to cplus_demangle().  This is different from how
+	ld++ did it, but conditionalizing on whether -lg++
+	is specified seems too much of a kludge.  The
+	demangler will only demangle names that look like
+	they came from g++ anyway.
+	(main): Attempt to raise the stack limit so we
+	don't barf on large files.
+	(decode_command): Add new option `-nostdlib', with
+	new flag `no_standard_dirs'.
+	(file_open): Eliminate unused variable `p'.
+	Deal with the case of no standard library dirs.
+	(enter_file_symbols): Eliminate unused `lowest_set_vector'.
+	(enter_global_ref): Logically and nlist.n_type with
+	~N_EXT rather than N_TYPE; otherwise, e.g.,  <stab.h>'s
+	N_FUN would get turned into N_TEXT, which we don't want.
+	(subfile_wanted_p): Eliminate Kingdon's "if the user
+	declares 'int pipe;' we don't want to get 'pipe()'
+	from the library" bugfix, because (first of all)
+	it breaks g++, and secondly, it was generally wrong.
+	If the user declares "int errno;" and the library
+	declares "int errno = 0;" we want to get the library's
+	version.  The proper fix will require some thought.
+	(digest_symbols): Eliminated unused variable `erred'.
+	(relocate_file_addresses): Use ~N_EXT instead of N_TYPE.
+	(address_to_line): Likewise.
+	(do_relocation_warnings): Eliminate unused variables
+	`next' and `source'.  Use the demangler to print names.
+	(do_file_warnings): Use the demangler when possible.
+	(do_warnings): Eliminate unused variable `i'.
+	(initialize_a_out_data_start): If no entry symbol
+	was given, set it to "start", if sequent.
+	(perform_relocation): Eliminate variable `data_input_address'
+	performing copy propogation by hand to the one place it
+	was used.  Get rid of misleading comments.
+	(coptxtrel): Use ~N_EXT instead of N_TYPE.
+	(copdatrel): Likewise.
+	(write_syms): Likewise.
+
+Tue Jun 12 11:16:26 1990  Mike Haertel  (mike at ducky)
+
+	* Makefile: Use $(CFLAGS) when linking.
+	* ar.c: (struct member_desc): date is long.
+	(scan): Fully initialize member_desc.
+	(delete_from_map): Clobber info.name instead
+	of unlinking from list.
+	(update_symdefs): Only install new symdefs for
+	members that *have* them.
+	Changes for MACH_O:
+	(read_header_info): New function.
+	(make_new_symdefs): Use it.
+	* gprof.c: fread() returns size_t for ANSI.
+	Declare qsort() properly for ANSI.
+	Move #include <assert.h> to the top.
+	size_t is an unsigned int.
+	Changes for MACH_O:
+	(read_header_info): New function.
+	(main): Use it.
+	(badsym): Allow N_SECT symbols.
+	(fatal): Print a space after the colon.
+	* ld.c: Changes for MACH_O:
+	(struct file_entry):  New fields containing header
+	info but no explicit struct exec, as well as file type info.
+	Also section ordinals for Mach-O files.
+	(output_file_type): New global variable.
+	(output_style): New global variable, also supersedes
+	the flag relocatable_output.
+	Removed a.out specific stuff from global variables.
+	(output_*_offset): New global variables initialized
+	according to the output file type.
+	(decode_command): Remove a.out specific stuff.
+	(deduce_file_type): New function.
+	(read_a_out_header): New function.
+	(read_mach_o_header): New function.
+	(read_header): Use the above functions.
+	(read_entry_symbols): Use new file_entry fields;
+	call translate_mach_o_symbols().
+	(read_entry_strings): Use new file_entry fields;
+	no longer deduce symseg presence.
+	(read_file_symbols): Use deduce_file_type().
+	(enter_file_symbols): Use new file_entry fields.
+	Display N_INDR refs differently.  Move default: in
+	display switch out of #ifdef sequent.
+	(contains_symbol): Use new file_entry fields.
+	(symdef_library): Use xmalloc().  Remember to
+	free subentry->strings, but only if we allocated them.
+	(process_subentry): Use new file_entry fields.
+	(subfile_wanted_p): Likewise.
+	(digest_symbols): Use new functions initialize_text_start()
+	and initialize_data_start().  Remove a.out specific stuff.
+	(consider_file_section_lengths): Use new file_entry fields.
+	(relocate_file_addresses): Use new file_entry fields.
+	(describe_file_sections): Likewise.
+	(list_file_locals): Likewise.
+	(next_debug_entry): Likewise.
+	(init_debug_scan): Likewise.
+	(do_relocation_warnings): Likewise.
+	(do_file_warnings): Likewise.
+	(do_warnings): Use new global output_style.
+	(initialize_a_out_text_start): New function.
+	(initialize_a_out_data_start): New function.
+	(compute_a_out_section_offsets): New function.
+	(compute_more_a_out_section_offsets): New function.
+	(write_a_out_header): New function.
+	(translate_mach_o_symbols): New function.
+	(translate_mach_o_relocation): New function.
+	(initialize_mach_o_text_start): New function.
+	(initialize_mach_o_data_start): New function.
+	(compute_mach_o_section_offsets): New function.
+	(compute_more_mach_o_section_offsets): New function.
+	(write_mach_o_header): New function.
+	(generate_mach_o_symbols): New function.
+	(generate_mach_o_relocations): New function.
+	(initialize_text_start): New function switch on
+	ouput_file_type.
+	(initialize_data_start): Likewise.
+	(compute_section_offsets): Likewise.
+	(compute_more_section_offsets): Likewise.
+	(write_header): Switch on output_file_type.
+	(write_output): Use the above functions.  Bug fix
+	for umask().
+	(write_text):  Use output_text_offset.
+	(text_offset): No longer used.
+	(read_file_relocation): Use new file_entry fields.
+	Call translate_mach_o_relocation() for Mach-O input files.
+	(copy_text): Likewise.
+	(write_data): Use output_data_offset.
+	(copy_data): Use new file_entry fields.  Call
+	translate_mach_o_relocation() for Mach-O input files.
+	(perform_relocation): Use new file_entry fields.
+	(write_rel): Use output_*rel_offset.
+	(coptxtrel): Use new file_entry fields.  Call
+	generate_mach_o_relocations() for Mach-O output files.
+	(copdatrel): Likewise.
+	(write_string_table): Use output_strs_{offset,size}.
+	(write_syms):Use output_{syms,strs}_{offset,size}.
+	Use n_sect field if N_SECT is defined.  Call
+	generate_mach_o_symbols() for Mach-O output files.
+	(write_file_syms): Likewise.
+	(write_symsegs): Use output_symseg_offset.
+	(write_file_symseg): Use new file_entry fields.
+	Changes for NeXT:
+	(N_TXTADDR): Provide version for NeXT.
+	(N_DATADDR): Provide version for NeXT.
+	(enter_global_ref): Deal with NeXT N_INDR weirdness.
+	(compute_a_out_section_offsets): Likewise.
+	(CPU_TYPE, et al): Mach-O info for the NeXT.
+	(compute_mach_o_section_offsets): Deal with N_INDR
+	strangeness.
+	(write_rel): Likewise.
+	(coptxtrel): Likewise.
+	(copdatrel): Likewise.
+	(write_syms): Likewise.
+	(symtab_init): Deal with NeXT shared library strangeness.
+	* nm.c: Changes for MACH_O:
+	(do_one_file): Remove a.out specific stuff.
+	(read_header_info): New function.
+	(do_one_rel_file): Use it.
+	(read_header): Removed.
+	(print_one_symbol): Deal with Mach-O section ordinals.
+	* size.c: Changes for MACH_O:
+	(do_one_file): Remove a.out specific stuff.
+	(read_header_info): New function.
+	(do_one_rel_file): Use it.
+	(read_header): Removed.
+	* strip.c: Changes for MACH_O:
+	(struct file_entry): Remove struct exec; add generic
+	fields to contain necessary information.
+	(main): Use new file_entry fields.
+	(file_open): Remove a.out specific stuff.
+	(read_header): Use new file_entry fields.  Handle
+	Mach-O files.
+	(read_entry_symbols): Use new file_entry fields.
+	(count_file_symbols): Likewise.
+	(rewrite_file_symbols): Likewise.
+	(write_file_syms): Likewise.
+	(modify_relocation): Likewise.
+
+Mon May 28 16:25:59 1990  Mike Haertel  (mike at apple-gunkies)
+
+	* Copied the binutils home to work on.  So please anyone
+	else don't make any changes!!!!
+
+	* Removed gprof.texinfo from ARCHLIST because the file
+	it was symbolically linked to mysteriously disappeared.
+
+Mon May 21 18:39:33 1990  Jim Kingdon  (kingdon at mole.ai.mit.edu)
+
+	* Makefile (clean): Also remove $(archpfx)*.o.
+
+	* nm.c (print_one_symbol): Cast n_other and n_desc to unsigned
+	before passing to printf.
+
+Tue May 15 15:19:49 1990  David J. MacKenzie  (djm at albert.ai.mit.edu)
+
+	* ARCHLIST: Add signame.h.
+
+Sun May  6 23:41:35 1990  David J. MacKenzie  (djm at albert.ai.mit.edu)
+
+	* Makefile (dist): Don't make an uncompressed tar file.
+
+Sat Apr  7 22:58:27 1990  Jim Kingdon  (kingdon at pogo.ai.mit.edu)
+
+	* Makefile (MALLOC): Add.
+	ARCHLIST: Add gmalloc.c.
+	gmalloc.c: New file linked from ../lib/malloc.
+
+Fri Apr  6 00:02:22 1990  Jim Kingdon  (kingdon at pogo.ai.mit.edu)
+
+	* Makefile: Make objdump depend on a.out.gnu.h.
+
+	* gprof.c: Remove never-used declaration of getopt.
+
+	* gprof.c: Add REMOVE_TIME_IF_THERE to not complain on gcc-compiled
+	programs.
+
+Tue Mar 20 15:41:22 1990  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* hp-bin/mkhplib: Create a dummy libg.a.
+
+Thu Mar  1 14:22:02 1990  David J. MacKenzie  (djm at albert.ai.mit.edu)
+
+	* ld.c (classify_arg, decode_option): Functions removed, with
+	some of the code moved to decode_command.
+	(decode_command): Use getopt_long_only instead of custom arg parser.
+	(usage, fatal, fatal_with_file): Use `progname' instead
+	of hardcoded name.
+	(usage): If STRING is null, don't print it.
+
+	* Makefile: Link ld with GNU_GETOPT_LONG.
+
+Wed Feb 28 14:32:06 1990  Jim Kingdon  (kingdon at pogo.ai.mit.edu)
+
+	* ranlib.c (main): Call psignal() with arguments in the correct	order.
+	signame.c, signame.h: New files (linked from ../lib).
+	ranlib.c: Include signame.h.
+
+	* Makefile: Make sure LIBS is after every program which
+	uses GNU_GETOPT_LONG (for alloca()).
+
+Thu Feb 15 23:35:07 1990  Jim Kingdon  (kingdon at mole.ai.mit.edu)
+
+	* ar.c (mywrite): New function which checks for errors.
+	All over: Use it instead of write.
+	(perror_with_name): If errno >= sys_nerr, print "unknown error"
+	not "can't open".
+	(extract_member): Use ferror to check for error.
+
+Tue Feb 13 14:29:24 EST 1990	Jay Fenlason (hack@wookumz.ai.mit.edu)
+
+	* strip.c (rewrite_file_symbols)  Seek to the right place in
+	COFF files.  A three line patch from Eliot Dresselhaus
+	(eliot@mgm.mit.edu).
+
+Wed Jan 31 22:15:11 1990  Jim Kingdon  (kingdon at pogo.ai.mit.edu)
+
+	* hp-include: Remove sys/fcntl.h
+
+	* nm.c [USG], ar.c [LOCKS]: Include <fcntl.h> not <sys/fcntl.h>.
+
+Fri Jan 26 20:13:12 1990  Mike Haertel  (mike at rice-chex)
+
+	* Makefile: Removed references to GNU CC in copyright notice.
+
+Thu Jan 11 03:32:52 1990  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* ARCHLIST: Include ARCHLIST in distribution.
+
+	* ranlib.c: If X_OK is not defined, define it (for USG).
+	(main, touch_symdefs): Include program name in error messages.
+
+	* strip.c (xmalloc): Don't check for size != 0.
+	(usage): New function.
+	(main): Call usage instead of fprintf or fatal.
+
+Wed Jan 10 15:06:00 1990  Jim Kingdon  (kingdon at pogo)
+
+	* ld.c (subfile_wanted_p): Never use a library to satisfy a
+	program's common symbol.
+
+	* ld.c (symtab_init) [sun]: Use symbol_define for __DYNAMIC.
+	[sequent]: Same for _i387_flt.
+
+Wed Jan 10 01:44:58 1990  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* size.c (main): Exit with 0 status normally, instead of garbage.
+	* strip.c (main): Make -g a recognized option. Document -g in
+	usage message.  Exit with 0 status normally.
+	* nm.c (main): Exit with 0 status normally.
+	* gprof.c (main): Ditto.
+
+Mon Jan  8 00:06:55 1990  Mike Haertel  (mike at rice-chex)
+
+	* strip.c (main):  Made -g a synonym for -S (strip debugging
+	symbols) for greater mnemonic value.
+
+Thu Dec 28 02:41:37 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* objdump.c, ld.c, nm.c, size.c (xmalloc, xrealloc): Take the
+	change to return 0 if size is 0 back out.  bfox convinced me
+	that, assuming that programs do not allocate 0 bytes
+	intentionally, printing an error message if they try makes
+	it easier to track down the bug.
+
+Sat Dec 23 00:49:43 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* ld.c (usage): Mention some options that were missing from the
+	usage message.
+
+	* ranlib.c (main): stbf wasn't defined.  Use access instead
+	of stat, since it tests for execute permission.
+
+Fri Dec 22 23:38:15 1989  David J. MacKenzie  (djm at rice-chex)
+
+	* ar.c, ld.c, nm.c: Put various alloca declaration stuff in
+	one place, and declare it as char * if not GNU C or sparc.
+
+	* ld.c, nm.c, size.c (xmalloc, xrealloc): Return char *, not int.
+	Ok to return 0 if 0 bytes requested (ANSI C).
+	Fix declarations for [x][re]alloc.
+
+	* strip.c (main): Combine fprintf calls for usage.
+
+Fri Dec 22 11:23:26 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ranlib.c (main): Look for ar in /usr/local/gnubin first.
+	Rename `jak' to `junk'.
+	Move `#define vfork' to start of file.  Don't declare it extern.
+
+Thu Dec 21 17:02:54 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* gprof.c (main): Combine fprintf calls in usage message.
+
+	* objdump.c (usage): Combine fprintf calls.
+
+	* robotussin.c (main): Add dashes to usage message to reduce
+	confusion of three 'f's in a row . . . .
+
+	* nm.c (main): Combine several fprintf calls to make usage
+	message easier to edit.
+
+	* ld.c (usage): New function to print error message and usage message.
+	(decode_command, decode_option): Call usage instead of fatal.
+
+	* ar.c (usage): New function to print error message and usage message.
+	(main): Call usage instead of fatal.
+
+Fri Dec 15 16:05:38 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* ld.c (perform_relocation) [CROSS_LINKER]: New code.
+
+Tue Dec 12 00:17:41 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* ld.c (symtab_init): Use _edata not __edata.
+
+Mon Dec 11 23:34:51 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* ld.c: Always call each_full_file with 2 args.
+
+Mon Dec  4 16:02:43 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* Makefile: Define bindir.
+	(install): Add semicolon to end of 'cp' and 'mv' lines.
+	(install): Double last '$' in 'mv' line.
+
+Sat Dec  2 13:54:22 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* objdump.c (usage): Remove stray newline in message.
+
+Thu Nov 30 21:38:02 1989  David J. MacKenzie  (djm at rice-chex)
+
+	* objdump.c (usage): Update to reflect Jim's change.
+
+Thu Nov 30 19:05:17 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* objdump.c (main): Rename +sym-links to +symbols.
+
+	* nm.c (do_one_rel_file): Check for validity of string table
+	offsets to avoid core dumps on bad input files.
+
+	* ld.c (process_subentry): Remove variable prev and assign
+	directly to *prev_addr.
+
+Thu Nov 30 15:33:59 1989 Jay Fenlason (hack at gnu.ai.mit.edu)
+
+	* Fixed gprof.c so it would compile and run.  Jim forgot
+	a } and said FUN1 when he meant EXT1 when he added
+	the demangle stuff.
+
+Mon Nov 27 18:12:30 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* objdump.c: Add page_size.
+	(main): Set it.
+
+Mon Nov 27 16:35:50 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* Makefile (dist): Give up on weird linking schemes for making
+	the distribution archive, and simply read the list of files to
+	put in the archive from a file.
+
+	* gprof.c (main): Rename long options:
+	suppress-local to no-static, suppress-blurbs to brief,
+	suppress-arg-prof to no-prof, suppress-arg-time to no-time,
+	arg-prof-only to only-prof, arg-time-only to only-time.
+
+Sun Nov 26 00:46:10 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* gprof.c (main): Make long_options static.  Mention long
+	options in usage message.  Use common code for handling
+	equivalent long and short named options.
+
+Fri Nov 24 03:44:04 1989  David J. MacKenzie  (djm at hobbes.ai.mit.edu)
+
+	* Makefile (dist): Don't distribute backup files in the hp-bin
+	and hp-include directories. 
+
+	* strip.c (main): Add null terminating element to
+	long_options.  Print a usage message if an invalid option is
+	given. 
+
+	* ranlib.c (main): Add `val' element to long_options elements.
+	Print a usage message if an invalid option is given.
+
+	* gprof.c (main): Add null terminating element to
+	long_options.  Mention long options in usage message and exit
+	if an invalid option is given.
+
+	* nm.c (main): Rename +debug-syms to +all and +reverse-sort to
+	+reverse.  Add null terminating element to long_options.
+	Print a usage message if given an invalid option.
+
+	* objdump.c: Add program_name variable.
+	(main): Rename +syms to +sym-links.  Add null
+	terminating element to long_options.  Set program_name.
+	(usage): Mention long options and use program_name.
+	(xmalloc): New function to allocate memory with error check.
+	Global: use xmalloc instead of malloc.
+	Global: Use program_name in error messages.
+
+Mon Nov 20 16:58:25 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* objdump.c [!COFF_ENCAPSULATE]: Define N_MAGIC.
+
+	* ld.c (main) [COFF_ENCAPSULATE]: Don't write coff header
+	for output of ld -A.
+	(read_file_symbols, read_header): Seek past coff header for
+	input with just_syms_flag set.
+
+Fri Nov 17 02:45:43 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* objdump.c (dump_header) [__GNU_EXEC_MACROS]: Don't access a_info
+	field of struct exec.
+
+	* objdump.c: Include <a.out.h> not "a.out.gnu.h"
+
+	* objdump.c (main): Make long_options static.
+
+Thu Nov 16 22:55:38 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* Makefile (ranlib): Depend on getopt.
+
+Thu Nov 16 11:48:27 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* ld.c (decode_option, case 'r'): Set default_magic instead
+	of magic.
+	(decode_command): Use default_magic.
+
+	* Makefile (CPLUS_DEM): Use this for nm and gprof.
+
+	* nm.c (print_one_symbol): Use cplus_demangle.
+
+	* gprof.c (many): Use cplus_demangle when printing names.
+
+	* ld.c (copdatrel): Use N_DATADDR(outheader) for correct
+	behavior under 'ld -r -n'.
+
+	* ld.c (relocate_file_addresses): Use DATA_ADDR_DOT_O
+	instead of entry->header.a_text.
+
+Wed Nov 15 13:08:49 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* ld.c (digest_symbols): When padding data to 8 byte boundary,
+	set pad_data so that write_data() can write the padding.
+	Change old computation of pad_data to add to pad_data instead
+	of assigning into it.
+
+	* ld.c (perform_relocation): Add variable data_input_address
+	to deal with NMAGIC input files.
+
+	* ld.c (symbol_define): New function.
+	(symtab_init): Use it.
+
+	* robotussin [sun386]: Merge sun386 changes.
+
+Tue Nov 14 12:52:34 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* Makefile (ld): Change ld to $(archpfx)ld.
+
+	* Makefile (objdump): Add GNU_GETOPT_LONG to dependencies.
+
+	* ld.c [pyr, hp300]: Define INITIALIZE_HEADER and N_{TXT,DATA}ADDR.
+
+Sat Nov 11 12:08:21 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* ld.c (symtab_init): Don't mess with user-defined "etext".
+	(digest_symbols): Check for e{text,data}_symbol null.
+
+	* ld.c (main): Call symtab_init after load_symbols.
+
+	* ld.c (write_output): Add call to unlink.
+
+Wed Nov  8 11:19:08 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* strip.c (relocation_info_ptr, RELOCATION_INFO_SYMBOL_NUM):
+	Added.
+	(modify_relocation): Use them.
+
+	* Makefile (strip): Use GNU_GETOPT_LONG, not GNU_GETOPT.
+
+	* ld.c [sun].  Set machtype based on machtype of object files.
+	(read_header): Call READ_HEADER_HOOK if defined.
+
+Fri Nov  3 15:18:15 EST 1989 Jay Fenlason (hack@ai.mit.edu)
+
+	* nm.c (main) make long_options static so it can be compiled with cc.
+	* strip.c (main) ditto.
+
+Thu Oct 26 12:28:33 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* Makefile (install): Supply missing `done'.
+
+Tue Oct 17 12:50:46 1989  Mike Haertel  (mike at wheat-chex)
+
+	* ld.c (enter_file_symbols): ignore symbols of type
+	N_SETV | N_EXT.  These shouldn't be here at all should
+	they?
+
+Mon Oct 16 16:53:03 1989  Joseph Arceneaux  (jla at apple-gunkies.ai.mit.edu)
+
+	* ld.c (process_subentry): New function called from
+	linear_library.
+
+Fri Oct  6 10:46:40 1989  Jim Kingdon  (kingdon at hobbes.ai.mit.edu)
+
+	* gprof.c [!HAVE_VPRINTF]: Put in v{f,s}printf emulations.
+
+Mon Oct  2 17:20:42 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c [sequent] (N_TXTADDR, N_DATADDR): Define these macros.
+	[sequent] (INITIALIZE_HEADER): Define this same as for i386.
+	(RELOC_MEMORY_SUB_P): New customization macro.
+	Define as 0 on sun 4.  Define as 0 for defaults.
+	[sequent] (RELOC_* macros): Definitions for sequent.
+	(decode_command, digest_symbols): Handle case where NMAGIC is undefined.
+	(enter_global_ref) [sequent]: Handle special N_SHUNDF code.
+	(digest_symbols, write_symbols) [sequent]: Adjust outheader.a_text.
+	(perform_relocation): Handle RELOC_MEMORY_SUB_P like ..._ADD_P.
+	(symtab_init) [sequent]: Define symbol `_387_flt' w/ value 0.
+
+Fri Sep 22 11:06:25 EDT 1989	hack@ai.mit.edu
+
+	* gprof.c (main) Installed Joy's code for using the long-option names.
+
+Thu Sep 21 03:24:36 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c (symtab_init) [sun]: Define __DYNAMIC as 0.
+	(perform_relocation) [RELOC_ADD_EXTRA]:
+	Special handling for relocatable_output case.
+	(read_file_relocation): Fix error message typos.
+
+Mon Sep 18 14:40:40 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c (digest_symbols): Pad data and bss to 8 byte boundary.
+
+Fri Sep 15 16:42:33 1989  Roland McGrath  (mcgrath at paris.Berkeley.EDU)
+
+	* a.out.gnu.h [sony]: Defined SEGMENT_SIZE as 0x2000.
+
+	* Makefile (ranlib): Include getopt in the link.
+	(objdump): New rule.
+	(install): New rule.
+
+Fri Sep  1 01:32:01 1989  Roland McGrath  (mcgrath at saffron.Berkeley.EDU)
+
+	* ranlib.c: Added copyright notice and license info.
+
+Wed Aug 30 20:53:21 1989  Roland McGrath  (mcgrath at saffron.Berkeley.EDU)
+
+	* Makefile (LIBS): Also get getopt1.o.
+	(dist): Include getopt1.c.
+
+	* ranlib.c (main): Move long option array into main, and fixed it so it
+	will compile.
+
+	* Makefile (dist): Link rather than copy files into the subdir.
+	Include system.h and getopt.h.
+
+Thu Aug 24 14:33:48 1989  Randy Smith  (randy at hobbes.ai.mit.edu)
+
+	* ld.c (do_file_warnings): Don't print out multiple definition
+	warnings at references.
+
+Mon Aug 21 20:19:08 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (make_new_symdefs): Abort if MAPELT->info.name is nil.
+	(update_symdefs): In the loop that calls make_new_symdefs, reject
+	deleted members (i.e., TAIL->info.name == 0).
+
+	* ar.c (make_new_symdefs): Return if we fail reading the header or the
+	magic number is bad.
+
+	* ar.c (make_new_symdefs): Check for ridiculous string table offsets.
+
+	* ranlib.c (main): If the child ar exits with a signal, print the
+	signal that killed it.
+
+	* ar.c (make_new_symdefs): Check for a ridiculous string table size.
+
+	* ar.c (write_archive): When fixing up symdefs, use each member's
+	new_offset rather than data_offset.
+
+	* ar.c (update_symdefs): When the old archive's string table is too
+	small, die, don't just bitch.
+
+	* ar.c (update_symdefs): Don't decrement num_old_symdefs when deleting
+	symdefs of deleted members.  After compactifying old symdefs, decrease
+	num_old_symdefs as necessary.
+
+	* ar.c (update_symdefs): When removing symdefs of deleted members,
+	compare the symdef offsets to the mapelt's data offset, not its header
+	offset.
+
+Sat Aug 19 08:07:26 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (header_from_map): Print correct message when truncating.
+
+	* ar.c (find_mapelt_noerror, header_from_map): Truncate to 15 chars,
+	not 16.
+
+	* ranlib.c (main): Don't do the first ar run an infinite number of
+	times.  One will suffice.
+
+	* ranlib.c (main): Under -v, echo the ar command before running it.
+
+	* ar.c (ignore_symdef): New variable.  If nonzero, only do symdef
+	processing if the `s' option is given.
+	(main): If one of the members given on the command line is __.SYMDEF,
+	set ignore_symdef.
+	(scan): If ignore_symdef is nonzero, don't set symdef_exists.
+
+	* ar.c (find_mapelt_noerror): A mapelt matches NAME if the names are
+	the same for 14 characters and either both end in ".o", or they are the
+	same for as many more characters as they both have (i.e., the longer
+	name is truncated to the length of the shorter name for the
+	comparison).
+
+	* ar.c (update_symdefs): When correcting a bad string table size,
+	correct the size of the __.SYMDEF member as well.
+
+	* ar.c (update_symdefs): Keep track of the space in the string table
+	accounted for by deleted members.  If the old archive's string table
+	size was too big, correct it; if it was too small, die.
+
+Tue Aug 15 00:54:37 1989  Roland McGrath  (roland at apple-gunkies.ai.mit.edu)
+
+	* ranlib.c (main): Use getopt, and accept new `-v' option, which means
+	to pass `v' to ar.  Use vfork instead of fork.  Look at the status of
+	the children, and exit if it's nonzero.  Also added error checking on
+	several calls.
+
+	* ar.c (write_archive): Fully initialize the new mapelt for __.SYMDEF.
+
+Sun Aug	13 00:01:27 1989  Joy Kendall	  (jak at hobbes.ai.mit.edu)
+
+	* strip.c, nm.c, objdump.c:  Installed versions with long
+	named options available, i.e., getopt substituted with 
+	getopt_long.
+
+	* Makefile: changed GNU_GETOPT to GNU_GETOPT_LONG (need to
+	make sure I did this right)
+
+Wed Aug  9 00:24:34 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (write_archive): When rewriting the symdef member, seek to its
+	header offset, not its data offset.
+
+	* ar.c (header_from_map): New function to convert a `struct mapelt' to
+	an ar header.
+
+	* ar.c: Miscellaneous cosmetic clean-ups.
+
+	* ar.c (copy_out_member): If truncating the member name, and the
+	desired name (which is too long) ends in ".o", make the written member
+	name end in ".o" as well.
+
+Tue Aug  8 16:26:49 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (classify_arg): Added 'V' to the list of possible
+	argument having thingys.
+
+	* ld.c (do_relocation_warnings, do_file_warnings): Changed
+	messages slightly and removed hack to allow N_WARNING name to
+	be a printf string taking stuff as arguments.
+
+Mon Aug  7 16:27:04 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Created set_element_prefixes (list of symbol name
+	prefixes to force symbols to be treated as set elements).
+	(main): Initialized to 0.
+	(decode_option): -V name recognized as defining a prefix.
+	(set_element_prefixed_p): New function.
+	(enter_file_symbols): Check every symbol to see if it has a
+	prefix; if so, change the type.
+	(subfile_wanted_p): A subfile isn't wanted if the symbol
+	definition indicated is a set element by prefix.
+
+	* ld.c [N_WARNING]: Changed commenting.
+
+	* ld.c (do_file_warnings): On the second pass for actual
+	warning symbols, warn only if it isn't a definition and it
+	isn't the reference used by the warning symbol itself.
+
+Fri Aug  4 13:04:57 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Remove the warning field from struct file entry.
+	(enter_file_symbols): Deal with N_WARNING symbols on a
+	per symbol basis instead of a per file basis.
+	(mark_flagged_symbols): Deleted.
+	(do_warnings): Don't call mark_flagged_symbols anymore.
+
+	* ld.c: Improved commenting on new GNU symbols.
+
+	* ld.c (subfile_wanted_p): Don't load in files for a set
+	element symbol definition.
+
+Thu Aug  3 12:54:30 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (write_output): Checked return code on last chmod and
+	output error if there is one.
+
+Wed Aug  2 13:26:16 1989  Randy Smith  (randy at hobbes.ai.mit.edu)
+
+	* ld.c (enter_global_ref): Separate out cases of undefined
+	reference and defining it versus from stuff done whenever you
+	define a symbol.  Clean up assignment to sp->defined.
+
+Tue Aug  1 23:12:07 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Created count common_defined_global_count.
+	(main): Initialized to 0.
+	(symdef_library): Symbol is needed if it isn't defined OR it's
+	defined common.  Don't stop looking till we don't have any
+	more symbols defined as common.
+	(linear_library): Don't stop looking until we have no more
+	symbols defined as common.
+	(subfile_wanted_p): If a symbol is defined common, we want to
+	check for a real definition.  If it used to be undefined and
+	we've defined it by common, increment CDGC.
+	(enter_global_ref): If a symbol is defined common and it used
+	to be undefined, increment CDGC.  If it is defined for real
+	and it used to be defined common, decrement CDGC and zero
+	max_common_size (so we can tell that it isn't defined common
+	any more).  Rewrote logic to be cleaner.
+
+Mon Jul 31 14:52:25 1989  Randy Smith  (randy at hobbes.ai.mit.edu)
+
+	* ld.c (digest_symbols): Reverse the order of the set element
+	vector so that the elements will be in the order of the input
+	files to ld.
+
+Mon Jul 31 00:19:05 1989  Roland McGrath  (roland at apple-gunkies.ai.mit.edu)
+
+	* ld.c [sun && sparc]: Don't include alloca.h if !defined(__GNUC__).
+
+Mon Jul 24 19:29:40 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (enter_global_ref): Produce a warning message and
+	rewrite not to be so dangerous if someone is clueless enough
+	to indirect a symbol to itself.
+
+Fri Jul 14 04:04:19 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (write_archive): Don't zero out the count of old symdefs if we
+	just read some.
+	(update_symdefs): Don't copy symdefs onto themselves when compacting.
+
+Wed Jul 12 16:16:36 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (write_archive): Use read_old_symdefs if the member is there.
+	(make_new_symdefs): Return if passed a deleted member.
+
+	* ar.c (write_archive): Zero out the info of the new __.SYMDEF member
+	properly.
+
+Mon Jul 10 22:16:08 1989  Randy Smith  (roland at hobbes.ai.mit.edu)
+
+	* ld.c (enter_global_ref): Put the type of the nlist entry with the
+	strongest type into the "defined" field of the symbol.  Used this to
+	determine the first definition of a set element.
+
+Wed Jul  5 17:29:27 1989  Randy Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (do_file_warnings): Find undefined references on second
+	passes. 
+
+Fri Jun 30 03:32:50 1989  Roland McGrath  (roland at apple-gunkies.ai.mit.edu)
+
+	* ar.c [__GNUC__]: Use __builtin_alloca.
+	[sparc]: Include <alloca.h>.
+
+	* ar.c (copy_out_member): After writing the header, set the entry's
+	`data_offset' field to the current file position.
+	(write_archive): After copying out members, check for any whose data
+	offsets weren't known when the symdef member was written, fix up the
+	offsets, and rewrite the symdef member.
+
+Thu Jun 29 21:29:35 1989  Roland McGrath  (roland at apple-gunkies.ai.mit.edu)
+
+	* ar.c (main): Call exit (0), instead of running off the end.
+
+Tue Jun 27 02:11:22 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (make_new_symdefs): Rewritten to correctly convert the namelist
+	to symdefs.
+
+	* ar.c (replace_members): Write the archive if symdef_flag is true and
+	there is no symdef member.
+
+	* Makefile: Added $(archpfx) where appropriate.
+
+	* ld.c (symdef_library): When decode_library_subfile returns nil
+	(meaning it hit the end of the library archive), barf.
+
+Mon Jun 26 17:41:38 1989  Randy Smith  (randy at hobbes.ai.mit.edu)
+
+	* ld.c (do_warnings): Take out the blank line printed at the
+	end of the warning routine.
+
+	* ld.c (do_file_warnings): When looking for multiple
+	definitions, don't print out references (things that are just
+	N_EXT).  
+
+Sun Jun 25 15:17:42 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (requestedp): Removed unused function.
+	(find_mapelt): Use find_mapelt_noerror.
+	(find_mapelt_noerror): Compare only the first 16 chars of names.
+	(error): Accept more args.
+	(copy_out_member): Write a message if the member name is truncated.
+
+	* GNUmakefile: Just include Makefile, rather than doing the silly
+	recursion bit.
+
+	* ar.c (write_archive): Split unlocking and closing into new function
+	close_archive.
+	(replace_members): If nothing changed, don't write the archive!
+
+	* ar.c: Only write old Unix style informational messages
+	(x - foo, a - bar, etc.).  1003.2 requires it (sigh).
+
+Wed Jun 21 21:45:57 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (insert_in_map): Only write one message under -v.
+	(print_descr): Use puts instead of printf where applicable.
+
+	* ar.c (copy_out_member): Don't say "copying ... to new archive" under
+	-v.  This amounts to listing the entire archive with each insertion.
+
+	* Makefile (ranlib.o): Use $(bindir)/ar rather than `pwd`/ar.
+
+Tue Jun 20 18:46:42 1989  Roland McGrath  (roland at hobbes.ai.mit.edu)
+
+	* ar.c (main): The `u' flag implies the `r' operation.
+
+Mon Jun 12 19:12:37 1989  Jay Fenlason  (hack at apple-gunkies.ai.mit.edu)
+
+	* nm.c  Fixed #ifndef N_WARNING to actually compile correctly.
+
+	* ld.c (N_TXTADDR, N_DATADDR): Changed #ifdef vax to
+	#if defined(vax) || defined(sony_news)
+	so that it'll compile on the Sony's.
+
+Tue Jun  6 15:27:10 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (print_files_defining_symbol): Eliminated.
+	(main): Zero the first cmdline references after it is allocated.
+	(add_cmdline_ref): Make sure that we don't overwrite the end of the
+	array. 
+
+Sun May 28 15:15:42 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* nm.c (,print_one_symbol): Added code to handle N_WARNING.
+
+Thu May 11 20:26:23 1989  Mike Haertel  (mike at apple-gunkies.ai.mit.edu)
+
+	* ld.c (read_file_symbols): Use a struct exec instead of an int
+	for magic number checking.
+	* nm.c (do_one_file): Similar change.
+	* size.c (do_one_file): Similar change.
+	* strip.c (file_open): Similar change.	
+
+Thu May 11 16:33:51 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ar.c (update_symdefs): Detect null pointer in info.name.
+
+Thu May  4 01:53:32 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* Makefile: Provide $(LIBS) when linking strip.
+
+Mon May  1 16:40:27 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (main): Change return from main to be exit from main
+	(supported on more systems).
+
+Mon Apr 24 14:47:53 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c (decode_option, classify_arg): Accept -Bstatic as no-op.
+
+Mon Apr 24 13:08:48 1989  Jay Fenlason  (hack at apple-gunkies.ai.mit.edu)
+
+	* gprof.c:  Removed #ifdef __STDC__ stuff from all the
+	function headers, etc.
+
+Sun Apr 23 00:16:09 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c: Define INITIALIZE_HEADER for ALTOS.
+
+	* robotussin.c (reloc_segment): Handle R_RELLONG like R_DIR32.
+	(INPUT_MAGIC): Set it for 386 or 68k according to predef symbols.
+
+	* ranlib.c: Handle USG.  Define bzero, gettimeofday.
+	New macro `seconds' defined for USG or BSD.
+	Include sys/types.h and fcntl.h.
+
+Thu Apr 20 14:47:37 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* robotussin.c: discard symbols in section -1.
+
+	* libconvert: change *.o to * in for statement.
+
+Mon Apr 10 16:54:43 1989  Pace Willisson   (pace at apple-gunkies.ai.mit.edu)
+
+	* strip.c (rewrite_file_symbols): Make strip work for
+	COFF_ENCAPSULATE (it used to write the new exec header at
+	file offset 0, instead of using HEADER_SEEK_FD)
+
+Fri Mar 10 15:50:45 1989  Randall Smith  (randy at sugar-bombs.ai.mit.edu)
+
+	* ranlib.c (touch): Created to simply touch an archive (update the
+	date on the symdef member).  Done here since adding an option to
+	ar.c would be a hassle and using the routines in ar.c would
+	require doing almost all of the work of an "ar rs x.a" anyway.
+	Same result in both cases; differing amounts of time.
+
+Mon Mar  6 15:27:56 1989  Jay Fenlason  (hack at apple-gunkies.ai.mit.edu)
+
+	* gprof.c (ck_fclose) only fflush() streams opened for writing.
+
+Sun Mar  5 17:13:37 1989  Randall Smith  (randy at gluteus.ai.mit.edu)
+
+	* ar.c (write_archive): Modified test to write symdef header;
+	wasn't being done if the symdef map entry didn't need to be newly
+	created. 
+
+Fri Mar  3 10:56:55 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* *.*, Makefile: Changed to use new wording as directed by the new
+	GNU General Public License.
+	* COPYING: Created as a link to /gp/rms/COPYING.
+
+Wed Feb 22 04:42:54 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* Makefile: Use GNU getopt by preference.
+
+	* gprof.c [USG]: Define bcopy as macro.
+
+Tue Feb 21 04:46:44 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c (INITIALIZE_HEADER) [HPUX]: Use N_SET_MACHTYPE.
+
+Sat Feb 18 12:47:36 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* Makefile: Added note for using GNU getopt for app routines.
+	Linked (symlink) it into this directory.
+
+	* ld.c: Added #ifndef sony_news around inclusion of fcntl.h.  This
+	file duplicates code in sys/file.h on the sony.
+
+	* nm.c: Added include of alloca.h on a sun4 and use of
+	__builtin_alloca if compiling with GCC.
+
+Sat Feb 18 09:43:51 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ar.c (write_archive): Don't die if info.name is 0 (member deleted).
+	(scan): Reverse fread args, so value is right.
+
+Fri Feb 17 05:19:50 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ar.c (extract_members, scan): Open just a FILE *, and pass that.
+	(extract_member, print_contents): Expect a FILE *; no need to fdopen.
+
+Thu Feb 16 07:36:03 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* gprof.c: Reformatted.
+
+Fri Feb  3 14:28:24 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (do_warnings): Changed calls to each_full_file to each_file
+	(which is what we want, since we are concerned with symbol
+	definitions).
+
+	* ld.c: Added a parameter MAX_ALIGNMENT, defined in #ifdef sparc
+	and by default, to set the maximum necessary alignment for data
+	objects on this machine.  This is necessary for allocation in the
+	bss area.
+	(digest_symbols): Made sure that everything allocated had the
+	minimum of it's alignment (lowest bit set in the size) or the
+	MAX_ALIGNMENT. 
+
+Thu Jan 26 13:31:52 1989  Pace Willison  (pace at apple-gunkies.ai.mit.edu)
+
+	* Makefile: Delete -Dnounderscore, add gprof to USG PROG list
+
+	* ar.c (rename for USG): ignore error from first unlink
+
+	* gprof.c: COFF_ENCAPSULATE and USG changes.
+
+	* ld.c strip.c: Deal with internal labels starting with '.' on
+	nounderscore machines and 'L' on normal ones (LPREFIX).
+
+	* ld.c(next_debug_entry): Mask n_type field in switch statement
+	since it is a char, and some of its values (N_SOL) are > 128, which
+	get sign extended on some machines.
+
+	* objdump.c: Deal with symbols that have no name; mask fields 
+	of nlist before printing.
+
+Mon Jan 23 14:08:43 1989  Randall Smith  (randy at plantaris.ai.mit.edu)
+
+	* ld.c (coptxtrel, copdatrel): Made sure that, when relocation is
+	being copied, that N_INDR symbols were properly followed.  Also
+	made sure that the symbol indicies were correct even in the
+	presence of indirection information.
+
+	* ld.c (write_rel): When specifying symbol numbers, make sure to
+	leave room for the extra undefined ref that will be written for
+	the sake of N_INDR entries.
+
+	* ld.c (write_syms): Fixed typo; a duplicate of the N_INDR entry
+	was being written instead of the undefined ref required.
+
+Tue Jan 17 16:23:56 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* strip.c (rename): Arranged to ignore return code from "unlink";
+	file may not be there.
+
+Thu Jan 12 15:24:23 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* Makefile: Modified "dist" target so as to get hp-*
+	subdirectories. 
+
+	* strip.c (rename): Added function to mimic BSD system call for
+	system V.
+
+Tue Jan 10 19:44:33 1989  Pace Willison  (pace at prep.ai.mit.edu)
+
+	* Makefile: put -Dnounderscore back for COFF_ENCAPSULATE.
+
+Tue Jan 10 17:58:50 1989  Randall Smith  (randy at cream-of-wheat.ai.mit.edu)
+
+	* ld.c (linear_library, symdef_library, list_file_locals,
+	write_file_syms): Took care to make sure that when the buffer
+	pointed to by entry->strings became invalid, entry->strings was
+	set to zero (either on a free or a function return if space had
+	been allocated through alloca).
+
+	* ld.c (getpagesize): Deleted define in hpux dependent section;
+	taken care of when compiling on hpux because of define of USG in
+	Makefile. 
+
+Mon Jan  9 22:49:42 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* strip.c (strip_file): Effectively defer certain signals
+	while rewriting the file.
+
+Mon Jan  9 09:45:41 1989  Pace Willisson  (pace at prep.ai.mit.edu)
+
+	* These changes improve support for COFF_ENCAPSULATE, and
+	for the future development of the GNU exec header.  The
+	main change is to rename the exec header field a_magic
+	so that it can contain additional information.  Now, the
+	magic number must be accessed with N_MAGIC(exec), and set
+	with N_SET_MAGIC(exec,val).  Programs that only need to use
+	N_BADMAG will not have to change.  Also COFF_ENCAPSULATE will
+	no longer use "nounderscore", so that it will be more like
+	normal bsd systems.  This means gcc must be updated before using
+	these new tools.  (It is safe to put -Dnounderscore back in
+	if you want to use an old gcc for a while.)
+
+	* README-ENCAP: new documentation for how to set up to use
+	COFF_ENCAPSULATE.
+
+	* Makefile:  Add target for gnulib.
+	Don't define 'nounderscore' (must tell gcc about that too.)
+
+	* ar.c: Don't automatically define COFF_ENCAPSULATE.
+
+	* nm.c: No need to initialize the header before reading it.
+
+	* size.c: Include, sys/types.h, and sys/fcntl.h if USG
+	* strip.c: Likewise--types.h before file.h.
+
+	* ld.c, objdump.c, robotussin.c:
+	Changed to use new exec macros for a_magic.
+
+	* libconvert: now takes arguments
+
+	* robotussin.c: don't automatically define nounderscore - leave
+	that to the makefile, if desired
+
+Fri Jan  6 13:06:37 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (digest_symbols, write_text, write_data): Changed N_SETV
+	from being in the text area to being in the data area.
+	* nm.c, a.out.gnu.h: Changed comments to conform with above.
+
+	* ld.c (do_file_warnings): Added loop to go through each external
+	nlist entry and check for multiple definitions, as well as
+	catching any references which weren't caught by the relocation
+	pass. 
+
+	* ld.c (address_to_line): Changed so that it will work (albeit
+	slowly) with an address less than the current address.
+	(do_file_warnings, do_relocation_warnings): Broke out scan through
+	relocation entries into a separate function.  Added creation of a
+	bitvector with each bit refereing to an nlist entry so that
+	do_relocation_warnings could mark which symbol entries it had
+	output for undefined references.
+
+Thu Jan  5 20:36:44 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Cosmetic changes: Moved helper functions for
+	do_file_warnings to before it and modified comments to
+	next_debug_symbol and address_to_line.
+
+Wed Jan  4 15:37:52 1989  Randall Smith  (randy at gluteus.ai.mit.edu)
+
+	* ld.c: Added #define getpagesize() EXEC_PAGESIZE for hpux.
+
+	* ld.c (do_warnings): Will now print out all undefined external
+	symbols which were not referenced from the text or data sections
+	separately.
+	(do_file_warnings): Decreases undefined_global_sym_count for each
+	symbol printed.
+
+Tue Jan  3 23:43:41 1989  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* Makefile (nm): Link with $(LIBS).
+
+	* ld.c (getpagesize): HPUX definition deleted; not needed.
+
+Mon Jan  2 23:04:35 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (digest_symbols): Modified the creation of set vectors
+	to include a zero word after the end  of the vector.
+	(write_text): Made the same modification of the set vector section
+	size. 
+
+Sun Jan  1 12:01:22 1989  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Fixed typo in description of relocation values, and
+	changed note on RELOC_ADD_EXTRA to force is to be an lvalue if
+	it's defined.
+	(coptxtrel): If a specific relocation entry has just changed from
+	external to internal, and we aren't supposed to add in memory on
+	the new relocation value, make sure that the value of the symbol
+	get's added to the ADD_EXTRA in the relocation value.  Otherwise,
+	all the work we do in a partial linking will be wasted (will be in
+	memory, but will be ignored on the next pass of the linker).
+
+Sat Dec 31 13:13:01 1988  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Removed "|| TARGET == SUN2" from line 210; I believe that
+	TARGET and SUN2 were both showing up defined as 0 on the sparc,
+	which resulted in a redefine of the INITIALIZE_HEADER macro, back
+	to sun2 style.
+
+Thu Dec 29 01:48:03 1988  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c, ar.c: Don't define COFF_ENCAPSULATE automatically.
+	The recommended Makefile change defines it.
+
+	* ld.c (alloca): If compiling with GCC, use __builtin_alloca.
+
+	* robotussin.c: New reformatted version with all variables renamed.
+
+	* ranlib.c: New file, just runs `ar rs' on each specified file.
+	* Makefile: Special hack to tell ranlib where to find GNU ar.
+	(LIBS): Recommend -lPW on USG; ld needs it for alloca (if not GCC).
+
+Sat Dec 24 13:59:09 1988  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c (error): Start with name of program running.
+	(main): Set `progname' to that name.
+	(digest_symbols): Fix punctuation and spelling in calls to `error'.
+
+Tue Dec 20 21:49:46 1988  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* robotussin.c (INPUT_MAGIC): New macro, has the magic number
+	to expect in input files.
+	(nounderscore): New macro; as in ld, define it to inhibit
+	adding underscore to symbols.
+
+	* Makefile: Don't compile objdump on BSD; N_DATADDR causes trouble.
+
+Tue Dec 20 14:57:38 1988  Pace Willisson  (pace at prep.at.mit.edu)
+
+	* objdump.c: New program like the system 5 'dump' program.
+	Documentation will follow...
+
+	* Makefile: Set up CFLAGS for USG systems.  Added target
+	libc.a to do robotussin conversion.  Added objdump.
+
+	* libconvert: Wrote shell script to do robotussin conversion.
+
+	* ar.c, ld.c: Don't define COFF_ENCAPSULATE if it is already defined.
+
+	* ld.c: If i386, set a_machtype to M_386.  Use a_flags instead
+	of a_encap.  Don't compute coff header if it isn't going to
+	get written out.
+
+	* robotussin.c: Define COFF_ENCAPSULATE. Include a.out.encap.h
+	instead of a.out.h.  Check magic number of input
+	file.  Skip over optional header, if present.  Don't ignore
+	symbols with aux entries (they could be function definitions),
+	instead, ignore symbols beginning with '.' (.text, etc).
+	Don't prepend underscore to externals, since gcc doesn't do
+	it now.  Don't run past the end of symbols that are exactly
+	eight characters long.  Always write the string table size,
+	even if it is empty.  Change relocation types handled from
+	R_PCRBYTE, etc, to R_DIR32 and R_PCRLONG (these are the
+	only two emitted by the system 5 assembler.)
+
+	* size.c: Include <sys/types.h> so including sys/file.h will
+	not get an error on USG systems.  Include fcntl.h on usg systems.
+
+	* strip.c: Move inclusion of file.h to after types.h.  Include
+	fcntl.h.  Add defintion of rename.
+
+Fri Dec 16 13:55:11 1988  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* size.c: Delete all ROBOTUSSIN conditionals and contents.
+	Change SYSV conditionals to USG.
+	COFF_ENCAPSULATE conditionals for headers.
+	(do_one_file, read_header): Skip encapsulation headers if any.
+
+	* strip.c: Delete all ROBOTUSSIN conditionals and contents.
+	Change SYSV conditionals to USG.
+	COFF_ENCAPSULATE conditionals for headers.
+	(file_open, read_header): Skip encapsulation headers if any.
+
+	* strip.c: Change most fatal errors to nonfatal.
+	(file_open, read_header, read_{file,entry}_symbols):
+	Now return 0 for success, -1 for failure.
+	Failure means do no more for the current file.
+	(modify_relocation): Now just warn if strip a symbol needed
+	for relocation, and warn only once per file.
+	(error_with_file): New function, replaces most fatal_with_file.
+	Print filename first, as in most programs.
+	(fatal_with_file): Deleted.
+	(rewrite_file_symbols): Use perror_file when system call fails.
+
+Tue Dec 13 17:16:39 1988  Jay Fenlason  (hack at apple-gunkies.ai.mit.edu)
+
+	* ar.c:  Changed pad character after odd-length archive member
+	from \0 to \n so archives can be cmp'd with the output from /bin/ar
+	Added fix for when ranlib is using ar to insert an __.SYMDEF member
+
+Tue Dec 13 09:09:27 1988  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ar.c: conditional #includes for USG.
+	* COFF_ENCAPSULATE conditionals for headers.
+	(extract_member): Don't do fchmod if USG.
+	Alternate USG code to set modtimes of extracted members.
+	(write_archive): Don't do fsync if USG.
+	(make_new_symdefs): Skip encapsulation headers if any.
+	[USG] (bcopy, bzero, bcmp): New fns.
+
+	* nm.c: Delete all ROBOTUSSIN conditionals and contents.
+	Include types.h.
+	Change SYSV conditionals to USG.
+	* COFF_ENCAPSULATE conditionals for headers.
+	(do_one_file): Skip encapsulation headers if any.
+	(read_header): Likewise.
+
+	* ld.c: Delete all ROBOTUSSIN conditionals and contents.
+	Change SYSV conditionals to USG.
+	Change HEADER_TYPE back to `struct exec'.
+	(L_SET): Define it if headers don't.
+	* COFF_ENCAPSULATE conditionals for headers.
+	(main): Update text_size differently if encapsulating.
+	(write_header): Write the encapsulation headers if nec.
+	Don't end with padding if encapsulation being done.
+	[USG] (bzero, bcopy, getpagesize): New fns.
+
+Tue Dec  6 13:26:56 1988  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c (do_file_warnings): Ignored text relocation entries that
+	went through local symbols; any problems with lack of definitions
+	etc. with them would have been caught by the compiler.
+
+Mon Dec  5 16:13:22 1988  Jay Fenlason  (hack at sugar-bombs.ai.mit.edu)
+
+	* ar.c (make_new_symdefs): On error, close the input files.
+
+Thu Nov 10 18:15:07 1988  Randall Smith  (randy at apple-gunkies.ai.mit.edu)
+
+	* ld.c: Put declaration of alloca inside an #ifdef so that it
+	wouldn't mess up on the sparc.
+
+	* ld.c: Added #define CORE_ADDR for include of symseg.h from gdb
+	and took out TARGET == SUN2 for sun2 INITIALIZE_HEADER.
+
+Wed Nov  2 18:43:09 1988  Randall Smith  (randy at gluteus.ai.mit.edu)
+
+	* ld.c: Merged in isi68k port.  This included a kludge for symbols
+	starting with _$ (#ifdef DOLLAR_KLUDGE) and addition of the
+	STANDARD_SEARCH_DIRS macro to override the default if it's
+	defined. 
+
+	* ld.c: Added code for the N_WARNING symbol type.  If a reference
+	is found to a symbol in an input .o file which contains an
+	N_WARNING symbol, a warning message (the name of the N_WARNING
+	symbol) is printed.  This name is treated as a printf format
+	string; the name of the symbol referenced (which caused the
+	warning) is supplied as a single argument to the print which
+	interpets this string.
+
+Tue Nov  1 16:57:00 1988  Randall Smith  (randy at gluteus.ai.mit.edu)
+
+	* ld.c: Added code for Sun 2.
+
+	* ld.c: Modified access to the relocation information to be *much*
+	more general; added in sparc support.  This change is a minor
+	performance hit; the perform_relocation routine uses about 0.1
+	seconds more time on linking gdb than did the original ld.
+	(perform_relocation is about 5% of the total time the loader
+	spends).  The price of generality.
+
+Thu Aug  4 13:20:50 1988  Randy Smith  (randy at rice-chex.ai.mit.edu)
+
+	* Modified ld.c to print only the first 10 unresolved references
+	for each symbol, followed by a message indicating that there are
+	more unresolved references that have not been printed (if indeed
+	there are).  Made default behaivior upon errors *not* writing any
+	output file at all.  Also added the -noinhibit-exec flag to force
+	writing of an executable when that was desirable.
+
+Tue Aug  2 12:04:01 1988  Randy Smith  (randy at rice-chex.ai.mit.edu)
+
+	* Modified ld.c to give line numbers wherever possible on
+	unreferenced symbols.  Added a new symbol (N_DSLNE) to allow for
+	the same mapping of data location to line number as is done for
+	text segments by N_SLINE.  Added code to sort the relocation
+	entries when it is necessary to output these line numbers.  The
+	assumption was made that both N_SLINE and N_DSLNE symbols would
+	always be in order by address.
+
+Wed Jul 27 15:13:08 1988  Randy Smith  (randy at rice-chex.ai.mit.edu)
+
+	* Modified ld.c to include a facility for equivalencing two
+	symbols (translating one to another).  Modified lib/a.out.h to
+	include a definition of this new symbol.  Modified nm.c to
+	recognize this symbol and all of the set element and vector
+	symbols I had added before.
+
+Thu Jul 21 17:06:10 1988  Randy Smith  (randy at rice-chex.ai.mit.edu)
+
+	* Modified ld.c to printout source file and line numbers for
+	unresolved references whenever possible (ie. whenever the input
+	file has debugger symbols and the reference is from the text area).
+
+Wed Jul 13 17:21:33 1988  Randy Smith  (randy at frosted-flakes.ai.mit.edu)
+
+	* Modified ld.c and a.out.h to handle new types of symbols; the
+	loader can now create "sets" of symbols from entries in its input
+	files.  See a.out.h for more info.  Also fixed a bug in ld in
+	which references to common areas that we not defined in one pass
+	of the loader caused errors on the next.
+
+Sat Jul  2 00:05:44 1988  Richard Stallman  (rms at sugar-bombs.ai.mit.edu)
+
+	* ld.c (symdef_library): Error check was off by one.
+
+Mon May  9 12:53:08 1988  Chris Hanson  (cph at kleph)
+
+	* ar.c (replace_members): After updating map, write out
+	`change_map->next' rather than `map', since the latter may be
+	null.
+
+Local Variables:
+mode: indented-text
+left-margin: 8
+version-control: never
+End:

@@ -1,0 +1,410 @@
+*** tclExpr.c.orig	Mon Mar 23 12:54:06 1992
+--- tclExpr.c	Fri May  1 18:09:57 1992
+***************
+*** 22,27 ****
+--- 22,28 ----
+  #endif
+  
+  #include "tclInt.h"
++ #include <math.h>
+  
+  /*
+   * The stuff below is a bit of a hack so that this file can be used
+***************
+*** 79,84 ****
+--- 80,86 ----
+  				 * expr.  See below for definitions.
+  				 * Corresponds to the characters just
+  				 * before expr. */
++     ClientData clientData;	/* Place to stash the function index */
+  } ExprInfo;
+  
+  /*
+***************
+*** 96,102 ****
+  /*
+   * Binary operators:
+   */
+! 
+  #define MULT		8
+  #define DIVIDE		9
+  #define MOD		10
+--- 98,104 ----
+  /*
+   * Binary operators:
+   */
+! #define EXPON		7
+  #define MULT		8
+  #define DIVIDE		9
+  #define MOD		10
+***************
+*** 126,137 ****
+  #define NOT		29
+  #define BIT_NOT		30
+  
+  /*
+   * Precedence table.  The values for non-operator token types are ignored.
+   */
+  
+  int precTable[] = {
+!     0, 0, 0, 0, 0, 0, 0, 0,
+      11, 11, 11,				/* MULT, DIVIDE, MOD */
+      10, 10,				/* PLUS, MINUS */
+      9, 9,				/* LEFT_SHIFT, RIGHT_SHIFT */
+--- 128,180 ----
+  #define NOT		29
+  #define BIT_NOT		30
+  
++ #define FUNCT		31	/* Not really unary operators, but we'll 
++ 				 * treat them as such */
++ struct MathLibraryFunctions {
++    char *name;
++    double (*ptr)_ANSI_ARGS_((double x));
++ };
++ 
++ /* The following symbols represent indices of each function in the 
++    math function table found below. */
++ enum FunctionIndices {
++   F_ABS, F_ACOS, F_ASIN, F_ASINH, F_ATAN, F_CBRT, F_CEIL, F_COS, F_EXP,
++   F_EXP10, F_FLOAT, F_FLOOR, F_INT, F_LOG, F_LOG10, F_RINT, F_SIN,
++   F_SQRT, F_TAN 
++ };
++ 
++ /* The data structure below contains the name and function pointer 
++    of libm.a math routines.  If you change this table, you must also
++    change the index table above. */
++ static struct MathLibraryFunctions mathLib [] = {
++     "abs", 	fabs,
++     "acos", 	acos, 
++     "asin", 	asin, 
++     "asinh", 	asinh, 
++     "atan", 	atan,
++     "cbrt", 	cbrt, 
++     "ceil", 	ceil, 
++     "cos", 	cos, 
++     "exp", 	exp, 
++     "exp10", 	exp10, 
++     "float",	NULL,	
++     "floor", 	floor,
++     "int",	NULL,	
++     "log", 	log, 
++     "log10", 	log10, 
++     "rint", 	rint, 
++     "sin", 	sin, 
++     "sqrt", 	sqrt,
++     "tan", 	tan,
++ };
++ 
+  /*
+   * Precedence table.  The values for non-operator token types are ignored.
+   */
+  
+  int precTable[] = {
+!     0, 0, 0, 0, 0, 0, 0, 
+!     12,					/* EXPON */
+      11, 11, 11,				/* MULT, DIVIDE, MOD */
+      10, 10,				/* PLUS, MINUS */
+      9, 9,				/* LEFT_SHIFT, RIGHT_SHIFT */
+***************
+*** 143,149 ****
+      3,					/* AND */
+      2,					/* OR */
+      1, 1,				/* QUESTY, COLON */
+!     12, 12, 12				/* UNARY_MINUS, NOT, BIT_NOT */
+  };
+  
+  /*
+--- 186,193 ----
+      3,					/* AND */
+      2,					/* OR */
+      1, 1,				/* QUESTY, COLON */
+!     13, 13, 13,				/* UNARY_MINUS, NOT, BIT_NOT */
+!     13,					/* FUNCT */
+  };
+  
+  /*
+***************
+*** 151,160 ****
+   */
+  
+  char *operatorStrings[] = {
+!     "VALUE", "(", ")", "END", "UNKNOWN", "5", "6", "7",
+      "*", "/", "%", "+", "-", "<<", ">>", "<", ">", "<=",
+      ">=", "==", "!=", "&", "^", "|", "&&", "||", "?", ":",
+!     "-", "!", "~"
+  };
+  
+  /*
+--- 195,204 ----
+   */
+  
+  char *operatorStrings[] = {
+!     "VALUE", "(", ")", "END", "UNKNOWN", "5", "6", "**",
+      "*", "/", "%", "+", "-", "<<", ">>", "<", ">", "<=",
+      ">=", "==", "!=", "&", "^", "|", "&&", "||", "?", ":",
+!     "-", "!", "~", "FUNCT"
+  };
+  
+  /*
+***************
+*** 424,430 ****
+  	    return TCL_OK;
+  
+  	case '*':
+! 	    infoPtr->token = MULT;
+  	    return TCL_OK;
+  
+  	case '/':
+--- 468,479 ----
+  	    return TCL_OK;
+  
+  	case '*':
+! 	    if (p[1] == '*') {
+! 	        infoPtr->token = EXPON;
+! 	        infoPtr->expr = p+2;
+! 	    } else {
+! 	        infoPtr->token = MULT;
+! 	    }
+  	    return TCL_OK;
+  
+  	case '/':
+***************
+*** 533,540 ****
+  	    return TCL_OK;
+  
+  	default:
+! 	    infoPtr->expr = p+1;
+! 	    infoPtr->token = UNKNOWN;
+  	    return TCL_OK;
+      }
+  }
+--- 582,591 ----
+  	    return TCL_OK;
+  
+  	default:
+! 	    if (ParseFunction (infoPtr, p) != TCL_OK) {
+! 	        infoPtr->expr = p+1;
+! 	        infoPtr->token = UNKNOWN;
+! 	    }
+  	    return TCL_OK;
+      }
+  }
+***************
+*** 626,635 ****
+  	}
+  	if (infoPtr->token >= UNARY_MINUS) {
+  
+  	    /*
+  	     * Process unary operators.
+  	     */
+- 
+  	    operator = infoPtr->token;
+  	    result = ExprGetValue(interp, infoPtr, precTable[infoPtr->token],
+  		    valuePtr);
+--- 677,686 ----
+  	}
+  	if (infoPtr->token >= UNARY_MINUS) {
+  
++ 	    int fnum = (int)infoPtr->clientData; /*Save the function index*/
+  	    /*
+  	     * Process unary operators.
+  	     */
+  	    operator = infoPtr->token;
+  	    result = ExprGetValue(interp, infoPtr, precTable[infoPtr->token],
+  		    valuePtr);
+***************
+*** 675,680 ****
+--- 726,766 ----
+  			goto illegalType;
+  		    }
+  		    break;
++                 case FUNCT:
++ 		    if (valuePtr->type == TYPE_STRING) {
++ 		        badType = valuePtr->type;
++ 			goto illegalType;
++ 		    } 
++ 		    switch (fnum) {
++ 		    case F_INT:
++  		        if (valuePtr->type == TYPE_DOUBLE) {
++ 			    valuePtr->intValue = valuePtr->doubleValue;
++ 			    valuePtr->type = TYPE_INT;
++ 			} 
++ 			break;
++ 		    case F_FLOAT:
++  		        if (valuePtr->type == TYPE_INT) {
++ 			    valuePtr->doubleValue = valuePtr->intValue;
++ 			    valuePtr->type = TYPE_DOUBLE;
++ 			  } 
++ 			break;
++ 		    default:
++  		        if (valuePtr->type == TYPE_INT) {
++ 			    valuePtr->doubleValue = valuePtr->intValue;
++ 			    valuePtr->type = TYPE_DOUBLE;
++ 			  } 
++ 			errno = 0;
++ 			valuePtr->doubleValue =  
++ 			    (*mathLib[fnum].ptr)(valuePtr->doubleValue);
++ 			if (errno == EDOM || errno == ERANGE) {
++ 			    Tcl_SetErrorCode (interp, "MATHERR", 
++ 				      (errno == EDOM) ? "EDOM" : "ERANGE",
++ 					      mathLib[fnum].name, NULL);
++ 			}
++ 			break;
++ 		    } 
++ 		    break;
++ 		    
+  	    }
+  	    gotOp = 1;
+  	} else if (infoPtr->token != VALUE) {
+***************
+*** 695,701 ****
+      while (1) {
+  	operator = infoPtr->token;
+  	value2.pv.next = value2.pv.buffer;
+! 	if ((operator < MULT) || (operator >= UNARY_MINUS)) {
+  	    if ((operator == END) || (operator == CLOSE_PAREN)) {
+  		result = TCL_OK;
+  		goto done;
+--- 781,787 ----
+      while (1) {
+  	operator = infoPtr->token;
+  	value2.pv.next = value2.pv.buffer;
+! 	if ((operator < EXPON) || (operator >= UNARY_MINUS)) {
+  	    if ((operator == END) || (operator == CLOSE_PAREN)) {
+  		result = TCL_OK;
+  		goto done;
+***************
+*** 770,776 ****
+  	if (result != TCL_OK) {
+  	    goto done;
+  	}
+! 	if ((infoPtr->token < MULT) && (infoPtr->token != VALUE)
+  		&& (infoPtr->token != END)
+  		&& (infoPtr->token != CLOSE_PAREN)) {
+  	    goto syntaxError;
+--- 856,862 ----
+  	if (result != TCL_OK) {
+  	    goto done;
+  	}
+! 	if ((infoPtr->token < EXPON) && (infoPtr->token != VALUE)
+  		&& (infoPtr->token != END)
+  		&& (infoPtr->token != CLOSE_PAREN)) {
+  	    goto syntaxError;
+***************
+*** 786,791 ****
+--- 872,897 ----
+  	switch (operator) {
+  
+  	    /*
++ 	     * Unlike the binary operators below, force floating
++ 	     * point arithemetic to be done for exponentiation.
++ 	     */
++ 	    case EXPON:
++ 		if ((valuePtr->type == TYPE_STRING)
++ 			|| (value2.type == TYPE_STRING)) {
++ 		    badType = TYPE_STRING;
++ 		    goto illegalType;
++ 		}
++ 		if (value2.type == TYPE_INT) {
++ 		    value2.doubleValue = value2.intValue;
++ 		    value2.type = TYPE_DOUBLE;
++ 		} 
++ 		if (valuePtr->type == TYPE_INT) {
++ 		    valuePtr->doubleValue = valuePtr->intValue;
++ 		    valuePtr->type = TYPE_DOUBLE;
++ 		}
++ 		break;
++ 
++ 	    /*
+  	     * For the operators below, no strings are allowed and
+  	     * ints get converted to floats if necessary.
+  	     */
+***************
+*** 808,814 ****
+  		    }
+  		}
+  		break;
+- 
+  	    /*
+  	     * For the operators below, only integers are allowed.
+  	     */
+--- 914,919 ----
+***************
+*** 895,900 ****
+--- 1000,1009 ----
+  	 */
+  
+  	switch (operator) {
++ 	    case EXPON:
++ 	        valuePtr->doubleValue = pow (valuePtr->doubleValue, 
++ 					     value2.doubleValue);
++ 		break;
+  	    case MULT:
+  		if (valuePtr->type == TYPE_INT) {
+  		    valuePtr->intValue *= value2.intValue;
+***************
+*** 1334,1336 ****
+--- 1443,1505 ----
+      }
+      return result;
+  }
++ 
++ /*
++  *--------------------------------------------------------------
++  *
++  * ParseFunction --
++  *
++  *	Determine if the expression is a known math function
++  *	(which we are treating as an unary operator), and save the
++  *	the index to the math library function in the table.
++  *
++  * Results:
++  *	A standard Tcl result.  If the result is TCL_OK, infoPtr
++  *	is set (token is FUNCT, clientData is the index to the
++  *	math function entry).
++  *
++  * Side effects:
++  *	None.
++  *
++  *--------------------------------------------------------------
++  */
++ 
++ static int
++ ParseFunction (infoPtr, namePtr)
++     ExprInfo *infoPtr;		/* Describes the state of the parse. */
++     register char *namePtr;	/* Pointer to the start of the function name */
++ {
++   
++     register char *lastPtr = namePtr; /* Pointer to end of function name */
++     static int numLibraryFunctions = 
++ 	(sizeof (mathLib) / sizeof (struct MathLibraryFunctions));
++     register struct MathLibraryFunctions *funcPtr = mathLib;
++     int nameLength;
++     register int i;
++     char c;
++   
++     /* Find the end of the identifier */
++     while (isalnum(*lastPtr))
++ 	lastPtr++;
++     nameLength = lastPtr - namePtr;
++     /* Skip whitespace to get to the opening parenthesis */
++     while (isspace (*lastPtr))
++ 	lastPtr++;
++     if (*lastPtr != '(')
++ 	return TCL_ERROR;	/* Missing opening parenthesis */
++     c = *namePtr;
++     for (i = 0; i < numLibraryFunctions; i++, funcPtr++) {
++         if ((c == *funcPtr->name) && (nameLength == strlen (funcPtr->name)) &&
++ 	    (strncmp (namePtr, funcPtr->name, nameLength) == 0)) {
++ 
++ 	    /* Save the index to the function entry */
++ 	    infoPtr->clientData = (ClientData) i;
++ 	    infoPtr->expr = lastPtr;
++ 	    infoPtr->token = FUNCT;
++ 	    return (TCL_OK);
++ 	}
++     }
++     return (TCL_ERROR);
++ }
++ 
++ 

@@ -1,0 +1,49 @@
+If you are using a new version if Chuch Forsenberg's zmodem, it is
+possible that it will not run OK in a window. This is because the
+new versions *don't* use stdin and stdout, but without mercy they
+just open /dev/tty. Ai! I changed the following in the file "rbsb.c"
+and now things work allright. You might want to change this also.
+Here is the particular function I'm talking about:
+
+--------------------------------------------------------------------
+/* Line 336 */
+/* Initialize tty device for serial file xfer */
+inittty()
+{
+#ifndef HVM
+	Tty = open("/dev/tty", 2);
+	if (Tty < 0) {
+		perror("/dev/tty");  exit(2);
+	}
+#else
+	Tty = 1;
+#endif
+	Ttystream = fdopen(Tty, "w");
+	setbuf(Ttystream, xXbuf);		
+}
+--------------------------------------------------------------------
+
+And to get the Logging output to the screen instead of to /tmp/szlog,
+change the following in sz.c :
+
+--------------------------------------------------------------------
+	if (npats < 1 && !Command && !Test) 
+		usage();
+	if (Verbose) {
+/* Line 403 of sz.c */
+#ifndef HVM
+		if (freopen(LOGFILE, "a", stderr)==NULL) {
+			printf("Can't open log file %s\n",LOGFILE);
+			exit(2);
+		}
+#endif
+		setbuf(stderr, NULL);
+	}
+	vfile("%s %s for %s\n", Progname, VERSION, OS);
+--------------------------------------------------------------------
+You might want to change the same in the file "rz.c" also, around line 249.
+It is now possible to use the -v[vv] flag with rz/sz and see the debugging
+output appear in the status window!
+
+You have to define 'HVM' to make the change effective, ofcourse!
+

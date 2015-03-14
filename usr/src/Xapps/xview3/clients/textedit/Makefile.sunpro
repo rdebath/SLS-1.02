@@ -1,0 +1,70 @@
+#
+# @(#)Makefile 1.16 90/05/15 SMI
+#
+# CFILES_USER are C files distributed to the user
+# CFILES_NO_DISTRIBUTE are non-distributed C files
+#
+CFILES_USER= textedit.c
+CFILES_NO_DISTRIBUTE= 
+
+CMDS=	textedit
+HDRSALL=
+ICONS= textedit.icon textedit.mask.icon
+SRCSALL=$(CFILESALL) $(ICONS) $(HDRSALL) Makefile
+INFOFILE=
+MANSECT=1
+
+CFILESALL=  ${CFILES_USER} ${CFILES_NO_DISTRIBUTE}
+
+include ../../Makefile.master
+
+all: ${ICONS} ${HDRSALL} ${CMDS}
+
+.KEEP_STATE:
+
+.c.o:
+	${CC} $(CFLAGS_NOT_ROI_DATA) -c $<
+
+gprof:: ${MERGE_GPROFFILES}
+	${MAKE} ${MFLAGS} ${COMMONFLAGS} gprof
+
+lint::	${CFILESALL}
+	${MAKE} ${MFLAGS} ${COMMONFLAGS} lint 
+
+${CMDS}:  $$@.c
+	${CC} ${LDFLAGS} ${CFLAGS_NOT_ROI_DATA} \
+		-DSTANDALONE -O $@.c -o $@ ${LIBS} 
+
+fast_install: install_bins
+
+install:: install_bins install_sources  install_subdir_info install_man
+
+install_man:: textedit.1
+	if [ ! -d ${MANDIR}/man${MANSECT} ]; then \
+		mkdir -p ${MANDIR}/man${MANSECT}; \
+	fi
+	install -m 644 textedit.1 ${MANDIR}/man${MANSECT}/textedit.${MANSECT}
+
+
+
+install_sources: Makefile.customer ${CFILES_USER} ${ICONS} ${HDRSALL}
+	-install -d -m 755 ${DESTDIR}${SRCDIR}/textedit
+	-install -m 644 Makefile.customer ${DESTDIR}${SRCDIR}/textedit/Makefile
+	-for i in ${CFILES_USER} ${ICONS} ${HDRSALL} ; do \
+		install -m 644 $$i ${DESTDIR}${SRCDIR}/textedit; \
+	done
+
+tar:
+	echo You will want to have an empty directory that you are taring to!
+	tar fc - . | rsh ${DESTMACH} \
+		"cd ${DESTDIR}${SRCDIR};tar xpBf -"
+
+clean:
+	rm -f *.o *.pg core $(CMDS) 
+
+tags:	$(CFILESALL)
+	${CTAGS} $(CFILESALL);
+
+print:	$(SRCSALL)
+	lpr -p -Pimagen $(SRCSALL)
+

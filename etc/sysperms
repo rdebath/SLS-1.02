@@ -1,0 +1,98 @@
+#
+# Set file permissions in the system to known defaults.
+# options:
+#	-r recursively descend directories.
+#	-v verbose
+# The rest are the same as install.
+#
+
+function Chown()
+{	if [ ! -d $2 ]; then
+		mkdir $2
+	fi
+	chown $1 $2
+}
+
+function setallperms()
+{
+	(cd etc; ln reboot halt)
+#	chmod -R o+w,go-w *
+	chown root.root /;	chmod 755 /
+	chown root.root bin;	chmod 755 bin
+	chown root.root usr;	chmod 755 usr
+	chown root.root lib;	chmod 755 lib
+	chown root.root home;	chmod 755 home
+	chown root.root etc;	chmod 755 etc
+	Chown root.root user;	chmod 755 user
+	chown root.root lib/*;	chmod 755 lib/*
+	Chown root.root tmp;	chmod 1777 tmp
+	Chown root.root mnt;	chmod 755 mnt
+	Chown root.root usr/tmp;	chmod 1777 usr/tmp
+	chown root.root usr/bin;	chmod 755 usr/bin
+	chown root.root usr/lib;	chmod 755 usr/lib
+	find usr/lib -type f  -exec chmod a+r \{\} \; -or -type d -exec chmod a+rx \{\} \;
+	Chown root.root usr/man;	chmod 755 usr/man
+	chown root.root usr/man/*/*;	chmod 644 usr/man/*/*
+	chown root.root usr/man/cat?;	chmod 755 usr/man/cat?
+	chown root.root usr/man/man?;	chmod 755 usr/man/man?
+	Chown root.root usr/spool;	chmod 755 usr/spool
+	Chown root.mail usr/spool/mail;	chmod 775 usr/spool/mail
+	Chown root.root usr/spool/uucp;	chmod 1777 usr/spool/uucp
+	Chown root.root usr/spool/news;	chmod 755 usr/spool/news
+	Chown root.root usr/spool/news/in.coming;	
+	chmod 755 usr/spool/news/in.coming
+	Chown root.root usr/spool/news/out.going;	
+	chmod 755 usr/spool/news/out.going
+	Chown root.root usr/spool/cron;	chmod 1777 usr/spool/cron
+	Chown root.root usr/spool/cron/crontabs;	chmod 1777 usr/spool/cron/crontabs
+	Chown root.root usr/adm;	chmod 755 usr/adm
+	chown root.root etc/profile;	chmod 755 etc/profile
+	chmod a+r usr/bin
+	find usr/man -type f  -exec chmod a+r \{\} \; -or -type d -exec chmod a+rx \{\} \;
+	chown root.shadow etc/shadow etc/gshadow;	
+	chmod 660 etc/shadow etc/gshadow
+	chown root.shadow etc/passwd etc/group etc/magic etc/inittab
+	chmod 664 etc/passwd etc/group etc/magic etc/inittab
+#	for i in home/*; do
+#		chown `basename $i`.user $i;	chmod 755 $i;
+#		chown `basename $i`.user $i $i/*;	chmod 755 $i/*;
+#		touch usr/spool/mail/`basename $i`
+#		chown `basename $i`.mail usr/spool/mail/`basename $i`;
+#		chmod 660 usr/spool/mail/`basename $i`
+#	done
+	if [ -e usr/man/catn/x11perfcomp.n. ]; then
+		cat usr/man/catn/x11perfcomp.n. |
+		      compress -dc > usr/man/catn/x11perfcomp.n &&
+			      rm usr/man/catn/x11perfcomp.n.
+		cat usr/man/cat2/sethostname.2. |
+		      compress -dc > usr/man/cat2/sethostname.2 &&
+			      rm usr/man/cat2/sethostname.2.
+	fi
+	if [ -e usr/src/linux/tools/system ]; then
+		chmod 755 usr/src/linux/tools/system
+	fi
+	ln -sf usr/adm/lastlog .
+	Chown root.root proc;  chmod 755 proc
+	grep -s "/proc" etc/fstab
+	if [ $? != 0 ]; then
+		echo "none	/proc	proc	defaults" >> etc/fstab;
+	fi
+	if [ -x usr/lib/gcc-lib/i386-linux/2.3.3/cpp ]; then
+		( cd lib; ln -sf ../usr/lib/gcc-lib/i386-linux/2.3.3/cpp cpp )
+	fi
+	if [ ! -e usr/lib/libc_p.a ]; then
+		(cd usr/lib;  ln -sf libc.a libc_p.a )
+	fi
+}
+
+ROOTDIR=/
+if [ '-instroot' = "$1" ]; then
+	ROOTDIR=$2
+	shift 2;
+fi
+if [ '-install' = "$1" ]; then
+	cd $ROOTDIR
+	echo "please stand by: setting up system file permissions"
+	setallperms
+	echo "Finished setting up system file permissions"
+fi

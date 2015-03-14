@@ -1,0 +1,100 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: associate identifiers with objects of arbitrary types
+ *
+ *	$Author: grosch $
+ *	$Date: 1991/11/21 16:57:59 $
+ *	$Revision: 1.2 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE AssocTab;
+
+FROM SYSTEM	IMPORT
+  ADDRESS	;
+
+FROM Idents	IMPORT
+  tIdent	, MaxIdent	;
+
+FROM DynArray	IMPORT
+  MakeArray	, ExtendArray	, ReleaseArray	;
+
+CONST
+  Infinite	= 1048576;
+
+TYPE
+  tAssocTab	= ARRAY [0 .. Infinite] OF ADDRESS;
+
+VAR
+  ActualSize	: LONGINT;
+  ActMaxAssoc	: CARDINAL;
+  AssocTab	: POINTER TO tAssocTab;
+
+(*------- BeginAssocTab ----------------------------------------------------*)
+
+PROCEDURE BeginAssocTab;
+  (* initialize the association table		*)
+VAR
+  Index		: CARDINAL;
+  ActMaxIdent	: LONGINT;
+BEGIN
+  ActualSize	:= 1;
+  ActMaxIdent	:= MaxIdent ();
+  WHILE ActualSize <= ActMaxIdent DO
+    ActualSize := ActualSize * 2;
+  END;
+  MakeArray (AssocTab, ActualSize, SIZE (ADDRESS));
+  ActMaxAssoc	:= ActualSize - 1;
+  FOR Index := 0 TO ActMaxAssoc DO
+    AssocTab^ [Index] := NIL;
+  END;
+END BeginAssocTab;
+
+(*------- PutAssoc -----------------------------------------------------------*)
+
+PROCEDURE PutAssoc	(Ident: tIdent; Object: ADDRESS);
+  (* associate object 'Object' with identifier	*)
+  (* 'Ident'.					*)
+VAR
+  Index		,
+  OldMaxAssoc	: CARDINAL;
+  ActMaxIdent	: LONGINT;
+BEGIN
+  IF Ident > ActMaxAssoc THEN	(* extend AssocTab	*)
+    ActMaxIdent	:= MaxIdent ();
+    WHILE ActualSize <= ActMaxIdent DO
+      ExtendArray (AssocTab, ActualSize, SIZE (ADDRESS));
+    END;
+    OldMaxAssoc	:= ActMaxAssoc;
+    ActMaxAssoc	:= ActualSize - 1;
+    FOR Index := OldMaxAssoc + 1 TO ActMaxAssoc DO
+      AssocTab^ [Index] := NIL;
+    END;
+  END;
+  AssocTab^ [Ident] := Object;
+END PutAssoc;
+
+(*------- GetAssoc -----------------------------------------------------------*)
+
+PROCEDURE GetAssoc	(Ident: tIdent; VAR Object: ADDRESS);
+  (* return in 'Object' the object currently	*)
+  (* associated with identfier 'Ident'		*)
+BEGIN
+  IF Ident > ActMaxAssoc THEN
+    Object := NIL;
+  ELSE
+    Object := AssocTab^ [Ident];
+  END;
+END GetAssoc;
+
+(*------- CloseAssocTab ----------------------------------------------------*)
+
+PROCEDURE CloseAssocTab;
+  (* finalize the association table		*)
+BEGIN
+  ReleaseArray (AssocTab, ActualSize, SIZE (ADDRESS));
+END CloseAssocTab;
+
+END AssocTab.

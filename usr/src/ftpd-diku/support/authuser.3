@@ -1,0 +1,141 @@
+.TH authuser 3
+.SH NAME
+authuser \- library to get information from a remote Authentication Server
+.SH SYNTAX
+.B #include <authuser.h>
+.PP
+.B unsigned short auth_tcpport;
+.PP
+.B char *auth_xline(user,fd,&in);
+.PP
+.B int auth_fd(fd,&in,&local,&remote);
+.PP
+.B char *auth_tcpuser(in,local,remote);
+.PP
+.B char *user;
+.br
+.B int fd;
+.br
+.B unsigned long in;
+.br
+.B unsigned short local;
+.br
+.B unsigned short remote;
+.SH DESCRIPTION
+The
+.I authuser
+library provides a simple interface for
+finding out the remote identity
+of a connection through the
+Authentication Server
+as specified by RFC 931.
+Use the -lauthuser loader option
+to compile a program with this library.
+.PP
+.B auth_xline(user,fd,&in)
+returns a line of the form X-Auth-User: user or X-Forgery-By: username,
+depending upon what the host on the other side of
+.B fd
+thinks of the user.
+This is particularly appropriate for
+mail and news headers.
+.PP
+If the remote host reports that
+.B user
+owns the connection on that side,
+.B auth_xline
+will return X-Auth-User: user.
+If the remote host reports that a different
+.B username
+owns the connection,
+.B auth_xline
+will return X-Forgery-By: username.
+If user is NULL,
+it returns X-Auth-User: username
+with the username reported by the remote host.
+If 
+.B fd
+is not a TCP connection
+or authentication is impossible,
+.B auth_xline
+returns NULL, setting errno appropriately.
+.PP
+The line is not cr-lf terminated.
+It is stored in a static area
+which is overwritten on each call to
+.B auth_xline.
+.B auth_xline
+places the Internet address of the other host into in.
+.PP
+.B auth_fd(fd,&in,&local,&remote)
+retrieves address information from the connection in socket
+.B fd.
+It places the
+Internet address of the host on other side into
+.B in
+and the local and remote
+TCP ports into 
+.B local
+and 
+.B remote.
+.B auth_fd
+returns -1 upon error, setting errno appropriately.
+.PP
+.B auth_tcpuser(in,local,remote)
+returns the name of the user on the other end of the TCP connection
+between
+.B remote@in
+and
+.B local.
+If authentication is impossible,
+.B auth_tcpuser
+returns
+NULL, setting errno appropriately.
+The user name is stored in a static area
+which is overwritten on each call to
+.B auth_tcpuser
+and
+.B auth_xline.
+.PP
+The authentication routines check with the
+remote Authentication Server on port
+.B auth_tcpport,
+which defaults to 113
+as specified by RFC 931.
+You can set
+.B auth_tcpport
+to other values
+for nonstandard implementations.
+.PP
+.SH RESTRICTIONS
+.I authuser
+does no backslash interpretation
+upon the remote user name.
+Hopefully the next revision of RFC 931
+will make clear exactly what backslash
+interpretation should be going on.
+.PP
+.I authuser
+does not use the operating system type
+information provided by the Authentication Server.
+.SH VERSION
+authuser version 3.1, May 6, 1991.
+.SH AUTHOR
+Placed into the public domain by Daniel J. Bernstein.
+.SH REFERENCES
+The authentication server is more secure than passwords
+in some ways, but less secure than passwords in many ways.
+(It's certainly better than no password at all---e.g., for
+mail or news.)
+It is not the final solution.
+For an excellent discussion of security problems within
+the TCP/IP protocol suite, see
+Steve Bellovin's article
+``Security Problems in the TCP/IP Protocol Suite.''
+.SH "SEE ALSO"
+authtcp(1),
+attachport(1),
+getpeername(3),
+getsockname(3),
+tcp(4),
+authd(8)

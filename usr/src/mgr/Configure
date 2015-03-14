@@ -1,0 +1,213 @@
+#!/bin/sh
+
+#{{{}}}
+#{{{  check for m4
+if (m4 </dev/null)
+then
+#  {{{  intro
+  echo "Hi, to configure MGR you will have to answer a few questions."
+  echo
+#  }}}
+else
+#  {{{  abort
+  echo "Eeeek, you don't have /usr/bin/m4!"
+  echo "You will have to install it first, bye."
+  exit 1
+#  }}}
+fi
+#}}}
+
+#{{{  OS
+#{{{  ask OS
+echo "1) Linux 0.99.6"
+echo "2) SunOS 4.1.2"
+echo "3) HP-UX 8.07"
+echo "4) Coherent 4.0.[01]*"
+echo
+echo -n "What OS do you use? "
+read OS
+echo
+#}}}
+case $OS in
+#  {{{  linux
+  1)
+  M4=m4
+  M4FLAGS="$M4FLAGS -Dlinux"
+#  {{{  grafics card
+  echo "1) Hercules grafics card"
+  echo "2) VGA"
+  echo
+  echo -n "What grafics card do you use? "
+  read CARD
+  echo
+  case $CARD in
+    1) M4FLAGS="$M4FLAGS -Dhgc" ;;
+    2) M4FLAGS="$M4FLAGS -Dvga" ;;
+    *) echo "Invalid answer, bye :("; exit 1 ;;
+  esac
+#  }}}
+#  {{{  mouse
+  echo '0) Microsoft'
+  echo '1) Mouse Systems 3 byte (as used in Suns)'
+  echo '2) Mouse Systems 5 byte (as often used in PCs)'
+  echo '3) MMSeries'
+  echo '4) Logitech'
+  echo '5) Bus mouse'
+  echo
+  echo -n "What mouse do you use? "
+  read MOUSE
+  echo
+  case $MOUSE in
+    [0-5]) M4FLAGS="$M4FLAGS -DMOUSE=$MOUSE" ;;
+    *) echo "Invalid answer, bye :("; exit 1 ;;
+  esac
+#  }}}
+#  {{{  movie mgr
+  echo "MOVIE MGR crashes the server, so only select it for debugging it."
+  echo
+  echo -n "Do you want to use MOVIE MGR (logging) functions? (y/n) "
+  read MOVIE
+  echo
+  case $MOVIE in
+    y) M4FLAGS="$M4FLAGS -Dmovie" ;;
+    n) ;;
+    *) echo "Invalid answer, bye :("; exit 1 ;;
+  esac
+#  }}}
+  ;;
+#  }}}
+#  {{{  sunos
+  2)
+  M4=/usr/5bin/m4
+  M4FLAGS="$M4FLAGS -Dsunos" ;;
+#  }}}
+#  {{{  hp-ux
+  3)
+  M4=m4
+  M4FLAGS="$M4FLAGS -Dhpux" ;;
+#  }}}
+#  {{{  *)
+#  {{{  coherent
+  4)
+  M4=m4
+  M4FLAGS="$M4FLAGS -Dcoherent"
+#  {{{  graphics card
+  echo "1) Hercules graphics card - not tested"
+  echo "2) VGA 640x480"
+  echo "3) EGA 640x350"
+  echo "4) EGA 640x200"
+  echo "5) SVGA 800x600 - not tested"
+  echo "6) SVGA 1024x768 (Trident SVGA only) - not tested"
+  echo
+  echo -n "What graphics card do you use? "
+  read CARD
+  echo
+  case $CARD in
+    1) M4FLAGS="$M4FLAGS -Dhgc" ;;
+    2) M4FLAGS="$M4FLAGS -Dvga" ;;
+    3) M4FLAGS="$M4FLAGS -Dega1" ;;
+    4) M4FLAGS="$M4FLAGS -Dega2" ;;
+    5) M4FLAGS="$M4FLAGS -Dsvga1" ;;
+    6) M4FLAGS="$M4FLAGS -Dsvga2" ;;
+    *) echo "Invalid answer, bye :("; exit 1 ;;
+  esac
+#  }}}
+#  {{{  mouse
+  echo "1) microsoft (2 button)"
+  echo "2) mousesystems (3 button)"
+  echo
+  echo -n "What mouse do you use? "
+  read MOUSE
+  echo
+  case $MOUSE in
+    1) M4FLAGS="$M4FLAGS -Dmicrosoft" ;;
+    2) M4FLAGS="$M4FLAGS -Dmousesystems" ;;
+    *) echo "Invalid answer, bye :("; exit 1 ;;
+  esac
+#  }}}
+#  {{{  movie mgr
+  echo "MOVIE MGR crashes the server, so only select it for debugging it."
+  echo
+  echo -n "Do you want to use MOVIE MGR (logging) functions? (y/n) "
+  read MOVIE
+  echo
+  case $MOVIE in
+    y) M4FLAGS="$M4FLAGS -Dmovie" ;;
+    n) ;;
+    *) echo "Invalid answer, bye :("; exit 1 ;;
+  esac
+#  }}}
+  ;;
+#  }}}
+  *)
+  echo "Invalid answer, bye :("; exit 1 ;;
+#  }}}
+esac
+#}}}
+#{{{  mgr home directory
+#{{{  ask WHEREHOME
+echo "1) /usr/mgr"
+echo "2) "$HOME"/mgr"
+echo
+echo -n "Where shall MGR live (or type alternate path)? "
+read WHEREHOME
+echo
+#}}}
+case $WHEREHOME in
+#  {{{  /usr/mgr
+  1) M4FLAGS="$M4FLAGS -DWHEREHOME=/usr/mgr" ;;
+#  }}}
+#  {{{  $HOME/mgr
+  2) M4FLAGS="$M4FLAGS -DWHEREHOME=$HOME/mgr" ;;
+#  }}}
+#  {{{  other choice
+  *) M4FLAGS="$M4FLAGS -DWHEREHOME=$WHEREHOME" ;;
+#  }}}
+esac
+#}}}
+#{{{  groff font directory
+#{{{  ask WHEREGROFFFONT
+echo "1) /usr/groff/font"
+echo "2) /usr/lib/groff/font"
+echo "3) "$HOME"/groff/font"
+echo "4) No groff installed"
+echo
+echo -n "Where is groff's font directory (or type alternate path)? "
+read WHEREGROFFFONT
+echo
+#}}}
+case $WHEREGROFFFONT in
+#  {{{  /usr/groff/font
+  1) M4FLAGS="$M4FLAGS -Dgropbm -DWHEREGROFFFONT=/usr/groff/font" ;;
+#  }}}
+#  {{{  /usr/lib/groff/font
+  2) M4FLAGS="$M4FLAGS -Dgropbm -DWHEREGROFFFONT=/usr/lib/groff/font" ;;
+#  }}}
+#  {{{  $HOME/groff/font
+  3) M4FLAGS="$M4FLAGS -Dgropbm -DWHEREGROFFFONT=$HOME/groff/font" ;;
+#  }}}
+#  {{{  $HOME/groff/font
+  4) ;;
+#  }}}
+#  {{{  other choice
+  *) M4FLAGS="$M4FLAGS -Dgropbm -DWHEREGROFFFONT=$WHEREGROFFFONT" ;;
+#  }}}
+esac
+#}}}
+
+echo "Ok, building Configfile ..."
+$M4 $M4FLAGS < Configfile.m4 > Configfile
+
+#{{{  tell people who to do now
+echo "You should check if you like the defaults in the Configfile.  Then you"
+echo "will have to create the required directories, which can be done with"
+echo "'make first'."
+echo ""
+echo "Also run 'make depend' to update dependencies."
+echo ""
+echo "After you can go to each directory and use 'make [all|install|clean|clobber]'"
+echo "to build all in and below that directory.  Assumed you trust me (you"
+echo "shouldn't ;), you would use the Makefile in this directory to build all."
+#}}}
+
+exit 0

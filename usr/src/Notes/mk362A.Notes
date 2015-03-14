@@ -1,0 +1,196 @@
+GNU make 3.62
+Binaries for Linux prepared by faith@cs.unc.edu, Sat Nov 21 09:56:04 1992
+Compiled with gcc 2.2.2d (-O6)
+Linked with jump-4.1 libraries (-s)
+
+
+To install from Linux binary distribution:
+
+1) Get binary distribution (mk362A.taz) from
+ftp.cs.unc.edu:/pub/faith/linux/utils or from
+tsx-11.mit.edu:/pub/linux/binaries/FSF
+2) cd /
+3) gtar zpxvf mk362A.taz
+
+Alternatively, the SLS sysinstall program can be used.
+
+
+To uninstall this binary distribution, do the following:
+
+cd /usr/src/make-3.62
+./mk362A.Unins
+
+
+To install from source:
+
+1) Get source from: prep.ai.mit.edu:/pub/gnu/make-3.62.tar.Z
+2) Untar make-3.62.tar.Z in /usr/src
+3) Place a copy of this file, mk362A.Notes in /usr/src
+3) cd make-3.62
+4) patch -p1 < ../mk362A.Notes
+5) make
+6) rm /usr/man/man1/make.1
+7) make install
+8) make make.info
+9) cp make.info* /usr/emacs/info
+
+Please note: there is *NO* need to edit this file before handing it to
+patch.  Patch will deal with all these comments.
+
+The following changes to Makefile, job.c, and main.c were made:
+
+diff -rc make-3.62.old/Makefile make-3.62/Makefile
+*** make-3.62.old/Makefile	Wed Oct 30 02:04:26 1991
+--- make-3.62/Makefile	Mon Nov 16 21:25:04 1992
+***************
+*** 19,26 ****
+  #	Makefile for GNU Make
+  #
+  
+! CFLAGS = $(defines) -g
+! LDFLAGS = -g
+  
+  # Define these for your system as follows:
+  # 	-DUSG			System V
+--- 19,26 ----
+  #	Makefile for GNU Make
+  #
+  
+! CFLAGS = $(defines) -O6
+! LDFLAGS = -s
+  
+  # Define these for your system as follows:
+  # 	-DUSG			System V
+***************
+*** 38,44 ****
+  #				without complaint but produce losing code,
+  #				so beware.
+  # NeXT 1.0a uses an old version of GCC, which required -D__inline=inline.
+! defines =
+  
+  # Define these for your system as follows:
+  #	-DUMAX		Encore UMAX
+--- 38,44 ----
+  #				without complaint but produce losing code,
+  #				so beware.
+  # NeXT 1.0a uses an old version of GCC, which required -D__inline=inline.
+! defines = -DPOSIX -D__USE_BSD_SIGNALS
+  
+  # Define these for your system as follows:
+  #	-DUMAX		Encore UMAX
+***************
+*** 52,58 ****
+  # Define:
+  #	-DNLIST_NAME_UNION	If `struct nlist' has a n_un member.
+  #	-DNLIST_NAME_ARRAY	If `n_name' is an array.
+! LOAD_AVG =
+  
+  # If you don't want archive support, comment these out.
+  ARCHIVES = arscan.o ar.o
+--- 52,58 ----
+  # Define:
+  #	-DNLIST_NAME_UNION	If `struct nlist' has a n_un member.
+  #	-DNLIST_NAME_ARRAY	If `n_name' is an array.
+! LOAD_AVG = -DNO_LDAV
+  
+  # If you don't want archive support, comment these out.
+  ARCHIVES = arscan.o ar.o
+***************
+*** 80,104 ****
+  # Comment this out if POSIX.2 glob is installed on your system
+  # (it's in the GNU C Library, so if you're using that, this is
+  # not needed at all.)
+! globdep = glob/libglob.a
+  
+  # Library containing POSIX.2 `glob' function.
+  # Comment this line out if it's in the C library (which is the case if you
+  # are using the GNU C Library), or change it to the appropriate file name
+  # or -l switch.
+! globlib = $(globdep)
+  
+  # Name under which to install GNU make.
+  instname = make
+  # Directory to install `make' in.
+! bindir = $(prefix)/usr/local/bin
+  # Directory to install the man page in.
+! mandir = $(prefix)/usr/local/man/manl
+  # Number to put on the man page filename.
+! manext = l
+  
+  # Install make setgid to this group so it can read /dev/kmem.
+! group = kmem
+  
+  objs = commands.o job.o dir.o file.o load.o misc.o main.o read.o \
+         remake.o remote.o rule.o implicit.o default.o variable.o expand.o \
+--- 80,104 ----
+  # Comment this out if POSIX.2 glob is installed on your system
+  # (it's in the GNU C Library, so if you're using that, this is
+  # not needed at all.)
+! #globdep = glob/libglob.a
+  
+  # Library containing POSIX.2 `glob' function.
+  # Comment this line out if it's in the C library (which is the case if you
+  # are using the GNU C Library), or change it to the appropriate file name
+  # or -l switch.
+! #globlib = $(globdep)
+  
+  # Name under which to install GNU make.
+  instname = make
+  # Directory to install `make' in.
+! bindir = $(prefix)/usr/bin
+  # Directory to install the man page in.
+! mandir = $(prefix)/usr/man/man1
+  # Number to put on the man page filename.
+! manext = 1
+  
+  # Install make setgid to this group so it can read /dev/kmem.
+! group = mem
+  
+  objs = commands.o job.o dir.o file.o load.o misc.o main.o read.o \
+         remake.o remote.o rule.o implicit.o default.o variable.o expand.o \
+diff -rc make-3.62.old/job.c make-3.62/job.c
+*** make-3.62.old/job.c	Thu Oct 24 21:58:33 1991
+--- make-3.62/job.c	Mon Nov 16 21:25:07 1992
+***************
+*** 118,124 ****
+--- 118,126 ----
+  #endif	/* GNU C library.  */
+  
+  #ifndef USG
++ #ifndef linux
+  extern int getdtablesize ();
++ #endif
+  #else
+  #include <sys/param.h>
+  #define getdtablesize() NOFILE
+***************
+*** 133,139 ****
+--- 135,143 ----
+  static char *sys_siglist[NSIG];
+  void init_siglist ();
+  #else	/* Not (USG and HAVE_SIGLIST), or DGUX.  */
++ #ifndef linux
+  extern char *sys_siglist[];
++ #endif
+  #endif	/* USG and not HAVE_SIGLIST, or DGUX.  */
+  
+  int child_handler ();
+diff -rc make-3.62.old/main.c make-3.62/main.c
+*** make-3.62.old/main.c	Mon Sep  9 23:36:14 1991
+--- make-3.62/main.c	Mon Nov 16 21:25:08 1992
+***************
+*** 321,329 ****
+--- 321,333 ----
+    FATAL_SIG (SIGDANGER);
+  #endif
+    FATAL_SIG (SIGFPE);
++ #ifdef SIGBUS
+    FATAL_SIG (SIGBUS);
++ #endif
+    FATAL_SIG (SIGSEGV);
++ #ifdef SIGSYS
+    FATAL_SIG (SIGSYS);
++ #endif
+    FATAL_SIG (SIGTERM);
+  #ifdef SIGXCPU
+    FATAL_SIG (SIGXCPU);

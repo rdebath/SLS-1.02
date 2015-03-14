@@ -1,0 +1,58 @@
+xlander is a lunar landing simulation for X.  The object is to
+successfully land the craft on the surface of the moon or some other
+planet.  The program features "out-the-window" 3-d wire-frame graphics
+and full directional control of the lander.  For further instructions,
+please refer to the man page.
+
+xlander is known to work on DECStations under Ultrix 4.2 and Sparcs
+under SunOS 4.1.1, compiling with standard cc and gcc version 1.39.
+It should compile and run as-is on these machines.  Your X server must
+support KeyRelease events (we have yet to run across one that doesn't,
+and we've seen a lot!).  Also, we wouldn't recommend trying to run
+xlander on a slow machine.
+
+Please drop us a note if you enjoy the game; also let us know if you
+can land the thing...  The added third dimension makes it a real
+challenge!
+
+Note that there are still a couple of bugs in the code.  Also, you may
+want to tweak the "-lateral" and "-retro" parameters if you don't like
+the feel of the craft; see the man page for details.
+
+Feel free to redistribute this wherever and to whomever you wish, as
+long as our names remain with the code.  Feedback is welcome and may
+be directed to paulr@umbc3.umbc.edu or mikef@umbc3.umbc.edu.
+
+BUG FIXES
+
+Patchlevel 1 fixes 3 things:
+
+1.  A problem with the routines that load the resource database.
+    thanks to robert@ncc.uky.edu (Robert Lee) for tracking this one
+    down and fixing it.
+
+2.  Problems running on servers where BlackPixel and WhitePixel were
+    something other than 0 and 1, respectively.  This was an oversight
+    on my part (setting foreground and background wrong in my XOR gc).
+    Everything should now show up properly on Sun and other servers
+    like this.
+
+3.  Controls.  You can now use the arrow keys for movement as well as
+    whatever you specify with the "-controls" option.  This is nice for
+    keyboards which have the arrow keys on the keypad (such as Sun).
+
+Patchlevel 2 fixes a couple of minor things.  Neither one affects game
+play.
+
+First, it adds #ifdefs for AIX and IRIX.  If if you are running cc
+under IRIX 4.0.1 or later, you need to use the -cckr option when
+compiling.
+
+Also, patchlevel 2 fixes a slight error in the gravity readout.  The
+display used to say m*s^-2, but the displayed values were actually in
+ft*s^-2.  Thanks to Jeff Moersch (moersch@theory.tc.cornell.edu) for
+noticing this one.
+
+Enjoy,
+Paul Riddle (paulr@umbc3.umbc.edu)
+Mike Friedman (mikef@umbc3.umbc.edu)

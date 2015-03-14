@@ -1,0 +1,1184 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Minor Modes,  Next: Mode Line Format,  Prev: Major Modes,  Up: Modes
+
+Minor Modes
+===========
+
+   A "minor mode" provides features that users may enable or disable
+independently of the choice of major mode.  Minor modes can be
+enabled individually or in combination.  Minor modes would be better
+named "Generally available, optional feature modes" except that such
+a name is unwieldy.
+
+   A minor mode is not usually a modification of single major mode. 
+For example, `auto-fill-mode' and `auto-justify-mode' may be used in
+any major mode that permits text insertion.  To be general, a minor
+mode must be effectively independent of the things major modes do.
+
+   A minor mode is often much more difficult to implement than a
+major mode.  One reason is that you should be able to deactivate a
+minor mode and restore the environment of the major mode to the state
+it was in before the minor mode was activated.
+
+   Often the biggest problem in implementing a minor mode is finding
+a way to insert the necessary hook into the rest of Emacs.  For
+example, some minor modes, such as Auto Fill mode, change how text is
+inserted into a buffer.  Without `auto-fill-hook', Auto Fill mode
+would be implementable only at great pain and great cost in editing
+efficiency.
+
+* Menu:
+
+* Minor Mode Conventions::      Tips for writing a minor mode.
+* Limits of Minor Modes::       Minor modes are of limited generality.
+
+ 
+
+File: elisp,  Node: Minor Mode Conventions,  Next: Limits of Minor Modes,  Prev: Minor Modes,  Up: Minor Modes
+
+Conventions for Writing Minor Modes
+-----------------------------------
+
+   There are conventions for writing minor modes just as there are
+for major modes.  Several of the major mode conventions apply to
+minor modes as well: those regarding the name of the mode
+initialization function, the names of global symbols, and the use of
+keymaps and other tables.
+
+   In addition, there are several conventions that are specific to
+minor modes.
+
+   * The minor mode should be represented by a symbol whose name ends
+     in `-mode'.  This symbol should be both a command to turn the
+     mode on or off and a variable which records whether the mode is
+     on.
+
+     This variable is used in conjunction with the `minor-mode-alist'
+     to display the minor mode name in the mode line.  It may also be
+     directly responsible for controlling the features of the minor
+     mode.
+
+     If you want the minor mode to be enabled separately in each
+     buffer, make the variable buffer-local.
+
+   * A minor mode command should accept one optional argument.  If
+     the argument is `nil', the function should toggle the mode (turn
+     it on if it is off, and off if it is on).  Otherwise, the
+     function should turn the mode on if the argument is a positive
+     integer, a symbol, or a list whose CAR is a positive integer; it
+     should turn the mode off otherwise.  (This convention has not
+     been implemented with full consistency in Emacs version 18.)
+
+     Here is an example taken from the definition of `overwrite-mode':
+
+          (setq overwrite-mode
+                (if (null arg) (not overwrite-mode)
+                  (> (prefix-numeric-value arg) 0)))
+
+   * Add an element to `minor-mode-alist' for each minor mode (*note
+     Mode Line Variables::.).  This element should be a list of the
+     following form:
+
+          (MODE-VARIABLE STRING)
+
+     Here MODE-VARIABLE is the variable that indicates the enablement
+     of the minor mode, and STRING is a short string, starting with a
+     space, to represent the mode in the mode line.  These strings
+     must be short so that there is room for several of them at once.
+
+     When you add an element to `minor-mode-alist', use `assq' to
+     check for an existing element, to avoid duplication.  For example:
+
+          (or (assq 'leif-mode minor-mode-alist)
+              (setq minor-mode-alist
+                    (cons '(leif-mode " Leif") minor-mode-alist)))
+
+   * If the minor mode adds new key bindings to the local keymap, you
+     should be able to restore the keymap to its original value when
+     you deactivate the minor mode.
+
+
+
+File: elisp,  Node: Limits of Minor Modes,  Prev: Minor Mode Conventions,  Up: Minor Modes
+
+Limitations of Minor Modes
+--------------------------
+
+   It is very difficult to write a minor mode that responds to
+arbitrary self-inserting characters.  The principal problem is that
+`self-insert-command', the command to insert the last key typed, is a
+primitive function written in C.  It does not call any hooks, except
+in special cases.
+
+   Unfortunately, you cannot simply substitute your own definition of
+`self-insert-command' for the existing one, as you can with most
+functions.  This is a consequence of the way the editor command loop
+works: it checks whether a key is bound to `self-insert-command' and,
+if so, it calls the primitive `self-insert-command' function
+directly.  It does not check to see whether you have written another
+version of the function to substitute for it.  This is done for speed.
+(In general, if you substitute a Lisp function for a primitive, the C
+code within Emacs will continue to call the original primitive, but
+Lisp code will call your substitute Lisp function.)
+
+   Instead of attempting to replace the function definition for
+`self-insert-command', you could rebind certain keys that call
+`self-insert-command'.  This can be made to work as long as no two
+minor modes try to rebind the same key.  In a minor mode that is
+global (affects all buffers), do the rebinding in the global map.  In
+a minor mode that is local to individual buffers, you will need to
+copy the local keymap (since it is usually shared with all the other
+buffers in the same major mode) and then make the change.
+
+
+
+File: elisp,  Node: Mode Line Format,  Next: Hooks,  Prev: Minor Modes,  Up: Modes
+
+Mode Line Format
+================
+
+   Each Emacs window includes a mode line which displays status
+information about the buffer displayed in the window.  The mode line
+contains information about the buffer such as its name, associated
+file, depth of recursive editing, and the major and minor modes of
+the buffer.  This section describes how the contents of the mode line
+are controlled.  It is in the chapter on modes because much of the
+information displayed in the mode line relates to the enabled major
+and minor modes.
+
+   `mode-line-format' is a buffer-local variable that holds a
+template used to display the mode line of the current buffer.  All
+windows for the same buffer use the same `mode-line-format' and the
+mode lines will appear the same (except perhaps for the percentage of
+the file scrolled off the top).
+
+   The mode line of a window is normally updated whenever a different
+buffer is shown in the window, or when the buffer's modified-status
+changes from `nil' to `t' or vice-versa.  If you modify any of the
+variables referenced by `mode-line-format', you may want to force an
+update of the mode line so as to display the new information.  You
+can do this with the following expression:
+
+     (set-buffer-modified-p (buffer-modified-p))
+
+   The mode line is usually displayed in inverse video; see
+`mode-line-inverse-video' in *Note Screen Attributes::.
+
+* Menu:
+
+* Mode Line Data::        The data structure that controls the mode line.
+* Mode Line Variables::   Variables used in that data structure.
+* %-Constructs::          Putting information into a mode line.
+
+ 
+
+File: elisp,  Node: Mode Line Data,  Next: Mode Line Variables,  Prev: Mode Line Format,  Up: Mode Line Format
+
+The Data Structure of the Mode Line
+-----------------------------------
+
+   The mode line contents are controlled by a data structure of
+lists, strings, symbols and numbers kept in the buffer-local variable
+`mode-line-format'.  The data structure is called a "mode line
+construct", and it is built in recursive fashion out of simpler mode
+line constructs.
+
+ * Variable: mode-line-format
+     The value of this variable is a mode line construct with overall
+     responsibility for the mode line format.  The value of this
+     variable controls which other variables are used to form the
+     mode line text, and where they appear.
+
+   A mode line construct may be as simple as a fixed string of text,
+but it usually specifies how to use other variables to construct the
+text.  Many of these variables are themselves defined to have mode
+line constructs as their values.
+
+   The default value of `mode-line-format' incorporates the values of
+variables such as `mode-name' and `minor-mode-alist'.  Because of
+this, very few modes need to alter `mode-line-format'.  For most
+purposes, it is sufficient to alter the variables referenced by
+`mode-line-format'.
+
+   A mode line construct may be a list, cons cell, symbol, or string.
+If the value is a list, each element may be a list, a cons cell, a
+symbol, or a string.
+
+`STRING'
+     A string as a mode line construct is displayed verbatim in the
+     mode line except for "`%'-constructs".  Decimal digits after the
+     `%' specify the field width for space filling on the right
+     (i.e., the data is left justified).  *Note %-Constructs::.
+
+`SYMBOL'
+     A symbol as a mode line construct stands for its value.  The
+     value of SYMBOL is used in place of SYMBOL unless SYMBOL is `t'
+     or `nil', or is void, in which case SYMBOL is ignored.
+
+     There is one exception: if the value of SYMBOL is a string, it
+     is processed verbatim in that the `%'-constructs are not
+     recognized.
+
+`(STRING REST...) or (LIST REST...)'
+     A list whose first element is a string or list, means to
+     concatenate all the elements.  This is the most common form of
+     mode line construct.
+
+`(SYMBOL THEN ELSE)'
+     A list whose first element is a symbol is a conditional.  Its
+     meaning depends on the value of SYMBOL.  If the value is
+     non-`nil', the second element of the list (THEN) is processed
+     recursively as a mode line element.  But if the value of SYMBOL
+     is `nil', the third element of the list (if there is one) is
+     processed recursively.
+
+`(WIDTH REST...)'
+     A list whose first element is an integer specifies truncation or
+     padding of the results of REST.  The remaining elements REST are
+     processed recursively as mode line constructs and concatenated
+     together.  Then the result is space filled (if WIDTH is
+     positive) or truncated (to -WIDTH columns, if WIDTH is negative)
+     on the right.
+
+     For example, the usual way to show what percentage of a buffer
+     is above the top of the window is to use a list like this: `(-3
+     .  "%p")'.
+
+   If you do alter `mode-line-format' itself, the new value should
+use all the same variables that are used by the default value, rather
+than duplicating their contents or displaying the information in
+another fashion.  This permits customizations made by the user, by
+libraries (such as `display-time') or by major modes via changes to
+those variables remain effective.
+
+   Here is an example of a `mode-line-format' that might be useful
+for `shell-mode' since it contains the hostname and default directory.
+
+     (setq mode-line-format
+       (list ""
+        'mode-line-modified
+        "%b--" 
+        (getenv "HOST")      ; One element is not constant.
+        ":" 
+        'default-directory
+        "   "
+        'global-mode-string
+        "   %[(" 'mode-name 
+        'minor-mode-alist 
+        "%n" 
+        'mode-line-process  
+        ")%]----"
+        '(-3 . "%p")
+        "-%-"))
+
+
+
+File: elisp,  Node: Mode Line Variables,  Next: %-Constructs,  Prev: Mode Line Data,  Up: Mode Line Format
+
+Variables Used in the Mode Line
+-------------------------------
+
+   This section describes variables incorporated by the standard
+value of `mode-line-format' into the text of the mode line.  There is
+nothing inherently special about these variables; any other variables
+could have the same effects on the mode line if `mode-line-format'
+were changed to use them.
+
+ * Variable: mode-line-modified
+     This variable holds the mode-line construct for displaying
+     whether the current buffer is modified.
+
+     The default value `mode-line-modified' is `("--%1*%1*-")'.  This
+     means that the mode line displays `--**-' if the buffer is
+     modified, `----' if the buffer is not modified, and `--%%-' if
+     the buffer is read only.
+
+     Changing this variable does not force an update of the mode line.
+
+ * Variable: mode-line-buffer-identification
+     This variable identifies the buffer being displayed in the window.
+     Its default value is `Emacs: %17b', which means that it displays
+     `Emacs:' followed by the buffer name.  You may want to change
+     this in modes such as Rmail that do not behave like a "normal"
+     Emacs.
+
+ * Variable: global-mode-string
+     This variable holds a string that is displayed in the mode line
+     for the use of `display-time'.  The `%M' construct substitutes
+     the value of `global-mode-string', but this is obsolete, since
+     the variable is included directly in the mode line.
+
+ * Variable: mode-name
+     This buffer-local variable holds the "pretty" name of the
+     current buffer's major mode.  Each major mode should set this
+     variable so that the mode name will appear in the mode line.
+
+ * Variable: minor-mode-alist
+     This variable holds an association list whose elements specify
+     how the mode line should indicate that a minor mode is active. 
+     Each element of the `minor-mode-alist' should be a two-element
+     list:
+
+          (MINOR-MODE-VARIABLE MODE-LINE-STRING)
+
+     The string MODE-LINE-STRING is included in the mode line when
+     the value of MINOR-MODE-VARIABLE is non-`nil' and not otherwise.
+     These strings should begin with spaces so that they don't run
+     together.  Conventionally, the MINOR-MODE-VARIABLE for a
+     specific mode is set to a non-`nil' value when that minor mode
+     is activated.
+
+     The default value of `minor-mode-alist' is:
+
+          minor-mode-alist
+          => ((abbrev-mode " Abbrev") 
+              (overwrite-mode " Ovwrt") 
+              (auto-fill-hook " Fill")         
+              (defining-kbd-macro " Def"))
+
+     (Note that in version 19, `auto-fill-hook' will be renamed to
+     `auto-fill-function'.)
+
+     `minor-mode-alist' is not buffer-local.  The variables mentioned
+     in the alist should be buffer-local if the minor mode can be
+     enabled separately in each buffer.
+
+ * Variable: mode-line-process
+     This buffer-local variable contains the mode line information on
+     process status in modes used for communicating with
+     subprocesses.  It is displayed immediately following the major
+     mode name, with no intervening space.  For example, its value in
+     the `*shell*' buffer is `(": %s")', which allows the shell to
+     display its status along with the major mode as: `(Shell: run)'.
+     Normally this variable is `nil'.
+
+ * Variable: default-mode-line-format
+     This variable holds the default `mode-line-format' for buffers
+     that do not override it.  This is the same as `(default-value
+     'mode-line-format)'.
+
+     The default value of `default-mode-line-format' is:
+
+          (""
+           mode-line-modified
+           mode-line-buffer-identification
+           "   "
+           global-mode-string
+           "   %[("
+           mode-name 
+           minor-mode-alist 
+           "%n" 
+           mode-line-process
+           ")%]----"
+           (-3 . "%p")
+           "-%-")
+
+
+
+File: elisp,  Node: %-Constructs,  Prev: Mode Line Variables,  Up: Mode Line Format
+
+`%'-Constructs in the Mode Line
+-------------------------------
+
+   The following table lists the recognized `%'-constructs and what
+they mean.
+
+`%b'
+     the current buffer name, using the `buffer-name' function.
+
+`%f'
+     the visited file name, using the `buffer-file-name' function.
+
+`%*'
+     `%' if the buffer is read only (see `buffer-read-only'); 
+      `*' if the buffer is modified (see `buffer-modified-p'); 
+      `-' otherwise.
+
+`%s'
+     the status of the subprocess belonging to the current buffer,
+     using `process-status'.
+
+`%p'
+     the percent of the buffer above the top of window, or `Top',
+     `Bottom' or `All'.
+
+`%n'
+     `Narrow' when narrowing is in effect; nothing otherwise (see
+     `narrow-to-region' in *Note Narrowing::).
+
+`%['
+     an indication of the depth of recursive editing levels (not
+     counting minibuffer levels): one `[' for each editing level.
+
+`%]'
+     one `]' for each recursive editing level (not counting
+     minibuffer levels).
+
+`%%'
+     the character `%'--this is how to include a literal `%' in a
+     string in which `%'-constructs are allowed.
+
+`%-'
+     dashes sufficient to fill the remainder of the mode line.
+
+   The following two `%'-constructs are still supported but are
+obsolete since use of the `mode-name' and `global-mode-string'
+variables will produce the same results.
+
+`%m'
+     the value of `mode-name'.
+
+`%M'
+     the value of `global-mode-string'.  Currently, only
+     `display-time' modifies `global-mode-string'.
+
+
+
+File: elisp,  Node: Hooks,  Prev: Mode Line Format,  Up: Modes
+
+Hooks
+=====
+
+   A "hook" is a variable whose value is a "hook function" (or a list
+of hook functions) to be called by parts of Emacs on certain defined
+occasions.  The purpose of hooks is to facilitate customization, and
+the value of a hook is most often set up in the `.emacs' file, but it
+may be changed by programs.  The function or functions used in a hook
+may be any of the valid kinds of functions that `funcall' accepts
+(*note What Is a Function::.).
+
+   Most modes run hooks as the last step of initialization.  This
+makes it easy for a user to customize the behavior of the mode, by
+overriding the local variable assignments already made by the mode. 
+But hooks may also be used in other contexts.  For example, the
+functions named by `find-file-not-found-hooks' are called whenever a
+file is not found by `find-file'.
+
+   For example, you can put the following expression in your `.emacs'
+file if you want to turn on Auto Fill mode when in Lisp Interaction
+mode:
+
+     (setq lisp-interaction-mode-hook 'turn-on-auto-fill)
+
+   The next example shows how to use a hook to customize the way
+Emacs formats C code.  (People often have strong personal preferences
+for one format compared to another.)  Here the hook function is an
+anonymous lambda expression.
+
+     (setq c-mode-hook 
+           (function (lambda ()
+                       (setq c-indent-level 4
+                             c-argdecl-indent 0
+                             c-label-offset -4
+                             c-continued-statement-indent 0
+                             c-brace-offset 0
+                             comment-column 40))))
+     
+     (setq c++-mode-hook c-mode-hook)
+
+   Finally, here is an example of how to use the Text mode hook to
+provide a customized mode line for buffers in Text mode, displaying
+the default directory in addition to the standard components of the
+mode line.  (This may cause the mode line to run out of space if you
+have very long path names or display the time and load.)
+
+     (setq text-mode-hook
+           (function (lambda ()
+                       (setq mode-line-format
+                             '(mode-line-modified
+                               "Emacs: %14b"
+                               "  "  
+                               default-directory
+                               " "
+                               global-mode-string
+                               "%[(" 
+                               mode-name 
+                               minor-mode-alist 
+                               "%n" 
+                               mode-line-process  
+                               ") %]---"
+                               (-3 . "%p")
+                               "-%-")))))
+
+   *Note Standard Hooks::, for a list of standard hook variables.
+
+   Most hook variables are initially void.  This has no effect on
+examples such as the previous ones, where the hook variable is set
+without reference to any previous value.  However, if you want to add
+an element to a hook variable which you use as a list of functions,
+you need to make sure the variable is not void.  Here is how to do it
+using `defvar':
+
+     (defvar foo-hook nil)
+     (or (memq 'my-hook foo-hook)
+         (setq foo-hook (cons 'my-hook foo-hook)))
+
+   At the appropriate time, Emacs uses the `run-hooks' function to
+run the hooks you have specified.
+
+ * Function: run-hooks &rest HOOKVAR
+     This function takes one or more hook names as arguments and runs
+     each one in turn.  Each HOOKVAR argument should be a symbol that
+     is a hook variable.  These arguments are processed in the order
+     specified.
+
+     If a hook variable has a non-`nil' value, that value may be a
+     function or a list of functions.  If the value is a function
+     (either a lambda expression or a symbol with a function
+     definition), it is called.  If it is a list, the elements are
+     called, in order.  The hook functions are called with no
+     arguments.
+
+     For example:
+
+          (run-hooks 'emacs-lisp-mode-hook)
+
+     Major mode functions use this function to call any hooks defined
+     by the user.
+
+
+
+File: elisp,  Node: Documentation,  Next: Files,  Prev: Modes,  Up: Top
+
+Documentation
+*************
+
+   GNU Emacs Lisp has convenient on-line help facilities, most of
+which derive their information from the documentation strings
+associated with functions and variables.  This chapter describes how
+to write good documentation strings for your Lisp programs, as well
+as how to write programs to access documentation.
+
+   Note that the documentation strings for Emacs are not the same
+thing as the Emacs manual.  Manuals have their own source files,
+written in the Texinfo language; documentation strings are specified
+in the definitions of the functions and variables they apply to.  A
+collection of documentation strings is not sufficient as a manual
+because a good manual is not organized in that fashion; it is
+organized in terms of topics of discussion.
+
+* Menu:
+
+* Documentation Basics::      Good style for doc strings.
+                                Where to put them.  How Emacs stores them.
+* Accessing Documentation::   How Lisp programs can access doc strings.
+* Keys in Documentation::     Substituting current key bindings.
+* Describing Characters::     Making printable descriptions of
+                                non-printing characters and key sequences.
+* Help Functions::            Subroutines used by Emacs help facilities.
+
+ 
+
+File: elisp,  Node: Documentation Basics,  Next: Accessing Documentation,  Prev: Documentation,  Up: Documentation
+
+Documentation Basics
+====================
+
+   A documentation string is written using the Lisp syntax for
+strings, with double-quote characters surrounding the text of the
+string.  This is because it really is a Lisp string object.  The
+string serves as documentation when it is written in the proper place
+in the definition of a function or variable.  In a function
+definition, the documentation string follows the argument list.  In a
+variable definition, the documentation string follows the initial
+value of the variable.
+
+   When you write a documentation string, make the first line a
+complete sentence (or two complete sentences) since some commands,
+such as `apropos', print only the first line of a multi-line
+documentation string.  Also, you should not indent the second line of
+a documentation string, if you have one, because that looks odd when
+you use `C-h f' (`describe-function') or `C-h v' (`describe-variable').
+
+   Documentation strings may contain several special substrings,
+which stand for key bindings to be looked up in the current keymaps
+when the documentation is displayed.  This allows documentation
+strings to refer to the keys for related commands and be accurate
+even when a user rearranges the key bindings.  (*Note Accessing
+Documentation::.)
+
+   Within the Lisp world, a documentation string is kept with the
+function or variable that it describes:
+
+   * The documentation for a function is stored in the function
+     definition itself (*note Lambda Expressions::.).  The function
+     `documentation' knows how to extract it.
+
+   * The documentation for a variable is stored on the variable's
+     property list under the property name `variable-documentation'. 
+     The function `documentation-property' knows how to extract it.
+
+   However, to save space, the documentation for preloaded functions
+and variables (including primitive functions and autoloaded
+functions) are stored in the `emacs/etc/DOC-VERSION' file.  Both the
+`documentation' and the `documentation-property' functions know how
+to access `emacs/etc/DOC-VERSION', and the process is transparent to
+the user.  In this case, the documentation string is replaced with an
+integer offset into the `emacs/etc/DOC-VERSION' file.  Keeping the
+documentation strings out of the Emacs core image saves a significant
+amount of space.  *Note Building Emacs::.
+
+   For information on the uses of documentation strings, see
+`where-is-internal' and `describe-bindings' in *Note Global and Local
+Keymaps::.  Also, see *Note : (emacs)Help.
+
+   The `emacs/etc' directory contains two utilities for printing the
+`emacs/etc/DOC-VERSION' file in hardcopy.  These are `sorted-doc.c'
+and `digest-doc.c'.
+
+
+
+File: elisp,  Node: Accessing Documentation,  Next: Keys in Documentation,  Prev: Documentation Basics,  Up: Documentation
+
+Access to Documentation Strings
+===============================
+
+ * Function: documentation-property SYMBOL PROPERTY
+     This function returns the documentation string that is recorded
+     SYMBOL's property list under property PROPERTY.  This uses the
+     function `get', but does more than that: it also retrieves the
+     string from the file `emacs/etc/DOC-VERSION' if necessary, and
+     runs `substitute-command-keys' to substitute the actual
+     (current) key bindings.
+
+          (documentation-property 'command-line-processed
+             'variable-documentation)
+               => "t once command line has been processed"
+          (symbol-plist 'command-line-processed)
+               => (variable-documentation 188902)
+
+ * Function: documentation FUNCTION
+     This function returns the documentation string of FUNCTION.  If
+     the documentation string is stored in the
+     `emacs/etc/DOC-VERSION' file, this function will access it there.
+
+     In addition, `documentation' runs `substitute-command-keys' on
+     the resulting string, so the value contains the actual (current)
+     key bindings.
+
+     The function `documentation' signals a `void-function' error
+     unless FUNCTION has a function definition.  However, FUNCTION
+     does not need to have a documentation string.  If there is no
+     documentation string, `documentation' returns `nil'.
+
+     Here is an example of using `documentation' and
+     `documentation-property' to display the documentation strings
+     for several symbols in a `*Help*' buffer.
+
+          (defun describe-symbols (pattern)
+            "Describe the Emacs Lisp symbols matching PATTERN.
+          All symbols that have PATTERN in their name are described
+          in the *Help* buffer."
+            (interactive "sDescribe symbols matching: ")
+            (let ((describe-func
+                   (function 
+                    (lambda (s)
+                      ;; Print description of symbol.
+                      (if (fboundp s)             ; It is a function.
+                          (princ
+                           (format "%s\t%s\n%s\n\n" s
+                                   (if (commandp s) 
+                                       (concat "Command: "
+                                               (or (mapconcat 
+                                                    'key-description 
+                                                    (where-is-internal s) 
+                                                    " ")))
+                                     "Function")
+                                   (or (documentation s) 
+                                       "not documented"))))
+          
+                      (if (boundp s)              ; It is a variable.
+                          (princ
+                           (format "%s\t%s\n%s\n\n" s
+                                   (if (user-variable-p s) 
+                                       "Option " "Variable")
+                                   (or (documentation-property 
+                                         s 'variable-documentation)
+                                       "not documented")))))))
+                   sym-list)
+          
+              ;; Build a list of symbols that match pattern.
+              (mapatoms (function 
+                         (lambda (sym)
+                           (if (string-match pattern (symbol-name sym))
+                               (setq sym-list (cons sym sym-list))))))
+          
+              ;; Display the data.
+              (with-output-to-temp-buffer "*Help*"
+                (mapcar describe-func (sort sym-list 'string<))
+                (print-help-return-message))))
+
+     The `describe-symbols' function works like `apropos', but
+     provides more information.
+
+          (describe-symbols "goal")
+          
+          ---------- Buffer: *Help* ----------
+          goal-column     Option 
+          *Semipermanent goal column for vertical motion, 
+          as set by C-x C-n, or nil.
+          
+          set-goal-column Command: C-x C-n
+          Set the current horizontal position as a goal for C-n and C-p.
+          Those commands will move to this position in the line moved to
+          rather than trying to keep the same horizontal position.
+          With a non-nil argument, clears out the goal column
+          so that C-n and C-p resume vertical motion.
+          
+          temporary-goal-column   Variable
+          Current goal column for vertical motion.
+          It is the column where point was at the start of current run 
+          of vertical motion commands.
+          ---------- Buffer: *Help* ----------
+
+ * Function: Snarf-documentation FILENAME
+     This function is used only during Emacs initialization, just
+     before the runnable Emacs is dumped.  It finds the file offsets
+     of the documentation strings stored in the file FILENAME, and
+     records them in the in-core function definitions and variable
+     property lists in place of the actual strings.  *Note Building
+     Emacs::.
+
+     The file FILENAME is found in the `emacs/etc' directory (usually
+     FILENAME is `"DOC-VERSION"').  When the dumped Emacs is later
+     executed, the same file is found in the `exec-directory' (*note
+     Subprocess Creation::.).
+
+
+
+File: elisp,  Node: Keys in Documentation,  Next: Describing Characters,  Prev: Accessing Documentation,  Up: Documentation
+
+Substituting Key Bindings in Documentation
+==========================================
+
+ * Function: substitute-command-keys STRING
+     This function returns STRING with certain special substrings
+     replaced by the actual (current) key bindings are listed.  This
+     permits the documentation to be displayed with accurate
+     information about key bindings.  (The key bindings may be
+     changed by the user between the time Emacs is built and the time
+     that the documentation is asked for.)
+
+     This table lists the forms of the special substrings and what
+     they are replaced with:
+
+    `\[COMMAND]'
+          is replaced either by a keystroke sequence that will invoke
+          COMMAND, or by `M-x COMMAND' if COMMAND is not bound to any
+          key sequence.
+
+    `\{MAPVAR}'
+          is replaced by a summary (made by `describe-bindings') of
+          the value of MAPVAR, taken as a keymap.
+
+    `\<MAPVAR>'
+          makes this call to `substitute-command-keys' use the value
+          of MAPVAR as the keymap for future `\[COMMAND]' substrings.
+          This special string does not produce any replacement text
+          itself; it only affects the replacements done later.
+
+     *Note:* each `\' must be doubled when written in a string in
+     Emacs Lisp.
+
+     Here are examples of the special substrings:
+
+          (substitute-command-keys 
+             "To abort recursive edit, type: \\[abort-recursive-edit]")
+          
+          => "To abort recursive edit, type: C-]"
+          
+          (substitute-command-keys 
+             "The keys that are defined for the minibuffer here are:
+            \\{minibuffer-local-must-match-map}")
+          
+          => "The keys that are defined for the minibuffer here are:
+          
+          ?               minibuffer-completion-help
+          SPC             minibuffer-complete-word
+          TAB             minibuffer-complete
+          LFD             minibuffer-complete-and-exit
+          RET             minibuffer-complete-and-exit
+          C-g             abort-recursive-edit
+          "
+          
+          (substitute-command-keys
+             "To abort a recursive edit from the minibuffer, type\
+           \\<minibuffer-local-must-match-map>\\[abort-recursive-edit].")
+          => "To abort a recursive edit from the minibuffer, type C-g."
+
+
+
+File: elisp,  Node: Describing Characters,  Next: Help Functions,  Prev: Keys in Documentation,  Up: Documentation
+
+Describing Characters for Help Messages
+=======================================
+
+   These functions convert characters or strings to textual
+descriptions.  These descriptions are useful for including arbitrary
+text characters or key sequences in messages, because they convert
+non-printing characters to sequences of printing characters.  The
+description of a printing character is the character itself.
+
+ * Function: key-description STRING
+     This function returns a string containing the Emacs standard
+     notation for the keyboard characters in STRING.  See the
+     examples for `single-key-description'.
+
+ * Function: single-key-description CHARACTER
+     This function returns a string describing CHARACTER in the
+     standard Emacs notation for keyboard input.  A normal printing
+     character is represented by itself, but a control character
+     turns into a string starting with `C-', a meta character turns
+     into a string starting with `M-', and space, linefeed, etc. are
+     transformed to `SPC', `LFD', etc.
+
+          (single-key-description ?\C-x)
+               => "C-x"
+          (key-description "\C-x \M-y \n \t \r \f123")
+               => "C-x SPC M-y SPC LFD SPC TAB SPC RET SPC C-l 1 2 3"
+
+ * Function: text-char-description CHARACTER
+     This function returns a string describing CHARACTER in the
+     standard Emacs notation for characters that appear in text--like
+     `single-key-description', except that that control characters
+     are represented with a leading caret (which is how control
+     characters in Emacs buffers are usually displayed).
+
+          (text-char-description ?\C-c)
+               => "^C"
+          (text-char-description ?\M-m)
+               => "M-m"
+          (text-char-description ?\C-\M-m)
+               => "M-^M"
+
+
+
+File: elisp,  Node: Help Functions,  Prev: Describing Characters,  Up: Documentation
+
+Help Functions
+==============
+
+   Emacs provides a variety of on-line help functions, all accessible
+to the user as subcommands of the prefix `C-h'.  For more information
+about them, see *Note : (emacs)Help.  Here we describe some
+program-level interfaces to the same information.
+
+ * Command: apropos REGEXP &optional PREDICATE NOPRINT
+     This function finds all symbols whose names contain a match for
+     the regular expression REGEXP, and returns a list of them. 
+     Normally it displays the symbols in a buffer named `*Help*',
+     each with a one-line description.  If NOPRINT is non-`nil', it
+     does not display them, but just returns the list.
+
+     If PREDICATE is non-`nil', it should be a function to be called
+     on each symbol that has matched REGEXP.  Only symbols for which
+     PREDICATE returns a non-`nil' value are listed or displayed.
+
+     When you call `apropos' interactively, it prompts for REGEXP in
+     the minibuffer.
+
+     In the first of the following examples, `apropos' finds all the
+     symbols with names containing `exec'.  They are returned but not
+     displayed.  In the second example, it finds and returns only
+     those symbols that are also commands; in addition, they are then
+     displayed in the `*Help*' buffer.
+
+          (apropos "exec" nil t)
+               => (Buffer-menu-execute command-execute exec-directory
+              exec-path execute-extended-command execute-kbd-macro
+              executing-kbd-macro executing-macro)
+          
+          (apropos "exec" 'commandp)
+               => (Buffer-menu-execute execute-extended-command)
+          
+          ---------- Buffer: *Help* ----------
+          Buffer-menu-execute
+            Function: Save and/or delete buffers marked with
+            M-x Buffer-menu-save or M-x Buffer-menu-delete commands.
+          execute-extended-command      ESC x
+            Function: Read function name, then read its arguments and call it.
+          ---------- Buffer: *Help* ----------
+
+     The command `C-h a' (`command-apropos') calls `apropos', but
+     specifies a PREDICATE to restrict the output to symbols that are
+     commands.  The call to `apropos' looks like this:
+
+          (apropos string 'commandp)
+
+ * Command: help-command
+     This command is not a function, but rather a symbol which is
+     equivalent to the keymap called `help-map'.  It is defined in
+     `help.el' as follows:
+
+          (define-key global-map "\C-h" 'help-command)
+          (fset 'help-command help-map)
+
+ * Variable: help-map
+     The value of this variable is a local keymap for characters
+     following the Help key, `C-h'.
+
+ * Function: print-help-return-message &optional FUNCTION
+     This function builds a string which is a message explaining how
+     to restore the previous state of the windows after a help
+     command.  After building the message, it applies FUNCTION to it
+     if FUNCTION is non-`nil'.  Otherwise it calls `message' to
+     display it in the echo area.
+
+     This function expects to be called inside a
+     `with-output-to-temp-buffer' special form, and expects
+     `standard-output' to have the value bound by that special form. 
+     For an example of its use, see the example in the section
+     describing the `documentation' function (*note Accessing
+     Documentation::.).
+
+     The constructed message will have one of the forms shown below.
+
+          ---------- Echo Area ----------
+          Type C-x 1 to remove help window.
+          ---------- Echo Area ----------
+          
+          ---------- Echo Area ----------
+          Type C-x 4 b RET to restore old contents of help window.
+          ---------- Echo Area ----------
+
+ * Variable: help-char
+     The value of this variable is the character that Emacs
+     recognizes as meaning Help.  When Emacs reads this character
+     (which is usually 8, the value of `C-h'), Emacs evaluates `(eval
+     help-form)', and displays the result if it is a string.  If
+     `help-form''s value is `nil', this character is read normally.
+
+ * Variable: help-form
+     The value of this variable is a form to execute when the
+     character `help-char' is read.  If the form returns a string,
+     that string is displayed.  If `help-form' is `nil', then the
+     help character is not recognized.
+
+     Entry to the minibuffer binds this variable to the value of
+     `minibuffer-help-form'.
+
+   The following two functions are found in the library `helper'. 
+They are for modes that want to provide help without relinquishing
+control, such as the "electric" modes.  You must load that library
+with `(require 'helper)' in order to use them.  Their names begin
+with `Helper' to distinguish them from the ordinary help functions.
+
+ * Command: Helper-describe-bindings
+     This command pops up a window displaying a help buffer
+     containing a listing of all of the key bindings from both the
+     local and global keymaps.  It works by calling
+     `describe-bindings'.
+
+ * Command: Helper-help
+     This command provides help for the current mode.  It prompts the
+     user in the minibuffer with the message `Help (Type ? for
+     further options)', and then provides assistance in finding out
+     what the key bindings are, and what the mode is intended for. 
+     It returns `nil'.
+
+     This can be customized by changing the map `Helper-help-map'.
+
+
+
+File: elisp,  Node: Files,  Next: Backups and Auto-Saving,  Prev: Documentation,  Up: Top
+
+Files
+*****
+
+   In Emacs, you can find, create, view, save, and otherwise work
+with files and file directories.  This chapter describes most of the
+file-related functions of Emacs Lisp, but a few others are described
+in *Note Buffers::, and those related to backups and auto-saving are
+described in *Note Backups and Auto-Saving::.
+
+* Menu:
+
+* Visiting Files::           Reading files into Emacs buffers for editing.
+* Saving Buffers::           Writing changed buffers back into files.
+* Reading from Files::       Reading files into other buffers.
+* Writing to Files::         Writing new files from parts of buffers.
+* File Locks::               Locking and unlocking files, to prevent
+                               simultaneous editing by two people.
+* Information about Files::  Testing existence, accessibility, size of files.
+* Contents of Directories::  Getting a list of the files in a directory.
+* Changing File Attributes:: Renaming files, changing protection, etc.
+* File Names::               Decomposing and expanding file names.
+
+ 
+
+File: elisp,  Node: Visiting Files,  Next: Saving Buffers,  Prev: Files,  Up: Files
+
+Visiting Files
+==============
+
+   Visiting a file means reading a file into a buffer.  Once this is
+done, we say that the buffer is "visiting" that file, and call the
+file "the visited file" of the buffer.
+
+   A file and a buffer are two different things.  A file is
+information recorded permanently in the computer (unless you delete
+it).  A buffer, on the other hand, is information inside of Emacs
+that will vanish at the end of the editing session (or when you kill
+the buffer).  Usually, a buffer contains information that you have
+copied from a file; then we say the buffer is visiting that file. 
+The copy in the buffer is what you modify with editing commands. 
+Such changes to the buffer do not change the file; therefore, to make
+the changes permanent, you must "save" the buffer, which means
+copying the altered buffer contents back into the file.
+
+   In spite of the distinction between files and buffers, people
+often refer to a file when they mean a buffer and vice-versa. 
+Indeed, we say, "I am editing a file," rather than, "I am editing a
+buffer which I will soon save as a file of the same name."  Humans do
+not usually need to make the distinction explicit.  When dealing with
+a computer program, however, it is good to keep the distinction in
+mind.
+
+* Menu:
+
+* Visiting Functions::         The usual interface functions for visiting.
+* Subroutines of Visiting::    Lower-level subroutines that they use.
+
+ 
+
+File: elisp,  Node: Visiting Functions,  Next: Subroutines of Visiting,  Prev: Visiting Files,  Up: Visiting Files
+
+Functions for Visiting Files
+----------------------------
+
+   This section describes the functions normally used to visit files.
+For historical reasons, these functions have names starting with
+`find-' rather than `visit-'.  *Note Buffer File Name::, for
+functions and variables that access the visited file name of a buffer
+or that find an existing buffer by its visited file name.
+
+ * Command: find-file FILENAME
+     This function reads the file FILENAME into a buffer and displays
+     that buffer in the selected window so that the user can edit it.
+
+     The body of the `find-file' function is very simple and looks
+     like this:
+
+          (switch-to-buffer (find-file-noselect filename))
+
+     (See `switch-to-buffer' in *Note Displaying Buffers::.)
+
+     When `find-file' is called interactively, it prompts for
+     FILENAME in the minibuffer.
+
+ * Function: find-file-noselect FILENAME
+     This function is the guts of all the file-visiting functions. 
+     It reads a file into a buffer and returns the buffer.  You may
+     then make the buffer current or display it in a window if you
+     wish, but this function does not do so.
+
+     If no buffer is currently visiting FILENAME, then one is created
+     and the file is visited.  If FILENAME does not exist, the buffer
+     is left empty, and `find-file-noselect' displays the message
+     `New file' in the echo area.
+
+     If a buffer is already visiting FILENAME, then
+     `find-file-noselect' uses that buffer rather than creating a new
+     one.  However, it does verify that the file has not changed
+     since it was last visited or saved in that buffer.  If the file
+     has changed, then this function asks the user whether to reread
+     the changed file.  If the user says `yes', any changes
+     previously made in the buffer will be lost.
+
+     The `find-file-noselect' function calls `after-find-file' after
+     the file is read in (*note Subroutines of Visiting::.).  The
+     `after-find-file' function sets the buffer major mode, parses
+     local variables, warns the user if there exists an auto-save
+     file more recent than the file just visited, and finishes by
+     running the functions in `find-file-hooks'.
+
+     The `find-file-noselect' function returns the buffer that is
+     visiting the file FILENAME.
+
+          (find-file-noselect "/etc/fstab")
+               => #<buffer fstab>
+
+ * Command: find-alternate-file FILENAME
+     This function reads the file FILENAME into a buffer and selects
+     it, killing the buffer current at the time the command is run. 
+     It is useful if you have visited the wrong file by mistake, so
+     that you can get rid of the buffer that you did not want to
+     create, at the same time as you visit the file you intended.
+
+     When this function is called interactively, it prompts for
+     FILENAME.
+
+ * Command: find-file-other-window FILENAME
+     This function visits the file FILENAME and displays its buffer
+     in a window other than the selected window.  If there are two or
+     more windows on the screen, then the window that is not selected
+     is used.  If there is only one window, it is split.  The
+     function returns `nil'.
+
+     When this function is called interactively, it prompts for
+     FILENAME.
+
+ * Command: find-file-read-only FILENAME
+     This function visits the file named FILENAME and selects its
+     buffer, just like `find-file', but it marks the buffer as
+     read-only.  *Note Read Only Buffers::, for related functions and
+     variables.
+
+     When this function is called interactively, it prompts for
+     FILENAME.
+
+ * Command: view-file FILENAME
+     This function views FILENAME in View mode, returning to the
+     previous buffer when done.  View mode is a mode that allows you
+     to skim rapidly through the file but does not let you modify it.
+
+     After loading the file, `view-file' calls the value of
+     `view-hook' if that is non-`nil'.
+
+     When this function is called interactively, it prompts for
+     FILENAME.
+
+ * Variable: find-file-hooks
+     The value of this variable is a list of functions to be called
+     after a file is visited.  The file's local-variables
+     specification (if any) will have been processed before the hooks
+     are run.  The buffer visiting the file is current when the hook
+     functions are run.
+
+ * Variable: find-file-not-found-hooks
+     The value of this variable is a list of functions to be called
+     when `find-file' or `find-file-noselect' is passed a nonexistent
+     FILENAME.  These functions are called as soon as the error is
+     detected.  `buffer-file-name' is already set up.  The functions
+     are called in the order given, until one of them returns
+     non-`nil'.
+
+

@@ -1,0 +1,62 @@
+#! /bin/sh
+# newswatch [spacemin [batchmax]]
+# look for anomalies, notably locks present a long time
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/maint:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+tmp=/tmp/newsw$$
+>$tmp
+
+cd $NEWSCTL
+
+locks="`echo LOCK*`"
+if test -r watchtime -a " $locks" != " LOCK*"
+then
+	trouble="`find $locks ! -newer watchtime -print 2>/dev/null`"
+	if test " $trouble" != " "
+	then
+		echo 'Suspiciously old locks:' >>$tmp
+		ls -ldtr $trouble >>$tmp
+		echo
+	fi
+fi
+
+if test " $1" != " "
+then
+	didsome=n
+	for fs in incoming articles control outbound
+	do
+		if test " `spacefor $1 $fs`" -eq 0
+		then
+			echo "\`spacefor $1 $fs' reports disk shortage" >>$tmp
+			didsome=y
+		fi
+	done
+	if test " $didsome" = " y"
+	then
+		echo
+	fi
+fi
+
+if test " $2" != " "
+then
+	n="`ls $NEWSARTS/in.coming | egrep '^[0-9]' | wc -l`"
+	if test " $n" -gt " $2"
+	then
+		echo "There are a great many spooled input batches ($n)."
+		echo
+	fi
+fi
+
+if test -s $tmp
+then
+	echo 'Subject: newswatch has detected news-system anomalies'
+	echo
+	cat $tmp
+fi
+rm -f $tmp
+touch watchtime

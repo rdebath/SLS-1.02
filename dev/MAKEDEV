@@ -1,0 +1,305 @@
+#! /bin/sh -
+#
+# Device 'make' file.  Valid arguments:
+#
+# 	std	standard devices
+#	local	configuration specific devices (in MAKEDEV.local)
+#	generic	generic devices
+#
+#  Disks:
+#	fd*	floppy devices
+#	hd*	hard drive devices
+#	sd*	SCSI disks
+#
+#  Tapes:
+#	st*	SCSI tapes
+#
+#  Parallel ports:
+#	par*	parallel ports
+#
+#  Virtual Terminals:
+#	tty*	virtual consoles
+#
+#  Pseudo Terminals:
+#	pty	set of master and slave pseudo terminals
+#
+#  Serial devices:
+#	ttyS*	serial ports
+#	cua*	serial ports
+#
+#  Bus Mice:
+#	bm	bus mouse
+#
+#  Scsi Compact Disks:
+#	sr*	CDROMs
+#
+#----
+#
+# I wouldn't be so bold as to say this is perfect, but I think it does a
+# rather nice job creating devices.  Parts that could be improved is
+# support for other than the auto-detecting floppy devices, but I can't
+# think of a clean way to name the devices.  There should be support
+# for more pty groups, and also for SCSI tapes.  The SCSI device names
+# are also somewhat off from what Drew Eckhardt suggested, but they
+# follow the same format as the hd* names.
+#
+#	jwinstea@jarthur.Claremont.EDU, 4 July 1992
+#
+# I've added all the 'hard' floppy devices - the names are /dev/fd#D#, where
+# the first number is the drive number (0 or 1), the D designates the density of
+# the drive, and size (d = 5.25" 360K, h = 5.25" 1200k, D = 3.5" 720k, H = 3.5"
+# 1440k), and the final number represents the disk size, in kilobytes - this can
+# be 360, 720, 1200, or 1400.
+#
+# Because SCSI devices should now support extended partitions, sd[ab][5-8] are
+# created in addition to those generated before - this matches up with hd*.  It
+# is possible to have (and create) higher numbered partitions, but it is
+# generally not done, so it is not done by default.
+#
+# I've added par[0-3], which correspond to lp[0-3].  The par names are defined
+# by the latest Linux Standards draft, but the lp names are in common usage.
+#
+# ttys[0-3] were renamed to ttyS[0-63], as they should have been
+# originally.
+#
+# added bus mouse device (major 10, minor 0)
+#
+# Fixed some of the owners and permissions.
+#
+#	jwinstea@jarthur.Claremont.EDU, 3 August 1992
+#
+
+for arg in $@; do
+	case $arg in
+		generic)
+			sh $0 std
+			sh $0 fd0 fd1
+			sh $0 fd0d360 fd0h360 fd0h720 fd0h1200 fd0D360 fd0D720 fd0H360 fd0H720 fd0H1440
+			sh $0 fd1d360 fd1h360 fd1h720 fd1h1200 fd1D360 fd1D720 fd1H360 fd1H720 fd1H1440
+			# first eight partitions on each hard drive
+			sh $0 hda hda1 hda2 hda3 hda4 hda5 hda6 hda7 hda8
+			sh $0 hdb hdb1 hdb2 hdb3 hdb4 hdb5 hdb6 hdb7 hdb8
+			# SCSI drives now support extended partitions
+			sh $0 sda sda1 sda2 sda3 sda4 sda5 sda6 sda7 sda8
+			sh $0 sdb sdb1 sdb2 sdb3 sdb4 sdb5 sdb6 sdb7 sdb8
+			# makes the pty group
+			sh $0 pty
+			# first twelve virtual terminals
+			sh $0 tty0 tty1 tty2 tty3 tty4 tty5 tty6 tty7 tty8 tty9 tty10 tty11 tty12
+			# four serial ports
+			sh $0 ttyS0 ttyS1 ttyS2 ttS3
+			sh $0 cua0 cua1 cua2 cua3
+			sh $0 bm
+			# all three parallel ports
+			sh $0 lp0 lp1 lp2
+			sh $0 par0 par1 par2
+			sh $0 tapes
+			sh $0 sr0 sr1 sr2
+			;;
+
+		local)
+			sh $0.local
+			;;
+
+		std)
+			mknod mem c 1 1; chown root:mem mem; chmod 0660 mem
+			mknod kmem c 1 2; chown root:mem kmem; chmod 0640 kmem
+			mknod null c 1 3; chown root:mem null; chmod 0666 null
+			mknod port c 1 4; chown root:mem port; chmod 0660 port
+			mknod zero c 1 5; chown root:mem zero; chmod 0666 zero
+			mknod ram b 1 0; chown root:disk ram; chmod 0660 ram
+			mknod console c 4 1; chown root:tty console; chmod 0622 console
+			mknod tty c 5 0; chown root:tty tty; chmod 0666 tty
+			;;
+
+		fd*)
+			case $arg in
+				fd0)	mknod fd0 b 2 0; chown root:floppy fd0; chmod 0660 fd0 ;;
+				fd1)	mknod fd1 b 2 1; chown root:floppy fd1; chmod 0660 fd1 ;;
+
+				fd*)
+					base=`expr $arg : "fd\(.\).*"`
+					if [ $base != 0 -a $base != 1 ]; then
+						echo invalid disk number in: $arg;
+					else
+						density=`expr $arg : "fd.\(.\).*"`
+						kbytes=`expr $arg : "fd..\(.*\)"`
+						minor=0
+						case $density in
+							d)
+								case $kbytes in
+									360) minor=`expr 4 + $base`;;
+									*) echo invalid size in: $arg;;
+								esac
+								;;
+
+							h)
+								case $kbytes in
+									360) minor=`expr 20 + $base`;;
+									720) minor=`expr 24 + $base`;;
+									1200) minor=`expr 8 + $base`;;
+									*) echo invalid size in: $arg;;
+								esac
+								;;
+
+							D)
+								case $kbytes in
+									360) minor=`expr 12 + $base`;;
+									720) minor=`expr 16 + $base`;;
+									*) echo invalid size in $arg;;
+								esac
+								;;
+
+							H)
+								case $kbytes in
+									360) minor=`expr 12 + $base`;;
+									720) minor=`expr 16 + $base`;;
+									1440) minor=`expr 28 + $base`;;
+									*) echo invalid size in $arg;;
+								esac
+								;;
+
+							*)	echo invalid density in: $arg;;
+						esac
+						if [ $minor != 0 ]; then
+							mknod $arg b 2 $minor; chown root:floppy $arg; chmod 0660 $arg
+						fi
+					fi
+					;;
+
+				*)	echo invalid floppy disk in: $arg ;;
+			esac
+
+			;;
+		hd*)
+
+			case $arg in
+				hda)	mknod hda b 3 0; chown root:disk hda; chmod 0660 hda ;;
+				hdb)	mknod hdb b 3 64; chown root:disk hdb; chmod 0660 hdb ;;
+
+				hda*)	part=`expr $arg : "hd.\(.*\)"`
+					mknod $arg b 3 $part; chown root:disk $arg; chmod 0660 $arg ;;
+				hdb*)	part=`expr $arg : "hd.\(.*\)"`
+					mknod $arg b 3 `expr 64 + $part`; chown root:disk $arg; chmod 0660 $arg ;;
+
+				*)	echo invalid device in: $arg ;;
+			esac
+			;;
+
+		sd*)
+			case $arg in
+				sda)	mknod sda b 8 0; chown root:disk sda; chmod 0660 sda ;;
+				sdb)	mknod sdb b 8 16; chown root:disk sdb; chmod 0660 sdb ;;
+
+				sda*)	part=`expr $arg : "sd.\(.*\)"`
+					mknod $arg b 8 $part; chown root:disk $arg; chmod 0660 $arg ;;
+				sdb*)	part=`expr $arg : "sd.\(.*\)"`
+					mknod $arg b 8 `expr 16 + $part`; chown root:disk $arg; chmod 0660 $arg ;;
+
+				*)	echo invalid device in: $arg ;;
+			esac
+			;;
+
+		st*)
+			echo not supported yet
+			;;
+
+		tapes)
+			mknod rmt b 9 0; chown root:disk rmt; chmod 0660 rmt 
+			mknod nrmt b 9 128; chown root:disk nrmt; chmod 0660 nrmt 
+			;;
+
+		sr*)
+			port=`expr $arg : "sr\(.*\)"`
+			case $port in
+				[0-2])	mknod sr$port b 11 $port; chown root:daemon sr$port; chmod 0660 sr$port ;;
+				*)	echo invalid CD ROM device in: $arg ;;
+			esac
+			;;
+
+		par*)
+			port=`expr $arg : "par\(.*\)"`
+			case $port in
+				[0-2])	mknod par$port c 6 $port; chown root:daemon par$port; chmod 0660 par$port ;;
+				*)	echo invalid parallel port in: $arg ;;
+			esac
+			;;
+
+		lp*)
+			port=`expr $arg : "lp\(.*\)"`
+			case $port in
+				[0-2])	mknod lp$port c 6 $port; chown root:daemon lp$port; chmod 0660 lp$port;;
+				*)	echo invalid parallel port in: $arg ;;
+			esac
+			;;
+
+		pty)
+			declare -i ind;
+			declare -i mast;
+			declare -i slave;
+			mast=128
+			slave=192
+			for i in p q r s; do
+				ind=0;
+				for myind in 0 1 2 3 4 5 6 7 8 9 a b c d e f; do
+					rm -f pty$i$myind;  mknod pty$i$myind c 4 $mast;
+					rm -f tty$i$myind;  mknod tty$i$myind c 4 $slave;
+					mast=$mast+1
+					slave=$slave+1
+					ind=$ind+1
+				done
+				chown root:tty pty$i* tty$i*; 
+				chmod 0622 pty$i* tty$i*
+			done
+			;;
+
+		bm)
+			declare -i mousenum;
+			mousenum=0
+			for mousename in bmouselogitec ps2aux bmousems bmouseatixl; do 
+				mknod $mousename c 10 $mousenum; 
+				chown root:tty $mousename; 
+				chmod a+rw $mousename
+				mousenum=$mousenum+1
+			done
+			;;
+
+		serial)
+			for ind in 0 8 16 24 32 40 48 56; do
+			sh $0 ttyS`expr $ind` ttyS`expr $ind+1` ttyS`expr $ind+2` ttyS`expr $ind+3` \
+			  ttyS`expr $ind+4` ttyS`expr $ind+5` ttyS`expr $ind+6` ttyS`expr $ind+7`
+			sh $0 cua`expr $ind` cua`expr $ind+1` cua`expr $ind+2` cua`expr $ind+3` \
+			  cua`expr $ind+4` cua`expr $ind+5` cua`expr $ind+6` cua`expr $ind+7`
+			done
+			;;
+		ttyS*)
+			com=`expr $arg : "ttyS\(.*\)"`
+			case $com in
+				[0-63])  mknod ttyS$com c 4 `expr $com + 64`; chown root:tty ttyS$com; chmod a+rw ttyS$com ;;
+				*)	echo invalid com port in: $arg ;;
+			esac
+			;;
+
+		cua*)
+			com=`expr $arg : "cua\(.*\)"`
+			case $com in
+				[0-63])  mknod cua$com c 5 `expr $com + 64`; chown root:tty cua$com; chmod a+rw cua$com ;;
+				*)	echo invalid com port in: $arg ;;
+			esac
+			;;
+
+
+		tty*)
+			num=`expr $arg : "tty\(.*\)"`
+			case $num in
+				[0-8])	mknod tty$num c 4 $num; chown root:tty tty$num; chmod 0622 tty$num ;;
+				*)	echo invalid number in: $arg ;;
+			esac
+			;;
+		*)
+			echo invalid device: $arg
+			;;
+	esac
+done
+
+exit 0

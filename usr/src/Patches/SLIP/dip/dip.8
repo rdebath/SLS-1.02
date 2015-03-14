@@ -1,0 +1,265 @@
+.TH dip "8" "12/10/92" "Version 3.1.0" "Reference"
+.SH NAME
+dip - dialup IP connection handler.
+.SH SYNOPSIS
+dip [-t]
+.br
+dip [-tv] [-m mtu] scriptfile
+.br
+dip [-iv] [user_name]
+.SH DESCRIPTION
+Dip handles the connections needed for dialup IP links, like SLIP or
+PPP. It can handle both incoming and outgoing connections, using
+password security for incoming connections.  The outgoing connections
+use the system's dial(3) library if available.
+.SH "COMMAND MODE"
+The first possible use of
+.B dip
+is as a standalone program to set up an outgoing IP connection. This
+can be done by invoking
+.B dip
+with the
+.B -t
+option, which means
+.B "enter TEST mode"
+and, more precisely, dumps you in the
+.B COMMAND-MODE
+of the dip program.  You are reminded of this by the
+.B "DIP> "
+prompt, or, if you also specified the
+.B -v
+debugging flag, the
+.B "DIP [NNNN]> "
+prompt.  The latter prompt also displays the current value of the
+global
+.B errlvl
+variable, which is used mostly when dip runs in
+.B script
+mode.  For the interactive mode, it can be used to determine if the
+result of the previous command was OK or not.
+.br
+The following is a sample taken from a live session:
+.br
+.sp 1
+.nf
+$ dip -t
+DIP: Dialup IP Protocol Driver version 3.1.0
+Written by Fred N. van Kempen, MicroWalt Corporation.
+
+DIP> _
+.fi
+.sp 1
+The most helpful command in this mode is, of course, the
+.B help
+command, which should produce an output similar to this:
+.sp 1
+.nf
+DIP knows about the following commands:
+
+	dial     goto     hostname help     if
+	mode     print    port     reset    send
+	sleep    speed    term     wait
+
+DIP> _
+.sp 1
+.fi
+All commands display how they should be used when invoking
+them with no or invalid arguments.  Just experiment a little
+to get the feel of it, and have a look at the sample script
+files, which also use this command language.
+.SH "DIALIN MODE"
+The second possible way of using
+.B dip
+is as a login shell for incoming IP connections, as in dialup
+SLIP and PPP connections.  To make integration into the existing
+UNIX system as easy as possible,
+.B dip
+can be installed as simply as using it as a login shell in the
+system's password file.  A sample entry looks like:
+.sp 1
+.nf
+suunet:ij/SMxiTlGVCo:1004:10:UUNET:/tmp:/usr/net/dip -i
+.fi
+.sp 1
+When user
+.B suunet
+logs in, the
+.B login(1)
+program sets the home directory to
+.B /tmp
+, and executes the
+.B dip
+program with the
+.B -i
+option, which means that
+.B dip
+must run in
+.B input
+mode.
+.B Dip
+then tries to locate the name of the logged in user (i.e. the
+name corresponding to its current user id, as returned by the
+.B getuid(2)
+system call) in its database file.  An optional single argument
+to the
+.B dip
+program in this mode can be the username that must be used in
+this lookup, regardless the current user id.
+.br
+.B Dip
+now scans the
+.B /etc/net/diphosts
+file for an entry for the given user name.  This file contains
+lines of text (much like the standard password file). The format
+looks like:
+.sp 1
+.nf
+#
+# diphosts      This file describes a number of name to
+#               address mappings for the DIP program. It
+#               is used to determine which IP address to
+#               use for in incoming call of some user.
+#
+# Version:      @(#)diphosts    1.00  12/10/92   FvK
+#
+# Author:       Fred N. van Kempen,
+#               <waltje@uwalt.nl.mugnet.org>
+#
+suunet::uunet.uu.net:UUNET SLIP:SLIP,296
+
+# End of diphosts.
+.fi
+.sp 1
+The first field of a line identifies the user name, which we must
+match.  The second field can contain an encrypted password.  If this
+field is non-null, the
+.B dip
+program asks for an
+.B "External security password: "
+, which must match the password in this field.  The third field
+contains the name (or raw IP address) of the host that is connecting
+to the system with this link.  If a host name is given, the usual
+address resolving process is started, using either a name server or
+a local hosts file.
+.br
+The fourth field may contain any text, it is not (yet) used by
+the
+.B dip
+program.  In future releases, this info may be used in the system
+log files.  Finally, the fifth field of a line contains a mixture
+of comma-separated flags.  Possible flags are:
+.sp 1
+.ti +.2i
+.B SLIP
+to indicate we must use the SLIP protocol.
+.br
+.ti +.2i
+.B PPP
+to indicate we must use the PPP protocol.
+.br
+.ti +.2i
+.B number
+which gives the MTU parameter of this connection.
+.sp 1
+After finding the correct line,
+.B dip
+puts the terminal line into
+.B RAW
+mode, and asks the system networking layer to allocate a channel
+of the desired protocol.  Finally, if the channel is activated,
+it adds an entry to the system's
+.B routing
+table to make the connection work.
+.br
+.B Dip
+now goes into an endless loop of sleeping, which continues until
+the conenction is physically aborted (i.e. the line is dropped).
+At that time,
+.B dip
+removes the entry it made in the system's routing table, and
+releases the protocol channel for re-use.  It then exists, making
+room for another session.
+.SH "DIALOUT MODE"
+The last way of using
+.B dip
+is as a program that initiates outgoing connections.  To make
+life easier for the people who have to manage links of this
+type,
+.B dip
+uses a
+.B "chat script"
+to set up a link to a remote system.  This gives the user an
+enourmous amount of flexibility when making the connection,
+which otherwise could require
+.B many
+command-line options.  The path name of the script to be run
+is then given as the single argument to
+.B dip
+; the program will automatically check if the file has  a file
+name ending in a
+.B ".dip"
+part. This is not mandatory, just a tool to group scripts
+together in a single directory.  A script should look something
+like this:
+.sp 1
+.nf
+#
+# Connection script for SLIP to knoware.nl.mugnet.org
+#
+
+  # Fetch the IP address of our target host.
+main:
+  hostname indy.knoware.nl.mugnet.org
+
+  # Set the desired serial port and speed.
+  port ttys0
+  speed 19200
+
+  # Reset the modem and terminal line.
+  reset
+
+  # Prepare for dialing.
+  send ATQ0V1E1X1S180=0\\r
+  wait OK 2
+  if $errlvl != 0 goto error
+  dial 555-1234567
+  if $errlvl != 0 goto error
+  wait CONNECT 60
+  if $errlvl != 0 goto error
+
+  # We are connected.  Login to the system.
+login:
+  sleep 3
+  send \\r\\n\\r\\n
+  wait ogin: 10
+  if $errlvl != 0 goto error
+  send NO-WAY\\n
+  wait ord: 5
+  if $errlvl != 0 goto error
+  send HA-HA\\n
+  wait SLIP 30
+  if $errlvl != 0 goto error
+done:
+  print CONNECTED to $host with address $ip
+  mode SLIP
+  goto exit
+error:
+  print SLIP to $host failed.
+exit:
+.fi
+.sp 1
+This script causes
+.B dip
+to dial up a host, log in, and get a
+.B SLIP
+interface channel going (in the same manner as with incoming
+connections).  When all is set up, it simply waits for a single
+keystroke from its standard input, at which time it terminates
+the session and exists.
+.SH FILES
+/etc/passwd,
+/etc/net/diphosts
+.SH AUTHOR
+.nf
+Fred N. van Kempen, waltje@uwalt.nl.mugnet.org
+.fi

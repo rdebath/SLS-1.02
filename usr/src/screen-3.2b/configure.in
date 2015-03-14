@@ -1,0 +1,145 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(screen.c)
+AC_CONFIG_HEADER(config.h)
+
+AC_PROG_CC
+AC_PROG_CPP
+AC_GCC_TRADITIONAL
+AC_PROG_INSTALL
+
+AC_ISC_POSIX
+if test -n "$ISC"; then
+  AC_DEFINE(ISC) LIBS="$LIBS -linet"
+fi
+
+echo checking for RiscOS
+if test -f /lib/libmld.a; then # RiscOS.
+  test -z "$GCC" && CC="$CC -systype bsd43"
+  AC_DEFINE(MIPS) LIBS="$LIBS -lmld" # for loadavg.
+fi
+
+echo checking for Ultrix
+AC_PROGRAM_EGREP(yes,
+[#if defined(ultrix) || defined(__ultrix) || defined(__ultrix)
+  yes
+#endif
+], ULTRIX=1)
+
+if test -n "$ULTRIX"; then
+  test -z "$GCC" && CC="$CC -YBSD"
+else
+  # POSIX termios is broken on Ultrix so don't look for it.
+echo checking for POSIX.1
+AC_PROGRAM_EGREP(yes,
+[#include <sys/types.h>
+#include <unistd.h>
+main () {
+#ifdef _POSIX_VERSION
+  yes
+#endif
+], AC_DEFINE(POSIX))
+fi
+
+AC_COMPILE_CHECK([BSD job control], 
+[#include <sys/types.h>
+#include <sys/ioctl.h>], [int x = TIOCNOTTY;], AC_DEFINE(BSDJOBS))
+
+echo checking for termio or termios
+AC_TEST_CPP([#include <termios.h>], AC_DEFINE(TERMIO))
+AC_TEST_CPP([#include <termio.h>], AC_DEFINE(TERMIO))
+
+echo checking for termcap or terminfo
+if test ! -f /etc/termcap && test ! -f /usr/share/lib/termcap; then
+  AC_DEFINE(TERMINFO) LIBS="$LIBS -lcurses"
+else
+  LIBS="$LIBS -ltermcap"
+fi
+
+AC_HEADER_CHECK(shadow.h, AC_DEFINE(SHADOWPW))
+
+AC_COMPILE_CHECK([System V],
+[#include <sys/types.h>
+#include <signal.h>
+#include <fcntl.h>], [int x = SIGCHLD | FNDELAY;], , AC_DEFINE(SYSV))
+
+AC_HEADER_EGREP([(void|sighandler_t).*signal], signal.h, 
+  AC_DEFINE(SIGVOID))
+
+AC_DIR_HEADER
+
+AC_COMPILE_CHECK(getutent, [#include <time.h> /* to get time_t on SCO */
+#include <utmp.h>],
+[int x = DEAD_PROCESS; getutent();], AC_DEFINE(GETUTENT))
+
+AC_GETLOADAVG
+
+echo checking for mknod declaration
+AC_TEST_PROGRAM([#include <sys/types.h>
+#include <sys/stat.h>
+char *mknod(short); main() {}], , AC_DEFINE(MKNOD_DECLARED))
+
+echo checking for setpgid declaration
+AC_TEST_PROGRAM([#include <sys/types.h>
+#include <unistd.h>
+char *setpgid(short); main() {}], , AC_DEFINE(SETPGID_DECLARED))
+
+AC_COMPILE_CHECK(setreuid, , [setreuid();], , AC_DEFINE(NOREUID))
+
+AC_COMPILE_CHECK(getttyent, , [getttyent();], AC_DEFINE(GETTTYENT))
+
+echo checking whether bcopy handles overlapping arguments
+AC_TEST_PROGRAM([main() {
+  char buf[10];
+  strcpy(buf, "abcdefghi");
+  bcopy(buf, buf + 2, 3);
+  if (!strncmp(buf, "ababcd", 6))
+    exit(0); /* libc version works properly.  */
+  else
+    exit(1);
+}], AC_DEFINE(USEBCOPY))
+
+AC_COMPILE_CHECK(vsprintf, [#include <varargs.h>
+#include <stdio.h>], [vsprintf();], AC_DEFINE(USEVARARGS))
+
+AC_COMPILE_CHECK(putenv, , [putenv();], ,
+AC_DEFINE(NEEDSETENV) LIBOBJS="$LIBOBJS putenv.o")
+AC_SUBST(LIBOBJS)dnl
+
+AC_HEADER_EGREP(ut_host, utmp.h, AC_DEFINE(UTHOST))
+
+AC_COMPILE_CHECK([pid_t],
+[#include <sys/types.h>], [pid_t x;],
+AC_DEFINE(PID_T_DEFINED))
+
+AC_COMPILE_CHECK([sig_t],
+[#include <sys/types.h>
+#include <signal.h>], [sig_t x;],
+AC_DEFINE(SIG_T_DEFINED))
+
+echo checking for long file names
+(echo 1 > conftest9012345) 2>/dev/null
+(echo 2 > conftest9012346) 2>/dev/null
+val=`cat conftest9012345 2>/dev/null`
+if test -f conftest9012345 && test "$val" = 1; then :
+else AC_DEFINE(NAME_MAX, 14)
+fi
+rm -f conftest9012345 conftest9012346
+
+AC_HEADER_CHECK(sys/socket.h, , AC_DEFINE(NAMEDPIPE))
+
+echo checking for SVR4 elf library
+if test -f /usr/ucblib/libucb.a; then # SVR4
+  AC_DEFINE(SVR4) AC_DEFINE(BUGGYGETLOGIN) LIBS="$LIBS -lelf"
+fi
+
+echo checking for SCO crypt and sec libraries
+test -f /lib/libcrypt_d.a && LIBS="$LIBS -lcrypt_d"
+test -f /lib/libcrypt.a && LIBS="$LIBS -lcrypt"
+test -f /lib/libsec.a && LIBS="$LIBS -lsec"
+
+echo checking for IRIX sun library
+test -f /lib/libsun.a && LIBS="$LIBS -lsun"
+
+AC_XENIX_DIR
+
+AC_OUTPUT(Makefile)

@@ -1,0 +1,1806 @@
+IMPLEMENTATION MODULE Defs;
+
+
+
+
+
+IMPORT SYSTEM, System, General, Memory, DynArray, IO, Layout, StringMem, Strings, Idents, Texts, Sets, Positions;
+(* line 199 "defs.cg" *)
+
+FROM SYSTEM	IMPORT
+   ADDRESS	;
+
+FROM IO		IMPORT
+   tFile	, StdOutput	, WriteS	, WriteNl	;
+
+FROM Strings	IMPORT
+   tString	, ArrayToString	;
+
+FROM Idents	IMPORT
+   tIdent	, NoIdent	, MakeIdent	, WriteIdent	;
+
+FROM Values	IMPORT
+   tValue	, TrueValue	, FalseValue	, NilValue	,
+   ErrorValue	, TypeOfValue	, ValueToInt	;
+
+IMPORT Values;
+
+
+
+
+
+
+
+
+
+
+VAR Str		: tString;
+
+PROCEDURE UNION		(Objects1, Objects2: tObjects): tObjects;
+(* Performs a union of two object lists (mUnion) with an optimization	*)
+(* of some very frequent special cases to speed up later identification.*)
+   BEGIN
+      IF Objects1 = NoObjects THEN
+	 RETURN Objects2;
+      ELSIF Objects2 = NoObjects THEN
+	 RETURN Objects1;
+      ELSE
+         RETURN mUnion (Objects1, Objects2);
+      END;
+   END UNION;
+
+(*
+ *	procedures to extend object and type descriptions
+ *)
+
+PROCEDURE mConst2	(Object: tObject; Value: tValue): tObject;
+   BEGIN
+      Object^.Const1.Value := Value;
+      RETURN Object;
+   END mConst2;
+
+PROCEDURE mModule2	(Object: tObject; Objects: tObjects): tObject;
+   BEGIN
+      Object^.Module1.Objects := Objects;
+      RETURN Object;
+   END mModule2;
+
+PROCEDURE mModule3	(Object: tObject; Locals: tObjects): tObject;
+   BEGIN
+      Object^.Module1.Locals := Locals;
+      RETURN Object;
+   END mModule3;
+
+PROCEDURE mTypeDecl2	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.TypeDecl1.Type := Type;
+      RETURN Object;
+   END mTypeDecl2;
+
+PROCEDURE mTypeDecl3	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.TypeDecl1.Type := Type;
+      RETURN Object;
+   END mTypeDecl3;
+
+PROCEDURE mOpaque2	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.Opaque1.Type := Type;
+      RETURN Object;
+   END mOpaque2;
+
+PROCEDURE mOpaque3	(Object: tObject; Type: tType): tObject;
+   BEGIN
+      Object^.Opaque1.Type := Type;
+      RETURN Object;
+   END mOpaque3;
+
+PROCEDURE mProc2	(Object: tObject; Locals: tObjects; IsExported: BOOLEAN): tObject;
+   BEGIN
+      Object^.Proc1.Locals     := Locals;
+      Object^.Proc1.IsExported := IsExported;
+      RETURN Object;
+   END mProc2;
+
+PROCEDURE mOpaqueType2	(Type: tType; FullType: tType): tType;
+   BEGIN
+      Type^.OpaqueType1.Type := FullType;
+      RETURN Type;
+   END mOpaqueType2;
+
+PROCEDURE mArray2	(Type: tType; pIsOpen: BOOLEAN; pIndexType, pElemType: tType): tType;
+   BEGIN
+      WITH Type^.Array1 DO
+	 IsOpen    := pIsOpen;
+	 IndexType := pIndexType;
+	 ElemType  := pElemType;
+      END;
+      RETURN Type;
+   END mArray2;
+
+PROCEDURE mEnumeration2	(Type: tType; EnumLiterals: tObjects; MaxValue: SHORTCARD): tType;
+   BEGIN
+      Type^.Enumeration1.Objects  := EnumLiterals;
+      Type^.Enumeration1.MaxValue := MaxValue;
+      RETURN Type;
+   END mEnumeration2;
+
+PROCEDURE mPointer2	(Type: tType; TargetType: tType): tType;
+   BEGIN
+      Type^.Pointer1.Type := TargetType;
+      RETURN Type;
+   END mPointer2;
+
+PROCEDURE mProcType2	(Type: tType; FormalTypes: tTypes; ResultType: tType): tType;
+   BEGIN
+      WITH Type^.ProcType1 DO
+	 Types := FormalTypes;
+	 Type  := ResultType;
+      END;
+      RETURN Type;
+   END mProcType2;
+
+PROCEDURE mRecord2	(Type: tType; Fields: tObjects): tType;
+   BEGIN
+      Type^.Record1.Objects := Fields;
+      RETURN Type;
+   END mRecord2;
+
+PROCEDURE mSet2		(Type: tType; BaseType: tType): tType;
+   BEGIN
+      Type^.Set1.Type := BaseType;
+      RETURN Type;
+   END mSet2;
+
+PROCEDURE mSubrange2	(Type: tType; BaseType: tType): tType;
+   BEGIN
+      Type^.Subrange1.Type := BaseType;
+      RETURN Type;
+   END mSubrange2;
+
+PROCEDURE mSubrange3	(Type: tType; Lwb, Upb: tValue): tType;
+   BEGIN
+      IF Type^.Subrange1.Type = TypeVOID THEN
+	 CASE Lwb.Kind OF
+	 | Values.Integer	: IF ValueToInt (Lwb) < 0 THEN
+				     Type^.Subrange1.Type := TypeLONGINT;
+				  ELSE
+				     Type^.Subrange1.Type := TypeLONGCARD;
+				  END;
+	 | Values.Boolean	: Type^.Subrange1.Type := TypeBOOLEAN;
+	 | Values.Char	,
+	   Values.StringChar	: Type^.Subrange1.Type := TypeCHAR;
+	 | Values.Enumeration	: Type^.Subrange1.Type := GetType (Lwb.EnumValue);
+	 ELSE ;
+	 END;
+      END;
+      RETURN Type;
+   END mSubrange3;
+
+PROCEDURE DefineCIdent	(Object: tObject; CIdent: tIdent): tIdent;
+   BEGIN
+      Object^.Object.CIdent := CIdent;
+      RETURN CIdent;
+   END DefineCIdent;
+
+PROCEDURE NestedUse	(Object: tObject; Level: SHORTCARD): BOOLEAN;
+   BEGIN
+      IF (Object^.Kind       # Var1 ) OR	(* no variable		*)
+         (Object^.Var1.Level = 0    ) OR	(* global variable	*)
+	 (Object^.Var1.Level = Level)		(* local variable	*)
+      THEN
+	 RETURN FALSE;
+      ELSE
+	 (* variable is neither local nor global	*)
+	 Object^.Var1.NestedUse := TRUE;
+	 RETURN TRUE;
+      END;
+   END NestedUse;
+
+PROCEDURE mVoid1	(Object: tObject; Void: tVoid): tVoid;
+   BEGIN
+      RETURN cVoid;
+   END mVoid1;
+
+PROCEDURE mVoid2	(Void1, Void2: tVoid): tVoid;
+   BEGIN
+      RETURN cVoid;
+   END mVoid2;
+
+(*
+ *	procedures for identification
+ *)
+
+PROCEDURE GroundType	(Type: tType): tType;
+
+   VAR Cycle	: BOOLEAN;
+
+   PROCEDURE CheckCycle1 (Type: tType; VAR Cycle: BOOLEAN);
+   BEGIN
+      IF Type^.Kind = Qualident1 THEN
+	 IF Type^.yyHead.yyMark # 0 THEN
+	    Cycle := TRUE;
+	 ELSE
+	   Type^.yyHead.yyMark := 1;
+	   CheckCycle2 (Type^.Qualident1.Object, Cycle);
+	   Type^.yyHead.yyMark := 0;
+	 END;
+      ELSE
+	 Cycle := FALSE;
+      END;
+   END CheckCycle1;
+
+   PROCEDURE CheckCycle2 (Object: tObject; VAR Cycle: BOOLEAN);
+   BEGIN
+      IF Object^.Kind = TypeDecl1 THEN
+	 CheckCycle1 (Object^.TypeDecl1.Type, Cycle);
+      ELSE
+	 Cycle := FALSE;
+      END;
+   END CheckCycle2;
+
+   BEGIN
+      (* test for cycles like: TYPE t1 = t2; t2 = t1; *)
+      CheckCycle1 (Type, Cycle);
+      IF Cycle THEN
+         RETURN NoType;
+      ELSE
+	 RETURN GroundType1 (Type);
+      END;
+   END GroundType;
+
+PROCEDURE GroundType1	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Qualident1 THEN
+	 RETURN GroundType2 (Type^.Qualident1.Object);
+      END;
+      RETURN Type;
+   END GroundType1;
+
+PROCEDURE GroundType2	(Object: tObject): tType;
+   BEGIN
+      IF Object^.Kind = TypeDecl1 THEN
+	 RETURN GroundType (Object^.TypeDecl1.Type);
+      ELSIF Object^.Kind = Opaque1 THEN
+	 RETURN Object^.Opaque1.Type;
+      END;
+      RETURN NoType;
+   END GroundType2;
+
+PROCEDURE Identify	(Ident: tIdent; Env: tEnv): tObject;
+   VAR Object	: tDefs;
+   BEGIN
+      WHILE Env # NoEnv DO
+	 Object := Identify2 (Ident, Env^.Env.Objects);
+	 IF Object # NoObject THEN RETURN Object; END;
+	 Env := Env^.Env.HiddenEnv;
+      END;
+      RETURN NoObject;
+   END Identify;
+
+PROCEDURE Identify2	(Ident: tIdent; Objects: tObjects): tObject;
+   VAR Object	: tDefs;
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    IF Objects^.Elmt.Ident = Ident THEN
+	       RETURN Objects^.Elmt.Object;
+	    END;
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    Object := Identify2 (Ident, Objects^.Union.Objects1);
+	    IF Object # NoObject THEN RETURN Object; END;
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+      RETURN NoObject;
+   END Identify2;
+
+PROCEDURE IsDeclared	(Ident: tIdent; Objects: tObjects): BOOLEAN;
+   BEGIN
+      RETURN Identify2 (Ident, Objects) # NoObject;
+   END IsDeclared;
+
+PROCEDURE LookUp	(M2Object: tObject; Objects: tCObjects): tIdent;
+   BEGIN
+      WHILE Objects # NoCObjects DO
+	 IF Objects^.CObjects.M2Object = M2Object THEN
+	    RETURN Objects^.CObjects.CObject;
+	 END;
+	 Objects := Objects^.CObjects.Next;
+      END;
+      RETURN NoIdent;
+   END LookUp;
+
+(*
+ *	procedures to collect object descriptions
+ *)
+
+VAR Result	: tObjects;
+
+PROCEDURE Filter	(Objects: tObjects): tObjects;
+   BEGIN
+      Result := NoObjects;
+      Filter2 (Objects);
+      RETURN Result;
+   END Filter;
+
+PROCEDURE Filter2	(Objects: tObjects);
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    WITH Objects^.Elmt DO
+	       CASE Object^.Kind OF
+	       | Const1		,
+		 EnumLiteral1	,
+		 TypeDecl1	,
+		 Var1		: Result := mElmt (Ident, FALSE, Object, Result);
+	       ELSE
+	       END; (* CASE *)
+	    END; (* WITH *)
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    Filter2 (Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+   END Filter2;
+
+VAR Result1	: tCObjects;
+
+PROCEDURE Pointers	(GlobalPtrs: BOOLEAN; Objects: tObjects): tCObjects;
+   BEGIN
+      Result1 := NoCObjects;
+      Pointers2 (GlobalPtrs, Objects);
+      RETURN Result1;
+   END Pointers;
+
+PROCEDURE Pointers2	(GlobalPtrs: BOOLEAN; Objects: tObjects);
+   VAR Object	: tObject;
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind = Elmt THEN
+	    IF NOT Objects^.Elmt.IsPseudoObj THEN
+	       Object := Objects^.Elmt.Object;
+	       CASE Object^.Kind OF
+	       | Var1		:
+		  IF Object^.Var1.NestedUse THEN
+		     Result1 := mCObjects (Object, Result1);
+		  END;
+
+	       | Proc1		:
+		  IF GlobalPtrs THEN
+		     Pointers2 (GlobalPtrs, Object^.Proc1.Locals);
+		  END;
+
+	       | Module1	:
+		  Pointers2 (GlobalPtrs, Object^.Module1.Locals);
+	       ELSE
+	       END;
+	    END;
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    Pointers2 (GlobalPtrs, Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+   END Pointers2;
+
+VAR ValueOpens	,
+    VAROpens	: tCObjects;
+
+PROCEDURE OpenArrays	(Objects: tObjects; VAR pValueOpens, pVAROpens: tCObjects);
+   BEGIN
+      ValueOpens  := NoCObjects;
+      VAROpens    := NoCObjects;
+      OpenArrays2 (Objects);
+      pValueOpens := ValueOpens;
+      pVAROpens   := VAROpens;
+   END OpenArrays;
+
+PROCEDURE OpenArrays2	(Objects: tObjects);
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    WITH Objects^.Elmt DO
+	       IF IsOpenArray (Object) THEN
+		  IF IsVAR (Object) THEN
+		     VAROpens   := mCObjects (Object, VAROpens);
+		  ELSE
+		     ValueOpens := mCObjects (Object, ValueOpens);
+		  END; (* IF *)
+	       END; (* IF *)
+	    END; (* WITH *)
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    OpenArrays2 (Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END; (* IF *)
+      END; (* WHILE *)
+   END OpenArrays2;
+
+(*
+ *	procedures for 'safe' access to object and type descriptions
+ *)
+
+PROCEDURE GetSelectors	(Object: tObject): tSelectors;
+   BEGIN
+      IF Object^.Kind = Field1 THEN
+	 RETURN Object^.Field1.Selectors;
+      ELSE
+	 RETURN NoSelectors;
+      END; (* IF *)
+   END GetSelectors;
+
+PROCEDURE GetExport1	(Object: tObject): tObjects;
+   BEGIN
+      IF Object^.Kind = Module1 THEN
+	 RETURN Object^.Module1.ExportList;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetExport1;
+
+PROCEDURE GetExport2	(Object: tObject): tObjects;
+   BEGIN
+      IF Object^.Kind = Module1 THEN
+	 RETURN Object^.Module1.Objects;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetExport2;
+
+PROCEDURE GetObjects	(Object: tObject): tObjects;
+   BEGIN
+      IF (Object^.Kind = Var1) AND (Object^.Var1.Type^.Kind = Record1) THEN
+	 RETURN Object^.Var1.Type^.Record1.Objects;
+      ELSIF (Object^.Kind = Field1) AND (Object^.Field1.Type^.Kind = Record1) THEN
+	 RETURN Object^.Field1.Type^.Record1.Objects;
+      ELSIF Object^.Kind = Module1 THEN
+	 RETURN Object^.Module1.Objects;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetObjects;
+
+PROCEDURE GetType	(Object: tObject): tType;
+   BEGIN
+      CASE Object^.Kind OF
+
+	(* The type of a constant is guessed from its value. This works	*)
+	(* well for all constants with the exception of set constants.	*)
+	(* Therefore all named set constants receive the type BITSET.	*)
+      | Const1		: RETURN TypeOfValue (Object^.Const1.Value);
+
+      | EnumLiteral1	: RETURN Object^.EnumLiteral1.Type;
+      | Field1		: RETURN Object^.Field1.Type;
+      | Module1		: RETURN TypeVOID;
+      | Proc1		: RETURN Object^.Proc1.Type;
+      | ProcHead1	: RETURN Object^.ProcHead1.Type;
+      | TypeDecl1	: RETURN Object^.TypeDecl1.Type;
+      | Opaque1		: RETURN Object^.Opaque1.Type;
+      | Var1		: RETURN Object^.Var1.Type;
+      | StdProc1	: RETURN Object^.StdProc1.Type;
+      ELSE
+	RETURN NoType;
+      END; (* CASE *)
+   END GetType;
+
+PROCEDURE GetIndexType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Array1 THEN
+	 RETURN Type^.Array1.IndexType;
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetIndexType;
+
+PROCEDURE GetElemType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Array1 THEN
+	 RETURN Type^.Array1.ElemType;
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetElemType;
+
+PROCEDURE GetTargetType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = Pointer1 THEN
+	 RETURN Type^.Pointer1.Type;
+      ELSIF Type^.Kind = OpaqueType1 THEN
+	 RETURN GetTargetType (Type^.OpaqueType1.Type);
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetTargetType;
+
+PROCEDURE GetFormals	(Type: tType): tTypes;
+   BEGIN
+      IF Type^.Kind = ProcType1 THEN
+	 RETURN Type^.ProcType1.Types;
+      ELSIF Type^.Kind = StdProcType1 THEN
+	 (* formal types of standard procedures are not	*)
+	 (* handled within the AG			*)
+	 RETURN NoTypes;
+      ELSE
+	 RETURN NoTypes;
+      END; (* IF *)
+   END GetFormals;
+
+PROCEDURE GetResultType	(Type: tType): tType;
+   BEGIN
+      IF Type^.Kind = ProcType1 THEN
+	 RETURN Type^.ProcType1.Type;
+      ELSE
+	 RETURN NoType;
+      END; (* IF *)
+   END GetResultType;
+
+PROCEDURE GetFields	(Type: tType): tObjects;
+   BEGIN
+      IF Type^.Kind = Record1 THEN
+	 RETURN Type^.Record1.Objects;
+      ELSE
+	 RETURN NoObjects;
+      END; (* IF *)
+   END GetFields;
+
+PROCEDURE Head		(Types: tTypes; VAR IsVAR: BOOLEAN; VAR Type: tType);
+   BEGIN
+      IF Types # NoTypes THEN
+	 IsVAR := Types^.Types.IsVAR;
+	 Type  := Types^.Types.Type;
+      ELSE
+	 IsVAR := FALSE;
+	 Type  := NoType;
+      END; (* IF *)
+   END Head;
+
+PROCEDURE Tail		(Types: tTypes): tTypes;
+   BEGIN
+      IF Types # NoTypes THEN
+	 RETURN Types^.Types.Next;
+      ELSE
+	 RETURN NoTypes;
+      END; (* IF *)
+   END Tail;
+
+PROCEDURE GetLiteral	(Objects: tObjects; Index: SHORTCARD): tObject;
+   VAR Object: tObject;
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 Object := Objects^.Elmt.Object;
+	 IF Object^.EnumLiteral1.Index = Index THEN
+	    RETURN Object;
+	 END; (* IF *)
+	 Objects := Objects^.Elmt.Next;
+      END; (* WHILE *)
+      RETURN NoObject;
+   END GetLiteral;
+
+(*
+ *	predicates on objects and types
+ *)
+
+PROCEDURE IsExported	(Object: tObject): BOOLEAN;
+BEGIN
+  RETURN (Object^.Kind = Proc1) AND Object^.Proc1.IsExported;
+END IsExported;
+
+PROCEDURE IsOpenArray	(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = Var1) AND IsOpen (Object^.Var1.Type);
+END IsOpenArray;
+
+PROCEDURE IsVAR		(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = Var1) AND Object^.Var1.IsVAR;
+END IsVAR;
+
+PROCEDURE IsProcedure	(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = Proc1) OR (Object^.Kind = ProcHead1);
+END IsProcedure;
+
+PROCEDURE IsOfType	(Object: tObject): BOOLEAN;
+BEGIN
+   RETURN (Object^.Kind = TypeDecl1) OR (Object^.Kind = Opaque1);
+END IsOfType;
+
+PROCEDURE IsForward	(PosPointerTo: SHORTCARD; TypeObj: tObject): BOOLEAN;
+BEGIN
+   IF TypeObj^.Kind = TypeDecl1 THEN
+      RETURN TypeObj^.TypeDecl1.TypePos > PosPointerTo;
+   ELSIF TypeObj^.Kind = Opaque1 THEN
+      RETURN TypeObj^.Opaque1.TypePos > PosPointerTo;
+   ELSE
+      RETURN FALSE;
+   END;
+END IsForward;
+
+PROCEDURE IsIntType	(Type: tType): BOOLEAN;
+BEGIN
+   CASE Type^.Kind OF
+   | Subrange1	: RETURN IsIntType (Type^.Subrange1.Type);
+   | ShortCard	,
+     LongCard	,
+     ShortInt	,
+     LongInt	: RETURN TRUE;
+   ELSE
+      RETURN FALSE;
+   END;
+END IsIntType;
+
+PROCEDURE IsOpen	(Type: tType): BOOLEAN;
+BEGIN
+   RETURN (Type^.Kind = Array1) AND Type^.Array1.IsOpen;
+END IsOpen;
+
+(*
+ *	procedures for test output
+ *)
+
+PROCEDURE WriteEnv	(f: tFile; Env: tEnv);
+   BEGIN
+      WHILE Env # NoEnv DO
+	 WriteObjects (f, Env^.Env.Objects);
+	 WriteS (f, "/");
+	 Env := Env^.Env.HiddenEnv;
+      END;
+      WriteNl (f);
+   END WriteEnv;
+
+PROCEDURE WriteObjects	(f: tFile; Objects: tObjects);
+   BEGIN
+      WHILE Objects # NoObjects DO
+	 IF Objects^.Kind # Union THEN
+	    WriteS (f, " ");
+	    WriteIdent (f, Objects^.Elmt.Ident);
+	    Objects := Objects^.Elmt.Next;
+	 ELSE
+	    WriteObjects (f, Objects^.Union.Objects1);
+	    Objects := Objects^.Union.Objects2;
+	 END;
+      END;
+   END WriteObjects;
+
+(*
+ *	procedure to construct object descriptions for predefined objects
+ *)
+
+PROCEDURE Predef (): tObjects;
+   VAR Objects	: tObjects;
+   VAR String	: tString;
+   VAR Ident	: tIdent;
+   VAR Object	: tObject;
+
+   PROCEDURE BasicType (Name: ARRAY OF CHAR; Type: tType);
+      BEGIN
+	 ArrayToString (Name, String);
+	 Ident := MakeIdent (String);
+	 Object := mTypeDecl2 (mTypeDecl1 (Ident, 0), Type);
+	 Object^.TypeDecl1.CIdent := Ident;
+	 Objects := mElmt (Ident, FALSE, Object, Objects);
+      END BasicType;
+
+   PROCEDURE StdConst (Name: ARRAY OF CHAR; Value: tValue);
+      BEGIN
+	 ArrayToString (Name, String);
+	 Ident := MakeIdent (String);
+         Object := mConst2 (mConst1 (Ident), Value);
+         Object^.Const1.CIdent := Ident;
+         Objects := mElmt (Ident, FALSE, Object, Objects);
+      END StdConst;
+
+   PROCEDURE StdProcedure (Name: ARRAY OF CHAR; StdProc: SHORTCARD);
+      BEGIN
+	 ArrayToString (Name, String);
+	 Ident := MakeIdent (String);
+	 Object := mStdProc1 (Ident, StdProc, mStdProcType1 (StdProc));
+	 Object^.Proc1.CIdent := Ident;
+	 Objects := mElmt (Ident, FALSE, Object, Objects);
+      END StdProcedure;
+
+   BEGIN
+      Objects := NoObjects;
+
+      BasicType ("ADDRESS"	, TypeADDRESS	);
+      BasicType ("WORD"		, TypeWORD	);
+      BasicType ("BYTE"		, TypeWORD	);
+
+      StdProcedure ("ADR"	, ProcADR	);
+      StdProcedure ("TSIZE"	, ProcTSIZE	);
+      StdProcedure ("NEWPROCESS", ProcNEWPROCESS);
+      StdProcedure ("TRANSFER"	, ProcTRANSFER	);
+      StdProcedure ("IOTRANSFER", ProcIOTRANSFER);
+
+      ModuleSYSTEM := mModule2 (mModule1 (IdentSYSTEM, Objects), Objects);
+      ModuleSYSTEM^.Module1.CIdent := IdentSYSTEM;
+
+      Objects := NoObjects;
+
+      BasicType ("INTEGER"	, TypeLONGINT	);
+      BasicType ("SHORTINT"	, TypeSHORTINT	);
+      BasicType ("LONGINT"	, TypeLONGINT	);
+      BasicType ("CARDINAL"	, TypeLONGCARD	);
+      BasicType ("SHORTCARD"	, TypeSHORTCARD	);
+      BasicType ("LONGCARD"	, TypeLONGCARD	);
+      BasicType ("REAL"		, TypeREAL	);
+      BasicType ("LONGREAL"	, TypeLONGREAL	);
+      BasicType ("BOOLEAN"	, TypeBOOLEAN	);
+      BasicType ("CHAR"		, TypeCHAR	);
+      BasicType ("BITSET"	, TypeBITSET	);
+      BasicType ("PROC"		, TypePROC	);
+
+      (* ---------------------------------------------- *)
+      (* unfortunately there are circular references	*)
+      (* among Defs and Values and hence their order of	*)
+      (* initialization is not defined			*)
+      NilValue.Kind		:= Values.NilType;
+      TrueValue.Kind		:= Values.Boolean;
+      TrueValue.BoolValue	:= TRUE;
+      FalseValue.Kind		:= Values.Boolean;
+      FalseValue.BoolValue	:= FALSE;
+      (* ---------------------------------------------- *)
+
+      StdConst ("NIL"		, NilValue	);
+      StdConst ("TRUE"		, TrueValue	);
+      StdConst ("FALSE"		, FalseValue	);
+
+      StdProcedure ("ABS"	, ProcABS	);
+      StdProcedure ("CAP"	, ProcCAP	);
+      StdProcedure ("CHR"	, ProcCHR	);
+      StdProcedure ("DEC"	, ProcDEC	);
+      StdProcedure ("EXCL"	, ProcEXCL	);
+      StdProcedure ("FLOAT"	, ProcFLOAT	);
+      StdProcedure ("HALT"	, ProcHALT	);
+      StdProcedure ("HIGH"	, ProcHIGH	);
+      StdProcedure ("INC"	, ProcINC	);
+      StdProcedure ("INCL"	, ProcINCL	);
+      StdProcedure ("MAX"	, ProcMAX	);
+      StdProcedure ("MIN"	, ProcMIN	);
+      StdProcedure ("ODD"	, ProcODD	);
+      StdProcedure ("ORD"	, ProcORD	);
+      StdProcedure ("SIZE"	, ProcSIZE	);
+      StdProcedure ("TRUNC"	, ProcTRUNC	);
+      StdProcedure ("VAL"	, ProcVAL	);
+      StdProcedure ("NEW"	, ProcNEW	);
+      StdProcedure ("DISPOSE"	, ProcDISPOSE	);
+
+      RETURN Objects;
+   END Predef;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CONST yyBlockSize = 20480;
+
+TYPE
+ yytBlockPtr	= POINTER TO yytBlock;
+ yytBlock	= RECORD
+		     yyBlock	: ARRAY [1..yyBlockSize] OF CHAR;
+		     yySuccessor: yytBlockPtr;
+		  END;
+
+VAR yyBlockList	: yytBlockPtr;
+VAR yyMaxSize, yyi	: SHORTCARD;
+VAR yyTypeRange	: ARRAY [0..50] OF SHORTCARD;
+
+PROCEDURE yyAlloc (): tDefs;
+ VAR yyBlockPtr	: yytBlockPtr;
+ BEGIN
+  yyBlockPtr	:= yyBlockList;
+  yyBlockList	:= Memory.Alloc (SYSTEM.TSIZE (yytBlock));
+  yyBlockList^.yySuccessor := yyBlockPtr;
+  yyPoolFreePtr	:= SYSTEM.ADR (yyBlockList^.yyBlock);
+  yyPoolMaxPtr	:= yyPoolFreePtr + yyBlockSize - yyMaxSize + 1;
+  INC (HeapUsed, yyBlockSize);
+  RETURN yyPoolFreePtr;
+ END yyAlloc;
+
+PROCEDURE MakeDefs (yyKind: SHORTCARD): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [yyKind]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := yyKind;
+  RETURN yyt;
+ END MakeDefs;
+
+PROCEDURE IsType (yyTree: tDefs; yyKind: SHORTCARD): BOOLEAN;
+ BEGIN
+  RETURN (yyTree # NoDefs) AND (yyKind <= yyTree^.Kind) AND (yyTree^.Kind <= yyTypeRange [yyKind]);
+ END IsType;
+
+
+PROCEDURE mObject (pIdent: tIdent): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Object]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Object;
+  WITH yyt^.Object DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+  END;
+  RETURN yyt;
+ END mObject;
+
+PROCEDURE mObject0 (pIdent: tIdent): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Object0]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Object0;
+  WITH yyt^.Object0 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+  END;
+  RETURN yyt;
+ END mObject0;
+
+PROCEDURE mConst1 (pIdent: tIdent): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Const1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Const1;
+  WITH yyt^.Const1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   Value := ErrorValue;
+  END;
+  RETURN yyt;
+ END mConst1;
+
+PROCEDURE mEnumLiteral1 (pIdent: tIdent; pType: tDefs; pIndex: SHORTCARD): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [EnumLiteral1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := EnumLiteral1;
+  WITH yyt^.EnumLiteral1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   Type := pType;
+   Index := pIndex;
+  END;
+  RETURN yyt;
+ END mEnumLiteral1;
+
+PROCEDURE mField1 (pIdent: tIdent; pType: tDefs; pSelectors: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Field1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Field1;
+  WITH yyt^.Field1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   Type := pType;
+   Selectors := pSelectors;
+  END;
+  RETURN yyt;
+ END mField1;
+
+PROCEDURE mModule1 (pIdent: tIdent; pExportList: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Module1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Module1;
+  WITH yyt^.Module1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   ExportList := pExportList;
+   Objects := NoDefs;
+   Locals := NoDefs;
+  END;
+  RETURN yyt;
+ END mModule1;
+
+PROCEDURE mProc1 (pIdent: tIdent; pType: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Proc1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Proc1;
+  WITH yyt^.Proc1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   Type := pType;
+   IsExported := FALSE;
+   Locals := NoDefs;
+  END;
+  RETURN yyt;
+ END mProc1;
+
+PROCEDURE mProcHead1 (pIdent: tIdent; pType: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [ProcHead1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := ProcHead1;
+  WITH yyt^.ProcHead1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   Type := pType;
+  END;
+  RETURN yyt;
+ END mProcHead1;
+
+PROCEDURE mTypeDecl1 (pIdent: tIdent; pTypePos: SHORTCARD): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [TypeDecl1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := TypeDecl1;
+  WITH yyt^.TypeDecl1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   TypePos := pTypePos;
+   Type := NoDefs;
+  END;
+  RETURN yyt;
+ END mTypeDecl1;
+
+PROCEDURE mOpaque1 (pIdent: tIdent; pTypePos: SHORTCARD): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Opaque1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Opaque1;
+  WITH yyt^.Opaque1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   TypePos := pTypePos;
+   Type := NoDefs;
+  END;
+  RETURN yyt;
+ END mOpaque1;
+
+PROCEDURE mVar1 (pIdent: tIdent; pType: tDefs; pIsVAR: BOOLEAN; pLevel: SHORTCARD; pNestedUse: BOOLEAN; pTypeTree: ADDRESS): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Var1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Var1;
+  WITH yyt^.Var1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   Type := pType;
+   IsVAR := pIsVAR;
+   Level := pLevel;
+   NestedUse := pNestedUse;
+   TypeTree := pTypeTree;
+  END;
+  RETURN yyt;
+ END mVar1;
+
+PROCEDURE mStdProc1 (pIdent: tIdent; pStdProc: SHORTCARD; pType: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [StdProc1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := StdProc1;
+  WITH yyt^.StdProc1 DO
+   Ident := pIdent;
+   CIdent := NoIdent;
+   StdProc := pStdProc;
+   Type := pType;
+  END;
+  RETURN yyt;
+ END mStdProc1;
+
+PROCEDURE mType (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Type]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Type;
+  RETURN yyt;
+ END mType;
+
+PROCEDURE mType0 (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Type0]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Type0;
+  RETURN yyt;
+ END mType0;
+
+PROCEDURE mShortInt (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [ShortInt]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := ShortInt;
+  RETURN yyt;
+ END mShortInt;
+
+PROCEDURE mLongInt (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [LongInt]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := LongInt;
+  RETURN yyt;
+ END mLongInt;
+
+PROCEDURE mShortCard (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [ShortCard]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := ShortCard;
+  RETURN yyt;
+ END mShortCard;
+
+PROCEDURE mLongCard (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [LongCard]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := LongCard;
+  RETURN yyt;
+ END mLongCard;
+
+PROCEDURE mReal (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Real]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Real;
+  RETURN yyt;
+ END mReal;
+
+PROCEDURE mLongReal (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [LongReal]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := LongReal;
+  RETURN yyt;
+ END mLongReal;
+
+PROCEDURE mBool (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Bool]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Bool;
+  RETURN yyt;
+ END mBool;
+
+PROCEDURE mChar (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Char]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Char;
+  RETURN yyt;
+ END mChar;
+
+PROCEDURE mBitset (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Bitset]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Bitset;
+  RETURN yyt;
+ END mBitset;
+
+PROCEDURE mProc (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Proc]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Proc;
+  RETURN yyt;
+ END mProc;
+
+PROCEDURE mWord (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Word]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Word;
+  RETURN yyt;
+ END mWord;
+
+PROCEDURE mAddress (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Address]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Address;
+  RETURN yyt;
+ END mAddress;
+
+PROCEDURE mIntCard (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [IntCard]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := IntCard;
+  RETURN yyt;
+ END mIntCard;
+
+PROCEDURE mNil (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Nil]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Nil;
+  RETURN yyt;
+ END mNil;
+
+PROCEDURE mString (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [String]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := String;
+  RETURN yyt;
+ END mString;
+
+PROCEDURE mStringChar (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [StringChar]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := StringChar;
+  RETURN yyt;
+ END mStringChar;
+
+PROCEDURE mVoid (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Void]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Void;
+  RETURN yyt;
+ END mVoid;
+
+PROCEDURE mStdProcType1 (pStdProc: SHORTCARD): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [StdProcType1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := StdProcType1;
+  WITH yyt^.StdProcType1 DO
+   StdProc := pStdProc;
+  END;
+  RETURN yyt;
+ END mStdProcType1;
+
+PROCEDURE mQualident1 (pObject: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Qualident1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Qualident1;
+  WITH yyt^.Qualident1 DO
+   Object := pObject;
+  END;
+  RETURN yyt;
+ END mQualident1;
+
+PROCEDURE mConstructor (pTypeObj: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Constructor]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Constructor;
+  WITH yyt^.Constructor DO
+   TypeObj := pTypeObj;
+  END;
+  RETURN yyt;
+ END mConstructor;
+
+PROCEDURE mOpaqueType1 (pTypeObj: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [OpaqueType1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := OpaqueType1;
+  WITH yyt^.OpaqueType1 DO
+   TypeObj := pTypeObj;
+   Type := NoDefs;
+  END;
+  RETURN yyt;
+ END mOpaqueType1;
+
+PROCEDURE mArray1 (pTypeObj: tDefs; pStructId: tIdent): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Array1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Array1;
+  WITH yyt^.Array1 DO
+   TypeObj := pTypeObj;
+   StructId := pStructId;
+   IndexType := NoDefs;
+   ElemType := NoDefs;
+   IsOpen := FALSE;
+  END;
+  RETURN yyt;
+ END mArray1;
+
+PROCEDURE mEnumeration1 (pTypeObj: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Enumeration1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Enumeration1;
+  WITH yyt^.Enumeration1 DO
+   TypeObj := pTypeObj;
+   MaxValue := 0;
+   Objects := NoDefs;
+  END;
+  RETURN yyt;
+ END mEnumeration1;
+
+PROCEDURE mPointer1 (pTypeObj: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Pointer1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Pointer1;
+  WITH yyt^.Pointer1 DO
+   TypeObj := pTypeObj;
+   Type := NoDefs;
+  END;
+  RETURN yyt;
+ END mPointer1;
+
+PROCEDURE mProcType1 (pTypeObj: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [ProcType1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := ProcType1;
+  WITH yyt^.ProcType1 DO
+   TypeObj := pTypeObj;
+   Types := NoDefs;
+   Type := NoDefs;
+  END;
+  RETURN yyt;
+ END mProcType1;
+
+PROCEDURE mRecord1 (pTypeObj: tDefs; pStructId: tIdent): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Record1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Record1;
+  WITH yyt^.Record1 DO
+   TypeObj := pTypeObj;
+   StructId := pStructId;
+   Objects := NoDefs;
+  END;
+  RETURN yyt;
+ END mRecord1;
+
+PROCEDURE mSet1 (pTypeObj: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Set1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Set1;
+  WITH yyt^.Set1 DO
+   TypeObj := pTypeObj;
+   Type := NoDefs;
+  END;
+  RETURN yyt;
+ END mSet1;
+
+PROCEDURE mSubrange1 (pTypeObj: tDefs; pLwbExpr: ADDRESS; pUpbExpr: ADDRESS): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Subrange1]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Subrange1;
+  WITH yyt^.Subrange1 DO
+   TypeObj := pTypeObj;
+   LwbExpr := pLwbExpr;
+   UpbExpr := pUpbExpr;
+   Type := NoDefs;
+   Lwb := ErrorValue;
+   Upb := ErrorValue;
+  END;
+  RETURN yyt;
+ END mSubrange1;
+
+PROCEDURE mObjects (): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Objects]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Objects;
+  RETURN yyt;
+ END mObjects;
+
+PROCEDURE mElmt (pIdent: tIdent; pIsPseudoObj: BOOLEAN; pObject: tDefs; pNext: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Elmt]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Elmt;
+  WITH yyt^.Elmt DO
+   Ident := pIdent;
+   IsPseudoObj := pIsPseudoObj;
+   Object := pObject;
+   Next := pNext;
+  END;
+  RETURN yyt;
+ END mElmt;
+
+PROCEDURE mUnion (pObjects1: tDefs; pObjects2: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Union]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Union;
+  WITH yyt^.Union DO
+   Objects1 := pObjects1;
+   Objects2 := pObjects2;
+  END;
+  RETURN yyt;
+ END mUnion;
+
+PROCEDURE mCObjects (pM2Object: tObject; pNext: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [CObjects]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := CObjects;
+  WITH yyt^.CObjects DO
+   M2Object := pM2Object;
+   Next := pNext;
+   CObject := NoIdent;
+  END;
+  RETURN yyt;
+ END mCObjects;
+
+PROCEDURE mTypes (pIsVAR: BOOLEAN; pType: tDefs; pNext: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Types]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Types;
+  WITH yyt^.Types DO
+   IsVAR := pIsVAR;
+   Type := pType;
+   Next := pNext;
+  END;
+  RETURN yyt;
+ END mTypes;
+
+PROCEDURE mEnv (pObjects: tDefs; pHiddenEnv: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Env]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Env;
+  WITH yyt^.Env DO
+   Objects := pObjects;
+   HiddenEnv := pHiddenEnv;
+  END;
+  RETURN yyt;
+ END mEnv;
+
+PROCEDURE mSelectors (pSelector: tIdent; pNext: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [Selectors]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := Selectors;
+  WITH yyt^.Selectors DO
+   Selector := pSelector;
+   Next := pNext;
+  END;
+  RETURN yyt;
+ END mSelectors;
+
+PROCEDURE mStringPar (pCString: tIdent; pFormalType: tDefs; pM2String: ADDRESS; pNext: tDefs): tDefs;
+ VAR yyByteCount	: LONGINT;
+ VAR yyt	: tDefs;
+ BEGIN
+  yyt := yyPoolFreePtr; IF SYSTEM.ADDRESS (yyt) >= yyPoolMaxPtr THEN yyt := yyAlloc (); END; INC (yyPoolFreePtr,  yyNodeSize [StringPar]);
+  yyt^.yyHead.yyMark := 0;
+  yyt^.Kind := StringPar;
+  WITH yyt^.StringPar DO
+   CString := pCString;
+   FormalType := pFormalType;
+   M2String := pM2String;
+   Next := pNext;
+  END;
+  RETURN yyt;
+ END mStringPar;
+
+TYPE yyPtrtTree	= POINTER TO tDefs;
+
+VAR yyf	: IO.tFile;
+VAR yyLabel	: SHORTCARD;
+VAR yyKind	: SHORTCARD;
+VAR yyc	: CHAR;
+VAR yys	: Strings.tString;
+
+CONST yyNil	= 374C;
+CONST yyNoLabel	= 375C;
+CONST yyLabelDef	= 376C;
+CONST yyLabelUse	= 377C;
+
+PROCEDURE BeginDefs;
+ BEGIN
+(* line 965 "defs.cg" *)
+
+   NoObject		:= mObject0 (NoIdent);
+   NoObject^.Object0.CIdent := NoIdent;
+
+   NoType		:= mType0 ();
+
+   ArrayToString ("SYSTEM", Str);
+   IdentSYSTEM		:= MakeIdent (Str);
+   ArrayToString ("LONGCARD", Str);
+   IdentLONGCARD	:= MakeIdent (Str);
+   ArrayToString ("ALLOCATE", Str);
+   IdentALLOC		:= MakeIdent (Str);
+   ArrayToString ("DEALLOCATE", Str);
+   IdentDEALLOC		:= MakeIdent (Str);
+
+   TypeSHORTINT		:= mShortInt	();
+   TypeLONGINT		:= mLongInt	();
+   TypeSHORTCARD	:= mShortCard	();
+   TypeLONGCARD		:= mLongCard	();
+   TypeREAL		:= mReal	();
+   TypeLONGREAL		:= mLongReal	();
+   TypeBOOLEAN		:= mBool	();
+   TypeCHAR		:= mChar	();
+   TypeBITSET		:= mBitset	();
+   TypePROC		:= mProc	();
+   TypeWORD		:= mWord	();
+   TypeADDRESS		:= mAddress	();
+   TypeIntCard		:= mIntCard	();
+   TypeNIL		:= mNil		();
+   TypeSTRING		:= mString	();
+   TypeStringChar	:= mStringChar	();
+   TypeVOID		:= mVoid	();
+
+   Predefs		:= Predef ();
+
+ END BeginDefs;
+
+PROCEDURE CloseDefs;
+ BEGIN
+ END CloseDefs;
+
+PROCEDURE xxExit;
+ BEGIN
+  IO.CloseIO; System.Exit (1);
+ END xxExit;
+
+BEGIN
+ yyBlockList	:= NIL;
+ yyPoolFreePtr	:= NIL;
+ yyPoolMaxPtr	:= NIL;
+ HeapUsed	:= 0;
+ yyExit	:= xxExit;
+ yyNodeSize [Object] := SYSTEM.TSIZE (yObject);
+ yyNodeSize [Object0] := SYSTEM.TSIZE (yObject0);
+ yyNodeSize [Const1] := SYSTEM.TSIZE (yConst1);
+ yyNodeSize [EnumLiteral1] := SYSTEM.TSIZE (yEnumLiteral1);
+ yyNodeSize [Field1] := SYSTEM.TSIZE (yField1);
+ yyNodeSize [Module1] := SYSTEM.TSIZE (yModule1);
+ yyNodeSize [Proc1] := SYSTEM.TSIZE (yProc1);
+ yyNodeSize [ProcHead1] := SYSTEM.TSIZE (yProcHead1);
+ yyNodeSize [TypeDecl1] := SYSTEM.TSIZE (yTypeDecl1);
+ yyNodeSize [Opaque1] := SYSTEM.TSIZE (yOpaque1);
+ yyNodeSize [Var1] := SYSTEM.TSIZE (yVar1);
+ yyNodeSize [StdProc1] := SYSTEM.TSIZE (yStdProc1);
+ yyNodeSize [Type] := SYSTEM.TSIZE (yType);
+ yyNodeSize [Type0] := SYSTEM.TSIZE (yType0);
+ yyNodeSize [ShortInt] := SYSTEM.TSIZE (yShortInt);
+ yyNodeSize [LongInt] := SYSTEM.TSIZE (yLongInt);
+ yyNodeSize [ShortCard] := SYSTEM.TSIZE (yShortCard);
+ yyNodeSize [LongCard] := SYSTEM.TSIZE (yLongCard);
+ yyNodeSize [Real] := SYSTEM.TSIZE (yReal);
+ yyNodeSize [LongReal] := SYSTEM.TSIZE (yLongReal);
+ yyNodeSize [Bool] := SYSTEM.TSIZE (yBool);
+ yyNodeSize [Char] := SYSTEM.TSIZE (yChar);
+ yyNodeSize [Bitset] := SYSTEM.TSIZE (yBitset);
+ yyNodeSize [Proc] := SYSTEM.TSIZE (yProc);
+ yyNodeSize [Word] := SYSTEM.TSIZE (yWord);
+ yyNodeSize [Address] := SYSTEM.TSIZE (yAddress);
+ yyNodeSize [IntCard] := SYSTEM.TSIZE (yIntCard);
+ yyNodeSize [Nil] := SYSTEM.TSIZE (yNil);
+ yyNodeSize [String] := SYSTEM.TSIZE (yString);
+ yyNodeSize [StringChar] := SYSTEM.TSIZE (yStringChar);
+ yyNodeSize [Void] := SYSTEM.TSIZE (yVoid);
+ yyNodeSize [StdProcType1] := SYSTEM.TSIZE (yStdProcType1);
+ yyNodeSize [Qualident1] := SYSTEM.TSIZE (yQualident1);
+ yyNodeSize [Constructor] := SYSTEM.TSIZE (yConstructor);
+ yyNodeSize [OpaqueType1] := SYSTEM.TSIZE (yOpaqueType1);
+ yyNodeSize [Array1] := SYSTEM.TSIZE (yArray1);
+ yyNodeSize [Enumeration1] := SYSTEM.TSIZE (yEnumeration1);
+ yyNodeSize [Pointer1] := SYSTEM.TSIZE (yPointer1);
+ yyNodeSize [ProcType1] := SYSTEM.TSIZE (yProcType1);
+ yyNodeSize [Record1] := SYSTEM.TSIZE (yRecord1);
+ yyNodeSize [Set1] := SYSTEM.TSIZE (ySet1);
+ yyNodeSize [Subrange1] := SYSTEM.TSIZE (ySubrange1);
+ yyNodeSize [Objects] := SYSTEM.TSIZE (yObjects);
+ yyNodeSize [Elmt] := SYSTEM.TSIZE (yElmt);
+ yyNodeSize [Union] := SYSTEM.TSIZE (yUnion);
+ yyNodeSize [CObjects] := SYSTEM.TSIZE (yCObjects);
+ yyNodeSize [Types] := SYSTEM.TSIZE (yTypes);
+ yyNodeSize [Env] := SYSTEM.TSIZE (yEnv);
+ yyNodeSize [Selectors] := SYSTEM.TSIZE (ySelectors);
+ yyNodeSize [StringPar] := SYSTEM.TSIZE (yStringPar);
+ yyMaxSize	:= 0;
+ FOR yyi := 1 TO 50 DO
+  yyNodeSize [yyi] := LONGINT (BITSET (yyNodeSize [yyi] + CARDINAL (General.MaxAlign) - 1) * General.AlignMasks [General.MaxAlign]);
+  yyMaxSize := General.Max (yyNodeSize [yyi], yyMaxSize);
+ END;
+ yyTypeRange [Object] := StdProc1;
+ yyTypeRange [Object0] := Object0;
+ yyTypeRange [Const1] := Const1;
+ yyTypeRange [EnumLiteral1] := EnumLiteral1;
+ yyTypeRange [Field1] := Field1;
+ yyTypeRange [Module1] := Module1;
+ yyTypeRange [Proc1] := Proc1;
+ yyTypeRange [ProcHead1] := ProcHead1;
+ yyTypeRange [TypeDecl1] := TypeDecl1;
+ yyTypeRange [Opaque1] := Opaque1;
+ yyTypeRange [Var1] := Var1;
+ yyTypeRange [StdProc1] := StdProc1;
+ yyTypeRange [Type] := Subrange1;
+ yyTypeRange [Type0] := Type0;
+ yyTypeRange [ShortInt] := ShortInt;
+ yyTypeRange [LongInt] := LongInt;
+ yyTypeRange [ShortCard] := ShortCard;
+ yyTypeRange [LongCard] := LongCard;
+ yyTypeRange [Real] := Real;
+ yyTypeRange [LongReal] := LongReal;
+ yyTypeRange [Bool] := Bool;
+ yyTypeRange [Char] := Char;
+ yyTypeRange [Bitset] := Bitset;
+ yyTypeRange [Proc] := Proc;
+ yyTypeRange [Word] := Word;
+ yyTypeRange [Address] := Address;
+ yyTypeRange [IntCard] := IntCard;
+ yyTypeRange [Nil] := Nil;
+ yyTypeRange [String] := String;
+ yyTypeRange [StringChar] := StringChar;
+ yyTypeRange [Void] := Void;
+ yyTypeRange [StdProcType1] := StdProcType1;
+ yyTypeRange [Qualident1] := Qualident1;
+ yyTypeRange [Constructor] := Subrange1;
+ yyTypeRange [OpaqueType1] := OpaqueType1;
+ yyTypeRange [Array1] := Array1;
+ yyTypeRange [Enumeration1] := Enumeration1;
+ yyTypeRange [Pointer1] := Pointer1;
+ yyTypeRange [ProcType1] := ProcType1;
+ yyTypeRange [Record1] := Record1;
+ yyTypeRange [Set1] := Set1;
+ yyTypeRange [Subrange1] := Subrange1;
+ yyTypeRange [Objects] := Union;
+ yyTypeRange [Elmt] := Elmt;
+ yyTypeRange [Union] := Union;
+ yyTypeRange [CObjects] := CObjects;
+ yyTypeRange [Types] := Types;
+ yyTypeRange [Env] := Env;
+ yyTypeRange [Selectors] := Selectors;
+ yyTypeRange [StringPar] := StringPar;
+ BeginDefs;
+END Defs.

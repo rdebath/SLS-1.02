@@ -1,0 +1,776 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic]
+%label{resource}{1.1}
+%label{himom}{1.5}
+%label{alert}{?}
+%label{action}{1.2}
+%label{options}{1.1}
+%label{session}{1.3}
+
+\begin{document}
+%
+%
+\chapter{Introduction}%
+%
+\float{}{1-\pagenumber{0}}%379.2 -643.2 -2
+InterViews is a software system for window-based applications.  Like
+most user environments, InterViews is {\it object-oriented} in that
+components such as windows, buttons, menus, and documents are active
+elements with inherited behavior.  The name \252InterViews\272 comes
+from the idea of a user interface object presenting an {\it inter}active
+{\it view} of some data.  For example, a text editor implements an
+interactive view of the contents of a text file.
+
+\quad InterViews provides a set of classes that define the behavior
+of user interface objects.  We distinguish InterViews classes into
+two groups:  %
+%
+\term{protocols}%
+%
+ and %
+%
+\term{kits}%
+%
+.  A protocol defines the set of operations that an object can perform,
+such as drawing or handling input.  A kit defines a set of operations
+for creating other objects.  The idea of a kit is also sometimes referred
+to as an \252object factory\272.  Using kits hides the details of
+object construction and subclassing-instancing tradeoffs made by the
+implementation, as well as providing a higher-level organizational
+structure to the system.%
+%
+\section{Organization}%
+%
+In this first chapter, we define the basic notation and classes, as
+well as give an overview of the system by way of several example programs.  Chapter
+2 defines the base protocol for user interface objects, called %
+%
+\term{Glyph}%
+%
+, which supports geometry management, rendering, picking, and structuring
+multiple glyphs into an aggregate.  Chapter 3 describes the input
+event processing model and the %
+%
+\term{InputHandler}%
+%
+ protocol.  InputHandler is a descendant of Glyph that receives input
+events.  Chapter 4 presents the %
+%
+\term{View}%
+%
+ protocol, which is derived from InputHandler and adds additional
+operations for creating and updating multiple views of a shared data
+object.
+
+\quad Chapter 5 defines the %
+%
+\term{Window}%
+%
+ protocol for associating glyphs with a window on the screen and communicating
+with a window manager.  Chapter 6 presents the basic protocols for
+rendering to the screen or a printer.
+
+\quad Chapter 7 is reserved for the future to describe the %
+%
+\term{FigureKit}%
+%
+ class that will create common 2D graphic objects, such as rectangles,
+circles, and polygons.  In traditional graphics terminology, FigureKit
+will support \252structured\272 graphics, while the basic rendering
+protocols described in Chapter 6 support \252immediate-mode\272 graphics.
+
+\quad Chapter 8 defines the %
+%
+\term{Style}%
+%
+ protocol, which manages a collection of named attributes with string
+values.  Chapter 9 presents the %
+%
+\term{WidgetKit}%
+%
+ class for creating common user interface components such as buttons,
+menus, and scrollbars.  The precise appearance and input behavior
+of a widget can be adjusted by the attributes in a style.  Chapter
+10 presents the %
+%
+\term{DialogKit}%
+%
+ class for building common dialogs.
+
+\quad Chapter 11 defines the %
+%
+\term{LayoutKit}%
+%
+ class for creating glyphs that control formatting.  These objects
+are based on the TeX document preparation system.  Chapter 12 describes
+the %
+%
+\term{DocumentKit}%
+%
+ class for creating and editing documents.
+
+\quad Appendix A defines classes for interfacing to the underlying
+operating system.  These classes are not intended to provide a complete
+or standard interface to the operating system, but merely a more convenient
+and portable set of protocols.%
+%
+\section{Notation}%
+%
+%
+%
+\emphasis{N.B.:  The notation in this manual is somewhere between
+C++ and the OMG Interface Definition Language (IDL).  We expect to
+use IDL in the future.\smallskip
+}%
+%
+We use a syntax similar to C++ to specify the InterViews classes and
+operations.  However, the specification of a class here is {\it not}
+identical to its C++ declaration in a header file.  To make the distinction
+clear between our specification and C++, we use the keyword \252interface'
+instead of \252class\272.  We assume inheritance is always \252public\272
+in C++ terminology.
+
+\quad All operations are assumed public; we do not list the protected
+or private members.  We also do not list members that are implicitly
+part of the implementation.  For example, C++ destructors are normally
+public but often simply free storage allocated by the object.  Thus,
+there is no need to document destructors as part of a class interface.
+
+\quad Unless explicitly specified as \252static\272, all operations
+are virtual functions in C++.  In the case of an inherited operation,
+the choice of whether or not to provide the operation may depend on
+the implementation.  We therefore do not list inherited operations
+unless the subclass extends the semantics in some way.%
+%
+\subsection{Names}%
+%
+We use identifiers that begin with an upper case letter for types;
+we use lower case for operations and parameters.  In type names consisting
+of multiple words, we capitalize the beginning of each word, as in
+FirstSecondThird.  For operations or parameters we use underscores
+to separate words, as in first\_second\_third.  An operation %
+%
+\emphasis{%
+%
+\term{f}%
+%
+}%
+%
+%
+%
+\term{ }%
+%
+for a class %
+%
+\emphasis{%
+%
+\term{C}%
+%
+}%
+%
+ is denoted by %
+%
+\emphasis{C}%
+%
+::%
+%
+\emphasis{f}%
+%
+.
+
+\quad We assume that some mechanism allows us to use whatever names
+we wish for global symbols; that is, there is no need for a special
+prefix on all class and type names.  Ideally, this capability would
+be provided by the implementation language, but this is not yet the
+case for C++.  Currently, the implementation uses \#define macros
+to prepend the prefix ``iv'' to all class names and global type names.  This
+redefinition is hidden from the programmer, except inasmuch as it
+shows up during debugging.  To undefine these macros, a source file
+must include \252<InterViews/leave-scope.h>\272.  After leaving the
+InterViews scope, InterViews names are specified by \252\_lib\_iv({\font{Times-Italic}name})\272,
+where {\font{Times-Italic}name} is the class or type name defined
+in this manual.%
+%
+\subsection{Use of const}%
+%
+C++ allows the type modifier \252const\272 to be used in a variety
+of different ways.  For concrete objects (int, float, char*), it refers
+to read-only storage.  For abstract objects, however, storage access
+should not be visible in an interface.  For example, an operation
+on a transformation matrix could be defined that returns whether the
+matrix is the identity or not.  A simple implementation could compute
+the identity test and could be defined as const in the storage sense.  However,
+another implementation might cache the result of the test to avoid
+the overhead of the test when the matrix is not changing.  This second
+implementation is not const in the storage sense because it modifies
+the transformation matrix object.
+
+\quad We use const for operations that do not change the {\font{Times-Italic}behavior}
+of an object.  That is, an operation is const if a call to it could
+be omitted without changing the effect of subsequent operations performed
+on the object.  This definition is consistent with the notion that
+a compiler could eliminate redundant calls to the same const function.  The
+one important counter-example is reference counting, where incrementing
+and decrementing the reference count of a shared object changes its
+lifetime (an operation that could not be eliminated by the compiler)
+but does not change its behavior (the operation is considered const).
+
+\quad Using our semantics of const, the transformation matrix identity
+function mentioned above should be defined as const.  This approach
+implies that an implementation may be forced to cast the %
+%
+\term{{\font{Times-Roman}%
+%
+\term{this}%
+%
+}}%
+%
+ pointer from const to non-const to avoid a compiler error message
+because C++ compilers normally assume that a function should not be
+const if the function does modifies storage.
+
+\quad It is also possible (indeed, likely) that a function does not
+follow our semantics of const even though it does not modify the object's
+storage.  If an object contains a pointer to another object and an
+operation performs a non-const operation on that object, then the
+first operation may also need to be defined as non-const.%
+%
+\subsection{Common Symbols}%
+%
+Several definitions are pervasive throughout the system.  These definitions
+are automatically defined as a side effect of using any other InterViews
+classes. The type {\bf %
+%
+\term{boolean}%
+%
+} is defined in the conventional sense of a language such as Pascal,
+as are the constants {\bf {\font{Times-Roman}%
+%
+\term{true}%
+%
+}} and {\bf {\font{Times-Roman}%
+%
+\term{false}%
+%
+}}.  The constant {\bf {\font{Times-Roman}%
+%
+\term{nil}%
+%
+}} is presumed to be type-equivalent to any pointer type and represents
+an invalid pointer value.  In C++, we \#define nil to zero.
+
+\quad The type %
+%
+\term{{\font{Times-Bold}%
+%
+\term{String}%
+%
+}}%
+%
+ is used as a parameter to a number of operations, though no specific
+interface or implementation is presumed.  Whereever a string parameter
+appears, one can assume that a C++ \252const char*\272 type can also
+be passed.%
+%
+\subsection{Coordinates}%
+%
+Many objects and operations manipulate coordinates. We define the
+type {\bf %
+%
+\term{Coord}%
+%
+} to represent a position or a distance. The default units for a coordinate
+are \252printers points\272, or 1/72 of an inch.  The scaling factor
+can be customized on a per-screen basis.
+
+\quad Ideally, Coord would be an abstract type with set of operations
+and conversions to concrete types.  However, current C++ compilers
+do not make it practical to define a Coord class that is represented
+as a single word.  The current implementation therefore defines Coord
+as the C++ type \252float'.
+
+\quad For applications with simple graphics needs, the use of floating
+point coordinates is typically not a problem.  Applications with more
+sophisticated text or graphics usually need to manipulate floating
+point coordinates anyway.
+
+\quad The use of non-pixel units allows objects to be resolution-independent,
+but also means that one cannot rely on precise output at low resolutions.  Coordinates
+are rounded-off to guarantee that objects that abut in coordinates
+will abut on the screen.  This choice means that a one point line
+might generate one or two pixels, depending on where it is on the
+screen.  Objects that need to generate consistent pixel sizes can
+explicitly round to whole-pixel coordinate values using Canvas %
+%
+\emphasis{{\font{Times-Roman}to\_pixels\_coord}}%
+%
+.%
+%
+\subsection{Dimensions}%
+%
+Many composition strategies manipulate coordinates in one dimension.
+To use a single strategy in any dimension, we define the type %
+%
+\term{DimensionName }%
+%
+and values %
+%
+\term{Dimension\_X}%
+%
+{\em {\font{Times-Roman},}} %
+%
+\term{Dimension\_Y}%
+%
+, or %
+%
+\term{Dimension\_Z}%
+%
+.  It is possible that other dimensions may be defined in the future.  The
+constant %
+%
+\term{Dimension\_Undefined}%
+%
+ is defined after any other dimensions.%
+%
+\subsection{Parameter conventions}%
+%
+In specifying an operation, we list only the parameter type unless
+there are several parameters to the operation with the same type.  In
+this case, we list both the type and a name for the parameter that
+clarifies what it is.
+
+\quad For parameters that are objects, we use a pointer type if the
+operation may store a pointer to the object with a lifetime beyond
+the operation's activation.  If the operation will not store a pointer,
+then we pass a reference type.  Therefore, one should never pass the
+expression \252\&x\272 for a local or parameter object \252x\272.%
+%
+\subsection{Storage management}%
+%
+Because C++ does not provide garbage collection, it is necessary to
+manage shared objects within a program.  We make objects easier to
+share by deriving from class Resource, which manages a reference count.  If
+we had garbage collection, we would not need the resource class.  Therefore,
+we do not consider resource really part of the InterViews programming
+interface and it does not appear in any function type signatures.
+However, it is necessary to understand which objects can be shared
+and as a practical matter the implementation must manage references
+correctly.
+
+\quad Figure \ref{resource} shows the Resource class interface.  Every
+resource has a reference count that is initially zero and must be
+explicitly incremented by calling Resource::ref.  The reason the count
+is initially zero is that an object is often created and immediately
+passed as a parameter to another object that stores the reference.  Since
+the receiver must reference the parameter anyway, it is confusing
+to force the creator to unreference the resource after passing it.
+
+%
+%
+\code{interface Resource \{\
+\quad static void ref(const Resource*);\
+\quad static void unref(const Resource*);\
+\quad static void unref\_deferred(const Resource*);\
+\quad static void flush();\
+\quad void cleanup();\
+\}; %
+%
+\figurecaption{Resource class interface\label{resource}}%
+%
+%-1.92 -14.4001 4
+}%
+%
+  The C++ delete operator should not be used on resources directly;
+instead, Resource::unref or Resource::unref\_deferred should be called
+to decrement the reference count of an object.  If the count is no
+longer positive, then the resource's cleanup operation will be called.  In
+the case of Resource::unref, the object is immediately destroyed.  In
+the case of Resource::unref\_deferred, the object will be put on a
+queue of objects to be destroyed in order the next time Resource::flush
+is called.  Resource deferral is useful when an object initiates a
+delete on one of its ancestors or some other object with an active
+member function.%
+%
+\subsection{Callbacks}%
+%
+C++ provides a pointer-to-function type, but often one wishes to encapsulate
+an object and a pointer to a member function to call on the object.  Our
+approach is to define a base class containing the callback signature
+and a parameterized subclass for a callback to an object of a specific
+type.  For example, the %
+%
+\term{action}%
+%
+ class defines a single operation, Action::execute, with no parameters
+and no return value.  A %
+%
+\term{macro}%
+%
+ is an action that contains a list of actions, each of which is executed
+in order.  An %
+%
+\term{action callback}%
+%
+ is the subclass that is expanded for each destination type.  The
+current implementation uses preprocessor macros, but will use templates
+in the future.  Figure%
+%
+\code{typedef long MacroIndex;\smallskip
+interface Action : Resource \{\
+\quad void execute() = 0;\
+\};\smallskip
+interface Macro : Action \{\
+\quad Macro(Action* = nil, Action* = nil, Action* = nil, Action* =
+nil);\
+\quad void prepend(Action*);\
+\quad void append(Action*);\
+\quad void insert(MacroIndex, Action*);\
+\quad void remove(MacroIndex);\
+\quad MacroIndex count() const;\
+\quad Action* action(MacroIndex) const;\
+\};\smallskip
+interface ActionCallback(T) : Action \{\
+\quad ActionCallback(T)(T*, void (T::*)());\
+\};%
+%
+\figurecaption{Action and related class interfaces\label{action}.}%
+%
+%3.12 2.16006 5
+}%
+%
+ \ref{action} shows the action, macro, and action-callback class interfaces.%
+%
+\section{Basic concepts}%
+%
+The goal of InterViews is to make it easy to compose user interfaces
+from reusable components.  The central class for physical composition
+is {\bf {\font{Times-Roman}%
+%
+\term{{\font{Times-Roman}Glyph}}%
+%
+}} because it defines the geometry of a user interface object.  The
+central class for logical composition is InputHandler because it defines
+the input handling policy and update management.  InputHandler is
+a subclass of glyph, normally delegating its geometry and appearance
+to another glyph.
+
+\quad The {\bf {\font{Times-Roman}%
+%
+\term{{\font{Times-Roman}Canvas}}%
+%
+}} class defines a 2-dimensional surface upon to which a group of
+glyphs are attached.  The glyphs negotiate for space on the canvas,
+draw on the canvas to refresh their appearance, and damage the canvas
+to cause an update traversal.
+
+\quad The {\bf {\font{Times-Roman}%
+%
+\term{{\font{Times-Roman}Window}}%
+%
+}} class creates a canvas for a top-level input handler and allows
+the user to control the canvas on a screen through a window manager.  The
+window class does not define a window management policy, only the
+mechanism for communicating appropriate information between a window
+manager and the glyphs.
+
+\quad The InterViews input model is ``top-down''.  That is, an input
+%
+%
+\term{{\font{Times-Roman}event}}%
+%
+ is first received by the appropriate window as determined by the
+window manager.  The receiving window passes the event to the root
+input handler, which may pass it down to a nested input handler.%
+%
+\subsection{Main event loop}%
+%
+Every application creates a S{\bf {\font{Times-Roman}%
+%
+\term{{\font{Times-Roman}ession}}%
+%
+}} object to run an event dispatching loop.  Sessions initially attach
+to the user's display and can attach to additional displays.  A session
+defines a root %
+%
+\term{{\font{Times-Roman}Style}}%
+%
+ object derived from user customization files and command-line arguments.  Styles
+define named attributes with string values, wildcarding for matching
+classes of objects, and quick access to common attributes such as
+fonts and colors.  Figure%
+%
+\code{struct PropertyData \{\
+\quad const char* path;\
+\quad const char* value;\
+\};\smallskip
+struct OptionDesc \{\
+\quad const char* name;\
+\quad const char* path;\
+\quad OptionStyle format;\
+\quad const char* value;\
+\};\smallskip
+interface Session \{\
+\quad Session(\
+\quad \quad const char* name, int\& argc, char** argv\
+\quad \quad const OptionDesc* = nil, const PropertyData* = nil\
+\quad );\
+\quad static Session* instance();\
+\quad int argc() const;\
+\quad char** argv() const;\
+\quad Style* style() const;\
+\quad void default\_display(Display*);\
+\quad Display* default\_display() const;\
+\quad Display* connect(const String\&);\
+\quad Display* connect(const char*);\
+\quad void disconnect(Display*);\
+\quad int run();\
+\quad int run\_window(Window*);\
+\quad void quit();\
+\quad boolean done();\
+\};%
+%
+\figurecaption{Session protocol\label{session}}%
+%
+\label{session}%
+%
+\figurecaption{}%
+%
+%3.12001 -1.68005 6
+}%
+%
+ \ref{session} shows the session protocol.
+
+\quad The session is given an alias (class name) for the root style,
+an array of command-line arguments, an optional argument description,
+and optional initial style settings.  The root style's name comes
+from the \252-name\272 command-line option (if given), or the environment
+variable RESOURCE\_NAME (if defined), or the value of argv[0] with
+leading path entries stripped.
+
+\quad The option description is an array of structures that describe
+command-line arguments.  The structure contains four fields: a %
+%
+\term{name}%
+%
+ that is the command-line string, a %
+%
+\term{path}%
+%
+ specifying a style attribute, a %
+%
+\term{format}%
+%
+ specifying where the associated value is, and a default %
+%
+\term{value}%
+%
+.  Valid formats are OptionPropertyNext (use the next argument as
+an attribute-value pair), OptionValueNext (use the next argument as
+the value), OptionValueImplicit (use the default value), OptionValueIsArg
+(use the agument as the value), and OptionValueAfter (use the remainder
+of the argument as the value).  If a command-line argument is found
+that matches an option description, it will be interpreted and removed
+from argv.  The agument count (argc) will be set to the number of
+uninterpreted command-line arguments.
+
+\quad In addition to the program-specified options, the Session constructor
+automatically matches the options listed in Table~\ref{options}.%
+%
+\table{\begin{tabular}{|l|l|}
+\hline
+{\align{justify}-background}&
+{\align{justify}next argument sets
+the background color}\\
+\hline
+{\align{justify}-bg}&
+{\align{justify}same as -background}\\
+\hline
+{\align{justify}-dbu\size{10}f}&
+{\align{justify}double-buffer
+windows by default}\\
+\hline
+{\align{justify}-display}&
+{\align{justify}next argument
+specifies the target workstation display}\\
+\hline
+{\align{justify}-dpi}&
+{\align{justify}next
+argument is coordinates-to-pixels ratio}\\
+\hline
+{\align{justify}-fg}&
+{\align{justify}same
+as -foreground}\\
+\hline
+{\align{justify}-flat}&
+{\align{justify}next argument
+sets the base color for bevels}\\
+\hline
+{\align{justify}-fn}&
+{\align{justify}same
+as -font}\\
+\hline
+{\align{justify}-font}&
+{\align{justify}next argument sets
+the default text font}\\
+\hline
+{\align{justify}-foreground}&
+{\align{justify}next
+argument sets the foreground color}\\
+\hline
+{\align{justify}-geometry}&
+{\align{justify}next
+argument sets the first window's position and size}\\
+\hline
+{\align{justify}-iconic}&
+{\align{justify}starts
+up first window in iconic form}\\
+\hline
+{\align{justify}-malloc}&
+{\align{justify}run
+with memory-management debugging on}\\
+\hline
+{\align{justify}-monochrome}&
+{\align{justify}use
+monochrome style}\\
+\hline
+{\align{justify}-motif}&
+{\align{justify}use Motif
+style}\\
+\hline
+{\align{justify}-name}&
+{\align{justify}next argument sets the
+instance name of the session}\\
+\hline
+{\align{justify}-nodbuf}&
+{\align{justify}do
+not double-buffer windows}\\
+\hline
+{\align{justify}-openlook}&
+{\align{justify}use
+OpenLook style}\\
+\hline
+{\align{justify}-synchronous}&
+{\align{justify}force
+synchronous operation with the window system}\\
+\hline
+{\align{justify}-title}&
+{\align{justify}next
+argument sets the session's default title bar name}\\
+\hline
+{\align{justify}-visual}&
+{\align{justify}next
+argument is visual class to use for windows}\\
+\hline
+{\align{justify}-visual\_id}&
+{\align{justify}next
+argument is visual id number to use for windows}\\
+\hline
+{\align{justify}-xrm}&
+next
+argument is \252name:value\272; sets named attribute\\
+\hline
+\end{tabular}%
+%
+%
+\tablecaption{Predef\label{options}ined command-line options}%
+%
+%16.08 -339.36 7
+}%
+%
+  The optional initial style settings are specified by a nil-terminated
+array of pairs {\font{Times-Italic}<s1,s2>}, where {\font{Times-Italic}s1}
+is an attribute name and {\font{Times-Italic}s2} is the value.  User
+defaults will override any initial settings, and command-line arguments
+will override user defaults. %
+%
+\subsection{Common widgets}%
+%
+InterViews provides common behavior objects, such as buttons and menus,
+which are built using glyphs and input handlers.  Unlike many other
+toolkits, InterViews objects are cheap enough that behavior objects
+are separate from appearance objects.  For example, the button class
+is given a separate glyph that denotes its appearance; the button
+only implements input behavior.
+
+\quad This approach of separating input and output objects makes the
+toolkit more flexible and the individual objects simpler, but it can
+make the task of constructing higher-level user interface objects
+more confusing.  In particular, it becomes less obvious whether it
+is appropriate to subclass or instance to create a particular component.
+
+\quad InterViews provides a widget kit object that encapsulates these
+decisions in a single programming interface while allowing various
+appearances and behaviors.  A widget kit is an object that creates
+common user interface objects such as buttons, scrollbars, and menus.  For
+example, a push button has button behavior, a beveled or highlighted
+appearance when pressed, and a style for customization.  The WidgetKit
+class provides a function to create a push button object; the implementation
+is free to compose what objects are necessary to provide the appropriate
+functionality.  Each application normally creates a single WidgetKit
+object, which is typically a subclass defined for a particular look-and-feel
+such as OpenLook or Motif.  The application can call the static function
+WidgetKit:::instance to return the object and therefore be unaware
+which specific look-and-feel is being used.%
+%
+\section{A simple example}%
+%
+Figure%
+%
+\code{\#include <IV-look/kit.h>\
+\#include <InterViews/background.h>\
+\#include <InterViews/session.h>\
+\#include <InterViews/window.h>\smallskip
+int main(int argc, char** argv) \{\
+\quad Session* session = new Session("Himom", argc, argv);\
+\quad WidgetKit\& kit = *WidgetKit::instance();\
+\quad return session->run\_window(\
+\quad \quad new ApplicationWindow(\
+\quad \quad \quad new Background(\
+\quad \quad \quad \quad kit.label("hi mom!"), kit.background()\
+\quad \quad \quad )\
+\quad \quad )\
+\quad );\
+\}%
+%
+\figurecaption{InterViews "hi mom!" program\label{himom}.}%
+%
+
+
+%0.239998 -375.12 8
+}%
+%
+ \ref{himom} shows a simple InterViews application that display the
+text \252hi mom!\272 in a window.  The application creates a session
+and runs it starting with a window containing the text over a background.  The
+window is an \252application window\272, meaning it is recognized
+by other desktop services (window manager, session manager) as the
+main window for the application.
+
+\quad The window contains a background that contains a label.  A background
+glyph paints a given color behind its contents.  The label's font
+and color are obtained from the default style for the session.
+
+\quad This application does not handle user input.  It must therefore
+be terminated externally, either from a window manager menu or through
+the system.%
+%
+\section{Geometry management}%
+%
+See iv/src/examples/box[12].%
+%
+\section{Creating a push button}%
+%
+See iv/src/examples/button[123].%
+%
+\section{Summary}%
+%
+This chapter has presented a broad overview of the InterViews architecture,
+introducing the basic concepts and giving some simple examples.  In
+the next chapter, we focus on the semantics of glyphs as the smallest
+unit of user interface construction.
+
+%
+\end{document}

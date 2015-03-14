@@ -1,0 +1,594 @@
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+NNaammee
+       encode,  decode  -  encode/decode  a  binary file for safe
+       transmission via mail or network file transfer.
+
+SSyynnttaaxx
+       UNIX, VAX/VMS, MS-DOS, and ATARI ST (TOS Shell):
+       _e_n_c_o_d_e [ -options  ]  [  input_file  [  output_file  ]]  [
+       -options ]
+       _d_e_c_o_d_e  [ -options ] [ input_file [ output_file_or_path ]]
+       [ -options ]
+       e.g.  _e_n_c_o_d_e -x binaryfile | _m_a_i_l user@node
+       e.g.  _e_n_c_o_d_e < binaryfile > asciifile -tfremote.name
+       e.g.       _d_e_c_o_d_e      asciifile      binaryfile       -tx
+       -o/any/file/in/asciifile
+
+       VM/CMS:
+       _e_n_c_o_d_e  [ -options ] input_file [ output_file ] [ -options
+       [ ( alternate_options [ ) ]]]
+       _d_e_c_o_d_e [ -options ] input_file [ output_file_or_path  ]  [
+       -options [ ( alternate_options [ ) ]]]
+       e.g.      _e_n_c_o_d_e     name.type.d    name.encoded.a0    -xe
+       -fname.othertype
+       e.g.  _e_n_c_o_d_e name type d = encoded a0 (xxenc ebcdic  file-
+       name name.othertype
+       e.g.  _d_e_c_o_d_e name.encoded.a name.type.d1 ( text
+
+DDeessccrriippttiioonn
+       eennccooddee  is used to encode a binary file to a text file for
+       transmission via electronic mail or network file transfer.
+       Three  different  popular encoding schemes are implemented
+       in _e_n_c_o_d_e_:  _u_u_e_n_c_o_d_e_,  _x_x_e_n_c_o_d_e_,  and  _b_t_o_a  (subsequently
+       called  UU, XX, and BA schemes).  In the case of a missing
+       output name the output goes to  standard  output.  If  the
+       input  name is missing as well, standard input is used. On
+       VM/CMS an input name  is  required.   If  an  output  file
+       already exists the default action is to ask whether it may
+       be replaced or not or a different name should be used.  On
+       VAX/VMS 'replacing' means creating a new file version.  On
+       most systems the file names may be in the system  specific
+       form  or  in  a  UNIX-like form. On VM/CMS file name, file
+       type, and file mode may be separated by blanks  and  those
+       parts  which  are  the  same  for  input and output may be
+       entered as '=' for the output.
+       The encoded file includes the permission for the file  and
+       the  original  file name (or an alias name) for recreation
+       on the remote system.   Note  that  on  operating  systems
+       where uppercase and lowercase letters in filenames are not
+       distinguished the original file name is converted to  low-
+       ercase but an alias name is not.
+       In  order  to  recover  from bad character translations at
+       network gateways (e.g. from ASCII to EBCDIC), a  table  of
+       the  characters used (64 for the UU and XX schemes, 85 for
+       the BA scheme) precedes the encoded file. In addition  the
+       number  of  bytes encoded and a cyclic redundancy checksum
+
+
+
+                           5 March 1991                         1
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+       (CRC) are written after the encoded data.   On  IBM  main-
+       frames  or compatibles with EBCDIC character set the input
+       file is translated by default to  ASCII  before  encoding.
+       This  may  be  switched  off with option '-e' or 'EBCdic'.
+       Depending on the installation procedure  either  only  one
+       translation table or three different tables are available.
+       The translation may be reversed without loosing any infor-
+       mation  but does not necessarily translate non-ASCII char-
+       acters like special French, German, and Spanish characters
+       to  the expected representation on a remote machine with a
+       different character set.  It is also possible  to  install
+       _e_n_c_o_d_e  on  computers with ASCII character set such that a
+       translation from ASCII to EBCDIC is available.
+       The table method used for the UU and XX schemes is compat-
+       ible with that of extended _u_u_e_n_c_o_d_e programs. The original
+       BA scheme supplies neither a  table,  nor  permission  and
+       file  name.  _e_n_c_o_d_e uses non-standard extensions to the BA
+       scheme. These extensions are ignored by the original  _a_t_o_b
+       decoding  program.   For  the  UU  encoding scheme a grave
+       accent (ASCII character 96) is written instead of a  blank
+       (ASCII  character 32) to avoid truncation of lines in net-
+       work gateways. Alternatively a sequence character  may  be
+       appended  at  the  end of each line by the option '-s' (or
+       'SEQuence' on  VM/CMS).   Both  of  these  extensions  are
+       acceptable  for decoding by the original _u_u_d_e_c_o_d_e program.
+       The number of bytes encoded and  a  checksum  are  written
+       after  the  'end'  line  (UU  and XX schemes). Immediately
+       after the 'end' line is a line The next  line  'crc  ####'
+       contains  a  4-digit  hexadecimal,  the  cyclic redundancy
+       checksum '####'.  The 16-bit CRC calculation is done  with
+       Mark   G.  Mendel's  _u_p_d_c_r_c_(_)  with  parameters  P=0xA001,
+       INIT_CRC=0, SWAPPED=1.  Byte count and CRC are ignored  by
+       the original _u_u_d_e_c_o_d_e and _x_x_d_e_c_o_d_e programs but checked by
+       _d_e_c_o_d_e_.   Depending  on  the  file   structure   and   the
+       binary/text open mode the byte count may be different from
+       the number obtained with the system command 'ls' or 'DIR'.
+       The  interpretation  of line ends in the input file may be
+       controlled with  the  options  '-b'  ('BINary')  and  '-t'
+       ('TEXT').  The effect of these options is machine-specific
+       and may be even compiler-specific  (see  your  C  compiler
+       manual  for fopen() with modes "r" and "rb").  On UNIX and
+       for stream format files on VAX/VMS there is no difference.
+       On  VAX/VMS  and  on VM/CMS with fixed length and variable
+       length records the end of records  is  ignored  in  binary
+       mode.   On  MS-DOS  and  ATARI  ST TOS all CR/LF character
+       pairs are concatenated to LF and Ctrl-Z characters ignored
+       at  the  end-of-file  in  text  mode.  Binary input is the
+       default on MS-DOS and ATARI TOS, text input on  all  other
+       systems.
+       If the encoded output file would be to large to be send as
+       a single file it may be split into several parts. In  this
+       case  an  output file name has to be specified explicitly,
+       i.e. no redirected standard output can be used. By default
+       a   number  is  appended  to  that  output  file  name  to
+
+
+
+                           5 March 1991                         2
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+       distinguish the parts. That  number  may  be  inserted  at
+       another  place  in the file name if a star '*' is supplied
+       at that place. E.g. if the output  file  is  specified  as
+       'out*.uue' the parts would be named 'out1.uue', 'out2.uue'
+       etc. Each part may contain up to a given number  of  lines
+       of encoded data plus header and trailer.
+
+       ddeeccooddee  reads  a file encoded with _e_n_c_o_d_e_, _u_u_e_n_c_o_d_e_, _x_x_e_n_-
+       _c_o_d_e_, or _b_t_o_a and recreates the original  binary  file(s).
+       Default  input is standard input, default output is a file
+       with the name given at the begining of the  encoded  file.
+       On  VM/CMS  an input name is required. An output file name
+       may be supplied to override the internal name. If a direc-
+       tory  path  (without  file name) is supplied, the internal
+       name is appended (not applicable on VM/CMS).   On  VAX/VMS
+       input  and output file names may be logical names (see the
+       DCL commands _D_E_F_I_N_E and _A_S_S_I_G_N ).
+       Leading and trailing lines added by mailers  are  ignored.
+       The  encoding  scheme will be recognized automatically for
+       all files encoded with _e_n_c_o_d_e_, _b_t_o_a or an  extended  _u_u_e_n_-
+       _c_o_d_e with character table.  The option '-x' (or 'XXdecode'
+       on VM/CMS) is needed to decode files encoded  by  _x_x_e_n_c_o_d_e
+       without  character table. Lines truncated by network gate-
+       ways are extended by blanks to the required length  and  a
+       warning is issued.  If a character table is present and it
+       does not match one of the standard  tables  a  warning  is
+       issued  and the supplied table is used.  An input file may
+       contain several encoded files which can  all  be  restored
+       with  a  single call if the encoding scheme of all of them
+       can be detected automatically (or is  the  same)  and  all
+       output  files  should be created with the same format (see
+       below).  As an alternative  only  a  single  file  may  be
+       selected for output by the '-o' option.  Large files might
+       be encoded to several parts by _e_n_c_o_d_e_.  _d_e_c_o_d_e  reads  all
+       parts automatically in the correct order if the first part
+       is used as input file (either  explicitly  or  redirected)
+       and  all other parts are available with the names given at
+       the end of the previous part, respectively. Note that long
+       file  names  or machine-dependent directory specifications
+       in such part names could disable the automatic decoding of
+       split files.
+       The interpretation of newline characters may be controlled
+       by the options '-b' (or 'BINary' on VM/CMS) and  '-t'  (or
+       'TEXT').   On  MS-DOS and ATARI ST TOS '-t' converts CR/LF
+       pairs to LF before encoding and converts LF to CR/LF pairs
+       after  decoding.  On UNIX, VAX/VMS, and VM/CMS _d_e_c_o_d_e con-
+       verts all CR/LF pairs and all single CR characters  to  LF
+       and  discards  Ctrl-Z after decoding in the text mode.  On
+       UNIX systems and for stream format output files on VAX/VMS
+       the  '-b' option usually has no effect, neither for _e_n_c_o_d_e
+       nor for _d_e_c_o_d_e_.  On VAX/VMS and  VM/CMS  there  are  addi-
+       tional  options  available to control the record format of
+       the output file.
+       VAX/VMS: The default record format on VAX/VMS is 'variable
+
+
+
+                           5 March 1991                         3
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+       length'  with  record  attribute 'carriage return carriage
+       control' where LF characters start new lines and  CR  have
+       no  special  meaning. To avoid CR characters in the output
+       use the '-t' option.  To  create  variable  record  length
+       files without record attribute use the '-b' option.  Fixed
+       length record files without record attribute may  be  cre-
+       ated  with  the '-f' option. Digits directly following the
+       '-f' are interpreted as a record length, if present.   The
+       default is 512 bytes. Output files of type 'EXE' and 'TAR'
+       will be created by default as if option '-f512'  would  be
+       present.  Files  with 'stream_LF' organization (similar to
+       UNIX, MS-DOS, or ATARI files) may be created with the '-s'
+       option.  However,  such  files can usually only be read by
+       other C programs. Most VMS system commands fail to  handle
+       stream_LF files.
+       VM/CMS  (and to some extend also other IBM mainframe oper-
+       ating systems): The default  record  format  is  'variable
+       length,  maximum  255  bytes' (text mode output). With the
+       '-b' or 'BINARY' option the record format  becomes  'fixed
+       length,  80  bytes'  (binary  mode  output).  With '-f' or
+       'FIXed' and '-v' or 'VARiable' plus an optional  numerical
+       value  (record  length)  fixed  length and variable length
+       formats can be achieved instead of  the  default  formats.
+       Note  that  for the UNIX-style options the optional record
+       length must be entered without a blank while for the  CMS-
+       style  options  a  blank  is required (e.g. '-f132' versus
+       '(FIX 132'). The default record length for fixed format is
+       80  bytes,  the default maximum record length for variable
+       format is 255 bytes. The '-e' or 'EBCdic' option  inhibits
+       the  translation  of  the output from ASCII to IBM EBCDIC,
+       i.e. should only be used if the input is  encoded  EBCDIC.
+       Of  course,  the  input  file  itself  should always be in
+       EBCDIC on EBCDIC machines and in ASCII on ASCII  machines.
+
+OOppttiioonnss
+       The UNIX-style options may appear at any place on the com-
+       mand line and may be concatenated (e.g. '-b' and  '-x'  to
+       '-bx').   Capital  and  lower case letters are equivalent.
+       In case of exclusive options the last one is used.
+
+       eennccooddee
+
+       --aa     Encoding scheme BA is used instead  of  UU  scheme.
+              '-a'  is  implicitly assumed on most systems if the
+              program is called as 'btoa'.
+
+       --bb     Input file is opened in binary mode (not applicable
+              to redirected or pipe input on most systems).
+
+       --ee     No  translation  from EBCDIC to ASCII character set
+              before encoding (on systems with  EBCDIC  character
+              set only).
+
+       --ee     Translation  from  ASCII  to  EBCDIC  character set
+
+
+
+                           5 March 1991                         4
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+              before encoding (on systems  with  ASCII  character
+              set  only and only if installed with the identifier
+              'TRANSLATE' defined at compile-time).
+
+       --ee##    where '#' = '1', '2', or  '3'.  Only  available  if
+              installed  with the identifier 'ALL_TABLES' defined
+              at compile-time. Enables EBCDIC to  ASCII  transla-
+              tion  (on EBCDIC systems) or ASCII to EBCDIC trans-
+              lation (on ASCII systems) and selects one of  three
+              translation tables (1: ISO 2022, 2: IBM, 3: default
+              table).
+
+       --ff     The file name  written  at  the  beginning  of  the
+              encoded  file  is  taken  from  the first character
+              after the 'f' up to end of that  argument  (usually
+              the  next  blank on the command line). Therefore no
+              other options may follow in the same argument. This
+              alias  name may be used to supply an UNIX-like file
+              name.
+
+       --hh     Help. List syntax and options.
+
+       --ll     Instead of writing one large output  file,  several
+              smaller  files  may be written instead (file split-
+              ting). The maximum number of data lines per file is
+              taken from any digits immediately following the 'l'
+              or a default value of 500 is used. This  option  is
+              applicable for the UU and XX schemes only. When the
+              '-l' option is present a explicit output file  name
+              is  required.  For  each  part  either  a number is
+              appended at the end of that name or inserted at the
+              place  of  a  '*'  in the name. Note that with some
+              command language interfaces (e.g. most UNIX shells)
+              a backslash must precede the '*'.
+
+       --nn     No  existing  output files will be replaced nor any
+              prompts issued what to do with existing files.  The
+              default  action  is  to  prompt whether an existing
+              file should be replaced by the new file, not to  be
+              replaced  (program  aborted)  or a different output
+              file name chosen.
+
+       --rr     Replace existing files  without  any  prompts  (see
+              also '-n').
+
+       --ss     A  sequence  character  is  appended to each output
+              line (UU scheme only).
+
+       --tt     Input file is opened in text mode  (not  applicable
+              to  redirected  or  pipe  input). '-b' and '-t' are
+              exclusive options.
+
+       --xx     Encoding scheme XX is used instead  of  UU  scheme.
+              '-a'  and  '-x'  are  exclusive. '-x' is implicitly
+
+
+
+                           5 March 1991                         5
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+              assumed on most systems if the program  was  called
+              as 'xxencode'.
+
+       On  VM/CMS options may also be entered in the standard CMS
+       style (after a opening parenthesis '(', here called alter-
+       nate options).  They may all be abbreviated to the capital
+       letter part below.  Capital and lower case letters in  the
+       actual options are equivalent.  UNIX-style options (before
+       the opening  parenthesis)  may  be  mixed  with  CMS-style
+       options   (after   the  opening  parenthesis).   CMS-style
+       options (and their UNIX-style equivalents):
+       BBIINNaarryy ('-b'), BBTTOOAA ('-a'), EEBBCCddiicc ('-e'),
+       FFIILLEEnnaammee ffiillee ('-ffile'), HHeellpp ('-h'), NNOORREEPPllaaccee ('-n'),
+       LLIINNeess ## ('-l#'), RREEPPllaaccee ('-r'), SSEEQQuueennccee ('-s'),
+       TTEEXXTT ('-t'), XXXXeennccooddee ('-x').
+
+       ddeeccooddee
+
+       --bb     Decoded output file is opened in binary  mode  (not
+              applicable to redirected or pipe output).
+
+       --ee     Do  not translate decoded file from ASCII to EBCDIC
+              character set (on systems with EBCDIC character set
+              only).  The default translation table is used.
+
+       --ee     Translate decoded file from EBCDIC to ASCII charac-
+              ter set  (on  machines  with  ASCII  character  set
+              only).  The default translation table is used.
+
+       --ee##    where  '#'  =  '1',  '2', or '3'. Only available if
+              installed with the identifier 'ALL_TABLES'  defined
+              at  compile-time.  Enables ASCII to EBCDIC transla-
+              tion (on EBCDIC systems) or EBCDIC to ASCII  trans-
+              lation  (on ASCII systems) and selects one of three
+              translation tables (1: ISO 2022, 2: IBM, 3: default
+              table).
+
+       --ff     Fixed length record format is used for output files
+              (VAX/VMS  and  IBM  mainframe  operating  systems).
+              Digits  directly  following '-f' specify the record
+              length  (e.g.  '-f132',  default:  512   bytes   on
+              VAX/VMS,  80  bytes on VM/CMS).  After these digits
+              other options may follow.
+
+       --hh     Help. List syntax and options.
+
+       --ll     List contents of a input file  containing  multiple
+              output  files.   Switches  output  of decoded files
+              off. Data and checksum are processed, however.
+
+       --nn     No existing files will be replaced nor any  prompts
+              issued  what to do with existing files. The default
+              action is to prompt whether an existing file should
+              be replaced by the new file, not to be replaced (no
+
+
+
+                           5 March 1991                         6
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+              output) or a different output file name chosen.
+
+       --oo     with file name following (syntax like  '-f'  option
+              of  _e_n_c_o_d_e  command).  Only  the  specified file is
+              extracted from an input file containing one or sev-
+              eral encoded files.
+
+       --rr     Replace  existing  files  without  any prompts (see
+              also '-n').
+
+       --ss     Stream_LF record format is used  for  output  files
+              (VAX/VMS only). '-f' and '-s' are exclusive.
+
+       --tt     Decoded file is opened in text mode (not applicable
+              to redirected or pipe output). '-b'  and  '-t'  are
+              exclusive.
+
+       --vv     Variable  length  record  format is used for output
+              files (VAX/VMS and IBM operating systems only).  On
+              VAX/VMS  this  is  needed  only to write files with
+              file types 'EXE', 'ARC', 'ZIP', 'TAR', and  'TAR-Z'
+              with  variable length record format.  For all other
+              file types this is the default.  On VM/CMS the max-
+              imum  record size is taken from any digits directly
+              following the 'v' (default: 255 bytes).
+
+       --xx     Use XX scheme if no table is present in  the  input
+              file. '-x' is implicitly assumed on most systems if
+              the program is called as _x_x_d_e_c_o_d_e_.
+
+       --zz     The last fixed length record of the output file has
+              to  be  filled  (padded)  with  some  character. By
+              default it  is  character  0.  Any  integer  number
+              between 0 and 255 immediately following the 'z' may
+              be used to set a different fill character  (VAX/VMS
+              only).
+
+       Alternate  options on VM/CMS (and their UNIX-style equiva-
+       lents):
+       BBIINNaarryy ('-b'), EEBBCCddiicc ('-e') or EEBBCCddiicc ## ('-e#'),
+       FFIIXXeedd ('-f') or FFIIXXeedd ## ('-f#'), HHeellpp ('-h'), LLIISSTT ('-l'),
+       NNOORREEPPllaaccee ('-n'), OONNLLYY ffiillee ('-ofile'), RREEPPllaaccee ('-r'),
+       VVAARRiiaabbllee ('-v') or VVAARRiiaabbllee ## ('-v#'), XXXXddeeccooddee ('-x').
+
+SSuuppppoorrtteedd ssyysstteemmss aanndd ccoommppiilleerrss
+       IBM  PC/AT  and  compatibles  with  MS-DOS and Microsoft C
+       (5.1) or Turbo C (1.5 or 2.0) compiler.
+       DEC VAX with VAX/VMS operating system and VAX C  compiler.
+       UNIX System V release 3.2 (SCO UNIX System V/386).
+       DECstation  with  Ultrix  operating system and MIPS C com-
+       piler.
+       ATARI ST with TOS and Turbo C (2.0) compiler.
+       IBM mainframes with VM/CMS and VS C compiler.
+
+
+
+
+                           5 March 1991                         7
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+IInnssttaallllaattiioonn
+       The source code of _e_n_c_o_d_e and _d_e_c_o_d_e consists  of  a  five
+       files:   encode.c,  decode.c,  encode1.h,  encode2.h,  and
+       crc.c. No make file is supplied. Just compile encode.c and
+       decode.c  separately.  The other files are included by the
+       preprocessor.  On MS-DOS with Microsoft C or Borland Turbo
+       C, on ATARI ST with Turbo C, on VAX/VMS with VAX C, and on
+       Ultrix with MIPS C no additional definitions are necessary
+       for compilation.
+       On  VM/CMS  the  identifier  'VMCMS' should be defined, on
+       other   IBM    mainframe    operating    systems    define
+       'IBM_MAINFRAME' (not tested yet).
+       On VAX/VMS _e_n_c_o_d_e and _d_e_c_o_d_e should be defined as DCL sym-
+       bols like
+
+       encode:==$disk:[user.path]encode.exe
+
+       The size of the '.EXE' files  may  be  kept  small  if  an
+       option file is supplied to the linker containing the line:
+
+       sys$library:vaxcrtl/share
+
+       However, such executables will run only  on  systems  with
+       the VAX C Run Time Library installed.
+       On  ATARI  ST  computers  _e_n_c_o_d_e and _d_e_c_o_d_e may be created
+       with the 'DEFAULT.PRJ' supplied with Turbo C but  executa-
+       bles  should  be  renamed  to file types '.TOS' or '.TTP'.
+       They may be started from a shell or by double-clicking  on
+       the TOS directory entries.  On ATARIs the programs ask for
+       the 'command line' when started without arguments (e.g. by
+       double-clicking on 'ENCODE.TTP').
+       To  enable ASCII to EBCDIC translation for _e_n_c_o_d_e you have
+       to define the identifier 'TRANSLATE' at compile-time  with
+       option '-DTRANSLATE=1' (on UNIX and with Microsoft C), (on
+       VM/CMS), or in the 'Options' menu (Turbo C), or by insert-
+       ing  the  line  '#define  TRANSLATE 1' at the beginning of
+       encode.c. Note that this option is not  necessary  if  the
+       receiver  has  _d_e_c_o_d_e  to  decode  the file because _d_e_c_o_d_e
+       translates from ASCII to EBCDIC by default.  To enable all
+       three  translation  tables at run-time, define the identi-
+       fier 'ALL_TABLES' at compile-time. If you  prefer  another
+       translation  table  than  number  3 as the only or default
+       table then define either the  identifier  'ISO_2022_TABLE'
+       or 'IBM_TABLE' at compile-time.
+
+SSeeee aallssoo
+       uuencode, xxencode, btoa
+
+AAuutthhoorr
+       Konrad Bernl\"ohr (bern@dhdmpi50.bitnet)
+
+RReessttrriiccttiioonnss
+       On VM/CMS without an explicit file mode of the output file
+       the file may be reported  as  present  and  a  'Replace ?'
+
+
+
+                           5 March 1991                         8
+
+
+
+
+
+encode, decode(1)                               encode, decode(1)
+
+
+       query  issued by _d_e_c_o_d_e and _e_n_d_o_d_e if the existing file is
+       on a read-only minidisk and the new file would be  created
+       on  another  minidisk.  When using CMS-style names without
+       explicit file mode of the input file the file name of  the
+       output  file must not consist of a single letter or a let-
+       ter plus a digit.
+       Due to limitations of the file access  method  used  by  C
+       programs  under  VM/CMS the record length is restricted to
+       32768 bytes or less. Therefore, no MODULE  files  (excuta-
+       bles)  with  65535 bytes records can be encoded or decoded
+       unless an additional  conversion  to/from  another  record
+       size is applied.
+       Input  redirected  from  /  output redirected to character
+       oriented devices (e.g. serial  ports)  cannot  be  distin-
+       guished  from  keyboard/terminal  (console)  I/O.  On some
+       systems  not  even  redirection  from/to  disk  files   is
+       detected.   Use  named  I/O  files  or devices rather than
+       redirection or pipes in such cases. Otherwise  two  things
+       might happen:
+       a) Input  to  _e_n_c_o_d_e  and  _d_e_c_o_d_e is standard input and no
+       redirection of it is detected: Because  console  input  is
+       not  accepted as source for files to be encoded or decoded
+       only the syntax will be shown and nothing else done.
+       b) Output from _d_e_c_o_d_e is standard output and  no  redirec-
+       tion  of  it  is detected: In this case output goes to the
+       the file or device  specified  at  the  beginning  of  the
+       encoded file.
+       With  tha BA scheme neither splitting of files on encoding
+       nor automatic decoding of split files are available.
+       Split files and multiple files cannot be restored automat-
+       ically  by  the  original  _u_u_d_e_c_o_d_e and _x_x_d_e_c_o_d_e programs.
+       These programs also don't check the byte count and  cyclic
+       redundancy checksum (CRC) written by _e_n_c_o_d_e_.
+       When decoding files with UU or XX scheme that were encoded
+       by programs other than _e_n_c_o_d_e a warning is issued, inform-
+       ing you that neither a byte count nor a CRC are present in
+       the input file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                           5 March 1991                         9
+
+

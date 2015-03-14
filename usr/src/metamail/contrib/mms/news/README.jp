@@ -1,0 +1,139 @@
+Subject: patch to make nntpd1.5.11 treat MIME header
+Summary: ==?ISO-2022-JP?B?GyRAJUslZSE8JTkkTkZ8S1w4bDI9JE4kPyRhJE4lUQ==?=
+	=?ISO-2022-JP?B?GyRAJUMlQRsoSg==?= =
+From: Yutaka Sato =?ISO-2022-JP?B?GyRAOjRGI0stGyhK?=  <ysato@etl.go.jp>
+To: Nathaniel Borenstein <nsb@thumper.bellcore.com>  (=?iso-8859-8?q?=ED=E5=EC=F9 =EF=E1 =E9=EC=E8=F4=F0?=)
+Date: Thu Jun 2 03:55:02 JST 1992
+Content-Type: multipart/mixed; charset=ISO-2022-JP; boundary="(+_+)"
+
+まず、fromMimeの動作を確認するために、fromMime < README.jp | head
+を試してみて下さい。
+
+　　Summary: =ニュースの日本語化のためのパッチ=
+　　From: Yutaka Sato 佐藤豊 <ysato@etl.go.jp>
+
+のようになるはずです。
+
+
+--(+_+)
+Content-Type: text/plain
+Content-Description: （１）ｎｎｔｐｄへのパッチ
+
+READMEに従って、MIME対応のためのパッチを当てたnntpdを作成して
+下さい。「XMIME enable」コマンドを送るまでは、オリジナルの
+nntpdと同じに振舞うようになっています。
+
+--(+_+)
+Content-Type: text/plain
+Content-Description: （２）ｉｎｅｗｓ／Ｃｎｅｗｓへのパッチ
+
+NNTPを経由しないで直接/usr/lib/news/inewsを呼ぶようなツールが
+ある場合、inewsにフィルタをかませる必要があります。
+以下のように、anne.jonesに渡す前に、MIMEへの変換フィルタ「toMime」
+をかませて下さい。toMimeは、/usr/lib/newsbinに置くとよいでしょう。
+
+*** inews.etl   Mon Jun 24 18:18:31 1991
+--- inews.etl+mime      Wed May 27 20:52:48 1992
+***************
+*** 158,164 ****
+  # post with new headers and .signature
+! (anne.jones <$inhdrs          # bash headers
+   status=$?
+--- 158,165 ----
+  # post with new headers and .signature
+! #(anne.jones <$inhdrs         # bash headers
+!(toMime < $inhdrs | anne.jones # translate to MIME and bash headers
+   status=$?
+
+--(+_+)
+Content-Type: text/plain
+Content-Description: （３）GNUSの初期設定
+
+.emacsなどの中で、以下を実行すると、nntpdが MIMEヘッダを処理する
+モードになります。
+
+        (setq nntp-server-hook
+              '(lambda ()
+                 (nntp-send-command nil "XMIME enable")))
+
+--(+_+)
+Content-Type: text/plain
+Content-Description: （４）ｒｎへのパッチ
+
+このパッチは、tinyの高橋さんによる日本語化ｒｎへのパッチです。
+以下のバージョンを前提にしています。
+
+README.kanji
+>   高橋( takahasi@tiny.or.jp )です。
+> ○ お知らせ
+> ９０年１月時点で Stan Barber からバージョン４．３のパッチレベル５４が
+> 出てしまいました。ほんとうはバージョン４．４が出ているはずなのですが……
+> ＪＵＮＥＴでの公式ポストはバージョン４．４のパッチで出したいと思います
+> のでもうしばらく待って下さい。
+
+*** ngdata.c.orig       Wed Jul 10 14:27:21 1991
+--- ngdata.c    Tue Jun  2 19:05:53 1992
+***************
+*** 77,82 ****
+--- 77,86 ----
+
+  #ifdef SERVER
+
++     put_server("XMIME enable");
++     get_server(ser_line, sizeof(ser_line));
++     fprintf(stderr,">>>> MIME enable: %s <<<<\n",ser_line);
++
+      put_server("LIST");               /* tell server we want the active file *
+/
+      get_server(ser_line, sizeof(ser_line));
+      if (*ser_line != CHAR_OK) {               /* and then see if that's ok */
+
+*** term.c.orig	Wed Jul 10 14:27:25 1991
+--- term.c	Mon May 25 21:36:30 1992
+***************
+*** 781,786 ****
+--- 781,794 ----
+      assert(UC);
+      if (*UC) {		/* char by char underline? */
+  	while (*s) {
++ #ifdef KANJI
++ 	    if ((unsigned char)(*s) & 0x80){
++ 		if(s[1]){
++ 			putchar((unsigned char)(*s++));
++ 			putchar((unsigned char)(*s));
++ 		}
++ 	    }else
++ #endif
+  	    if (*s < ' ') {
+  		putchar('^');
+  		backspace();/* back up over it */
+***************
+*** 800,805 ****
+--- 808,818 ----
+      else {		/* start and stop underline */
+  	underline();	/* start underlining */
+  	while (*s) {
++ #ifdef KANJI
++ 	    if ((unsigned char)(*s) >= ' ')
++ 		putchar((unsigned char)(*s));
++ 	    else
++ #endif
+  	    if (*s < ' ') {
+  		putchar('^');
+  		putchar(*s+64);
+***************
+*** 1054,1059 ****
+--- 1067,1078 ----
+  	    if (!*s)
+  		break;
+  #ifdef KANJI
++ 	    if( s[0]==033 && (s[1]=='$'||s[1]=='(') && s[2] ){
++ 		putchar(*s++);
++ 		putchar(*s++);
++ 		putchar(*s++);
++ 		continue;
++ 	    }
+  	    if ((unsigned char)(*s) >= ' ')
+  		putchar((unsigned char)(*s));
+  #else
+--(+_+)--

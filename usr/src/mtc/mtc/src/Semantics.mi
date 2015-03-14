@@ -1,0 +1,4902 @@
+
+
+IMPLEMENTATION MODULE Semantics;
+
+IMPORT SYSTEM, Tree;
+(* line 74 "modula.cg" *)
+
+FROM Idents	IMPORT
+  tIdent	;
+
+FROM Tree	IMPORT
+  Definition	, Foreign	, Implementation, Program	;
+
+FROM UniqueIds	IMPORT
+  BeginUniqueIds, CloseUniqueIds;
+
+FROM Values	IMPORT
+  CompConst	;
+
+(* line 293 "modula.cg" *)
+
+FROM SYSTEM	IMPORT
+  ADDRESS	;
+
+FROM Defs	IMPORT
+  tObject	, tObjects	, tVoid		,
+  NoObject	, NoObjects	,
+  mConst1	, mEnumLiteral1	, mField1	, mModule1	,
+  mModule2	, mModule3	, mProc1	, mProc2	,
+  mProcHead1	, mTypeDecl1	, mTypeDecl2	, mTypeDecl3	,
+  mOpaque1	, mOpaque2	, mOpaque3	, mVar1		,
+  mStdProc1	,
+  mVoid1	, mVoid2	, mElmt		, UNION		,
+  Filter	;
+
+(* line 487 "modula.cg" *)
+
+FROM Defs	IMPORT
+  tType		, tTypes	,
+  NoType	, NoTypes	,
+  mTypes	,
+  mQualident1	, mOpaqueType1	, mOpaqueType2	, mArray1	,
+  mArray2	, mEnumeration1	, mEnumeration2	, mPointer1	,
+  mPointer2	, mProcType1	, mProcType2	, mRecord1	,
+  mRecord2	, mSet1		, mSet2		, mSubrange1	,
+  mSubrange2	, mSubrange3	,
+  OpaqueType1	,
+  TypeVOID	, 
+  GroundType	;
+
+FROM GenIdents	IMPORT
+  GenStruct1	, GenStruct2	;
+
+(* line 668 "modula.cg" *)
+
+FROM Defs	IMPORT Enumeration1;
+
+(* line 749 "modula.cg" *)
+
+FROM Defs	IMPORT IsDeclared;
+
+(* line 837 "modula.cg" *)
+
+FROM Defs	IMPORT
+  tEnv		, NoEnv		, mEnv		,
+  IdentSYSTEM	, ModuleSYSTEM	, Predefs	;
+
+(* line 906 "modula.cg" *)
+
+FROM Defs	IMPORT
+  GetExport1	, GetExport2	, GetObjects	, GetFields	,
+  Identify	, Identify2	;
+
+(* line 943 "modula.cg" *)
+
+FROM Defs	IMPORT
+  GetType	, GetElemType	, GetTargetType	, GetResultType	, 
+  TypeREAL	, TypeCHAR	, TypeBITSET	, TypeIntCard	,
+  TypeSTRING	, TypeStringChar,
+  ProcType1	, StdProcType1	;
+
+FROM StringMem	IMPORT
+  Length	;
+
+FROM Types	IMPORT
+  ResultType	, StdResultType	;
+
+(* line 1005 "modula.cg" *)
+
+FROM Defs	IMPORT GetFormals, Head, Tail;
+
+(* line 1028 "modula.cg" *)
+
+FROM Values	IMPORT ErrorValue;
+
+(* line 1076 "modula.cg" *)
+
+FROM SYSTEM	IMPORT
+  ADR		;
+
+FROM Idents	IMPORT
+  NoIdent	;
+
+FROM Defs	IMPORT
+  DefineCIdent	;
+
+FROM UniqueIds	IMPORT
+  tIdents	, tIdentClass	, EnterProc	, LeaveProc	,
+  NameConflict	, DeclareIdent	;
+
+FROM GenIdents	IMPORT
+  MakeQualified	, Rename	, RenameField	, GenOpaque	;
+
+FROM Errors	IMPORT
+  ErrorMessagePI, Restriction	, Warning	,
+  OpaqueConflict, ForeignConflict;
+IMPORT Errors;
+
+(* line 1502 "modula.cg" *)
+
+FROM Defs	IMPORT
+  tSelectors	, NoSelectors	, mSelectors	;
+
+FROM GenIdents	IMPORT
+  GenSelector	;
+
+(* line 1588 "modula.cg" *)
+
+FROM Defs	IMPORT
+  Set1		;
+
+FROM Tree	IMPORT
+  NotEqual	, Times		, Plus		, Minus		,
+  Divide	, Less		, LessEqual	, Equal		,
+  Greater	, GreaterEqual	, And		, Div		,
+  In		, Mod		, Not		, Or		;
+
+FROM Code	IMPORT
+  cNoOp		,
+  cNotEqual	, cTimes	, cPlus		, cMinus	,
+  cDivide	, cLess		, cLessEqual	, cEqual	,
+  cGreater	, cGreaterEqual	, cAnd		, cIn		,
+  cMod		, cNot		, cOr		, cUnion	,
+  cDifference	, cIntersection	, cSymDiff	, cIsSubset1	,
+  cIsSubset2	;
+
+(* line 1658 "modula.cg" *)
+
+FROM Defs	IMPORT
+  ProcCHR	, ProcFLOAT	, ProcMAX	, ProcMIN	,
+  ProcODD	, ProcORD	, ProcSIZE	, ProcTRUNC	,
+  ProcVAL	, ProcTSIZE	,
+  Const1	, EnumLiteral1	, TypeDecl1	, Opaque1	;
+
+(* line 1734 "modula.cg" *)
+
+FROM Defs	IMPORT IsOpenArray;
+
+(* line 1866 "modula.cg" *)
+
+FROM Defs	IMPORT OpenArrays;
+
+(* line 1904 "modula.cg" *)
+
+FROM Defs	IMPORT tCObjects, NoCObjects, Pointers, NestedUse;
+
+(* line 2025 "modula.cg" *)
+
+FROM Defs	IMPORT
+  tStrings	, NoStrings	, mStringPar	,
+  Array1	, IsOpen	;
+
+FROM GenIdents	IMPORT
+  GenString	;
+
+(* line 2206 "modula.cg" *)
+
+FROM Defs	IMPORT ProcNEW, IdentALLOC, ProcDISPOSE, IdentDEALLOC;
+
+
+VAR yyb	: BOOLEAN;
+
+PROCEDURE Eval (yyt: Tree.tTree);
+ VAR
+ BEGIN yyVisit1ROOT (yyt); END Eval;
+
+PROCEDURE yyVisit1ROOT (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ROOT:
+  ROOTyCompUnitsyObjects2: tVoid;
+  ROOTyCompUnitsyObjects3: tObjects;
+  ROOTyCompUnitsyObjects4In: tVoid;
+  ROOTyCompUnitsyObjects4Out: tVoid;
+  ROOTyCompUnitsyImplIdent: tIdent;
+  ROOTyCompUnitsyImplTypes: tObjects;
+  ROOTyCompUnitsyEnv1: tEnv;
+  ROOTyCompUnitsyEnv3: tEnv;
+  ROOTyCompUnitsyIdsIn: tIdents;
+  ROOTyCompUnitsyIdsOut: tIdents;
+  ROOTyCompUnitsyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ROOT:
+(* line 1781 "modula.cg" *)
+ yyt^.ROOT.CompUnits^.CompUnits.PosIn	:= 0				;
+yyVisit1CompUnits (yyt^.ROOT.CompUnits);
+(* line 861 "modula.cg" *)
+ ROOTyCompUnitsyEnv1	:= mEnv (mElmt (IdentSYSTEM, FALSE, ModuleSYSTEM, yyt^.ROOT.CompUnits^.CompUnits.Objects1), NoEnv);
+yyVisit2CompUnits (yyt^.ROOT.CompUnits, ROOTyCompUnitsyObjects2, ROOTyCompUnitsyEnv1);
+yyVisit3CompUnits (yyt^.ROOT.CompUnits, ROOTyCompUnitsyObjects3, ROOTyCompUnitsyImplIdent, ROOTyCompUnitsyImplTypes, ROOTyCompUnitsyObjects2);
+(* line 1118 "modula.cg" *)
+ ROOTyCompUnitsyIdsIn	:= cIdents			;
+(* line 863 "modula.cg" *)
+
+		    ROOTyCompUnitsyEnv3	:= mEnv (mElmt (IdentSYSTEM, FALSE, ModuleSYSTEM, ROOTyCompUnitsyObjects3), NoEnv);
+(* line 336 "modula.cg" *)
+ ROOTyCompUnitsyObjects4In:= cVoid			;
+yyVisit4CompUnits (yyt^.ROOT.CompUnits, ROOTyCompUnitsyObjects4In, ROOTyCompUnitsyObjects4Out, ROOTyCompUnitsyEnv3, ROOTyCompUnitsyIdsIn, ROOTyCompUnitsyIdsOut, ROOTyCompUnitsyPosOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1ROOT;
+
+PROCEDURE yyVisit1CompUnits (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.DefMod:
+  DefModyDeclsyPosIn: SHORTCARD;
+  DefModyDeclsyPosOut: SHORTCARD;
+ | Tree.ProgMod:
+  ProgModyDeclsyPosIn: SHORTCARD;
+  ProgModyDeclsyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.CompUnits:
+(* line 338 "modula.cg" *)
+ yyt^.CompUnits.Objects1		:= NoObjects			;
+| Tree.CompUnits0:
+(* line 338 "modula.cg" *)
+ yyt^.CompUnits0.Objects1		:= NoObjects			;
+| Tree.CompUnit:
+(* line 342 "modula.cg" *)
+ yyt^.CompUnit.Object		:= NoObject			;
+(* line 1784 "modula.cg" *)
+ yyt^.CompUnit.Next^.CompUnits.PosIn	:=		yyt^.CompUnit.PosIn		;
+yyVisit1CompUnits (yyt^.CompUnit.Next);
+(* line 343 "modula.cg" *)
+
+		    yyt^.CompUnit.Objects1		:= yyt^.CompUnit.Next^.CompUnits.Objects1		;
+| Tree.DefMod:
+(* line 1786 "modula.cg" *)
+ DefModyDeclsyPosIn	:= 		yyt^.DefMod.PosIn		;
+(* line 1446 "modula.cg" *)
+ yyt^.DefMod.Decls^.Decls.CntIn	:= 0				;
+(* line 1123 "modula.cg" *)
+ yyt^.DefMod.Decls^.Decls.Module	:=		yyt^.DefMod.Ident		;
+(* line 1124 "modula.cg" *)
+
+		    yyt^.DefMod.Decls^.Decls.Kind	:=		yyt^.DefMod.Kind		;
+yyVisit1Decls (yyt^.DefMod.Decls, DefModyDeclsyPosIn, DefModyDeclsyPosOut);
+(* line 348 "modula.cg" *)
+ yyt^.DefMod.Object		:= mModule1 (yyt^.DefMod.Ident, yyt^.DefMod.Decls^.Decls.Objects1);
+(* line 1787 "modula.cg" *)
+
+		    yyt^.DefMod.Next^.CompUnits.PosIn	:= DefModyDeclsyPosOut		;
+yyVisit1CompUnits (yyt^.DefMod.Next);
+(* line 349 "modula.cg" *)
+
+		    yyt^.DefMod.Objects1		:= mElmt (yyt^.DefMod.Ident, FALSE, yyt^.DefMod.Object, yyt^.DefMod.Next^.CompUnits.Objects1);
+| Tree.ProgMod:
+(* line 356 "modula.cg" *)
+
+		  IF yyt^.ProgMod.Kind = Program THEN
+		    yyt^.ProgMod.Object		:= mModule2 (mModule1 (yyt^.ProgMod.Ident, NoObjects), NoObjects);
+		  ELSE
+		    yyt^.ProgMod.Object		:= NoObject			;
+		  END;			
+(* line 1788 "modula.cg" *)
+ ProgModyDeclsyPosIn	:= 		yyt^.ProgMod.PosIn		;
+(* line 1447 "modula.cg" *)
+ yyt^.ProgMod.Decls^.Decls.CntIn	:= 0				;
+(* line 1128 "modula.cg" *)
+ yyt^.ProgMod.Decls^.Decls.Module	:=		yyt^.ProgMod.Ident		;
+(* line 1129 "modula.cg" *)
+
+		    yyt^.ProgMod.Decls^.Decls.Kind	:=		yyt^.ProgMod.Kind		;
+yyVisit1Decls (yyt^.ProgMod.Decls, ProgModyDeclsyPosIn, ProgModyDeclsyPosOut);
+(* line 1789 "modula.cg" *)
+
+		    yyt^.ProgMod.Next^.CompUnits.PosIn	:= ProgModyDeclsyPosOut		;
+yyVisit1CompUnits (yyt^.ProgMod.Next);
+(* line 362 "modula.cg" *)
+
+		  IF yyt^.ProgMod.Kind = Program THEN
+		    yyt^.ProgMod.Objects1		:= mElmt (yyt^.ProgMod.Ident, FALSE, yyt^.ProgMod.Object, yyt^.ProgMod.Next^.CompUnits.Objects1);
+		  ELSE
+		    yyt^.ProgMod.Objects1		:= yyt^.ProgMod.Next^.CompUnits.Objects1		;
+		  END;			
+   ELSE
+   END;
+  END;
+ END yyVisit1CompUnits;
+
+PROCEDURE yyVisit2CompUnits (yyt: Tree.tTree; VAR yyObjects2: tVoid; VAR yyEnv1: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.DefMod:
+  DefModyNextyObjects2: tVoid;
+  DefModyImportyObjects1: tObjects;
+  DefModyDeclsyObjects2: tVoid;
+ | Tree.ProgMod:
+  ProgModyNextyObjects2: tVoid;
+  ProgModyImportyObjects1: tObjects;
+  ProgModyDeclsyObjects2: tVoid;
+  ProgModyyDefObjects1: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.CompUnits:
+(* line 339 "modula.cg" *)
+
+		    yyObjects2		:= cVoid			;
+| Tree.CompUnits0:
+(* line 339 "modula.cg" *)
+
+		    yyObjects2		:= cVoid			;
+| Tree.CompUnit:
+yyVisit2CompUnits (yyt^.CompUnit.Next, yyObjects2, yyEnv1);
+| Tree.DefMod:
+yyt^.DefMod.Import^.Import.Env1:=yyEnv1;
+yyVisit1Import (yyt^.DefMod.Import, DefModyImportyObjects1);
+(* line 866 "modula.cg" *)
+
+		    yyt^.DefMod.Decls^.Decls.Env1	:= mEnv (UNION (UNION (Predefs, DefModyImportyObjects1), yyt^.DefMod.Decls^.Decls.Objects1), NoEnv);
+(* line 767 "modula.cg" *)
+ yyt^.DefMod.Decls^.Decls.DefTypes	:= NoObjects			;
+yyVisit2Decls (yyt^.DefMod.Decls, DefModyDeclsyObjects2);
+yyVisit2CompUnits (yyt^.DefMod.Next, DefModyNextyObjects2, yyEnv1);
+(* line 350 "modula.cg" *)
+
+		    yyObjects2		:= mVoid2 (DefModyDeclsyObjects2, DefModyNextyObjects2);
+| Tree.ProgMod:
+yyt^.ProgMod.Import^.Import.Env1:=yyEnv1;
+yyVisit1Import (yyt^.ProgMod.Import, ProgModyImportyObjects1);
+(* line 368 "modula.cg" *)
+
+		    ProgModyyDefObjects1		:= Filter (GetExport1 (Identify (yyt^.ProgMod.Ident, yyEnv1)));
+(* line 870 "modula.cg" *)
+
+		    yyt^.ProgMod.Decls^.Decls.Env1	:= mEnv (UNION (UNION (UNION (Predefs, ProgModyImportyObjects1), yyt^.ProgMod.Decls^.Decls.Objects1), ProgModyyDefObjects1), NoEnv);
+(* line 779 "modula.cg" *)
+ yyt^.ProgMod.Decls^.Decls.DefTypes	:= GetExport1 (Identify (yyt^.ProgMod.Ident, yyEnv1));
+yyVisit2Decls (yyt^.ProgMod.Decls, ProgModyDeclsyObjects2);
+yyVisit2CompUnits (yyt^.ProgMod.Next, ProgModyNextyObjects2, yyEnv1);
+(* line 369 "modula.cg" *)
+
+		    yyObjects2		:= mVoid2 (ProgModyDeclsyObjects2, ProgModyNextyObjects2);
+   ELSE
+   END;
+  END;
+ END yyVisit2CompUnits;
+
+PROCEDURE yyVisit3CompUnits (yyt: Tree.tTree; VAR yyObjects3: tObjects; VAR yyImplIdent: tIdent; VAR yyImplTypes: tObjects; VAR yyEnv2: tVoid);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.CompUnit:
+  CompUnityNextyImplIdent: tIdent;
+  CompUnityNextyImplTypes: tObjects;
+ | Tree.DefMod:
+  DefModyNextyObjects3: tObjects;
+  DefModyDeclsyImplTypes: tObjects;
+ | Tree.ProgMod:
+  ProgModyNextyObjects3: tObjects;
+  ProgModyNextyImplIdent: tIdent;
+  ProgModyNextyImplTypes: tObjects;
+  ProgModyDeclsyImplTypes: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.CompUnits:
+(* line 766 "modula.cg" *)
+
+		    yyImplTypes		:= NoObjects			;
+(* line 765 "modula.cg" *)
+ yyImplIdent		:= NoIdent			;
+(* line 340 "modula.cg" *)
+
+		    yyObjects3		:= yyt^.CompUnits.Objects1			;
+| Tree.CompUnits0:
+(* line 766 "modula.cg" *)
+
+		    yyImplTypes		:= NoObjects			;
+(* line 765 "modula.cg" *)
+ yyImplIdent		:= NoIdent			;
+(* line 340 "modula.cg" *)
+
+		    yyObjects3		:= yyt^.CompUnits0.Objects1			;
+| Tree.CompUnit:
+yyVisit3CompUnits (yyt^.CompUnit.Next, yyObjects3, CompUnityNextyImplIdent, CompUnityNextyImplTypes, yyEnv2);
+(* line 766 "modula.cg" *)
+
+		    yyImplTypes		:= NoObjects			;
+(* line 765 "modula.cg" *)
+ yyImplIdent		:= NoIdent			;
+| Tree.DefMod:
+(* line 1565 "modula.cg" *)
+ yyt^.DefMod.Decls^.Decls.Level	:= 0				;
+yyt^.DefMod.Decls^.Decls.Env2:=yyEnv2;
+yyVisit3CompUnits (yyt^.DefMod.Next, DefModyNextyObjects3, yyImplIdent, yyImplTypes, yyEnv2);
+(* line 771 "modula.cg" *)
+
+		  IF yyt^.DefMod.Ident = yyImplIdent THEN
+		    DefModyDeclsyImplTypes	:= yyImplTypes		;
+		    
+		    
+		  ELSE
+		    DefModyDeclsyImplTypes	:= NoObjects			;
+		  END;			
+yyVisit3Decls (yyt^.DefMod.Decls, DefModyDeclsyImplTypes);
+(* line 351 "modula.cg" *)
+
+		    yyObjects3		:= mElmt (yyt^.DefMod.Ident, FALSE, mModule2 (yyt^.DefMod.Object, yyt^.DefMod.Decls^.Decls.Objects3), DefModyNextyObjects3);
+| Tree.ProgMod:
+(* line 1566 "modula.cg" *)
+ yyt^.ProgMod.Decls^.Decls.Level	:= 0				;
+yyt^.ProgMod.Decls^.Decls.Env2:=yyEnv2;
+(* line 783 "modula.cg" *)
+
+		    ProgModyDeclsyImplTypes	:= NoObjects			;
+yyVisit3Decls (yyt^.ProgMod.Decls, ProgModyDeclsyImplTypes);
+yyVisit3CompUnits (yyt^.ProgMod.Next, ProgModyNextyObjects3, ProgModyNextyImplIdent, ProgModyNextyImplTypes, yyEnv2);
+(* line 782 "modula.cg" *)
+
+		    yyImplTypes		:= yyt^.ProgMod.Decls^.Decls.Objects3		;
+(* line 781 "modula.cg" *)
+
+		    yyImplIdent		:= yyt^.ProgMod.Ident			;
+(* line 370 "modula.cg" *)
+
+		  IF yyt^.ProgMod.Kind = Program THEN
+		    yyObjects3		:= mElmt (yyt^.ProgMod.Ident, FALSE, yyt^.ProgMod.Object, yyt^.ProgMod.Next^.CompUnits.Objects1);
+		  ELSE
+		    yyObjects3		:= ProgModyNextyObjects3		;
+		  END;			
+   ELSE
+   END;
+  END;
+ END yyVisit3CompUnits;
+
+PROCEDURE yyVisit4CompUnits (yyt: Tree.tTree; VAR yyObjects4In: tVoid; VAR yyObjects4Out: tVoid; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.DefMod:
+  DefModyNextyIdsIn: tIdents;
+  DefModyDeclsyEnv4: tEnv;
+  DefModyDeclsyInLocal: BOOLEAN;
+  DefModyDeclsyCntOut: SHORTCARD;
+  DefModyDeclsyGlobalPtrs: BOOLEAN;
+ | Tree.ProgMod:
+  ProgModyNextyIdsIn: tIdents;
+  ProgModyDeclsyEnv4: tEnv;
+  ProgModyDeclsyInLocal: BOOLEAN;
+  ProgModyDeclsyCntOut: SHORTCARD;
+  ProgModyDeclsyGlobalPtrs: BOOLEAN;
+  ProgModyStmtsyLevel: SHORTCARD;
+  ProgModyStmtsyGlobalPtrs: BOOLEAN;
+  ProgModyStmtsyStrsIn: tStrings;
+  ProgModyStmtsyStrsOut: tStrings;
+  ProgModyStmtsyType: tType;
+  ProgModyyDefObjects3: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.CompUnits:
+(* line 1783 "modula.cg" *)
+		yyPosOut	:=		yyt^.CompUnits.PosIn		;
+(* line 1120 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+(* line 341 "modula.cg" *)
+yyObjects4Out := yyObjects4In			;
+| Tree.CompUnits0:
+(* line 1783 "modula.cg" *)
+		yyPosOut	:=		yyt^.CompUnits0.PosIn		;
+(* line 1120 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+(* line 341 "modula.cg" *)
+yyObjects4Out := yyObjects4In			;
+| Tree.CompUnit:
+yyVisit4CompUnits (yyt^.CompUnit.Next, yyObjects4In, yyObjects4Out, yyEnv3, yyIdsIn, yyIdsOut, yyPosOut);
+| Tree.DefMod:
+yyVisit2Import (yyt^.DefMod.Import, yyEnv3);
+(* line 867 "modula.cg" *)
+
+		    yyt^.DefMod.Decls^.Decls.Env3	:= mEnv (UNION (UNION (Predefs, yyt^.DefMod.Import^.Import.Objects2), yyt^.DefMod.Decls^.Decls.Objects3), NoEnv);
+(* line 768 "modula.cg" *)
+
+		    yyt^.DefMod.Decls^.Decls.DefObjects	:= NoObjects			;
+(* line 352 "modula.cg" *)
+
+		    yyt^.DefMod.Decls^.Decls.Objects4In	:= NoObjects			;
+yyVisit4Decls (yyt^.DefMod.Decls);
+(* line 1125 "modula.cg" *)
+
+		    DefModyDeclsyInLocal	:= FALSE			;
+(* line 868 "modula.cg" *)
+
+		    DefModyDeclsyEnv4	:= mEnv (UNION (UNION (Predefs, yyt^.DefMod.Import^.Import.Objects2), yyt^.DefMod.Decls^.Decls.Objects4Out), NoEnv);
+yyVisit5Decls (yyt^.DefMod.Decls, DefModyDeclsyEnv4, DefModyDeclsyInLocal, yyIdsIn, DefModyNextyIdsIn, DefModyDeclsyCntOut, DefModyDeclsyGlobalPtrs);
+yyVisit4CompUnits (yyt^.DefMod.Next, yyObjects4In, yyObjects4Out, yyEnv3, DefModyNextyIdsIn, yyIdsOut, yyPosOut);
+| Tree.ProgMod:
+yyVisit2Import (yyt^.ProgMod.Import, yyEnv3);
+(* line 376 "modula.cg" *)
+
+		    ProgModyyDefObjects3		:= Filter (GetExport2 (Identify (yyt^.ProgMod.Ident, yyEnv3)));
+(* line 871 "modula.cg" *)
+
+		    yyt^.ProgMod.Decls^.Decls.Env3	:= mEnv (UNION (UNION (UNION (Predefs, yyt^.ProgMod.Import^.Import.Objects2), yyt^.ProgMod.Decls^.Decls.Objects3), ProgModyyDefObjects3), NoEnv);
+(* line 780 "modula.cg" *)
+
+		    yyt^.ProgMod.Decls^.Decls.DefObjects	:= GetExport2 (Identify (yyt^.ProgMod.Ident, yyEnv3));
+(* line 377 "modula.cg" *)
+
+		    yyt^.ProgMod.Decls^.Decls.Objects4In	:= NoObjects			;
+yyVisit4Decls (yyt^.ProgMod.Decls);
+(* line 1130 "modula.cg" *)
+
+		    ProgModyDeclsyInLocal	:= FALSE			;
+(* line 872 "modula.cg" *)
+
+		    ProgModyDeclsyEnv4	:= mEnv (UNION (UNION (UNION (Predefs, yyt^.ProgMod.Import^.Import.Objects2), yyt^.ProgMod.Decls^.Decls.Objects4Out), ProgModyyDefObjects3), NoEnv);
+yyVisit5Decls (yyt^.ProgMod.Decls, ProgModyDeclsyEnv4, ProgModyDeclsyInLocal, yyIdsIn, ProgModyNextyIdsIn, ProgModyDeclsyCntOut, ProgModyDeclsyGlobalPtrs);
+(* line 1922 "modula.cg" *)
+
+		  IF ProgModyDeclsyGlobalPtrs THEN
+		    yyt^.ProgMod.GlobalPtrs		:= Pointers (TRUE, yyt^.ProgMod.Decls^.Decls.Objects4Out);
+		  ELSE
+		    yyt^.ProgMod.GlobalPtrs		:= NoCObjects			;
+		  END;			
+(* line 2176 "modula.cg" *)
+ ProgModyStmtsyType	:= TypeVOID			;
+(* line 2047 "modula.cg" *)
+ ProgModyStmtsyStrsIn	:= NoStrings			;
+(* line 1567 "modula.cg" *)
+
+		    ProgModyStmtsyLevel	:= 0				;
+yyVisit1Stmts (yyt^.ProgMod.Stmts, ProgModyDeclsyEnv4, ProgModyStmtsyLevel, ProgModyStmtsyGlobalPtrs, ProgModyStmtsyStrsIn, ProgModyStmtsyStrsOut, ProgModyStmtsyType);
+yyVisit4CompUnits (yyt^.ProgMod.Next, yyObjects4In, yyObjects4Out, yyEnv3, ProgModyNextyIdsIn, yyIdsOut, yyPosOut);
+(* line 2048 "modula.cg" *)
+
+				yyt^.ProgMod.Strings	:= ProgModyStmtsyStrsOut		;
+   ELSE
+   END;
+  END;
+ END yyVisit4CompUnits;
+
+PROCEDURE yyVisit1Import (yyt: Tree.tTree; VAR yyObjects1: tObjects);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.From:
+  FromyNextyObjects1: tObjects;
+  FromyImpIdsyObjects1: tObjects;
+  FromyImpIdsyEnv1: tEnv;
+  FromyyObject1: tObject;
+ | Tree.Objects:
+  ObjectsyNextyObjects1: tObjects;
+  ObjectsyImpIdsyObjects1: tObjects;
+  ObjectsyImpIdsyEnv1: tEnv;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Import:
+(* line 684 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.Import0:
+(* line 684 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.Import1:
+(* line 684 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.From:
+(* line 918 "modula.cg" *)
+ FromyyObject1	:= Identify (yyt^.From.Ident, yyt^.From.Env1)			;
+(* line 875 "modula.cg" *)
+ FromyImpIdsyEnv1	:= mEnv (GetExport1 (FromyyObject1), NoEnv);
+yyVisit1ImpIds (yyt^.From.ImpIds, FromyImpIdsyObjects1, FromyImpIdsyEnv1);
+yyt^.From.Next^.Import.Env1:=yyt^.From.Env1;
+yyVisit1Import (yyt^.From.Next, FromyNextyObjects1);
+(* line 686 "modula.cg" *)
+ yyObjects1	:= UNION (FromyImpIdsyObjects1, FromyNextyObjects1);
+| Tree.Objects:
+ObjectsyImpIdsyEnv1:=yyt^.Objects.Env1;
+yyVisit1ImpIds (yyt^.Objects.ImpIds, ObjectsyImpIdsyObjects1, ObjectsyImpIdsyEnv1);
+yyt^.Objects.Next^.Import.Env1:=yyt^.Objects.Env1;
+yyVisit1Import (yyt^.Objects.Next, ObjectsyNextyObjects1);
+(* line 688 "modula.cg" *)
+ yyObjects1	:= UNION (ObjectsyImpIdsyObjects1, ObjectsyNextyObjects1);
+   ELSE
+   END;
+  END;
+ END yyVisit1Import;
+
+PROCEDURE yyVisit2Import (yyt: Tree.tTree; VAR yyEnv2: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Import1:
+  Import1yNextyObjects1: tObjects;
+ | Tree.From:
+  FromyImpIdsyObjects2: tObjects;
+  FromyImpIdsyEnv2: tEnv;
+  FromyyObject2: tObject;
+ | Tree.Objects:
+  ObjectsyImpIdsyObjects2: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Import:
+(* line 685 "modula.cg" *)
+
+		    yyt^.Import.Objects2	:= NoObjects				;
+| Tree.Import0:
+(* line 685 "modula.cg" *)
+
+		    yyt^.Import0.Objects2	:= NoObjects				;
+| Tree.Import1:
+yyt^.Import1.Next^.Import.Env1:=yyt^.Import1.Env1;
+yyVisit1Import (yyt^.Import1.Next, Import1yNextyObjects1);
+yyVisit2Import (yyt^.Import1.Next, yyEnv2);
+(* line 685 "modula.cg" *)
+
+		    yyt^.Import1.Objects2	:= NoObjects				;
+| Tree.From:
+(* line 919 "modula.cg" *)
+
+	    FromyyObject2	:= Identify (yyt^.From.Ident, yyEnv2)			;
+(* line 876 "modula.cg" *)
+
+		    FromyImpIdsyEnv2	:= mEnv (GetExport2 (FromyyObject2), NoEnv);
+yyVisit2ImpIds (yyt^.From.ImpIds, FromyImpIdsyObjects2, FromyImpIdsyEnv2);
+yyVisit2Import (yyt^.From.Next, yyEnv2);
+(* line 687 "modula.cg" *)
+
+		    yyt^.From.Objects2	:= UNION (FromyImpIdsyObjects2, yyt^.From.Next^.Import.Objects2);
+| Tree.Objects:
+yyVisit2ImpIds (yyt^.Objects.ImpIds, ObjectsyImpIdsyObjects2, yyEnv2);
+yyVisit2Import (yyt^.Objects.Next, yyEnv2);
+(* line 689 "modula.cg" *)
+
+		    yyt^.Objects.Objects2	:= UNION (ObjectsyImpIdsyObjects2, yyt^.Objects.Next^.Import.Objects2);
+   ELSE
+   END;
+  END;
+ END yyVisit2Import;
+
+PROCEDURE yyVisit1ImpIds (yyt: Tree.tTree; VAR yyObjects1: tObjects; VAR yyEnv1: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ImpIds1:
+  ImpIds1yNextyObjects1: tObjects;
+  ImpIds1yyObject1: tObject;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ImpIds:
+(* line 692 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.ImpIds0:
+(* line 692 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.ImpIds1:
+yyVisit1ImpIds (yyt^.ImpIds1.Next, ImpIds1yNextyObjects1, yyEnv1);
+(* line 921 "modula.cg" *)
+ ImpIds1yyObject1	:= Identify (yyt^.ImpIds1.Ident, yyEnv1)			;
+(* line 694 "modula.cg" *)
+
+		  IF ImpIds1yyObject1 = NoObject THEN
+		    yyObjects1	:= ImpIds1yNextyObjects1			;
+		  ELSE
+		    yyObjects1	:= mElmt (yyt^.ImpIds1.Ident, TRUE, ImpIds1yyObject1, ImpIds1yNextyObjects1);
+		  END;		
+   ELSE
+   END;
+  END;
+ END yyVisit1ImpIds;
+
+PROCEDURE yyVisit2ImpIds (yyt: Tree.tTree; VAR yyObjects2: tObjects; VAR yyEnv2: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ImpIds1:
+  ImpIds1yNextyObjects2: tObjects;
+  ImpIds1yyType: tType;
+  ImpIds1yyObject2: tObject;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ImpIds:
+(* line 693 "modula.cg" *)
+
+		    yyObjects2	:= NoObjects				;
+| Tree.ImpIds0:
+(* line 693 "modula.cg" *)
+
+		    yyObjects2	:= NoObjects				;
+| Tree.ImpIds1:
+yyVisit2ImpIds (yyt^.ImpIds1.Next, ImpIds1yNextyObjects2, yyEnv2);
+(* line 922 "modula.cg" *)
+
+	    ImpIds1yyObject2	:= Identify (yyt^.ImpIds1.Ident, yyEnv2)			;
+(* line 701 "modula.cg" *)
+
+
+		    ImpIds1yyType	:= GetType (ImpIds1yyObject2)			;
+(* line 702 "modula.cg" *)
+
+		  IF (ImpIds1yyObject2^.Kind = TypeDecl1   ) AND
+		     (ImpIds1yyType^.Kind    = Enumeration1) THEN
+		    yyObjects2	:= mElmt (yyt^.ImpIds1.Ident, TRUE, ImpIds1yyObject2, UNION (ImpIds1yyType^.Enumeration1.Objects, ImpIds1yNextyObjects2));
+		  ELSE
+		    yyObjects2	:= mElmt (yyt^.ImpIds1.Ident, TRUE, ImpIds1yyObject2, ImpIds1yNextyObjects2);
+		  END;		
+   ELSE
+   END;
+  END;
+ END yyVisit2ImpIds;
+
+PROCEDURE yyVisit1Export (yyt: Tree.tTree; VAR yyObjects1: tObjects; VAR yyEnv1: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Export:
+(* line 713 "modula.cg" *)
+
+		    yyt^.Export.IsQualified	:= TRUE					;
+(* line 711 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.Export0:
+(* line 713 "modula.cg" *)
+
+		    yyt^.Export0.IsQualified	:= TRUE					;
+(* line 711 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.Export1:
+yyVisit1ExpIds (yyt^.Export1.ExpIds, yyObjects1, yyEnv1);
+(* line 716 "modula.cg" *)
+
+		    yyt^.Export1.IsQualified	:= yyt^.Export1.Qualified				;
+   ELSE
+   END;
+  END;
+ END yyVisit1Export;
+
+PROCEDURE yyVisit2Export (yyt: Tree.tTree; VAR yyDefTypesIn: tObjects; VAR yyDefTypesOut: tObjects);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Export:
+(* line 785 "modula.cg" *)
+ yyDefTypesOut		:= NoObjects			;
+| Tree.Export0:
+(* line 785 "modula.cg" *)
+ yyDefTypesOut		:= NoObjects			;
+| Tree.Export1:
+yyVisit2ExpIds (yyt^.Export1.ExpIds, yyDefTypesIn, yyDefTypesOut);
+   ELSE
+   END;
+  END;
+ END yyVisit2Export;
+
+PROCEDURE yyVisit3Export (yyt: Tree.tTree; VAR yyEnv2: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Export1:
+  Export1yExpIdsyObjects2: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Export:
+(* line 712 "modula.cg" *)
+
+		    yyt^.Export.Objects2	:= NoObjects				;
+| Tree.Export0:
+(* line 712 "modula.cg" *)
+
+		    yyt^.Export0.Objects2	:= NoObjects				;
+| Tree.Export1:
+yyVisit3ExpIds (yyt^.Export1.ExpIds, Export1yExpIdsyObjects2, yyEnv2);
+(* line 715 "modula.cg" *)
+
+		    yyt^.Export1.Objects2	:= Export1yExpIdsyObjects2			;
+   ELSE
+   END;
+  END;
+ END yyVisit3Export;
+
+PROCEDURE yyVisit4Export (yyt: Tree.tTree; VAR yyDefObjsIn: tObjects; VAR yyDefObjsOut: tObjects);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Export:
+(* line 786 "modula.cg" *)
+
+		    yyDefObjsOut		:= NoObjects			;
+| Tree.Export0:
+(* line 786 "modula.cg" *)
+
+		    yyDefObjsOut		:= NoObjects			;
+| Tree.Export1:
+yyVisit4ExpIds (yyt^.Export1.ExpIds, yyDefObjsIn, yyDefObjsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit4Export;
+
+PROCEDURE yyVisit1ExpIds (yyt: Tree.tTree; VAR yyObjects1: tObjects; VAR yyEnv1: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ExpIds1:
+  ExpIds1yNextyObjects1: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ExpIds:
+(* line 718 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.ExpIds0:
+(* line 718 "modula.cg" *)
+ yyObjects1	:= NoObjects				;
+| Tree.ExpIds1:
+yyVisit1ExpIds (yyt^.ExpIds1.Next, ExpIds1yNextyObjects1, yyEnv1);
+(* line 924 "modula.cg" *)
+ yyt^.ExpIds1.Object1	:= Identify (yyt^.ExpIds1.Ident, yyEnv1)			;
+(* line 720 "modula.cg" *)
+
+		  IF yyt^.ExpIds1.Object1 = NoObject THEN
+		    yyObjects1	:= ExpIds1yNextyObjects1			;
+		  ELSE
+		    yyObjects1	:= mElmt (yyt^.ExpIds1.Ident, TRUE, yyt^.ExpIds1.Object1, ExpIds1yNextyObjects1);
+		  END;		
+   ELSE
+   END;
+  END;
+ END yyVisit1ExpIds;
+
+PROCEDURE yyVisit2ExpIds (yyt: Tree.tTree; VAR yyDefTypesIn: tObjects; VAR yyDefTypesOut: tObjects);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ExpIds1:
+  ExpIds1yNextyDefTypesOut: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ExpIds:
+(* line 792 "modula.cg" *)
+ yyDefTypesOut		:= NoObjects			;
+| Tree.ExpIds0:
+(* line 792 "modula.cg" *)
+ yyDefTypesOut		:= NoObjects			;
+| Tree.ExpIds1:
+yyVisit2ExpIds (yyt^.ExpIds1.Next, yyDefTypesIn, ExpIds1yNextyDefTypesOut);
+(* line 795 "modula.cg" *)
+
+		  IF IsDeclared (yyt^.ExpIds1.Ident, yyDefTypesIn) THEN
+		    yyDefTypesOut		:= mElmt (yyt^.ExpIds1.Ident, FALSE, yyt^.ExpIds1.Object1, ExpIds1yNextyDefTypesOut);
+		  ELSE
+		    yyDefTypesOut		:= ExpIds1yNextyDefTypesOut		;
+		  END;			
+   ELSE
+   END;
+  END;
+ END yyVisit2ExpIds;
+
+PROCEDURE yyVisit3ExpIds (yyt: Tree.tTree; VAR yyObjects2: tObjects; VAR yyEnv2: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ExpIds1:
+  ExpIds1yNextyObjects2: tObjects;
+  ExpIds1yyType: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ExpIds:
+(* line 719 "modula.cg" *)
+
+		    yyObjects2	:= NoObjects				;
+| Tree.ExpIds0:
+(* line 719 "modula.cg" *)
+
+		    yyObjects2	:= NoObjects				;
+| Tree.ExpIds1:
+yyVisit3ExpIds (yyt^.ExpIds1.Next, ExpIds1yNextyObjects2, yyEnv2);
+(* line 925 "modula.cg" *)
+
+	    yyt^.ExpIds1.Object2	:= Identify (yyt^.ExpIds1.Ident, yyEnv2)			;
+(* line 727 "modula.cg" *)
+
+
+		    ExpIds1yyType	:= GetType (yyt^.ExpIds1.Object2)			;
+(* line 728 "modula.cg" *)
+
+		  IF (yyt^.ExpIds1.Object2^.Kind = TypeDecl1   ) AND
+		     (ExpIds1yyType^.Kind    = Enumeration1) THEN
+		    yyObjects2	:= mElmt (yyt^.ExpIds1.Ident, TRUE, yyt^.ExpIds1.Object2, UNION (ExpIds1yyType^.Enumeration1.Objects, ExpIds1yNextyObjects2));
+		  ELSE
+		    yyObjects2	:= mElmt (yyt^.ExpIds1.Ident, TRUE, yyt^.ExpIds1.Object2, ExpIds1yNextyObjects2);
+		  END;		
+   ELSE
+   END;
+  END;
+ END yyVisit3ExpIds;
+
+PROCEDURE yyVisit4ExpIds (yyt: Tree.tTree; VAR yyDefObjsIn: tObjects; VAR yyDefObjsOut: tObjects);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ExpIds1:
+  ExpIds1yNextyDefObjsOut: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ExpIds:
+(* line 793 "modula.cg" *)
+
+		    yyDefObjsOut		:= NoObjects			;
+| Tree.ExpIds0:
+(* line 793 "modula.cg" *)
+
+		    yyDefObjsOut		:= NoObjects			;
+| Tree.ExpIds1:
+yyVisit4ExpIds (yyt^.ExpIds1.Next, yyDefObjsIn, ExpIds1yNextyDefObjsOut);
+(* line 802 "modula.cg" *)
+
+		  IF IsDeclared (yyt^.ExpIds1.Ident, yyDefObjsIn) THEN
+		    yyDefObjsOut		:= mElmt (yyt^.ExpIds1.Ident, FALSE, yyt^.ExpIds1.Object2, ExpIds1yNextyDefObjsOut);
+		  ELSE
+		    yyDefObjsOut		:= ExpIds1yNextyDefObjsOut		;
+		  END;			
+   ELSE
+   END;
+  END;
+ END yyVisit4ExpIds;
+
+PROCEDURE yyVisit1Decls (yyt: Tree.tTree; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Var:
+  VaryNextyPosIn: SHORTCARD;
+  VaryTypeyCntOut: SHORTCARD;
+ | Tree.TypeDecl:
+  TypeDeclyNextyPosIn: SHORTCARD;
+  TypeDeclyTypeyCntOut: SHORTCARD;
+ | Tree.Proc:
+  ProcyNextyPosIn: SHORTCARD;
+  ProcyFormalsyKind: SHORTCARD;
+  ProcyFormalsyModule: tIdent;
+  ProcyFormalsyPosOut: SHORTCARD;
+  ProcyResultTypeyCntOut: SHORTCARD;
+  ProcyResultTypeyPosOut: SHORTCARD;
+  ProcyDeclsyPosOut: SHORTCARD;
+ | Tree.ProcHead:
+  ProcHeadyNextyPosIn: SHORTCARD;
+  ProcHeadyFormalsyKind: SHORTCARD;
+  ProcHeadyFormalsyModule: tIdent;
+  ProcHeadyFormalsyPosOut: SHORTCARD;
+  ProcHeadyResultTypeyCntOut: SHORTCARD;
+  ProcHeadyResultTypeyPosOut: SHORTCARD;
+ | Tree.Module:
+  ModuleyNextyPosIn: SHORTCARD;
+  ModuleyExportyObjects1: tObjects;
+  ModuleyExportyEnv1: tEnv;
+ | Tree.Opaque:
+  OpaqueyNextyPosIn: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Decls:
+(* line 1834 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 381 "modula.cg" *)
+ yyt^.Decls.Objects1		:= NoObjects			;
+| Tree.Decls0:
+(* line 1834 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 381 "modula.cg" *)
+ yyt^.Decls0.Objects1		:= NoObjects			;
+| Tree.Decl:
+(* line 1450 "modula.cg" *)
+ yyt^.Decl.Next^.Decls.CntIn	:=		yyt^.Decl.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Decl.Next^.Decls.Module	:=		yyt^.Decl.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Decl.Next^.Decls.Kind	:=		yyt^.Decl.Kind		;
+yyVisit1Decls (yyt^.Decl.Next, yyPosIn, yyPosOut);
+(* line 386 "modula.cg" *)
+ yyt^.Decl.Objects1		:= yyt^.Decl.Next^.Decls.Objects1		;
+| Tree.Var:
+(* line 1452 "modula.cg" *)
+ yyt^.Var.Type^.Type.CntIn	:=		yyt^.Var.CntIn		;
+(* line 1312 "modula.cg" *)
+
+		    yyt^.Var.Type^.Type.Module	:=		yyt^.Var.Module		;
+(* line 1310 "modula.cg" *)
+
+		    yyt^.Var.Type^.Type.Kind	:=		yyt^.Var.Kind		;
+yyVisit1Type (yyt^.Var.Type, VaryTypeyCntOut, yyPosIn, VaryNextyPosIn);
+(* line 1453 "modula.cg" *)
+
+		    yyt^.Var.Next^.Decls.CntIn	:= VaryTypeyCntOut		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Var.Next^.Decls.Module	:=		yyt^.Var.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Var.Next^.Decls.Kind	:=		yyt^.Var.Kind		;
+yyVisit1Decls (yyt^.Var.Next, VaryNextyPosIn, yyPosOut);
+(* line 386 "modula.cg" *)
+ yyt^.Var.Objects1		:= yyt^.Var.Next^.Decls.Objects1		;
+| Tree.Object:
+(* line 1450 "modula.cg" *)
+ yyt^.Object.Next^.Decls.CntIn	:=		yyt^.Object.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Object.Next^.Decls.Module	:=		yyt^.Object.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Object.Next^.Decls.Kind	:=		yyt^.Object.Kind		;
+yyVisit1Decls (yyt^.Object.Next, yyPosIn, yyPosOut);
+(* line 386 "modula.cg" *)
+ yyt^.Object.Objects1		:= yyt^.Object.Next^.Decls.Objects1		;
+| Tree.Const:
+(* line 395 "modula.cg" *)
+ yyt^.Const.Object		:= mConst1 (yyt^.Const.Ident)		;
+(* line 1450 "modula.cg" *)
+ yyt^.Const.Next^.Decls.CntIn	:=		yyt^.Const.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Const.Next^.Decls.Module	:=		yyt^.Const.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Const.Next^.Decls.Kind	:=		yyt^.Const.Kind		;
+yyVisit1Decls (yyt^.Const.Next, yyPosIn, yyPosOut);
+(* line 386 "modula.cg" *)
+ yyt^.Const.Objects1		:= yyt^.Const.Next^.Decls.Objects1		;
+| Tree.TypeDecl:
+(* line 1454 "modula.cg" *)
+ yyt^.TypeDecl.Type^.Type.CntIn	:=		yyt^.TypeDecl.CntIn		;
+(* line 1331 "modula.cg" *)
+
+		    yyt^.TypeDecl.Type^.Type.Module	:=		yyt^.TypeDecl.Module		;
+(* line 1330 "modula.cg" *)
+ yyt^.TypeDecl.Type^.Type.Kind	:=		yyt^.TypeDecl.Kind		;
+yyVisit1Type (yyt^.TypeDecl.Type, TypeDeclyTypeyCntOut, yyPosIn, TypeDeclyNextyPosIn);
+(* line 402 "modula.cg" *)
+ yyt^.TypeDecl.Object		:= mTypeDecl1 (yyt^.TypeDecl.Ident, TypeDeclyNextyPosIn);
+(* line 1455 "modula.cg" *)
+
+		    yyt^.TypeDecl.Next^.Decls.CntIn	:= TypeDeclyTypeyCntOut		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.TypeDecl.Next^.Decls.Module	:=		yyt^.TypeDecl.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.TypeDecl.Next^.Decls.Kind	:=		yyt^.TypeDecl.Kind		;
+yyVisit1Decls (yyt^.TypeDecl.Next, TypeDeclyNextyPosIn, yyPosOut);
+(* line 403 "modula.cg" *)
+
+		    yyt^.TypeDecl.Objects1		:= mElmt (yyt^.TypeDecl.Ident, FALSE, yyt^.TypeDecl.Object, yyt^.TypeDecl.Next^.Decls.Objects1);
+| Tree.Proc:
+(* line 1362 "modula.cg" *)
+
+		    ProcyFormalsyModule	:=		yyt^.Proc.Module		;
+(* line 1359 "modula.cg" *)
+ ProcyFormalsyKind	:=		yyt^.Proc.Kind		;
+yyVisit1Formals (yyt^.Proc.Formals, ProcyFormalsyKind, ProcyFormalsyModule, yyPosIn, ProcyFormalsyPosOut);
+(* line 1456 "modula.cg" *)
+ yyt^.Proc.ResultType^.PrimaryType.CntIn	:= 0		;
+(* line 1363 "modula.cg" *)
+
+		    yyt^.Proc.ResultType^.PrimaryType.Module	:=		yyt^.Proc.Module		;
+(* line 1360 "modula.cg" *)
+
+		    yyt^.Proc.ResultType^.PrimaryType.Kind	:=		yyt^.Proc.Kind		;
+yyVisit1PrimaryType (yyt^.Proc.ResultType, ProcyResultTypeyCntOut, ProcyFormalsyPosOut, ProcyResultTypeyPosOut);
+(* line 1457 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.CntIn	:= 0		;
+(* line 1364 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.Module	:=		yyt^.Proc.Module		;
+(* line 1361 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.Kind	:=		yyt^.Proc.Kind		;
+yyVisit1Decls (yyt^.Proc.Decls, ProcyResultTypeyPosOut, ProcyDeclsyPosOut);
+(* line 1845 "modula.cg" *)
+
+		    ProcyNextyPosIn	:= ProcyDeclsyPosOut + 1	;
+(* line 1450 "modula.cg" *)
+ yyt^.Proc.Next^.Decls.CntIn	:=		yyt^.Proc.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Proc.Next^.Decls.Module	:=		yyt^.Proc.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Proc.Next^.Decls.Kind	:=		yyt^.Proc.Kind		;
+yyVisit1Decls (yyt^.Proc.Next, ProcyNextyPosIn, yyPosOut);
+(* line 386 "modula.cg" *)
+ yyt^.Proc.Objects1		:= yyt^.Proc.Next^.Decls.Objects1		;
+| Tree.ProcHead:
+(* line 1385 "modula.cg" *)
+
+		    ProcHeadyFormalsyModule	:=		yyt^.ProcHead.Module		;
+(* line 1383 "modula.cg" *)
+ ProcHeadyFormalsyKind	:=		yyt^.ProcHead.Kind		;
+yyVisit1Formals (yyt^.ProcHead.Formals, ProcHeadyFormalsyKind, ProcHeadyFormalsyModule, yyPosIn, ProcHeadyFormalsyPosOut);
+(* line 1458 "modula.cg" *)
+ yyt^.ProcHead.ResultType^.PrimaryType.CntIn	:= 0		;
+(* line 1386 "modula.cg" *)
+
+		    yyt^.ProcHead.ResultType^.PrimaryType.Module	:=		yyt^.ProcHead.Module		;
+(* line 1384 "modula.cg" *)
+
+		    yyt^.ProcHead.ResultType^.PrimaryType.Kind	:=		yyt^.ProcHead.Kind		;
+yyVisit1PrimaryType (yyt^.ProcHead.ResultType, ProcHeadyResultTypeyCntOut, ProcHeadyFormalsyPosOut, ProcHeadyResultTypeyPosOut);
+(* line 1848 "modula.cg" *)
+
+		    ProcHeadyNextyPosIn	:= ProcHeadyResultTypeyPosOut + 1	;
+(* line 1450 "modula.cg" *)
+ yyt^.ProcHead.Next^.Decls.CntIn	:=		yyt^.ProcHead.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.ProcHead.Next^.Decls.Module	:=		yyt^.ProcHead.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.ProcHead.Next^.Decls.Kind	:=		yyt^.ProcHead.Kind		;
+yyVisit1Decls (yyt^.ProcHead.Next, ProcHeadyNextyPosIn, yyPosOut);
+(* line 386 "modula.cg" *)
+ yyt^.ProcHead.Objects1		:= yyt^.ProcHead.Next^.Decls.Objects1		;
+| Tree.Module:
+(* line 1459 "modula.cg" *)
+ yyt^.Module.Decls^.Decls.CntIn	:= 0		;
+(* line 1406 "modula.cg" *)
+
+		    yyt^.Module.Decls^.Decls.Module	:=		yyt^.Module.Module		;
+(* line 1405 "modula.cg" *)
+ yyt^.Module.Decls^.Decls.Kind	:=		yyt^.Module.Kind		;
+yyVisit1Decls (yyt^.Module.Decls, yyPosIn, ModuleyNextyPosIn);
+(* line 885 "modula.cg" *)
+ ModuleyExportyEnv1	:= mEnv (yyt^.Module.Decls^.Decls.Objects1, NoEnv);
+yyVisit1Export (yyt^.Module.Export, ModuleyExportyObjects1, ModuleyExportyEnv1);
+(* line 417 "modula.cg" *)
+ yyt^.Module.Object		:= mModule1 (yyt^.Module.Ident, ModuleyExportyObjects1);
+(* line 1450 "modula.cg" *)
+ yyt^.Module.Next^.Decls.CntIn	:=		yyt^.Module.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Module.Next^.Decls.Module	:=		yyt^.Module.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Module.Next^.Decls.Kind	:=		yyt^.Module.Kind		;
+yyVisit1Decls (yyt^.Module.Next, ModuleyNextyPosIn, yyPosOut);
+(* line 418 "modula.cg" *)
+
+		  IF yyt^.Module.Export^.Export.IsQualified THEN
+		    yyt^.Module.Objects1		:= mElmt (yyt^.Module.Ident, FALSE, yyt^.Module.Object, yyt^.Module.Next^.Decls.Objects1);
+		  ELSE
+		    yyt^.Module.Objects1		:= mElmt (yyt^.Module.Ident, FALSE, yyt^.Module.Object, UNION (ModuleyExportyObjects1, yyt^.Module.Next^.Decls.Objects1));
+		  END;			
+| Tree.Opaque:
+(* line 1851 "modula.cg" *)
+ OpaqueyNextyPosIn	:=		yyPosIn + 1	;
+(* line 439 "modula.cg" *)
+ yyt^.Opaque.Object		:= mOpaque1 (yyt^.Opaque.Ident, OpaqueyNextyPosIn);
+(* line 1450 "modula.cg" *)
+ yyt^.Opaque.Next^.Decls.CntIn	:=		yyt^.Opaque.CntIn		;
+(* line 1305 "modula.cg" *)
+
+		    yyt^.Opaque.Next^.Decls.Module	:=		yyt^.Opaque.Module		;
+(* line 1304 "modula.cg" *)
+ yyt^.Opaque.Next^.Decls.Kind	:=		yyt^.Opaque.Kind		;
+yyVisit1Decls (yyt^.Opaque.Next, OpaqueyNextyPosIn, yyPosOut);
+(* line 440 "modula.cg" *)
+
+		    yyt^.Opaque.Objects1		:= mElmt (yyt^.Opaque.Ident, FALSE, yyt^.Opaque.Object, yyt^.Opaque.Next^.Decls.Objects1);
+   ELSE
+   END;
+  END;
+ END yyVisit1Decls;
+
+PROCEDURE yyVisit2Decls (yyt: Tree.tTree; VAR yyObjects2: tVoid);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.TypeDecl:
+  TypeDeclyNextyObjects2: tVoid;
+  TypeDeclyTypeyTypeObj: tObject;
+ | Tree.Proc:
+  ProcyNextyObjects2: tVoid;
+  ProcyDeclsyObjects2: tVoid;
+ | Tree.Module:
+  ModuleyNextyObjects2: tVoid;
+  ModuleyImportyObjects1: tObjects;
+  ModuleyExportyDefTypesIn: tObjects;
+  ModuleyExportyDefTypesOut: tObjects;
+  ModuleyDeclsyObjects2: tVoid;
+ | Tree.Opaque:
+  OpaqueyNextyObjects2: tVoid;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Decls:
+(* line 382 "modula.cg" *)
+
+		    yyObjects2		:= cVoid			;
+| Tree.Decls0:
+(* line 382 "modula.cg" *)
+
+		    yyObjects2		:= cVoid			;
+| Tree.Decl:
+yyt^.Decl.Next^.Decls.Env1:=yyt^.Decl.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Decl.Next^.Decls.DefTypes	:= yyt^.Decl.DefTypes			;
+yyVisit2Decls (yyt^.Decl.Next, yyObjects2);
+| Tree.Var:
+yyt^.Var.Next^.Decls.Env1:=yyt^.Var.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Var.Next^.Decls.DefTypes	:= yyt^.Var.DefTypes			;
+yyVisit2Decls (yyt^.Var.Next, yyObjects2);
+| Tree.Object:
+yyt^.Object.Next^.Decls.Env1:=yyt^.Object.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Object.Next^.Decls.DefTypes	:= yyt^.Object.DefTypes			;
+yyVisit2Decls (yyt^.Object.Next, yyObjects2);
+| Tree.Const:
+yyt^.Const.Next^.Decls.Env1:=yyt^.Const.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Const.Next^.Decls.DefTypes	:= yyt^.Const.DefTypes			;
+yyVisit2Decls (yyt^.Const.Next, yyObjects2);
+| Tree.TypeDecl:
+yyt^.TypeDecl.Type^.Type.Env1:=yyt^.TypeDecl.Env1;
+(* line 536 "modula.cg" *)
+ TypeDeclyTypeyTypeObj	:= yyt^.TypeDecl.Object			;
+yyVisit2Type (yyt^.TypeDecl.Type, TypeDeclyTypeyTypeObj);
+yyt^.TypeDecl.Next^.Decls.Env1:=yyt^.TypeDecl.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.TypeDecl.Next^.Decls.DefTypes	:= yyt^.TypeDecl.DefTypes			;
+yyVisit2Decls (yyt^.TypeDecl.Next, TypeDeclyNextyObjects2);
+(* line 537 "modula.cg" *)
+
+	      IF IsDeclared (yyt^.TypeDecl.Ident, yyt^.TypeDecl.DefTypes) THEN
+			    yyt^.TypeDecl.Type1	:= mOpaqueType1 (yyt^.TypeDecl.Object)	;
+	      ELSE
+			    yyt^.TypeDecl.Type1	:= yyt^.TypeDecl.Type^.Type.Type1		;
+	      END;			
+(* line 404 "modula.cg" *)
+
+		    yyObjects2		:= mVoid1 (mTypeDecl2 (yyt^.TypeDecl.Object, yyt^.TypeDecl.Type1), TypeDeclyNextyObjects2);
+| Tree.Proc:
+(* line 881 "modula.cg" *)
+ yyt^.Proc.Decls^.Decls.Env1	:= mEnv (yyt^.Proc.Decls^.Decls.Objects1, yyt^.Proc.Env1);
+(* line 812 "modula.cg" *)
+ yyt^.Proc.Decls^.Decls.DefTypes	:= NoObjects			;
+yyVisit2Decls (yyt^.Proc.Decls, ProcyDeclsyObjects2);
+yyt^.Proc.Next^.Decls.Env1:=yyt^.Proc.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Proc.Next^.Decls.DefTypes	:= yyt^.Proc.DefTypes			;
+yyVisit2Decls (yyt^.Proc.Next, ProcyNextyObjects2);
+(* line 408 "modula.cg" *)
+
+		    yyObjects2		:= mVoid2 (ProcyDeclsyObjects2, ProcyNextyObjects2);
+| Tree.ProcHead:
+yyt^.ProcHead.Next^.Decls.Env1:=yyt^.ProcHead.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.ProcHead.Next^.Decls.DefTypes	:= yyt^.ProcHead.DefTypes			;
+yyVisit2Decls (yyt^.ProcHead.Next, yyObjects2);
+| Tree.Module:
+yyt^.Module.Import^.Import.Env1:=yyt^.Module.Env1;
+yyVisit1Import (yyt^.Module.Import, ModuleyImportyObjects1);
+(* line 888 "modula.cg" *)
+
+		    yyt^.Module.Decls^.Decls.Env1	:= mEnv (UNION (UNION (Predefs, ModuleyImportyObjects1), yyt^.Module.Decls^.Decls.Objects1), NoEnv);
+(* line 815 "modula.cg" *)
+
+		  IF yyt^.Module.Export^.Export.IsQualified THEN
+		    ModuleyExportyDefTypesIn	:= NoObjects			;
+		  ELSE
+		    ModuleyExportyDefTypesIn	:= yyt^.Module.DefTypes			;
+		  END;			
+yyVisit2Export (yyt^.Module.Export, ModuleyExportyDefTypesIn, ModuleyExportyDefTypesOut);
+(* line 821 "modula.cg" *)
+
+		    yyt^.Module.Decls^.Decls.DefTypes	:= ModuleyExportyDefTypesOut		;
+yyVisit2Decls (yyt^.Module.Decls, ModuleyDeclsyObjects2);
+yyt^.Module.Next^.Decls.Env1:=yyt^.Module.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Module.Next^.Decls.DefTypes	:= yyt^.Module.DefTypes			;
+yyVisit2Decls (yyt^.Module.Next, ModuleyNextyObjects2);
+(* line 424 "modula.cg" *)
+
+		    yyObjects2		:= mVoid2 (ModuleyDeclsyObjects2, ModuleyNextyObjects2);
+| Tree.Opaque:
+yyt^.Opaque.Next^.Decls.Env1:=yyt^.Opaque.Env1;
+(* line 809 "modula.cg" *)
+ yyt^.Opaque.Next^.Decls.DefTypes	:= yyt^.Opaque.DefTypes			;
+yyVisit2Decls (yyt^.Opaque.Next, OpaqueyNextyObjects2);
+(* line 555 "modula.cg" *)
+		    yyt^.Opaque.Type1	:= mOpaqueType1 (yyt^.Opaque.Object)	;
+(* line 441 "modula.cg" *)
+
+		    yyObjects2		:= mVoid1 (mOpaque2 (yyt^.Opaque.Object, yyt^.Opaque.Type1), OpaqueyNextyObjects2);
+   ELSE
+   END;
+  END;
+ END yyVisit2Decls;
+
+PROCEDURE yyVisit3Decls (yyt: Tree.tTree; VAR yyImplTypes: tObjects);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Var:
+  VaryVarIdsyType: tType;
+  VaryVarIdsyTypeTree: ADDRESS;
+  VaryVarIdsyLevel: SHORTCARD;
+  VaryTypeyTypeObj: tObject;
+ | Tree.TypeDecl:
+  TypeDeclyyType2: tType;
+ | Tree.Proc:
+  ProcyFormalsyTypes: tTypes;
+  ProcyFormalsyEnv1: tEnv;
+  ProcyFormalsyEnv2: tVoid;
+  ProcyFormalsyLevel: SHORTCARD;
+  ProcyResultTypeyTypeObj: tObject;
+ | Tree.ProcHead:
+  ProcHeadyFormalsyTypes: tTypes;
+  ProcHeadyFormalsyEnv1: tEnv;
+  ProcHeadyFormalsyEnv2: tVoid;
+  ProcHeadyFormalsyLevel: SHORTCARD;
+  ProcHeadyResultTypeyTypeObj: tObject;
+  ProcHeadyyType: tType;
+ | Tree.Module:
+  ModuleyExportyEnv2: tEnv;
+  ModuleyDeclsyImplTypes: tObjects;
+ | Tree.Opaque:
+  OpaqueyyFullType: tType;
+  OpaqueyyType2: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Decls:
+(* line 383 "modula.cg" *)
+
+		    yyt^.Decls.Objects3		:= yyt^.Decls.Objects1			;
+| Tree.Decls0:
+(* line 383 "modula.cg" *)
+
+		    yyt^.Decls0.Objects3		:= yyt^.Decls0.Objects1			;
+| Tree.Decl:
+yyt^.Decl.Next^.Decls.Env2:=yyt^.Decl.Env2;
+yyt^.Decl.Next^.Decls.Level:=yyt^.Decl.Level;
+yyVisit3Decls (yyt^.Decl.Next, yyImplTypes);
+(* line 388 "modula.cg" *)
+
+		    yyt^.Decl.Objects3		:= yyt^.Decl.Next^.Decls.Objects3		;
+| Tree.Var:
+(* line 1573 "modula.cg" *)
+ yyt^.Var.IsGlobal		:=		yyt^.Var.Level = 0	;
+yyt^.Var.Type^.Type.Env1:=yyt^.Var.Env1;
+(* line 535 "modula.cg" *)
+ VaryTypeyTypeObj	:= NoObject			;
+yyVisit2Type (yyt^.Var.Type, VaryTypeyTypeObj);
+yyt^.Var.Type^.Type.Env2:=yyt^.Var.Env2;
+yyVisit3Type (yyt^.Var.Type);
+VaryVarIdsyLevel:=yyt^.Var.Level;
+(* line 392 "modula.cg" *)
+
+		    VaryVarIdsyTypeTree	:= yyt^.Var.Type				;
+(* line 391 "modula.cg" *)
+ VaryVarIdsyType		:= yyt^.Var.Type^.Type.Type2			;
+yyVisit1VarIds (yyt^.Var.VarIds, VaryVarIdsyType, VaryVarIdsyTypeTree, VaryVarIdsyLevel);
+yyt^.Var.Next^.Decls.Level:=yyt^.Var.Level;
+yyt^.Var.Next^.Decls.Env2:=yyt^.Var.Env2;
+yyVisit3Decls (yyt^.Var.Next, yyImplTypes);
+(* line 393 "modula.cg" *)
+ 
+		    yyt^.Var.Objects3		:= UNION (yyt^.Var.VarIds^.VarIds.Objects3, UNION (yyt^.Var.Type^.Type.Objects3, yyt^.Var.Next^.Decls.Objects3));
+| Tree.Object:
+yyt^.Object.Next^.Decls.Env2:=yyt^.Object.Env2;
+yyt^.Object.Next^.Decls.Level:=yyt^.Object.Level;
+yyVisit3Decls (yyt^.Object.Next, yyImplTypes);
+(* line 388 "modula.cg" *)
+
+		    yyt^.Object.Objects3		:= yyt^.Object.Next^.Decls.Objects3		;
+| Tree.Const:
+yyt^.Const.Next^.Decls.Env2:=yyt^.Const.Env2;
+yyt^.Const.Next^.Decls.Level:=yyt^.Const.Level;
+yyVisit3Decls (yyt^.Const.Next, yyImplTypes);
+(* line 396 "modula.cg" *)
+
+		    yyt^.Const.Objects3		:= mElmt (yyt^.Const.Ident, FALSE, yyt^.Const.Object, yyt^.Const.Next^.Decls.Objects3);
+| Tree.TypeDecl:
+yyt^.TypeDecl.Next^.Decls.Env2:=yyt^.TypeDecl.Env2;
+yyt^.TypeDecl.Type^.Type.Env2:=yyt^.TypeDecl.Env2;
+yyVisit3Type (yyt^.TypeDecl.Type);
+yyt^.TypeDecl.Next^.Decls.Level:=yyt^.TypeDecl.Level;
+yyVisit3Decls (yyt^.TypeDecl.Next, yyImplTypes);
+(* line 543 "modula.cg" *)
+
+	      IF IsDeclared (yyt^.TypeDecl.Ident, yyt^.TypeDecl.DefTypes) THEN
+			    TypeDeclyyType2	:= mOpaqueType2 (yyt^.TypeDecl.Type1, yyt^.TypeDecl.Type^.Type.Type2);
+	      ELSE
+			    TypeDeclyyType2	:= yyt^.TypeDecl.Type^.Type.Type2		;
+	      END;			
+(* line 405 "modula.cg" *)
+
+		    yyt^.TypeDecl.Objects3		:= mElmt (yyt^.TypeDecl.Ident, FALSE, mTypeDecl3 (yyt^.TypeDecl.Object, TypeDeclyyType2), UNION (yyt^.TypeDecl.Type^.Type.Objects3, yyt^.TypeDecl.Next^.Decls.Objects3));
+| Tree.Proc:
+yyt^.Proc.ResultType^.PrimaryType.Env1:=yyt^.Proc.Env1;
+(* line 551 "modula.cg" *)
+
+			    
+		ProcyResultTypeyTypeObj	:= NoObject			;
+yyVisit2PrimaryType (yyt^.Proc.ResultType, ProcyResultTypeyTypeObj);
+ProcyFormalsyEnv1:=yyt^.Proc.Env1;
+yyt^.Proc.ResultType^.PrimaryType.Env2:=yyt^.Proc.Env2;
+yyVisit3PrimaryType (yyt^.Proc.ResultType);
+(* line 1574 "modula.cg" *)
+ ProcyFormalsyLevel	:=		yyt^.Proc.Level + 1	;
+ProcyFormalsyEnv2:=yyt^.Proc.Env2;
+yyVisit2Formals (yyt^.Proc.Formals, ProcyFormalsyTypes, ProcyFormalsyEnv1, ProcyFormalsyEnv2, ProcyFormalsyLevel);
+(* line 549 "modula.cg" *)
+		    yyt^.Proc.Type	:= mProcType2 (mProcType1 (NoObject), ProcyFormalsyTypes, yyt^.Proc.ResultType^.PrimaryType.Type2);
+(* line 407 "modula.cg" *)
+ yyt^.Proc.Object		:= mProc1 (yyt^.Proc.Ident, yyt^.Proc.Type)		;
+yyt^.Proc.Next^.Decls.Level:=yyt^.Proc.Level;
+yyt^.Proc.Next^.Decls.Env2:=yyt^.Proc.Env2;
+yyVisit3Decls (yyt^.Proc.Next, yyImplTypes);
+(* line 1877 "modula.cg" *)
+
+		      OpenArrays (yyt^.Proc.Formals^.Formals.Objects3, yyt^.Proc.ValueOpens, yyt^.Proc.VAROpens);
+					
+(* line 409 "modula.cg" *)
+
+		    yyt^.Proc.Objects3		:= mElmt (yyt^.Proc.Ident, FALSE, yyt^.Proc.Object, yyt^.Proc.Next^.Decls.Objects3);
+| Tree.ProcHead:
+yyt^.ProcHead.ResultType^.PrimaryType.Env1:=yyt^.ProcHead.Env1;
+(* line 553 "modula.cg" *)
+
+		ProcHeadyResultTypeyTypeObj	:= NoObject			;
+yyVisit2PrimaryType (yyt^.ProcHead.ResultType, ProcHeadyResultTypeyTypeObj);
+ProcHeadyFormalsyEnv1:=yyt^.ProcHead.Env1;
+yyt^.ProcHead.ResultType^.PrimaryType.Env2:=yyt^.ProcHead.Env2;
+yyVisit3PrimaryType (yyt^.ProcHead.ResultType);
+(* line 1577 "modula.cg" *)
+ ProcHeadyFormalsyLevel	:=		yyt^.ProcHead.Level + 1	;
+ProcHeadyFormalsyEnv2:=yyt^.ProcHead.Env2;
+yyVisit2Formals (yyt^.ProcHead.Formals, ProcHeadyFormalsyTypes, ProcHeadyFormalsyEnv1, ProcHeadyFormalsyEnv2, ProcHeadyFormalsyLevel);
+(* line 552 "modula.cg" *)
+		    ProcHeadyyType	:= mProcType2 (mProcType1 (NoObject), ProcHeadyFormalsyTypes, yyt^.ProcHead.ResultType^.PrimaryType.Type2);
+(* line 414 "modula.cg" *)
+ yyt^.ProcHead.Object		:= mProcHead1 (yyt^.ProcHead.Ident, ProcHeadyyType)	;
+yyt^.ProcHead.Next^.Decls.Level:=yyt^.ProcHead.Level;
+yyt^.ProcHead.Next^.Decls.Env2:=yyt^.ProcHead.Env2;
+yyVisit3Decls (yyt^.ProcHead.Next, yyImplTypes);
+(* line 415 "modula.cg" *)
+
+		    yyt^.ProcHead.Objects3		:= mElmt (yyt^.ProcHead.Ident, FALSE, yyt^.ProcHead.Object, yyt^.ProcHead.Next^.Decls.Objects3);
+| Tree.Module:
+yyt^.Module.Next^.Decls.Env2:=yyt^.Module.Env2;
+yyt^.Module.Decls^.Decls.Level:=yyt^.Module.Level;
+yyt^.Module.Decls^.Decls.Env2:=yyt^.Module.Env2;
+(* line 829 "modula.cg" *)
+
+		    ModuleyDeclsyImplTypes	:= NoObjects			;
+yyVisit3Decls (yyt^.Module.Decls, ModuleyDeclsyImplTypes);
+(* line 886 "modula.cg" *)
+
+		    ModuleyExportyEnv2	:= mEnv (yyt^.Module.Decls^.Decls.Objects3, NoEnv);
+yyVisit3Export (yyt^.Module.Export, ModuleyExportyEnv2);
+yyt^.Module.Next^.Decls.Level:=yyt^.Module.Level;
+yyVisit3Decls (yyt^.Module.Next, yyImplTypes);
+(* line 425 "modula.cg" *)
+
+		  IF yyt^.Module.Export^.Export.IsQualified THEN
+		    yyt^.Module.Objects3		:= mElmt (yyt^.Module.Ident, FALSE, mModule2 (yyt^.Module.Object, yyt^.Module.Export^.Export.Objects2), yyt^.Module.Next^.Decls.Objects3);
+		  ELSE
+		    yyt^.Module.Objects3		:= mElmt (yyt^.Module.Ident, FALSE, mModule2 (yyt^.Module.Object, yyt^.Module.Export^.Export.Objects2), UNION (yyt^.Module.Export^.Export.Objects2, yyt^.Module.Next^.Decls.Objects3));
+		  END;			
+| Tree.Opaque:
+yyt^.Opaque.Next^.Decls.Env2:=yyt^.Opaque.Env2;
+yyt^.Opaque.Next^.Decls.Level:=yyt^.Opaque.Level;
+yyVisit3Decls (yyt^.Opaque.Next, yyImplTypes);
+(* line 556 "modula.cg" *)
+
+			    OpaqueyyFullType	:= GetType (Identify2 (yyt^.Opaque.Ident, yyImplTypes));
+(* line 557 "modula.cg" *)
+
+	      IF OpaqueyyFullType^.Kind = OpaqueType1 THEN
+			    OpaqueyyType2	:= mOpaqueType2 (yyt^.Opaque.Type1, OpaqueyyFullType^.OpaqueType1.Type);
+	      ELSE
+		
+			    OpaqueyyType2	:= mOpaqueType2 (yyt^.Opaque.Type1, NoType);
+	      END;			
+(* line 442 "modula.cg" *)
+
+		    yyt^.Opaque.Objects3		:= mElmt (yyt^.Opaque.Ident, FALSE, mOpaque3 (yyt^.Opaque.Object, OpaqueyyType2), yyt^.Opaque.Next^.Decls.Objects3);
+   ELSE
+   END;
+  END;
+ END yyVisit3Decls;
+
+PROCEDURE yyVisit4Decls (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Proc:
+  ProcyDeclsyImplTypes: tObjects;
+ | Tree.Module:
+  ModuleyImportyEnv2: tEnv;
+  ModuleyExportyDefObjsIn: tObjects;
+  ModuleyExportyDefObjsOut: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Decls:
+(* line 384 "modula.cg" *)
+
+		    yyt^.Decls.Objects4Out		:= yyt^.Decls.Objects3			;
+| Tree.Decls0:
+(* line 385 "modula.cg" *)
+ yyt^.Decls0.Objects4Out		:= yyt^.Decls0.Objects4In			;
+| Tree.Decl:
+yyt^.Decl.Next^.Decls.Env3:=yyt^.Decl.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Decl.Next^.Decls.DefObjects	:= yyt^.Decl.DefObjects			;
+(* line 389 "modula.cg" *)
+
+		    yyt^.Decl.Next^.Decls.Objects4In	:= yyt^.Decl.Objects4In			;
+yyVisit4Decls (yyt^.Decl.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Decl.Objects4Out		:= yyt^.Decl.Next^.Decls.Objects4Out		;
+| Tree.Var:
+yyt^.Var.Next^.Decls.Env3:=yyt^.Var.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Var.Next^.Decls.DefObjects	:= yyt^.Var.DefObjects			;
+(* line 394 "modula.cg" *)
+
+		    yyt^.Var.Next^.Decls.Objects4In	:= UNION (yyt^.Var.VarIds^.VarIds.Objects3, UNION (yyt^.Var.Type^.Type.Objects3, yyt^.Var.Objects4In));
+yyVisit4Decls (yyt^.Var.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Var.Objects4Out		:= yyt^.Var.Next^.Decls.Objects4Out		;
+| Tree.Object:
+yyt^.Object.Next^.Decls.Env3:=yyt^.Object.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Object.Next^.Decls.DefObjects	:= yyt^.Object.DefObjects			;
+(* line 389 "modula.cg" *)
+
+		    yyt^.Object.Next^.Decls.Objects4In	:= yyt^.Object.Objects4In			;
+yyVisit4Decls (yyt^.Object.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Object.Objects4Out		:= yyt^.Object.Next^.Decls.Objects4Out		;
+| Tree.Const:
+yyt^.Const.Next^.Decls.Env3:=yyt^.Const.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Const.Next^.Decls.DefObjects	:= yyt^.Const.DefObjects			;
+(* line 397 "modula.cg" *)
+
+					   CompConst (yyt^.Const.Expr, yyt^.Const.Env3, yyt^.Const.Object^.Const1.Value)	;
+		    			   
+		    yyt^.Const.Next^.Decls.Objects4In	:= mElmt (yyt^.Const.Ident, FALSE, yyt^.Const.Object, yyt^.Const.Objects4In);
+					
+yyVisit4Decls (yyt^.Const.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Const.Objects4Out		:= yyt^.Const.Next^.Decls.Objects4Out		;
+| Tree.TypeDecl:
+yyt^.TypeDecl.Next^.Decls.Env3:=yyt^.TypeDecl.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.TypeDecl.Next^.Decls.DefObjects	:= yyt^.TypeDecl.DefObjects			;
+(* line 406 "modula.cg" *)
+
+		    yyt^.TypeDecl.Next^.Decls.Objects4In	:= mElmt (yyt^.TypeDecl.Ident, FALSE, yyt^.TypeDecl.Object, UNION (yyt^.TypeDecl.Type^.Type.Objects3, yyt^.TypeDecl.Objects4In));
+yyVisit4Decls (yyt^.TypeDecl.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.TypeDecl.Objects4Out		:= yyt^.TypeDecl.Next^.Decls.Objects4Out		;
+| Tree.Proc:
+(* line 1575 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.Level	:=		yyt^.Proc.Level + 1	;
+yyt^.Proc.Decls^.Decls.Env2:=yyt^.Proc.Env2;
+(* line 814 "modula.cg" *)
+
+		    ProcyDeclsyImplTypes	:= NoObjects			;
+yyVisit3Decls (yyt^.Proc.Decls, ProcyDeclsyImplTypes);
+(* line 882 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.Env3	:= mEnv (UNION (yyt^.Proc.Formals^.Formals.Objects3, yyt^.Proc.Decls^.Decls.Objects3), yyt^.Proc.Env3);
+(* line 813 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.DefObjects	:= NoObjects			;
+(* line 412 "modula.cg" *)
+
+		    yyt^.Proc.Decls^.Decls.Objects4In	:= NoObjects			;
+yyVisit4Decls (yyt^.Proc.Decls);
+yyt^.Proc.Next^.Decls.Env3:=yyt^.Proc.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Proc.Next^.Decls.DefObjects	:= yyt^.Proc.DefObjects			;
+(* line 410 "modula.cg" *)
+
+		    yyt^.Proc.Next^.Decls.Objects4In	:= mElmt (yyt^.Proc.Ident, FALSE, mProc2 (yyt^.Proc.Object,
+UNION (yyt^.Proc.Formals^.Formals.Objects3, yyt^.Proc.Decls^.Decls.Objects4Out), IsDeclared (yyt^.Proc.Ident, yyt^.Proc.DefObjects)), yyt^.Proc.Objects4In);
+yyVisit4Decls (yyt^.Proc.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Proc.Objects4Out		:= yyt^.Proc.Next^.Decls.Objects4Out		;
+| Tree.ProcHead:
+yyt^.ProcHead.Next^.Decls.Env3:=yyt^.ProcHead.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.ProcHead.Next^.Decls.DefObjects	:= yyt^.ProcHead.DefObjects			;
+(* line 416 "modula.cg" *)
+
+		    yyt^.ProcHead.Next^.Decls.Objects4In	:= mElmt (yyt^.ProcHead.Ident, FALSE, yyt^.ProcHead.Object, yyt^.ProcHead.Objects4In);
+yyVisit4Decls (yyt^.ProcHead.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.ProcHead.Objects4Out		:= yyt^.ProcHead.Next^.Decls.Objects4Out		;
+| Tree.Module:
+(* line 887 "modula.cg" *)
+
+		    ModuleyImportyEnv2	:=		yyt^.Module.Env3		;
+yyVisit2Import (yyt^.Module.Import, ModuleyImportyEnv2);
+(* line 889 "modula.cg" *)
+
+		    yyt^.Module.Decls^.Decls.Env3	:= mEnv (UNION (UNION (Predefs, yyt^.Module.Import^.Import.Objects2), yyt^.Module.Decls^.Decls.Objects3), NoEnv);
+(* line 822 "modula.cg" *)
+
+		  IF yyt^.Module.Export^.Export.IsQualified THEN
+		    ModuleyExportyDefObjsIn	:= NoObjects			;
+		  ELSE
+		    ModuleyExportyDefObjsIn	:= yyt^.Module.DefObjects			;
+		  END;			
+yyVisit4Export (yyt^.Module.Export, ModuleyExportyDefObjsIn, ModuleyExportyDefObjsOut);
+(* line 828 "modula.cg" *)
+
+		    yyt^.Module.Decls^.Decls.DefObjects	:= ModuleyExportyDefObjsOut		;
+(* line 438 "modula.cg" *)
+
+		    yyt^.Module.Decls^.Decls.Objects4In	:= NoObjects			;
+yyVisit4Decls (yyt^.Module.Decls);
+yyt^.Module.Next^.Decls.Env3:=yyt^.Module.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Module.Next^.Decls.DefObjects	:= yyt^.Module.DefObjects			;
+(* line 431 "modula.cg" *)
+
+		  IF yyt^.Module.Export^.Export.IsQualified THEN
+		    yyt^.Module.Next^.Decls.Objects4In	:= mElmt (yyt^.Module.Ident, FALSE, mModule3 (yyt^.Module.Object, yyt^.Module.Decls^.Decls.Objects4Out), yyt^.Module.Objects4In);
+		  ELSE
+		    yyt^.Module.Next^.Decls.Objects4In	:= mElmt (yyt^.Module.Ident, FALSE, mModule3 (yyt^.Module.Object, yyt^.Module.Decls^.Decls.Objects4Out), UNION (yyt^.Module.Export^.Export.Objects2, yyt^.Module.Objects4In));
+		  END;			
+yyVisit4Decls (yyt^.Module.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Module.Objects4Out		:= yyt^.Module.Next^.Decls.Objects4Out		;
+| Tree.Opaque:
+yyt^.Opaque.Next^.Decls.Env3:=yyt^.Opaque.Env3;
+(* line 810 "modula.cg" *)
+
+		    yyt^.Opaque.Next^.Decls.DefObjects	:= yyt^.Opaque.DefObjects			;
+(* line 443 "modula.cg" *)
+
+		    yyt^.Opaque.Next^.Decls.Objects4In	:= mElmt (yyt^.Opaque.Ident, FALSE, yyt^.Opaque.Object, yyt^.Opaque.Objects4In);
+yyVisit4Decls (yyt^.Opaque.Next);
+(* line 390 "modula.cg" *)
+
+		    yyt^.Opaque.Objects4Out		:= yyt^.Opaque.Next^.Decls.Objects4Out		;
+   ELSE
+   END;
+  END;
+ END yyVisit4Decls;
+
+PROCEDURE yyVisit5Decls (yyt: Tree.tTree; VAR yyEnv4: tEnv; VAR yyInLocal: BOOLEAN; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents; VAR yyCntOut: SHORTCARD; VAR yyGlobalPtrs: BOOLEAN);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Var:
+  VaryNextyIdsIn: tIdents;
+  VaryVarIdsyKind: SHORTCARD;
+  VaryVarIdsyModule: tIdent;
+  VaryVarIdsyIdsOut: tIdents;
+  VaryTypeyEnv3: tEnv;
+ | Tree.Const:
+  ConstyNextyIdsIn: tIdents;
+  ConstyExpryEnv: tEnv;
+  ConstyExpryLevel: SHORTCARD;
+  ConstyExpryOpenAccessOrCall: BOOLEAN;
+  ConstyExpryGlobalPtrs: BOOLEAN;
+  ConstyExpryStrsIn: tStrings;
+  ConstyExpryStrsOut: tStrings;
+ | Tree.TypeDecl:
+  TypeDeclyNextyIdsIn: tIdents;
+  TypeDeclyTypeyEnv3: tEnv;
+  TypeDeclyTypeyIdsOut: tIdents;
+ | Tree.Proc:
+  ProcyNextyIdsIn: tIdents;
+  ProcyNextyIdsOut: tIdents;
+  ProcyNextyGlobalPtrs: BOOLEAN;
+  ProcyFormalsyEnv3: tEnv;
+  ProcyFormalsyIdsIn: tIdents;
+  ProcyFormalsyIdsOut: tIdents;
+  ProcyResultTypeyEnv3: tEnv;
+  ProcyResultTypeyIdsOut: tIdents;
+  ProcyDeclsyEnv4: tEnv;
+  ProcyDeclsyInLocal: BOOLEAN;
+  ProcyDeclsyIdsOut: tIdents;
+  ProcyDeclsyCntOut: SHORTCARD;
+  ProcyDeclsyGlobalPtrs: BOOLEAN;
+  ProcyStmtsyLevel: SHORTCARD;
+  ProcyStmtsyGlobalPtrs: BOOLEAN;
+  ProcyStmtsyStrsIn: tStrings;
+  ProcyStmtsyStrsOut: tStrings;
+  ProcyStmtsyType: tType;
+ | Tree.ProcHead:
+  ProcHeadyNextyIdsIn: tIdents;
+  ProcHeadyFormalsyEnv3: tEnv;
+  ProcHeadyFormalsyIdsIn: tIdents;
+  ProcHeadyFormalsyIdsOut: tIdents;
+  ProcHeadyResultTypeyEnv3: tEnv;
+  ProcHeadyResultTypeyIdsIn: tIdents;
+  ProcHeadyResultTypeyIdsOut: tIdents;
+ | Tree.Module:
+  ModuleyNextyIdsIn: tIdents;
+  ModuleyNextyIdsOut: tIdents;
+  ModuleyNextyGlobalPtrs: BOOLEAN;
+  ModuleyDeclsyEnv4: tEnv;
+  ModuleyDeclsyInLocal: BOOLEAN;
+  ModuleyDeclsyCntOut: SHORTCARD;
+  ModuleyDeclsyGlobalPtrs: BOOLEAN;
+  ModuleyStmtsyLevel: SHORTCARD;
+  ModuleyStmtsyGlobalPtrs: BOOLEAN;
+  ModuleyStmtsyStrsIn: tStrings;
+  ModuleyStmtsyStrsOut: tStrings;
+  ModuleyStmtsyType: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Decls:
+(* line 1929 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1449 "modula.cg" *)
+		yyCntOut	:= 		yyt^.Decls.CntIn		;
+(* line 1303 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Decls0:
+(* line 1929 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1449 "modula.cg" *)
+		yyCntOut	:= 		yyt^.Decls0.CntIn		;
+(* line 1303 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Decl:
+yyVisit5Decls (yyt^.Decl.Next, yyEnv4, yyInLocal, yyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+| Tree.Var:
+(* line 1311 "modula.cg" *)
+
+		    VaryVarIdsyModule	:=		yyt^.Var.Module		;
+(* line 1309 "modula.cg" *)
+ VaryVarIdsyKind	:=		yyt^.Var.Kind		;
+yyVisit2VarIds (yyt^.Var.VarIds, VaryVarIdsyKind, VaryVarIdsyModule, yyInLocal, yyIdsIn, VaryVarIdsyIdsOut);
+VaryTypeyEnv3:=yyt^.Var.Env3;
+yyVisit4Type (yyt^.Var.Type, VaryTypeyEnv3, VaryVarIdsyIdsOut, VaryNextyIdsIn);
+yyVisit5Decls (yyt^.Var.Next, yyEnv4, yyInLocal, VaryNextyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+| Tree.Object:
+(* line 1317 "modula.cg" *)
+		yyt^.Object.CIdent	:= NoIdent			;
+yyVisit5Decls (yyt^.Object.Next, yyEnv4, yyInLocal, yyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+| Tree.Const:
+(* line 2050 "modula.cg" *)
+ ConstyExpryStrsIn	:= NoStrings 	;
+ConstyExpryLevel:=yyt^.Const.Level;
+(* line 878 "modula.cg" *)
+ ConstyExpryEnv	:=		yyt^.Const.Env3		;
+yyVisit1Expr (yyt^.Const.Expr, ConstyExpryEnv, ConstyExpryLevel, ConstyExpryOpenAccessOrCall, ConstyExpryGlobalPtrs, ConstyExpryStrsIn, ConstyExpryStrsOut);
+(* line 1319 "modula.cg" *)
+
+		  IF yyt^.Const.Kind IN {Definition, Foreign} THEN
+				yyt^.Const.CIdent	:= DefineCIdent (yyt^.Const.Object, MakeQualified (yyt^.Const.Module, yyt^.Const.Ident));
+		    ConstyNextyIdsIn	:=		yyIdsIn		;
+		  ELSIF NameConflict (yyIdsIn, eConst, yyt^.Const.Ident) THEN
+				yyt^.Const.CIdent	:= DefineCIdent (yyt^.Const.Object, Rename (yyt^.Const.Ident));
+		    ConstyNextyIdsIn	:=		yyIdsIn		;
+		  ELSE
+				yyt^.Const.CIdent	:= DefineCIdent (yyt^.Const.Object, yyt^.Const.Ident)	;
+		    ConstyNextyIdsIn	:= DeclareIdent (yyIdsIn, eConst, yyt^.Const.Ident);
+		  END;			
+yyVisit5Decls (yyt^.Const.Next, yyEnv4, yyInLocal, ConstyNextyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+| Tree.TypeDecl:
+TypeDeclyTypeyEnv3:=yyt^.TypeDecl.Env3;
+yyVisit4Type (yyt^.TypeDecl.Type, TypeDeclyTypeyEnv3, yyIdsIn, TypeDeclyTypeyIdsOut);
+(* line 1334 "modula.cg" *)
+
+		  IF yyt^.TypeDecl.Kind IN {Definition, Foreign} THEN
+				yyt^.TypeDecl.CIdent	:= DefineCIdent (yyt^.TypeDecl.Object, MakeQualified (yyt^.TypeDecl.Module, yyt^.TypeDecl.Ident));
+		    TypeDeclyNextyIdsIn	:= TypeDeclyTypeyIdsOut		;
+		  ELSIF IsDeclared (yyt^.TypeDecl.Ident, yyt^.TypeDecl.DefObjects) THEN
+		    
+		    
+		    
+		    
+		     
+				yyt^.TypeDecl.CIdent	:= GenOpaque (DefineCIdent (yyt^.TypeDecl.Object, MakeQualified (yyt^.TypeDecl.Module, yyt^.TypeDecl.Ident)));
+		    IF NameConflict (TypeDeclyTypeyIdsOut, eType, yyt^.TypeDecl.Ident) THEN
+		      ErrorMessagePI (OpaqueConflict, Restriction, yyt^.TypeDecl.Pos, Errors.Ident, ADR (yyt^.TypeDecl.Ident));
+		      TypeDeclyNextyIdsIn	:= TypeDeclyTypeyIdsOut		;
+		    ELSE
+		      TypeDeclyNextyIdsIn	:= DeclareIdent (TypeDeclyTypeyIdsOut, eType, yyt^.TypeDecl.Ident);
+		    END;
+		  ELSIF NameConflict (TypeDeclyTypeyIdsOut, eType, yyt^.TypeDecl.Ident) THEN
+				yyt^.TypeDecl.CIdent	:= DefineCIdent (yyt^.TypeDecl.Object, Rename (yyt^.TypeDecl.Ident));
+		    TypeDeclyNextyIdsIn	:= TypeDeclyTypeyIdsOut		;
+		  ELSE
+				yyt^.TypeDecl.CIdent	:= DefineCIdent (yyt^.TypeDecl.Object, yyt^.TypeDecl.Ident)	;
+		    TypeDeclyNextyIdsIn	:= DeclareIdent (TypeDeclyTypeyIdsOut, eType, yyt^.TypeDecl.Ident);
+		  END;			
+yyVisit5Decls (yyt^.TypeDecl.Next, yyEnv4, yyInLocal, TypeDeclyNextyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+| Tree.Proc:
+ProcyFormalsyEnv3:=yyt^.Proc.Env3;
+ProcyResultTypeyEnv3:=yyt^.Proc.Env3;
+yyVisit4PrimaryType (yyt^.Proc.ResultType, ProcyResultTypeyEnv3, yyIdsIn, ProcyResultTypeyIdsOut);
+(* line 1368 "modula.cg" *)
+
+		  IF IsDeclared (yyt^.Proc.Ident, yyt^.Proc.DefObjects) THEN
+				yyt^.Proc.CIdent	:= DefineCIdent (yyt^.Proc.Object, MakeQualified (yyt^.Proc.Module, yyt^.Proc.Ident));
+		    ProcyNextyIdsIn	:= ProcyResultTypeyIdsOut		;
+		  ELSIF NameConflict (ProcyResultTypeyIdsOut, eProc, yyt^.Proc.Ident) THEN
+				yyt^.Proc.CIdent	:= DefineCIdent (yyt^.Proc.Object, Rename (yyt^.Proc.Ident));
+		    ProcyNextyIdsIn	:= ProcyResultTypeyIdsOut		;
+		  ELSE
+				yyt^.Proc.CIdent	:= DefineCIdent (yyt^.Proc.Object, yyt^.Proc.Ident)	;
+		    ProcyNextyIdsIn	:= DeclareIdent (ProcyResultTypeyIdsOut, eProc, yyt^.Proc.Ident);
+		  END;			
+yyVisit5Decls (yyt^.Proc.Next, yyEnv4, yyInLocal, ProcyNextyIdsIn, ProcyNextyIdsOut, yyCntOut, ProcyNextyGlobalPtrs);
+(* line 1379 "modula.cg" *)
+
+		    ProcyFormalsyIdsIn	:= EnterProc (ProcyNextyIdsOut)	;
+yyVisit3Formals (yyt^.Proc.Formals, ProcyFormalsyEnv3, ProcyFormalsyIdsIn, ProcyFormalsyIdsOut);
+(* line 1365 "modula.cg" *)
+
+		    ProcyDeclsyInLocal	:= FALSE			;
+(* line 883 "modula.cg" *)
+
+		    ProcyDeclsyEnv4	:= mEnv (UNION (yyt^.Proc.Formals^.Formals.Objects3, yyt^.Proc.Decls^.Decls.Objects4Out), yyEnv4);
+yyVisit5Decls (yyt^.Proc.Decls, ProcyDeclsyEnv4, ProcyDeclsyInLocal, ProcyFormalsyIdsOut, ProcyDeclsyIdsOut, ProcyDeclsyCntOut, ProcyDeclsyGlobalPtrs);
+(* line 1934 "modula.cg" *)
+
+		  IF ProcyDeclsyGlobalPtrs THEN
+		    yyt^.Proc.LocalPtrs		:= Pointers (FALSE, UNION (yyt^.Proc.Formals^.Formals.Objects3, yyt^.Proc.Decls^.Decls.Objects4Out));
+		  ELSE
+		    yyt^.Proc.LocalPtrs		:= NoCObjects			;
+		  END;			
+(* line 2178 "modula.cg" *)
+ ProcyStmtsyType	:= GetResultType (yyt^.Proc.Type)		;
+(* line 2051 "modula.cg" *)
+ ProcyStmtsyStrsIn	:= NoStrings			;
+(* line 1576 "modula.cg" *)
+
+		    ProcyStmtsyLevel	:=		yyt^.Proc.Level + 1	;
+yyVisit1Stmts (yyt^.Proc.Stmts, ProcyDeclsyEnv4, ProcyStmtsyLevel, ProcyStmtsyGlobalPtrs, ProcyStmtsyStrsIn, ProcyStmtsyStrsOut, ProcyStmtsyType);
+(* line 2052 "modula.cg" *)
+
+				yyt^.Proc.Strings	:= ProcyStmtsyStrsOut		;
+(* line 1931 "modula.cg" *)
+ yyGlobalPtrs		:= ProcyDeclsyGlobalPtrs OR
+					   ProcyStmtsyGlobalPtrs OR
+					   ProcyNextyGlobalPtrs	;
+(* line 1381 "modula.cg" *)
+
+				yyIdsOut	:= LeaveProc (ProcyDeclsyIdsOut)	;
+| Tree.ProcHead:
+ProcHeadyFormalsyEnv3:=yyt^.ProcHead.Env3;
+(* line 1387 "modula.cg" *)
+
+		    ProcHeadyFormalsyIdsIn	:= EnterProc (yyIdsIn)		;
+yyVisit3Formals (yyt^.ProcHead.Formals, ProcHeadyFormalsyEnv3, ProcHeadyFormalsyIdsIn, ProcHeadyFormalsyIdsOut);
+(* line 1388 "modula.cg" *)
+
+		    ProcHeadyResultTypeyIdsIn	:= LeaveProc (ProcHeadyFormalsyIdsOut)	;
+ProcHeadyResultTypeyEnv3:=yyt^.ProcHead.Env3;
+yyVisit4PrimaryType (yyt^.ProcHead.ResultType, ProcHeadyResultTypeyEnv3, ProcHeadyResultTypeyIdsIn, ProcHeadyResultTypeyIdsOut);
+(* line 1390 "modula.cg" *)
+
+		  IF yyt^.ProcHead.Kind = Foreign THEN
+				yyt^.ProcHead.CIdent	:= DefineCIdent (yyt^.ProcHead.Object, yyt^.ProcHead.Ident)	;
+	
+		    IF NameConflict (ProcHeadyResultTypeyIdsOut, eProc, yyt^.ProcHead.Ident) THEN
+		      ErrorMessagePI (ForeignConflict, Warning, yyt^.ProcHead.Pos, Errors.Ident, ADR (yyt^.ProcHead.Ident));
+		      ProcHeadyNextyIdsIn	:= ProcHeadyResultTypeyIdsOut		;
+		    ELSE
+		      ProcHeadyNextyIdsIn	:= DeclareIdent (ProcHeadyResultTypeyIdsOut, eProc, yyt^.ProcHead.Ident);
+		    END;
+		  ELSE
+				yyt^.ProcHead.CIdent	:= DefineCIdent (yyt^.ProcHead.Object, MakeQualified (yyt^.ProcHead.Module, yyt^.ProcHead.Ident));
+		    ProcHeadyNextyIdsIn	:= ProcHeadyResultTypeyIdsOut		;
+		  END;			
+yyVisit5Decls (yyt^.ProcHead.Next, yyEnv4, yyInLocal, ProcHeadyNextyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+| Tree.Module:
+(* line 2179 "modula.cg" *)
+ ModuleyStmtsyType	:= TypeVOID			;
+(* line 2053 "modula.cg" *)
+ ModuleyStmtsyStrsIn	:= NoStrings			;
+(* line 1580 "modula.cg" *)
+ 
+		    
+		    ModuleyStmtsyLevel	:=		yyt^.Module.Level + 1	;
+(* line 890 "modula.cg" *)
+
+		    ModuleyDeclsyEnv4	:= mEnv (UNION (UNION (Predefs, yyt^.Module.Import^.Import.Objects2), yyt^.Module.Decls^.Decls.Objects4Out), NoEnv);
+yyVisit1Stmts (yyt^.Module.Stmts, ModuleyDeclsyEnv4, ModuleyStmtsyLevel, ModuleyStmtsyGlobalPtrs, ModuleyStmtsyStrsIn, ModuleyStmtsyStrsOut, ModuleyStmtsyType);
+(* line 1409 "modula.cg" *)
+
+		  IF NameConflict (yyIdsIn, eProc, yyt^.Module.Ident) THEN
+				yyt^.Module.CIdent	:= DefineCIdent (yyt^.Module.Object, Rename (yyt^.Module.Ident));
+		    ModuleyNextyIdsIn	:=		yyIdsIn		;
+		  ELSE
+				yyt^.Module.CIdent	:= DefineCIdent (yyt^.Module.Object, yyt^.Module.Ident)	;
+		    ModuleyNextyIdsIn	:= DeclareIdent (yyIdsIn, eProc, yyt^.Module.Ident);
+		  END;			
+(* line 2054 "modula.cg" *)
+
+				yyt^.Module.Strings	:= ModuleyStmtsyStrsOut		;
+yyVisit5Decls (yyt^.Module.Next, yyEnv4, yyInLocal, ModuleyNextyIdsIn, ModuleyNextyIdsOut, yyCntOut, ModuleyNextyGlobalPtrs);
+(* line 1407 "modula.cg" *)
+
+		    ModuleyDeclsyInLocal	:= TRUE				;
+yyVisit5Decls (yyt^.Module.Decls, ModuleyDeclsyEnv4, ModuleyDeclsyInLocal, ModuleyNextyIdsOut, yyIdsOut, ModuleyDeclsyCntOut, ModuleyDeclsyGlobalPtrs);
+(* line 1940 "modula.cg" *)
+ yyGlobalPtrs		:= ModuleyDeclsyGlobalPtrs OR
+					   ModuleyStmtsyGlobalPtrs OR
+					   ModuleyNextyGlobalPtrs	;
+| Tree.Opaque:
+(* line 1419 "modula.cg" *)
+ yyt^.Opaque.CIdent		:= DefineCIdent (yyt^.Opaque.Object, MakeQualified (yyt^.Opaque.Module, yyt^.Opaque.Ident));
+yyVisit5Decls (yyt^.Opaque.Next, yyEnv4, yyInLocal, yyIdsIn, yyIdsOut, yyCntOut, yyGlobalPtrs);
+   ELSE
+   END;
+  END;
+ END yyVisit5Decls;
+
+PROCEDURE yyVisit1VarIds (yyt: Tree.tTree; VAR yyType: tType; VAR yyTypeTree: ADDRESS; VAR yyLevel: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.VarIds:
+(* line 445 "modula.cg" *)
+ yyt^.VarIds.Objects3		:= NoObjects			;
+| Tree.VarIds0:
+(* line 445 "modula.cg" *)
+ yyt^.VarIds0.Objects3		:= NoObjects			;
+| Tree.VarIds1:
+(* line 448 "modula.cg" *)
+
+		    yyt^.VarIds1.Object		:= mVar1 (yyt^.VarIds1.Ident, yyType, FALSE, yyLevel, FALSE, yyTypeTree);
+yyVisit1VarIds (yyt^.VarIds1.Next, yyType, yyTypeTree, yyLevel);
+(* line 449 "modula.cg" *)
+
+		    yyt^.VarIds1.Objects3 := mElmt (yyt^.VarIds1.Ident, FALSE, yyt^.VarIds1.Object, yyt^.VarIds1.Next^.VarIds.Objects3)	;
+   ELSE
+   END;
+  END;
+ END yyVisit1VarIds;
+
+PROCEDURE yyVisit2VarIds (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyInLocal: BOOLEAN; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.VarIds1:
+  VarIds1yNextyIdsIn: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.VarIds:
+(* line 1134 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.VarIds0:
+(* line 1134 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.VarIds1:
+(* line 1139 "modula.cg" *)
+
+		  IF yyKind IN {Definition, Foreign} THEN
+		    		yyt^.VarIds1.CIdent	:= DefineCIdent (yyt^.VarIds1.Object, MakeQualified (yyModule, yyt^.VarIds1.Ident));
+		    VarIds1yNextyIdsIn	:=		yyIdsIn		;
+		  ELSIF yyInLocal THEN
+		    IF NameConflict (yyIdsIn, eModuleVar, yyt^.VarIds1.Ident) THEN
+		    		yyt^.VarIds1.CIdent	:= DefineCIdent (yyt^.VarIds1.Object, Rename (yyt^.VarIds1.Ident));
+		    VarIds1yNextyIdsIn	:=		yyIdsIn		;
+		    ELSE
+		    		yyt^.VarIds1.CIdent	:= DefineCIdent (yyt^.VarIds1.Object, yyt^.VarIds1.Ident)	;
+		    VarIds1yNextyIdsIn	:= DeclareIdent (yyIdsIn, eModuleVar, yyt^.VarIds1.Ident);
+		    END;
+		  ELSE
+		    IF NameConflict (yyIdsIn, eVar, yyt^.VarIds1.Ident) THEN
+		    		yyt^.VarIds1.CIdent	:= DefineCIdent (yyt^.VarIds1.Object, Rename (yyt^.VarIds1.Ident));
+		    VarIds1yNextyIdsIn	:=		yyIdsIn		;
+		    ELSE
+		    		yyt^.VarIds1.CIdent	:= DefineCIdent (yyt^.VarIds1.Object, yyt^.VarIds1.Ident)	;
+		    VarIds1yNextyIdsIn	:= DeclareIdent (yyIdsIn, eVar, yyt^.VarIds1.Ident);
+		    END;
+		  END;			
+yyVisit2VarIds (yyt^.VarIds1.Next, yyKind, yyModule, yyInLocal, VarIds1yNextyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit2VarIds;
+
+PROCEDURE yyVisit1Formals (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Formals1:
+  Formals1yTypeyCntOut: SHORTCARD;
+  Formals1yTypeyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Formals:
+(* line 1853 "modula.cg" *)
+yyPosOut := yyPosIn			;
+| Tree.Formals0:
+(* line 1853 "modula.cg" *)
+yyPosOut := yyPosIn			;
+| Tree.Formals1:
+(* line 1461 "modula.cg" *)
+ yyt^.Formals1.Type^.Type.CntIn	:= 0		;
+(* line 1424 "modula.cg" *)
+
+		    yyt^.Formals1.Type^.Type.Module	:=		yyModule		;
+(* line 1422 "modula.cg" *)
+ yyt^.Formals1.Type^.Type.Kind	:=		yyKind		;
+yyVisit1Type (yyt^.Formals1.Type, Formals1yTypeyCntOut, yyPosIn, Formals1yTypeyPosOut);
+yyVisit1Formals (yyt^.Formals1.Next, yyKind, yyModule, Formals1yTypeyPosOut, yyPosOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1Formals;
+
+PROCEDURE yyVisit2Formals (yyt: Tree.tTree; VAR yyTypes: tTypes; VAR yyEnv1: tEnv; VAR yyEnv2: tVoid; VAR yyLevel: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Formals1:
+  Formals1yParIdsyObjects3: tObjects;
+  Formals1yParIdsyType: tType;
+  Formals1yParIdsyTypeTree: ADDRESS;
+  Formals1yParIdsyIsVAR: BOOLEAN;
+  Formals1yParIdsyTypesIn: tType;
+  Formals1yTypeyTypeObj: tObject;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Formals:
+(* line 565 "modula.cg" *)
+		    yyTypes	:= NoTypes			;
+(* line 452 "modula.cg" *)
+ yyt^.Formals.Objects3		:= NoObjects			;
+| Tree.Formals0:
+(* line 565 "modula.cg" *)
+		    yyTypes	:= NoTypes			;
+(* line 452 "modula.cg" *)
+ yyt^.Formals0.Objects3		:= NoObjects			;
+| Tree.Formals1:
+yyt^.Formals1.Type^.Type.Env1:=yyEnv1;
+(* line 568 "modula.cg" *)
+
+		Formals1yTypeyTypeObj	:= NoObject			;
+yyVisit2Type (yyt^.Formals1.Type, Formals1yTypeyTypeObj);
+yyt^.Formals1.Type^.Type.Env2:=yyEnv2;
+yyVisit3Type (yyt^.Formals1.Type);
+yyVisit2Formals (yyt^.Formals1.Next, Formals1yParIdsyTypesIn, yyEnv1, yyEnv2, yyLevel);
+(* line 456 "modula.cg" *)
+
+		    Formals1yParIdsyIsVAR	:= yyt^.Formals1.IsVAR			;
+(* line 455 "modula.cg" *)
+
+		    Formals1yParIdsyTypeTree	:= yyt^.Formals1.Type				;
+(* line 454 "modula.cg" *)
+
+		    Formals1yParIdsyType		:= yyt^.Formals1.Type^.Type.Type2			;
+yyVisit1ParIds (yyt^.Formals1.ParIds, Formals1yParIdsyObjects3, Formals1yParIdsyType, Formals1yParIdsyTypeTree, Formals1yParIdsyIsVAR, Formals1yParIdsyTypesIn, yyTypes, yyLevel);
+(* line 453 "modula.cg" *)
+ yyt^.Formals1.Objects3		:= UNION (Formals1yParIdsyObjects3, yyt^.Formals1.Next^.Formals.Objects3);
+   ELSE
+   END;
+  END;
+ END yyVisit2Formals;
+
+PROCEDURE yyVisit3Formals (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Formals1:
+  Formals1yParIdsyIdsOut: tIdents;
+  Formals1yTypeyIdsOut: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Formals:
+(* line 1421 "modula.cg" *)
+yyIdsOut := yyIdsIn			;
+| Tree.Formals0:
+(* line 1421 "modula.cg" *)
+yyIdsOut := yyIdsIn			;
+| Tree.Formals1:
+yyVisit2ParIds (yyt^.Formals1.ParIds, yyIdsIn, Formals1yParIdsyIdsOut);
+yyVisit4Type (yyt^.Formals1.Type, yyEnv3, Formals1yParIdsyIdsOut, Formals1yTypeyIdsOut);
+yyVisit3Formals (yyt^.Formals1.Next, yyEnv3, Formals1yTypeyIdsOut, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit3Formals;
+
+PROCEDURE yyVisit1ParIds (yyt: Tree.tTree; VAR yyObjects3: tObjects; VAR yyType: tType; VAR yyTypeTree: ADDRESS; VAR yyIsVAR: BOOLEAN; VAR yyTypesIn: tType; VAR yyTypesOut: tTypes; VAR yyLevel: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ParIds1:
+  ParIds1yNextyObjects3: tObjects;
+  ParIds1yNextyTypesOut: tTypes;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ParIds:
+(* line 570 "modula.cg" *)
+yyTypesOut :=		yyTypesIn		;
+(* line 458 "modula.cg" *)
+ yyObjects3		:= NoObjects			;
+| Tree.ParIds0:
+(* line 570 "modula.cg" *)
+yyTypesOut :=		yyTypesIn		;
+(* line 458 "modula.cg" *)
+ yyObjects3		:= NoObjects			;
+| Tree.ParIds1:
+(* line 459 "modula.cg" *)
+ yyt^.ParIds1.Object		:= mVar1 (yyt^.ParIds1.Ident, yyType, yyIsVAR, yyLevel, FALSE, yyTypeTree);
+yyVisit1ParIds (yyt^.ParIds1.Next, ParIds1yNextyObjects3, yyType, yyTypeTree, yyIsVAR, yyTypesIn, ParIds1yNextyTypesOut, yyLevel);
+(* line 572 "modula.cg" *)
+
+			    yyTypesOut	:= mTypes (yyIsVAR, yyType, ParIds1yNextyTypesOut);
+(* line 463 "modula.cg" *)
+
+		    yyObjects3		:= mElmt (yyt^.ParIds1.Ident, FALSE, yyt^.ParIds1.Object, ParIds1yNextyObjects3);
+   ELSE
+   END;
+  END;
+ END yyVisit1ParIds;
+
+PROCEDURE yyVisit2ParIds (yyt: Tree.tTree; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.ParIds1:
+  ParIds1yNextyIdsIn: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.ParIds:
+(* line 1162 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.ParIds0:
+(* line 1162 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.ParIds1:
+(* line 1164 "modula.cg" *)
+
+		  IF NameConflict (yyIdsIn, eVar, yyt^.ParIds1.Ident) THEN
+				yyt^.ParIds1.CIdent	:= DefineCIdent (yyt^.ParIds1.Object, Rename (yyt^.ParIds1.Ident));
+		    ParIds1yNextyIdsIn	:=		yyIdsIn		;
+		  ELSE
+				yyt^.ParIds1.CIdent	:= DefineCIdent (yyt^.ParIds1.Object, yyt^.ParIds1.Ident)	;
+		    ParIds1yNextyIdsIn	:= DeclareIdent (yyIdsIn, eVar, yyt^.ParIds1.Ident);
+		  END;			
+yyVisit2ParIds (yyt^.ParIds1.Next, ParIds1yNextyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit2ParIds;
+
+PROCEDURE yyVisit1Type (yyt: Tree.tTree; VAR yyCntOut: SHORTCARD; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Array:
+  ArrayyIndexTypeyCntOut: SHORTCARD;
+  ArrayyIndexTypeyPosOut: SHORTCARD;
+  ArrayyElemTypeyPosOut: SHORTCARD;
+ | Tree.Record:
+  RecordyFieldsyKind: SHORTCARD;
+  RecordyFieldsyModule: tIdent;
+  RecordyFieldsyCntIn: SHORTCARD;
+  RecordyFieldsyPosOut: SHORTCARD;
+ | Tree.SetType:
+  SetTypeyBaseTypeyCntOut: SHORTCARD;
+  SetTypeyBaseTypeyPosOut: SHORTCARD;
+ | Tree.Pointer:
+  PointeryTargetTypeyPosOut: SHORTCARD;
+ | Tree.ProcType:
+  ProcTypeyFormalTypesyKind: SHORTCARD;
+  ProcTypeyFormalTypesyModule: tIdent;
+  ProcTypeyFormalTypesyPosOut: SHORTCARD;
+  ProcTypeyResultTypeyCntOut: SHORTCARD;
+  ProcTypeyResultTypeyPosOut: SHORTCARD;
+ | Tree.Subrange:
+  SubrangeyBaseTypeyCntOut: SHORTCARD;
+  SubrangeyBaseTypeyPosOut: SHORTCARD;
+ | Tree.TypeId1:
+  TypeId1yTypeIdyCntOut: SHORTCARD;
+  TypeId1yTypeIdyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Type:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Type.CntIn		;
+| Tree.Array:
+(* line 1464 "modula.cg" *)
+ yyt^.Array.IndexType^.SimpleType.CntIn	:=		yyt^.Array.CntIn + 1	;
+(* line 1206 "modula.cg" *)
+
+		    yyt^.Array.IndexType^.SimpleType.Module	:=		yyt^.Array.Module		;
+(* line 1204 "modula.cg" *)
+ yyt^.Array.IndexType^.SimpleType.Kind	:=		yyt^.Array.Kind		;
+yyVisit1SimpleType (yyt^.Array.IndexType, ArrayyIndexTypeyCntOut, yyPosIn, ArrayyIndexTypeyPosOut);
+(* line 1465 "modula.cg" *)
+
+		    yyt^.Array.ElemType^.Type.CntIn	:= ArrayyIndexTypeyCntOut		;
+(* line 1207 "modula.cg" *)
+
+		    yyt^.Array.ElemType^.Type.Module	:=		yyt^.Array.Module		;
+(* line 1205 "modula.cg" *)
+
+		    yyt^.Array.ElemType^.Type.Kind	:=		yyt^.Array.Kind		;
+yyVisit1Type (yyt^.Array.ElemType, yyCntOut, ArrayyIndexTypeyPosOut, ArrayyElemTypeyPosOut);
+(* line 1794 "modula.cg" *)
+
+				yyPosOut	:= ArrayyElemTypeyPosOut + 1	;
+| Tree.Record:
+(* line 1467 "modula.cg" *)
+ RecordyFieldsyCntIn	:=		yyt^.Record.CntIn + 1	;
+(* line 1212 "modula.cg" *)
+
+		    RecordyFieldsyModule	:=		yyt^.Record.Module		;
+(* line 1211 "modula.cg" *)
+ RecordyFieldsyKind	:=		yyt^.Record.Kind		;
+yyVisit1Fields (yyt^.Record.Fields, RecordyFieldsyKind, RecordyFieldsyModule, RecordyFieldsyCntIn, yyCntOut, yyPosIn, RecordyFieldsyPosOut);
+(* line 1796 "modula.cg" *)
+
+				yyPosOut	:= RecordyFieldsyPosOut + 1	;
+| Tree.SetType:
+(* line 1470 "modula.cg" *)
+ yyt^.SetType.BaseType^.SimpleType.CntIn	:= 0		;
+(* line 1216 "modula.cg" *)
+
+		    yyt^.SetType.BaseType^.SimpleType.Module	:=		yyt^.SetType.Module		;
+(* line 1215 "modula.cg" *)
+ yyt^.SetType.BaseType^.SimpleType.Kind	:=		yyt^.SetType.Kind		;
+yyVisit1SimpleType (yyt^.SetType.BaseType, SetTypeyBaseTypeyCntOut, yyPosIn, SetTypeyBaseTypeyPosOut);
+(* line 1798 "modula.cg" *)
+
+				yyPosOut	:= SetTypeyBaseTypeyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.SetType.CntIn		;
+| Tree.Pointer:
+(* line 1471 "modula.cg" *)
+ yyt^.Pointer.TargetType^.Type.CntIn	:=		yyt^.Pointer.CntIn		;
+(* line 1220 "modula.cg" *)
+
+		    yyt^.Pointer.TargetType^.Type.Module	:=		yyt^.Pointer.Module		;
+(* line 1219 "modula.cg" *)
+ yyt^.Pointer.TargetType^.Type.Kind	:=		yyt^.Pointer.Kind		;
+yyVisit1Type (yyt^.Pointer.TargetType, yyCntOut, yyPosIn, PointeryTargetTypeyPosOut);
+(* line 1800 "modula.cg" *)
+
+				yyPosOut	:= PointeryTargetTypeyPosOut + 1	;
+(* line 1801 "modula.cg" *)
+
+				yyt^.Pointer.TypePos	:=		yyPosOut		;
+| Tree.ProcType:
+(* line 1225 "modula.cg" *)
+
+		    ProcTypeyFormalTypesyModule	:=		yyt^.ProcType.Module		;
+(* line 1223 "modula.cg" *)
+ ProcTypeyFormalTypesyKind	:=		yyt^.ProcType.Kind		;
+yyVisit1FormalTypes (yyt^.ProcType.FormalTypes, ProcTypeyFormalTypesyKind, ProcTypeyFormalTypesyModule, yyPosIn, ProcTypeyFormalTypesyPosOut);
+(* line 1473 "modula.cg" *)
+ yyt^.ProcType.ResultType^.PrimaryType.CntIn	:= 0		;
+(* line 1226 "modula.cg" *)
+
+		    yyt^.ProcType.ResultType^.PrimaryType.Module	:=		yyt^.ProcType.Module		;
+(* line 1224 "modula.cg" *)
+
+		    yyt^.ProcType.ResultType^.PrimaryType.Kind	:=		yyt^.ProcType.Kind		;
+yyVisit1PrimaryType (yyt^.ProcType.ResultType, ProcTypeyResultTypeyCntOut, ProcTypeyFormalTypesyPosOut, ProcTypeyResultTypeyPosOut);
+(* line 1804 "modula.cg" *)
+
+				yyPosOut	:= ProcTypeyResultTypeyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.ProcType.CntIn		;
+| Tree.SimpleType:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.SimpleType.CntIn		;
+| Tree.Enumeration:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Enumeration.CntIn		;
+| Tree.Subrange:
+(* line 1474 "modula.cg" *)
+ yyt^.Subrange.BaseType^.PrimaryType.CntIn	:= 0		;
+(* line 1235 "modula.cg" *)
+
+		    yyt^.Subrange.BaseType^.PrimaryType.Module	:=		yyt^.Subrange.Module		;
+(* line 1234 "modula.cg" *)
+ yyt^.Subrange.BaseType^.PrimaryType.Kind	:=		yyt^.Subrange.Kind		;
+yyVisit1PrimaryType (yyt^.Subrange.BaseType, SubrangeyBaseTypeyCntOut, yyPosIn, SubrangeyBaseTypeyPosOut);
+(* line 1806 "modula.cg" *)
+
+				yyPosOut	:= SubrangeyBaseTypeyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Subrange.CntIn		;
+| Tree.PrimaryType:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.PrimaryType.CntIn		;
+| Tree.Void:
+(* line 1807 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Void.CntIn		;
+| Tree.TypeId:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId.CntIn		;
+| Tree.TypeId0:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId0.CntIn		;
+| Tree.TypeId1:
+(* line 1475 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.CntIn	:= 0		;
+(* line 1240 "modula.cg" *)
+
+		    yyt^.TypeId1.TypeId^.TypeId.Module	:=		yyt^.TypeId1.Module		;
+(* line 1239 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.Kind	:=		yyt^.TypeId1.Kind		;
+yyVisit1TypeId (yyt^.TypeId1.TypeId, TypeId1yTypeIdyCntOut, yyPosIn, TypeId1yTypeIdyPosOut);
+(* line 1809 "modula.cg" *)
+
+				yyPosOut	:= TypeId1yTypeIdyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId1.CntIn		;
+   ELSE
+   END;
+  END;
+ END yyVisit1Type;
+
+PROCEDURE yyVisit2Type (yyt: Tree.tTree; VAR yyTypeObj: tObject);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Enumeration:
+  EnumerationyEnumIdsyIndexIn: SHORTCARD;
+  EnumerationyEnumIdsyIndexOut: SHORTCARD;
+  EnumerationyyType0: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Type:
+(* line 588 "modula.cg" *)
+		    yyt^.Type.Type1	:= NoType			;
+| Tree.Array:
+(* line 590 "modula.cg" *)
+
+			IF yyt^.Array.Kind IN {Definition, Foreign} THEN
+			    yyt^.Array.Type1	:= mArray1 (yyTypeObj, GenStruct1 (yyt^.Array.Module, yyt^.Array.CntIn+1));
+			ELSE
+			    yyt^.Array.Type1	:= mArray1 (yyTypeObj, GenStruct2 ());
+			END;		
+| Tree.Record:
+(* line 599 "modula.cg" *)
+
+			IF yyt^.Record.Kind IN {Definition, Foreign} THEN
+			    yyt^.Record.Type1	:= mRecord1 (yyTypeObj, GenStruct1 (yyt^.Record.Module, yyt^.Record.CntIn+1));
+			ELSE
+			    yyt^.Record.Type1	:= mRecord1 (yyTypeObj, GenStruct2 ());
+			END;		
+| Tree.SetType:
+(* line 607 "modula.cg" *)
+		    yyt^.SetType.Type1	:= mSet1 (yyTypeObj)		;
+| Tree.Pointer:
+(* line 610 "modula.cg" *)
+		    yyt^.Pointer.Type1	:= mPointer1 (yyTypeObj)		;
+| Tree.ProcType:
+(* line 613 "modula.cg" *)
+		     yyt^.ProcType.Type1	:= mProcType1 (yyTypeObj)		;
+| Tree.SimpleType:
+(* line 588 "modula.cg" *)
+		    yyt^.SimpleType.Type1	:= NoType			;
+| Tree.Enumeration:
+(* line 618 "modula.cg" *)
+
+		EnumerationyEnumIdsyIndexIn	:= 0				;
+(* line 616 "modula.cg" *)
+		     EnumerationyyType0	:= mEnumeration1 (yyTypeObj)	;
+yyVisit1EnumIds (yyt^.Enumeration.EnumIds, EnumerationyyType0, EnumerationyEnumIdsyIndexIn, EnumerationyEnumIdsyIndexOut);
+(* line 619 "modula.cg" *)
+
+			     yyt^.Enumeration.Type1	:= mEnumeration2 (EnumerationyyType0, yyt^.Enumeration.EnumIds^.EnumIds.Objects, EnumerationyEnumIdsyIndexOut-1);
+| Tree.Subrange:
+(* line 620 "modula.cg" *)
+		     yyt^.Subrange.Type1	:= mSubrange1 (yyTypeObj, yyt^.Subrange.Lwb, yyt^.Subrange.Upb);
+| Tree.PrimaryType:
+(* line 588 "modula.cg" *)
+		    yyt^.PrimaryType.Type1	:= NoType			;
+| Tree.Void:
+(* line 629 "modula.cg" *)
+		     yyt^.Void.Type1	:= TypeVOID			;
+| Tree.TypeId:
+(* line 927 "modula.cg" *)
+ yyt^.TypeId.Object	:= NoObject					;
+(* line 588 "modula.cg" *)
+		    yyt^.TypeId.Type1	:= NoType			;
+| Tree.TypeId0:
+(* line 928 "modula.cg" *)
+ yyt^.TypeId0.Object	:= Identify (yyt^.TypeId0.Ident, yyt^.TypeId0.Env1)			;
+(* line 630 "modula.cg" *)
+		     yyt^.TypeId0.Type1	:= mQualident1 (yyt^.TypeId0.Object)		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env1:=yyt^.TypeId1.Env1;
+yyVisit2TypeId (yyt^.TypeId1.TypeId, yyTypeObj);
+(* line 929 "modula.cg" *)
+ yyt^.TypeId1.Object	:= Identify2 (yyt^.TypeId1.Ident, GetExport1 (yyt^.TypeId1.TypeId^.TypeId.Object));
+(* line 632 "modula.cg" *)
+		     yyt^.TypeId1.Type1	:= mQualident1 (yyt^.TypeId1.Object)		;
+   ELSE
+   END;
+  END;
+ END yyVisit2Type;
+
+PROCEDURE yyVisit3Type (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Array:
+  ArrayyIndexTypeyTypeObj: tObject;
+  ArrayyElemTypeyTypeObj: tObject;
+ | Tree.Record:
+  RecordyFieldsyObjects3: tObjects;
+  RecordyFieldsyFieldsIn: tObjects;
+  RecordyFieldsyFieldsOut: tObjects;
+  RecordyFieldsyEnv1: tEnv;
+  RecordyFieldsyEnv2: tVoid;
+  RecordyFieldsynUnion: SHORTCARD;
+  RecordyFieldsySelect: tSelectors;
+ | Tree.SetType:
+  SetTypeyBaseTypeyTypeObj: tObject;
+ | Tree.Pointer:
+  PointeryTargetTypeyTypeObj: tObject;
+ | Tree.ProcType:
+  ProcTypeyFormalTypesyTypes: tTypes;
+  ProcTypeyFormalTypesyEnv1: tEnv;
+  ProcTypeyFormalTypesyEnv2: tVoid;
+  ProcTypeyResultTypeyTypeObj: tObject;
+ | Tree.Subrange:
+  SubrangeyBaseTypeyTypeObj: tObject;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Type:
+(* line 589 "modula.cg" *)
+
+			    yyt^.Type.Type2	:=		yyt^.Type.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.Type.Objects3		:= NoObjects			;
+| Tree.Array:
+yyt^.Array.ElemType^.Type.Env1:=yyt^.Array.Env1;
+(* line 598 "modula.cg" *)
+
+		ArrayyElemTypeyTypeObj	:= NoObject			;
+yyVisit2Type (yyt^.Array.ElemType, ArrayyElemTypeyTypeObj);
+yyt^.Array.ElemType^.Type.Env2:=yyt^.Array.Env2;
+yyVisit3Type (yyt^.Array.ElemType);
+yyt^.Array.IndexType^.SimpleType.Env1:=yyt^.Array.Env1;
+(* line 597 "modula.cg" *)
+
+		ArrayyIndexTypeyTypeObj	:= NoObject			;
+yyVisit2SimpleType (yyt^.Array.IndexType, ArrayyIndexTypeyTypeObj);
+yyt^.Array.IndexType^.SimpleType.Env2:=yyt^.Array.Env2;
+yyVisit3SimpleType (yyt^.Array.IndexType);
+(* line 596 "modula.cg" *)
+
+			    yyt^.Array.Type2	:= mArray2 (yyt^.Array.Type1, yyt^.Array.IsOpen, yyt^.Array.IndexType^.SimpleType.Type2, yyt^.Array.ElemType^.Type.Type2);
+(* line 466 "modula.cg" *)
+ yyt^.Array.Objects3		:= UNION (yyt^.Array.IndexType^.SimpleType.Objects3, yyt^.Array.ElemType^.Type.Objects3);
+| Tree.Record:
+(* line 1526 "modula.cg" *)
+
+		    RecordyFieldsySelect	:= NoSelectors			;
+(* line 1525 "modula.cg" *)
+ RecordyFieldsynUnion	:= 0				;
+RecordyFieldsyEnv1:=yyt^.Record.Env1;
+RecordyFieldsyEnv2:=yyt^.Record.Env2;
+(* line 605 "modula.cg" *)
+
+		RecordyFieldsyFieldsIn	:= NoObjects			;
+yyVisit2Fields (yyt^.Record.Fields, RecordyFieldsyObjects3, RecordyFieldsyFieldsIn, RecordyFieldsyFieldsOut, RecordyFieldsyEnv1, RecordyFieldsyEnv2, RecordyFieldsynUnion, RecordyFieldsySelect);
+(* line 606 "modula.cg" *)
+
+			    yyt^.Record.Type2	:= mRecord2 (yyt^.Record.Type1, RecordyFieldsyFieldsOut);
+(* line 467 "modula.cg" *)
+ yyt^.Record.Objects3		:= RecordyFieldsyObjects3		;
+| Tree.SetType:
+yyt^.SetType.BaseType^.SimpleType.Env1:=yyt^.SetType.Env1;
+(* line 609 "modula.cg" *)
+
+		SetTypeyBaseTypeyTypeObj	:= NoObject			;
+yyVisit2SimpleType (yyt^.SetType.BaseType, SetTypeyBaseTypeyTypeObj);
+yyt^.SetType.BaseType^.SimpleType.Env2:=yyt^.SetType.Env2;
+yyVisit3SimpleType (yyt^.SetType.BaseType);
+(* line 608 "modula.cg" *)
+
+			    yyt^.SetType.Type2	:= mSet2 (yyt^.SetType.Type1, yyt^.SetType.BaseType^.SimpleType.Type2);
+(* line 468 "modula.cg" *)
+ yyt^.SetType.Objects3		:= yyt^.SetType.BaseType^.SimpleType.Objects3		;
+| Tree.Pointer:
+yyt^.Pointer.TargetType^.Type.Env1:=yyt^.Pointer.Env1;
+(* line 612 "modula.cg" *)
+
+		PointeryTargetTypeyTypeObj	:= NoObject			;
+yyVisit2Type (yyt^.Pointer.TargetType, PointeryTargetTypeyTypeObj);
+yyt^.Pointer.TargetType^.Type.Env2:=yyt^.Pointer.Env2;
+yyVisit3Type (yyt^.Pointer.TargetType);
+(* line 611 "modula.cg" *)
+
+			    yyt^.Pointer.Type2	:= mPointer2 (yyt^.Pointer.Type1, yyt^.Pointer.TargetType^.Type.Type2);
+(* line 469 "modula.cg" *)
+ yyt^.Pointer.Objects3		:= yyt^.Pointer.TargetType^.Type.Objects3		;
+| Tree.ProcType:
+yyt^.ProcType.ResultType^.PrimaryType.Env1:=yyt^.ProcType.Env1;
+(* line 615 "modula.cg" *)
+
+		ProcTypeyResultTypeyTypeObj	:= NoObject			;
+yyVisit2PrimaryType (yyt^.ProcType.ResultType, ProcTypeyResultTypeyTypeObj);
+ProcTypeyFormalTypesyEnv1:=yyt^.ProcType.Env1;
+yyt^.ProcType.ResultType^.PrimaryType.Env2:=yyt^.ProcType.Env2;
+yyVisit3PrimaryType (yyt^.ProcType.ResultType);
+ProcTypeyFormalTypesyEnv2:=yyt^.ProcType.Env2;
+yyVisit2FormalTypes (yyt^.ProcType.FormalTypes, ProcTypeyFormalTypesyTypes, ProcTypeyFormalTypesyEnv1, ProcTypeyFormalTypesyEnv2);
+(* line 614 "modula.cg" *)
+
+			     yyt^.ProcType.Type2	:= mProcType2 (yyt^.ProcType.Type1, ProcTypeyFormalTypesyTypes, yyt^.ProcType.ResultType^.PrimaryType.Type2);
+(* line 465 "modula.cg" *)
+ yyt^.ProcType.Objects3		:= NoObjects			;
+| Tree.SimpleType:
+(* line 589 "modula.cg" *)
+
+			    yyt^.SimpleType.Type2	:=		yyt^.SimpleType.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.SimpleType.Objects3		:= NoObjects			;
+| Tree.Enumeration:
+(* line 589 "modula.cg" *)
+
+			    yyt^.Enumeration.Type2	:=		yyt^.Enumeration.Type1		;
+(* line 470 "modula.cg" *)
+ yyt^.Enumeration.Objects3		:= yyt^.Enumeration.EnumIds^.EnumIds.Objects		;
+| Tree.Subrange:
+yyt^.Subrange.BaseType^.PrimaryType.Env1:=yyt^.Subrange.Env1;
+(* line 628 "modula.cg" *)
+
+		SubrangeyBaseTypeyTypeObj	:= NoObject			;
+yyVisit2PrimaryType (yyt^.Subrange.BaseType, SubrangeyBaseTypeyTypeObj);
+yyt^.Subrange.BaseType^.PrimaryType.Env2:=yyt^.Subrange.Env2;
+yyVisit3PrimaryType (yyt^.Subrange.BaseType);
+(* line 621 "modula.cg" *)
+
+			     yyt^.Subrange.Type2	:= mSubrange2 (yyt^.Subrange.Type1, yyt^.Subrange.BaseType^.PrimaryType.Type2);
+(* line 465 "modula.cg" *)
+ yyt^.Subrange.Objects3		:= NoObjects			;
+| Tree.PrimaryType:
+(* line 589 "modula.cg" *)
+
+			    yyt^.PrimaryType.Type2	:=		yyt^.PrimaryType.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.PrimaryType.Objects3		:= NoObjects			;
+| Tree.Void:
+(* line 589 "modula.cg" *)
+
+			    yyt^.Void.Type2	:=		yyt^.Void.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.Void.Objects3		:= NoObjects			;
+| Tree.TypeId:
+(* line 589 "modula.cg" *)
+
+			    yyt^.TypeId.Type2	:=		yyt^.TypeId.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId.Objects3		:= NoObjects			;
+| Tree.TypeId0:
+(* line 631 "modula.cg" *)
+
+			     yyt^.TypeId0.Type2	:= GroundType (yyt^.TypeId0.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId0.Objects3		:= NoObjects			;
+| Tree.TypeId1:
+(* line 633 "modula.cg" *)
+
+			     yyt^.TypeId1.Type2	:= GroundType (yyt^.TypeId1.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId1.Objects3		:= NoObjects			;
+   ELSE
+   END;
+  END;
+ END yyVisit3Type;
+
+PROCEDURE yyVisit4Type (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Array:
+  ArrayyIndexTypeyIdsOut: tIdents;
+ | Tree.ProcType:
+  ProcTypeyFormalTypesyIdsOut: tIdents;
+ | Tree.Enumeration:
+  EnumerationyEnumIdsyKind: SHORTCARD;
+  EnumerationyEnumIdsyModule: tIdent;
+ | Tree.Subrange:
+  SubrangeyLwbyLevel: SHORTCARD;
+  SubrangeyLwbyOpenAccessOrCall: BOOLEAN;
+  SubrangeyLwbyGlobalPtrs: BOOLEAN;
+  SubrangeyLwbyStrsIn: tStrings;
+  SubrangeyLwbyStrsOut: tStrings;
+  SubrangeyUpbyLevel: SHORTCARD;
+  SubrangeyUpbyOpenAccessOrCall: BOOLEAN;
+  SubrangeyUpbyGlobalPtrs: BOOLEAN;
+  SubrangeyUpbyStrsIn: tStrings;
+  SubrangeyUpbyStrsOut: tStrings;
+  SubrangeyyType3: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Type:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Array:
+yyVisit4SimpleType (yyt^.Array.IndexType, yyEnv3, yyIdsIn, ArrayyIndexTypeyIdsOut);
+yyVisit4Type (yyt^.Array.ElemType, yyEnv3, ArrayyIndexTypeyIdsOut, yyIdsOut);
+| Tree.Record:
+yyVisit3Fields (yyt^.Record.Fields, yyEnv3, yyIdsIn, yyIdsOut);
+| Tree.SetType:
+yyVisit4SimpleType (yyt^.SetType.BaseType, yyEnv3, yyIdsIn, yyIdsOut);
+| Tree.Pointer:
+yyVisit4Type (yyt^.Pointer.TargetType, yyEnv3, yyIdsIn, yyIdsOut);
+| Tree.ProcType:
+yyVisit3FormalTypes (yyt^.ProcType.FormalTypes, yyEnv3, yyIdsIn, ProcTypeyFormalTypesyIdsOut);
+yyVisit4PrimaryType (yyt^.ProcType.ResultType, yyEnv3, ProcTypeyFormalTypesyIdsOut, yyIdsOut);
+| Tree.SimpleType:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Enumeration:
+(* line 1231 "modula.cg" *)
+
+		    EnumerationyEnumIdsyModule	:=		yyt^.Enumeration.Module		;
+(* line 1230 "modula.cg" *)
+ EnumerationyEnumIdsyKind	:=		yyt^.Enumeration.Kind		;
+yyVisit2EnumIds (yyt^.Enumeration.EnumIds, EnumerationyEnumIdsyKind, EnumerationyEnumIdsyModule, yyIdsIn, yyIdsOut);
+| Tree.Subrange:
+(* line 2057 "modula.cg" *)
+
+		    SubrangeyUpbyStrsIn	:= NoStrings 	;
+(* line 1569 "modula.cg" *)
+
+		    SubrangeyUpbyLevel	:= 0		;
+yyVisit1Expr (yyt^.Subrange.Upb, yyEnv3, SubrangeyUpbyLevel, SubrangeyUpbyOpenAccessOrCall, SubrangeyUpbyGlobalPtrs, SubrangeyUpbyStrsIn, SubrangeyUpbyStrsOut);
+(* line 2056 "modula.cg" *)
+ SubrangeyLwbyStrsIn	:= NoStrings 	;
+(* line 1568 "modula.cg" *)
+ SubrangeyLwbyLevel	:= 0		;
+yyVisit1Expr (yyt^.Subrange.Lwb, yyEnv3, SubrangeyLwbyLevel, SubrangeyLwbyOpenAccessOrCall, SubrangeyLwbyGlobalPtrs, SubrangeyLwbyStrsIn, SubrangeyLwbyStrsOut);
+yyVisit4PrimaryType (yyt^.Subrange.BaseType, yyEnv3, yyIdsIn, yyIdsOut);
+(* line 622 "modula.cg" *)
+
+			     CompConst (yyt^.Subrange.Lwb, yyEnv3, yyt^.Subrange.Type2^.Subrange1.Lwb);
+			     CompConst (yyt^.Subrange.Upb, yyEnv3, yyt^.Subrange.Type2^.Subrange1.Upb);
+			     
+			     SubrangeyyType3	:= mSubrange3 (yyt^.Subrange.Type2, yyt^.Subrange.Type2^.Subrange1.Lwb, yyt^.Subrange.Type2^.Subrange1.Upb);
+					
+| Tree.PrimaryType:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Void:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId0:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env2:=yyt^.TypeId1.Env2;
+yyVisit3TypeId (yyt^.TypeId1.TypeId);
+yyVisit4TypeId (yyt^.TypeId1.TypeId, yyEnv3, yyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit4Type;
+
+PROCEDURE yyVisit1SimpleType (yyt: Tree.tTree; VAR yyCntOut: SHORTCARD; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Subrange:
+  SubrangeyBaseTypeyCntOut: SHORTCARD;
+  SubrangeyBaseTypeyPosOut: SHORTCARD;
+ | Tree.TypeId1:
+  TypeId1yTypeIdyCntOut: SHORTCARD;
+  TypeId1yTypeIdyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.SimpleType:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.SimpleType.CntIn		;
+| Tree.Enumeration:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Enumeration.CntIn		;
+| Tree.Subrange:
+(* line 1474 "modula.cg" *)
+ yyt^.Subrange.BaseType^.PrimaryType.CntIn	:= 0		;
+(* line 1235 "modula.cg" *)
+
+		    yyt^.Subrange.BaseType^.PrimaryType.Module	:=		yyt^.Subrange.Module		;
+(* line 1234 "modula.cg" *)
+ yyt^.Subrange.BaseType^.PrimaryType.Kind	:=		yyt^.Subrange.Kind		;
+yyVisit1PrimaryType (yyt^.Subrange.BaseType, SubrangeyBaseTypeyCntOut, yyPosIn, SubrangeyBaseTypeyPosOut);
+(* line 1806 "modula.cg" *)
+
+				yyPosOut	:= SubrangeyBaseTypeyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Subrange.CntIn		;
+| Tree.PrimaryType:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.PrimaryType.CntIn		;
+| Tree.Void:
+(* line 1807 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Void.CntIn		;
+| Tree.TypeId:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId.CntIn		;
+| Tree.TypeId0:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId0.CntIn		;
+| Tree.TypeId1:
+(* line 1475 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.CntIn	:= 0		;
+(* line 1240 "modula.cg" *)
+
+		    yyt^.TypeId1.TypeId^.TypeId.Module	:=		yyt^.TypeId1.Module		;
+(* line 1239 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.Kind	:=		yyt^.TypeId1.Kind		;
+yyVisit1TypeId (yyt^.TypeId1.TypeId, TypeId1yTypeIdyCntOut, yyPosIn, TypeId1yTypeIdyPosOut);
+(* line 1809 "modula.cg" *)
+
+				yyPosOut	:= TypeId1yTypeIdyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId1.CntIn		;
+   ELSE
+   END;
+  END;
+ END yyVisit1SimpleType;
+
+PROCEDURE yyVisit2SimpleType (yyt: Tree.tTree; VAR yyTypeObj: tObject);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Enumeration:
+  EnumerationyEnumIdsyIndexIn: SHORTCARD;
+  EnumerationyEnumIdsyIndexOut: SHORTCARD;
+  EnumerationyyType0: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.SimpleType:
+(* line 588 "modula.cg" *)
+		    yyt^.SimpleType.Type1	:= NoType			;
+| Tree.Enumeration:
+(* line 618 "modula.cg" *)
+
+		EnumerationyEnumIdsyIndexIn	:= 0				;
+(* line 616 "modula.cg" *)
+		     EnumerationyyType0	:= mEnumeration1 (yyTypeObj)	;
+yyVisit1EnumIds (yyt^.Enumeration.EnumIds, EnumerationyyType0, EnumerationyEnumIdsyIndexIn, EnumerationyEnumIdsyIndexOut);
+(* line 619 "modula.cg" *)
+
+			     yyt^.Enumeration.Type1	:= mEnumeration2 (EnumerationyyType0, yyt^.Enumeration.EnumIds^.EnumIds.Objects, EnumerationyEnumIdsyIndexOut-1);
+| Tree.Subrange:
+(* line 620 "modula.cg" *)
+		     yyt^.Subrange.Type1	:= mSubrange1 (yyTypeObj, yyt^.Subrange.Lwb, yyt^.Subrange.Upb);
+| Tree.PrimaryType:
+(* line 588 "modula.cg" *)
+		    yyt^.PrimaryType.Type1	:= NoType			;
+| Tree.Void:
+(* line 629 "modula.cg" *)
+		     yyt^.Void.Type1	:= TypeVOID			;
+| Tree.TypeId:
+(* line 927 "modula.cg" *)
+ yyt^.TypeId.Object	:= NoObject					;
+(* line 588 "modula.cg" *)
+		    yyt^.TypeId.Type1	:= NoType			;
+| Tree.TypeId0:
+(* line 928 "modula.cg" *)
+ yyt^.TypeId0.Object	:= Identify (yyt^.TypeId0.Ident, yyt^.TypeId0.Env1)			;
+(* line 630 "modula.cg" *)
+		     yyt^.TypeId0.Type1	:= mQualident1 (yyt^.TypeId0.Object)		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env1:=yyt^.TypeId1.Env1;
+yyVisit2TypeId (yyt^.TypeId1.TypeId, yyTypeObj);
+(* line 929 "modula.cg" *)
+ yyt^.TypeId1.Object	:= Identify2 (yyt^.TypeId1.Ident, GetExport1 (yyt^.TypeId1.TypeId^.TypeId.Object));
+(* line 632 "modula.cg" *)
+		     yyt^.TypeId1.Type1	:= mQualident1 (yyt^.TypeId1.Object)		;
+   ELSE
+   END;
+  END;
+ END yyVisit2SimpleType;
+
+PROCEDURE yyVisit3SimpleType (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Subrange:
+  SubrangeyBaseTypeyTypeObj: tObject;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.SimpleType:
+(* line 589 "modula.cg" *)
+
+			    yyt^.SimpleType.Type2	:=		yyt^.SimpleType.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.SimpleType.Objects3		:= NoObjects			;
+| Tree.Enumeration:
+(* line 589 "modula.cg" *)
+
+			    yyt^.Enumeration.Type2	:=		yyt^.Enumeration.Type1		;
+(* line 470 "modula.cg" *)
+ yyt^.Enumeration.Objects3		:= yyt^.Enumeration.EnumIds^.EnumIds.Objects		;
+| Tree.Subrange:
+yyt^.Subrange.BaseType^.PrimaryType.Env1:=yyt^.Subrange.Env1;
+(* line 628 "modula.cg" *)
+
+		SubrangeyBaseTypeyTypeObj	:= NoObject			;
+yyVisit2PrimaryType (yyt^.Subrange.BaseType, SubrangeyBaseTypeyTypeObj);
+yyt^.Subrange.BaseType^.PrimaryType.Env2:=yyt^.Subrange.Env2;
+yyVisit3PrimaryType (yyt^.Subrange.BaseType);
+(* line 621 "modula.cg" *)
+
+			     yyt^.Subrange.Type2	:= mSubrange2 (yyt^.Subrange.Type1, yyt^.Subrange.BaseType^.PrimaryType.Type2);
+(* line 465 "modula.cg" *)
+ yyt^.Subrange.Objects3		:= NoObjects			;
+| Tree.PrimaryType:
+(* line 589 "modula.cg" *)
+
+			    yyt^.PrimaryType.Type2	:=		yyt^.PrimaryType.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.PrimaryType.Objects3		:= NoObjects			;
+| Tree.Void:
+(* line 589 "modula.cg" *)
+
+			    yyt^.Void.Type2	:=		yyt^.Void.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.Void.Objects3		:= NoObjects			;
+| Tree.TypeId:
+(* line 589 "modula.cg" *)
+
+			    yyt^.TypeId.Type2	:=		yyt^.TypeId.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId.Objects3		:= NoObjects			;
+| Tree.TypeId0:
+(* line 631 "modula.cg" *)
+
+			     yyt^.TypeId0.Type2	:= GroundType (yyt^.TypeId0.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId0.Objects3		:= NoObjects			;
+| Tree.TypeId1:
+(* line 633 "modula.cg" *)
+
+			     yyt^.TypeId1.Type2	:= GroundType (yyt^.TypeId1.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId1.Objects3		:= NoObjects			;
+   ELSE
+   END;
+  END;
+ END yyVisit3SimpleType;
+
+PROCEDURE yyVisit4SimpleType (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Enumeration:
+  EnumerationyEnumIdsyKind: SHORTCARD;
+  EnumerationyEnumIdsyModule: tIdent;
+ | Tree.Subrange:
+  SubrangeyLwbyLevel: SHORTCARD;
+  SubrangeyLwbyOpenAccessOrCall: BOOLEAN;
+  SubrangeyLwbyGlobalPtrs: BOOLEAN;
+  SubrangeyLwbyStrsIn: tStrings;
+  SubrangeyLwbyStrsOut: tStrings;
+  SubrangeyUpbyLevel: SHORTCARD;
+  SubrangeyUpbyOpenAccessOrCall: BOOLEAN;
+  SubrangeyUpbyGlobalPtrs: BOOLEAN;
+  SubrangeyUpbyStrsIn: tStrings;
+  SubrangeyUpbyStrsOut: tStrings;
+  SubrangeyyType3: tType;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.SimpleType:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Enumeration:
+(* line 1231 "modula.cg" *)
+
+		    EnumerationyEnumIdsyModule	:=		yyt^.Enumeration.Module		;
+(* line 1230 "modula.cg" *)
+ EnumerationyEnumIdsyKind	:=		yyt^.Enumeration.Kind		;
+yyVisit2EnumIds (yyt^.Enumeration.EnumIds, EnumerationyEnumIdsyKind, EnumerationyEnumIdsyModule, yyIdsIn, yyIdsOut);
+| Tree.Subrange:
+(* line 2057 "modula.cg" *)
+
+		    SubrangeyUpbyStrsIn	:= NoStrings 	;
+(* line 1569 "modula.cg" *)
+
+		    SubrangeyUpbyLevel	:= 0		;
+yyVisit1Expr (yyt^.Subrange.Upb, yyEnv3, SubrangeyUpbyLevel, SubrangeyUpbyOpenAccessOrCall, SubrangeyUpbyGlobalPtrs, SubrangeyUpbyStrsIn, SubrangeyUpbyStrsOut);
+(* line 2056 "modula.cg" *)
+ SubrangeyLwbyStrsIn	:= NoStrings 	;
+(* line 1568 "modula.cg" *)
+ SubrangeyLwbyLevel	:= 0		;
+yyVisit1Expr (yyt^.Subrange.Lwb, yyEnv3, SubrangeyLwbyLevel, SubrangeyLwbyOpenAccessOrCall, SubrangeyLwbyGlobalPtrs, SubrangeyLwbyStrsIn, SubrangeyLwbyStrsOut);
+yyVisit4PrimaryType (yyt^.Subrange.BaseType, yyEnv3, yyIdsIn, yyIdsOut);
+(* line 622 "modula.cg" *)
+
+			     CompConst (yyt^.Subrange.Lwb, yyEnv3, yyt^.Subrange.Type2^.Subrange1.Lwb);
+			     CompConst (yyt^.Subrange.Upb, yyEnv3, yyt^.Subrange.Type2^.Subrange1.Upb);
+			     
+			     SubrangeyyType3	:= mSubrange3 (yyt^.Subrange.Type2, yyt^.Subrange.Type2^.Subrange1.Lwb, yyt^.Subrange.Type2^.Subrange1.Upb);
+					
+| Tree.PrimaryType:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Void:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId0:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env2:=yyt^.TypeId1.Env2;
+yyVisit3TypeId (yyt^.TypeId1.TypeId);
+yyVisit4TypeId (yyt^.TypeId1.TypeId, yyEnv3, yyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit4SimpleType;
+
+PROCEDURE yyVisit1PrimaryType (yyt: Tree.tTree; VAR yyCntOut: SHORTCARD; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.TypeId1:
+  TypeId1yTypeIdyCntOut: SHORTCARD;
+  TypeId1yTypeIdyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.PrimaryType:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.PrimaryType.CntIn		;
+| Tree.Void:
+(* line 1807 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.Void.CntIn		;
+| Tree.TypeId:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId.CntIn		;
+| Tree.TypeId0:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId0.CntIn		;
+| Tree.TypeId1:
+(* line 1475 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.CntIn	:= 0		;
+(* line 1240 "modula.cg" *)
+
+		    yyt^.TypeId1.TypeId^.TypeId.Module	:=		yyt^.TypeId1.Module		;
+(* line 1239 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.Kind	:=		yyt^.TypeId1.Kind		;
+yyVisit1TypeId (yyt^.TypeId1.TypeId, TypeId1yTypeIdyCntOut, yyPosIn, TypeId1yTypeIdyPosOut);
+(* line 1809 "modula.cg" *)
+
+				yyPosOut	:= TypeId1yTypeIdyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId1.CntIn		;
+   ELSE
+   END;
+  END;
+ END yyVisit1PrimaryType;
+
+PROCEDURE yyVisit2PrimaryType (yyt: Tree.tTree; VAR yyTypeObj: tObject);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.PrimaryType:
+(* line 588 "modula.cg" *)
+		    yyt^.PrimaryType.Type1	:= NoType			;
+| Tree.Void:
+(* line 629 "modula.cg" *)
+		     yyt^.Void.Type1	:= TypeVOID			;
+| Tree.TypeId:
+(* line 927 "modula.cg" *)
+ yyt^.TypeId.Object	:= NoObject					;
+(* line 588 "modula.cg" *)
+		    yyt^.TypeId.Type1	:= NoType			;
+| Tree.TypeId0:
+(* line 928 "modula.cg" *)
+ yyt^.TypeId0.Object	:= Identify (yyt^.TypeId0.Ident, yyt^.TypeId0.Env1)			;
+(* line 630 "modula.cg" *)
+		     yyt^.TypeId0.Type1	:= mQualident1 (yyt^.TypeId0.Object)		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env1:=yyt^.TypeId1.Env1;
+yyVisit2TypeId (yyt^.TypeId1.TypeId, yyTypeObj);
+(* line 929 "modula.cg" *)
+ yyt^.TypeId1.Object	:= Identify2 (yyt^.TypeId1.Ident, GetExport1 (yyt^.TypeId1.TypeId^.TypeId.Object));
+(* line 632 "modula.cg" *)
+		     yyt^.TypeId1.Type1	:= mQualident1 (yyt^.TypeId1.Object)		;
+   ELSE
+   END;
+  END;
+ END yyVisit2PrimaryType;
+
+PROCEDURE yyVisit3PrimaryType (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.PrimaryType:
+(* line 589 "modula.cg" *)
+
+			    yyt^.PrimaryType.Type2	:=		yyt^.PrimaryType.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.PrimaryType.Objects3		:= NoObjects			;
+| Tree.Void:
+(* line 589 "modula.cg" *)
+
+			    yyt^.Void.Type2	:=		yyt^.Void.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.Void.Objects3		:= NoObjects			;
+| Tree.TypeId:
+(* line 589 "modula.cg" *)
+
+			    yyt^.TypeId.Type2	:=		yyt^.TypeId.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId.Objects3		:= NoObjects			;
+| Tree.TypeId0:
+(* line 631 "modula.cg" *)
+
+			     yyt^.TypeId0.Type2	:= GroundType (yyt^.TypeId0.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId0.Objects3		:= NoObjects			;
+| Tree.TypeId1:
+(* line 633 "modula.cg" *)
+
+			     yyt^.TypeId1.Type2	:= GroundType (yyt^.TypeId1.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId1.Objects3		:= NoObjects			;
+   ELSE
+   END;
+  END;
+ END yyVisit3PrimaryType;
+
+PROCEDURE yyVisit4PrimaryType (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.PrimaryType:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Void:
+(* line 1203 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId0:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env2:=yyt^.TypeId1.Env2;
+yyVisit3TypeId (yyt^.TypeId1.TypeId);
+yyVisit4TypeId (yyt^.TypeId1.TypeId, yyEnv3, yyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit4PrimaryType;
+
+PROCEDURE yyVisit1TypeId (yyt: Tree.tTree; VAR yyCntOut: SHORTCARD; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.TypeId1:
+  TypeId1yTypeIdyCntOut: SHORTCARD;
+  TypeId1yTypeIdyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TypeId:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId.CntIn		;
+| Tree.TypeId0:
+(* line 1791 "modula.cg" *)
+		yyPosOut	:=		yyPosIn + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId0.CntIn		;
+| Tree.TypeId1:
+(* line 1475 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.CntIn	:= 0		;
+(* line 1240 "modula.cg" *)
+
+		    yyt^.TypeId1.TypeId^.TypeId.Module	:=		yyt^.TypeId1.Module		;
+(* line 1239 "modula.cg" *)
+ yyt^.TypeId1.TypeId^.TypeId.Kind	:=		yyt^.TypeId1.Kind		;
+yyVisit1TypeId (yyt^.TypeId1.TypeId, TypeId1yTypeIdyCntOut, yyPosIn, TypeId1yTypeIdyPosOut);
+(* line 1809 "modula.cg" *)
+
+				yyPosOut	:= TypeId1yTypeIdyPosOut + 1	;
+(* line 1463 "modula.cg" *)
+		yyCntOut	:=		yyt^.TypeId1.CntIn		;
+   ELSE
+   END;
+  END;
+ END yyVisit1TypeId;
+
+PROCEDURE yyVisit2TypeId (yyt: Tree.tTree; VAR yyTypeObj: tObject);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TypeId:
+(* line 927 "modula.cg" *)
+ yyt^.TypeId.Object	:= NoObject					;
+(* line 588 "modula.cg" *)
+		    yyt^.TypeId.Type1	:= NoType			;
+| Tree.TypeId0:
+(* line 928 "modula.cg" *)
+ yyt^.TypeId0.Object	:= Identify (yyt^.TypeId0.Ident, yyt^.TypeId0.Env1)			;
+(* line 630 "modula.cg" *)
+		     yyt^.TypeId0.Type1	:= mQualident1 (yyt^.TypeId0.Object)		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env1:=yyt^.TypeId1.Env1;
+yyVisit2TypeId (yyt^.TypeId1.TypeId, yyTypeObj);
+(* line 929 "modula.cg" *)
+ yyt^.TypeId1.Object	:= Identify2 (yyt^.TypeId1.Ident, GetExport1 (yyt^.TypeId1.TypeId^.TypeId.Object));
+(* line 632 "modula.cg" *)
+		     yyt^.TypeId1.Type1	:= mQualident1 (yyt^.TypeId1.Object)		;
+   ELSE
+   END;
+  END;
+ END yyVisit2TypeId;
+
+PROCEDURE yyVisit3TypeId (yyt: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TypeId:
+(* line 589 "modula.cg" *)
+
+			    yyt^.TypeId.Type2	:=		yyt^.TypeId.Type1		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId.Objects3		:= NoObjects			;
+| Tree.TypeId0:
+(* line 631 "modula.cg" *)
+
+			     yyt^.TypeId0.Type2	:= GroundType (yyt^.TypeId0.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId0.Objects3		:= NoObjects			;
+| Tree.TypeId1:
+(* line 633 "modula.cg" *)
+
+			     yyt^.TypeId1.Type2	:= GroundType (yyt^.TypeId1.Type1)		;
+(* line 465 "modula.cg" *)
+ yyt^.TypeId1.Objects3		:= NoObjects			;
+   ELSE
+   END;
+  END;
+ END yyVisit3TypeId;
+
+PROCEDURE yyVisit4TypeId (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TypeId:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId0:
+(* line 1238 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.TypeId1:
+yyt^.TypeId1.TypeId^.TypeId.Env2:=yyt^.TypeId1.Env2;
+yyVisit3TypeId (yyt^.TypeId1.TypeId);
+yyVisit4TypeId (yyt^.TypeId1.TypeId, yyEnv3, yyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit4TypeId;
+
+PROCEDURE yyVisit1Fields (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyCntIn: SHORTCARD; VAR yyCntOut: SHORTCARD; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.RecordSect:
+  RecordSectyNextyCntIn: SHORTCARD;
+  RecordSectyNextyPosIn: SHORTCARD;
+ | Tree.VariantSect:
+  VariantSectyNextyCntIn: SHORTCARD;
+  VariantSectyNextyPosIn: SHORTCARD;
+  VariantSectyTagFieldyPosOut: SHORTCARD;
+  VariantSectyVariantsyCntOut: SHORTCARD;
+  VariantSectyVariantsyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Fields:
+(* line 1811 "modula.cg" *)
+yyPosOut := 		yyPosIn		;
+(* line 1477 "modula.cg" *)
+yyCntOut :=		yyCntIn		;
+| Tree.Fields0:
+(* line 1811 "modula.cg" *)
+yyPosOut := 		yyPosIn		;
+(* line 1477 "modula.cg" *)
+yyCntOut :=		yyCntIn		;
+| Tree.Fields1:
+yyVisit1Fields (yyt^.Fields1.Next, yyKind, yyModule, yyCntIn, yyCntOut, yyPosIn, yyPosOut);
+| Tree.RecordSect:
+(* line 1480 "modula.cg" *)
+ yyt^.RecordSect.Type^.Type.CntIn	:=		yyCntIn		;
+(* line 1250 "modula.cg" *)
+
+		    yyt^.RecordSect.Type^.Type.Module	:=		yyModule		;
+(* line 1249 "modula.cg" *)
+ yyt^.RecordSect.Type^.Type.Kind	:=		yyKind		;
+yyVisit1Type (yyt^.RecordSect.Type, RecordSectyNextyCntIn, yyPosIn, RecordSectyNextyPosIn);
+yyVisit1Fields (yyt^.RecordSect.Next, yyKind, yyModule, RecordSectyNextyCntIn, yyCntOut, RecordSectyNextyPosIn, yyPosOut);
+| Tree.VariantSect:
+(* line 1534 "modula.cg" *)
+
+				yyt^.VariantSect.ElseId	:= GenSelector ('V', 0)		;
+yyVisit1TagField (yyt^.VariantSect.TagField, yyKind, yyModule, yyPosIn, VariantSectyTagFieldyPosOut);
+yyVisit1Variants (yyt^.VariantSect.Variants, yyKind, yyModule, yyCntIn, VariantSectyVariantsyCntOut, VariantSectyTagFieldyPosOut, VariantSectyVariantsyPosOut);
+yyVisit1Fields (yyt^.VariantSect.Else, yyKind, yyModule, VariantSectyVariantsyCntOut, VariantSectyNextyCntIn, VariantSectyVariantsyPosOut, VariantSectyNextyPosIn);
+yyVisit1Fields (yyt^.VariantSect.Next, yyKind, yyModule, VariantSectyNextyCntIn, yyCntOut, VariantSectyNextyPosIn, yyPosOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1Fields;
+
+PROCEDURE yyVisit2Fields (yyt: Tree.tTree; VAR yyObjects3: tObjects; VAR yyFieldsIn: tObjects; VAR yyFieldsOut: tObjects; VAR yyEnv1: tEnv; VAR yyEnv2: tVoid; VAR yynUnion: SHORTCARD; VAR yySelect: tSelectors);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.RecordSect:
+  RecordSectyNextyObjects3: tObjects;
+  RecordSectyNextyFieldsOut: tObjects;
+  RecordSectyFieldIdsyType: tType;
+  RecordSectyTypeyTypeObj: tObject;
+ | Tree.VariantSect:
+  VariantSectyNextyObjects3: tObjects;
+  VariantSectyNextyFieldsOut: tObjects;
+  VariantSectyNextynUnion: SHORTCARD;
+  VariantSectyTagFieldyFieldsIn: tObjects;
+  VariantSectyVariantsyObjects3: tObjects;
+  VariantSectyVariantsyFieldsIn: tObjects;
+  VariantSectyVariantsynStruct: SHORTCARD;
+  VariantSectyVariantsySelect: tSelectors;
+  VariantSectyElseyObjects3: tObjects;
+  VariantSectyElseynUnion: SHORTCARD;
+  VariantSectyElseySelect: tSelectors;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Fields:
+(* line 636 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+(* line 472 "modula.cg" *)
+ yyObjects3		:= NoObjects			;
+| Tree.Fields0:
+(* line 636 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+(* line 472 "modula.cg" *)
+ yyObjects3		:= NoObjects			;
+| Tree.Fields1:
+yyVisit2Fields (yyt^.Fields1.Next, yyObjects3, yyFieldsIn, yyFieldsOut, yyEnv1, yyEnv2, yynUnion, yySelect);
+| Tree.RecordSect:
+yyt^.RecordSect.Type^.Type.Env1:=yyEnv1;
+(* line 642 "modula.cg" *)
+
+		RecordSectyTypeyTypeObj	:= NoObject			;
+yyVisit2Type (yyt^.RecordSect.Type, RecordSectyTypeyTypeObj);
+yyt^.RecordSect.Type^.Type.Env2:=yyEnv2;
+yyVisit3Type (yyt^.RecordSect.Type);
+yyVisit2Fields (yyt^.RecordSect.Next, RecordSectyNextyObjects3, yyFieldsIn, RecordSectyNextyFieldsOut, yyEnv1, yyEnv2, yynUnion, yySelect);
+(* line 639 "modula.cg" *)
+ RecordSectyFieldIdsyType	:= yyt^.RecordSect.Type^.Type.Type2		;
+yyVisit1FieldIds (yyt^.RecordSect.FieldIds, RecordSectyFieldIdsyType, RecordSectyNextyFieldsOut, yyFieldsOut, yySelect);
+(* line 474 "modula.cg" *)
+ yyObjects3		:= UNION (yyt^.RecordSect.Type^.Type.Objects3, RecordSectyNextyObjects3);
+| Tree.VariantSect:
+(* line 1531 "modula.cg" *)
+ 		yyt^.VariantSect.UnionId	:= GenSelector ('U', yynUnion + 1);
+(* line 1533 "modula.cg" *)
+
+		    VariantSectyVariantsySelect	:= mSelectors (yyt^.VariantSect.UnionId, yySelect);
+(* line 1535 "modula.cg" *)
+
+		    VariantSectyElseySelect	:= mSelectors (
+							yyt^.VariantSect.ElseId		,
+					   VariantSectyVariantsySelect
+					   		)		;
+(* line 1539 "modula.cg" *)
+
+		    VariantSectyElseynUnion	:= 0				;
+yyt^.VariantSect.TagField^.TagField.Env1:=yyEnv1;
+(* line 1540 "modula.cg" *)
+
+		    VariantSectyNextynUnion	:=		yynUnion + 1	;
+yyVisit2Fields (yyt^.VariantSect.Next, VariantSectyNextyObjects3, yyFieldsIn, VariantSectyNextyFieldsOut, yyEnv1, yyEnv2, VariantSectyNextynUnion, yySelect);
+yyVisit2Fields (yyt^.VariantSect.Else, VariantSectyElseyObjects3, VariantSectyNextyFieldsOut, VariantSectyVariantsyFieldsIn, yyEnv1, yyEnv2, VariantSectyElseynUnion, VariantSectyElseySelect);
+(* line 1541 "modula.cg" *)
+
+		    VariantSectyVariantsynStruct	:= 0				;
+yyVisit2Variants (yyt^.VariantSect.Variants, VariantSectyVariantsyObjects3, VariantSectyVariantsyFieldsIn, VariantSectyTagFieldyFieldsIn, yyEnv1, yyEnv2, VariantSectyVariantsynStruct, VariantSectyVariantsySelect);
+yyt^.VariantSect.TagField^.TagField.Env2:=yyEnv2;
+yyVisit2TagField (yyt^.VariantSect.TagField, VariantSectyTagFieldyFieldsIn, yyFieldsOut, yySelect);
+(* line 476 "modula.cg" *)
+ yyObjects3		:= UNION (VariantSectyVariantsyObjects3, UNION (VariantSectyElseyObjects3, VariantSectyNextyObjects3));
+   ELSE
+   END;
+  END;
+ END yyVisit2Fields;
+
+PROCEDURE yyVisit3Fields (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.RecordSect:
+  RecordSectyNextyIdsIn: tIdents;
+  RecordSectyFieldIdsyIdsOut: tIdents;
+ | Tree.VariantSect:
+  VariantSectyNextyIdsIn: tIdents;
+  VariantSectyTagFieldyIdsOut: tIdents;
+  VariantSectyVariantsyIdsOut: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Fields:
+(* line 1244 "modula.cg" *)
+yyIdsOut := 		yyIdsIn		;
+| Tree.Fields0:
+(* line 1244 "modula.cg" *)
+yyIdsOut := 		yyIdsIn		;
+| Tree.Fields1:
+yyVisit3Fields (yyt^.Fields1.Next, yyEnv3, yyIdsIn, yyIdsOut);
+| Tree.RecordSect:
+yyVisit2FieldIds (yyt^.RecordSect.FieldIds, yyIdsIn, RecordSectyFieldIdsyIdsOut);
+yyVisit4Type (yyt^.RecordSect.Type, yyEnv3, RecordSectyFieldIdsyIdsOut, RecordSectyNextyIdsIn);
+yyVisit3Fields (yyt^.RecordSect.Next, yyEnv3, RecordSectyNextyIdsIn, yyIdsOut);
+| Tree.VariantSect:
+yyVisit3TagField (yyt^.VariantSect.TagField, yyEnv3, yyIdsIn, VariantSectyTagFieldyIdsOut);
+yyVisit3Variants (yyt^.VariantSect.Variants, yyEnv3, VariantSectyTagFieldyIdsOut, VariantSectyVariantsyIdsOut);
+yyVisit3Fields (yyt^.VariantSect.Else, yyEnv3, VariantSectyVariantsyIdsOut, VariantSectyNextyIdsIn);
+yyVisit3Fields (yyt^.VariantSect.Next, yyEnv3, VariantSectyNextyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit3Fields;
+
+PROCEDURE yyVisit1FieldIds (yyt: Tree.tTree; VAR yyType: tType; VAR yyFieldsIn: tObjects; VAR yyFieldsOut: tObjects; VAR yySelect: tSelectors);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.FieldIds1:
+  FieldIds1yNextyFieldsOut: tObjects;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.FieldIds:
+(* line 582 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+| Tree.FieldIds0:
+(* line 582 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+| Tree.FieldIds1:
+(* line 584 "modula.cg" *)
+
+			    yyt^.FieldIds1.Object	:= mField1 (yyt^.FieldIds1.Ident, yyType, yySelect);
+yyVisit1FieldIds (yyt^.FieldIds1.Next, yyType, yyFieldsIn, FieldIds1yNextyFieldsOut, yySelect);
+(* line 586 "modula.cg" *)
+
+			    yyFieldsOut	:= mElmt (yyt^.FieldIds1.Ident, FALSE, yyt^.FieldIds1.Object, FieldIds1yNextyFieldsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1FieldIds;
+
+PROCEDURE yyVisit2FieldIds (yyt: Tree.tTree; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.FieldIds1:
+  FieldIds1yNextyIdsIn: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.FieldIds:
+(* line 1191 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.FieldIds0:
+(* line 1191 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.FieldIds1:
+(* line 1193 "modula.cg" *)
+
+		  IF NameConflict (yyIdsIn, eField, yyt^.FieldIds1.Ident) THEN
+				yyt^.FieldIds1.CIdent	:= DefineCIdent (yyt^.FieldIds1.Object, RenameField (yyt^.FieldIds1.Ident));
+		    FieldIds1yNextyIdsIn	:=		yyIdsIn		;
+		  ELSE
+				yyt^.FieldIds1.CIdent	:= DefineCIdent (yyt^.FieldIds1.Object, yyt^.FieldIds1.Ident)	;
+		    FieldIds1yNextyIdsIn	:= DeclareIdent (yyIdsIn, eField, yyt^.FieldIds1.Ident);
+		  END;			
+yyVisit2FieldIds (yyt^.FieldIds1.Next, FieldIds1yNextyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit2FieldIds;
+
+PROCEDURE yyVisit1TagField (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.TagField:
+  TagFieldyTypeyCntOut: SHORTCARD;
+ | Tree.TagField0:
+  TagField0yTypeyCntOut: SHORTCARD;
+ | Tree.TagField1:
+  TagField1yTypeyCntOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TagField:
+(* line 1486 "modula.cg" *)
+ yyt^.TagField.Type^.TypeId.CntIn	:= 0		;
+(* line 1267 "modula.cg" *)
+
+		    yyt^.TagField.Type^.TypeId.Module	:=		yyModule		;
+(* line 1266 "modula.cg" *)
+ yyt^.TagField.Type^.TypeId.Kind	:=		yyKind		;
+yyVisit1TypeId (yyt^.TagField.Type, TagFieldyTypeyCntOut, yyPosIn, yyPosOut);
+| Tree.TagField0:
+(* line 1486 "modula.cg" *)
+ yyt^.TagField0.Type^.TypeId.CntIn	:= 0		;
+(* line 1267 "modula.cg" *)
+
+		    yyt^.TagField0.Type^.TypeId.Module	:=		yyModule		;
+(* line 1266 "modula.cg" *)
+ yyt^.TagField0.Type^.TypeId.Kind	:=		yyKind		;
+yyVisit1TypeId (yyt^.TagField0.Type, TagField0yTypeyCntOut, yyPosIn, yyPosOut);
+| Tree.TagField1:
+(* line 1486 "modula.cg" *)
+ yyt^.TagField1.Type^.TypeId.CntIn	:= 0		;
+(* line 1267 "modula.cg" *)
+
+		    yyt^.TagField1.Type^.TypeId.Module	:=		yyModule		;
+(* line 1266 "modula.cg" *)
+ yyt^.TagField1.Type^.TypeId.Kind	:=		yyKind		;
+yyVisit1TypeId (yyt^.TagField1.Type, TagField1yTypeyCntOut, yyPosIn, yyPosOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1TagField;
+
+PROCEDURE yyVisit2TagField (yyt: Tree.tTree; VAR yyFieldsIn: tObjects; VAR yyFieldsOut: tObjects; VAR yySelect: tSelectors);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.TagField1:
+  TagField1yTypeyTypeObj: tObject;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TagField:
+(* line 648 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+| Tree.TagField0:
+(* line 648 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+| Tree.TagField1:
+yyt^.TagField1.Type^.TypeId.Env1:=yyt^.TagField1.Env1;
+(* line 649 "modula.cg" *)
+
+		TagField1yTypeyTypeObj	:= NoObject			;
+yyVisit2TypeId (yyt^.TagField1.Type, TagField1yTypeyTypeObj);
+yyt^.TagField1.Type^.TypeId.Env2:=yyt^.TagField1.Env2;
+yyVisit3TypeId (yyt^.TagField1.Type);
+(* line 650 "modula.cg" *)
+		     yyt^.TagField1.Object	:= mField1 (yyt^.TagField1.Ident, yyt^.TagField1.Type^.TypeId.Type2, yySelect);
+(* line 651 "modula.cg" *)
+
+			     yyFieldsOut	:= mElmt (yyt^.TagField1.Ident, FALSE, yyt^.TagField1.Object, yyFieldsIn);
+   ELSE
+   END;
+  END;
+ END yyVisit2TagField;
+
+PROCEDURE yyVisit3TagField (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.TagField:
+  TagFieldyTypeyTypeObj: tObject;
+ | Tree.TagField0:
+  TagField0yTypeyTypeObj: tObject;
+ | Tree.TagField1:
+  TagField1yTypeyIdsOut: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.TagField:
+yyt^.TagField.Type^.TypeId.Env1:=yyt^.TagField.Env1;
+(* line 649 "modula.cg" *)
+
+		TagFieldyTypeyTypeObj	:= NoObject			;
+yyVisit2TypeId (yyt^.TagField.Type, TagFieldyTypeyTypeObj);
+yyt^.TagField.Type^.TypeId.Env2:=yyt^.TagField.Env2;
+yyVisit3TypeId (yyt^.TagField.Type);
+yyVisit4TypeId (yyt^.TagField.Type, yyEnv3, yyIdsIn, yyIdsOut);
+| Tree.TagField0:
+yyt^.TagField0.Type^.TypeId.Env1:=yyt^.TagField0.Env1;
+(* line 649 "modula.cg" *)
+
+		TagField0yTypeyTypeObj	:= NoObject			;
+yyVisit2TypeId (yyt^.TagField0.Type, TagField0yTypeyTypeObj);
+yyt^.TagField0.Type^.TypeId.Env2:=yyt^.TagField0.Env2;
+yyVisit3TypeId (yyt^.TagField0.Type);
+yyVisit4TypeId (yyt^.TagField0.Type, yyEnv3, yyIdsIn, yyIdsOut);
+| Tree.TagField1:
+yyVisit4TypeId (yyt^.TagField1.Type, yyEnv3, yyIdsIn, TagField1yTypeyIdsOut);
+(* line 1272 "modula.cg" *)
+
+		  IF NameConflict (TagField1yTypeyIdsOut, eField, yyt^.TagField1.Ident) THEN
+				yyt^.TagField1.CIdent	:= DefineCIdent (yyt^.TagField1.Object, RenameField (yyt^.TagField1.Ident));
+		  ELSE
+				yyt^.TagField1.CIdent	:= DefineCIdent (yyt^.TagField1.Object, yyt^.TagField1.Ident)	;
+		  END;			
+(* line 1278 "modula.cg" *)
+
+		  IF NameConflict (TagField1yTypeyIdsOut, eField, yyt^.TagField1.Ident) THEN
+				yyIdsOut	:= TagField1yTypeyIdsOut		;
+		  ELSE
+				yyIdsOut	:= DeclareIdent (TagField1yTypeyIdsOut, eField, yyt^.TagField1.Ident);
+		  END;			
+   ELSE
+   END;
+  END;
+ END yyVisit3TagField;
+
+PROCEDURE yyVisit1Variants (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyCntIn: SHORTCARD; VAR yyCntOut: SHORTCARD; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Variant:
+  VariantyVariantyCntOut: SHORTCARD;
+  VariantyVariantyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Variants:
+(* line 1824 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 1488 "modula.cg" *)
+yyCntOut :=		yyCntIn		;
+| Tree.Variants0:
+(* line 1824 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+(* line 1488 "modula.cg" *)
+yyCntOut :=		yyCntIn		;
+| Tree.Variant:
+yyVisit1Fields (yyt^.Variant.Variant, yyKind, yyModule, yyCntIn, VariantyVariantyCntOut, yyPosIn, VariantyVariantyPosOut);
+yyVisit1Variants (yyt^.Variant.Next, yyKind, yyModule, VariantyVariantyCntOut, yyCntOut, VariantyVariantyPosOut, yyPosOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1Variants;
+
+PROCEDURE yyVisit2Variants (yyt: Tree.tTree; VAR yyObjects3: tObjects; VAR yyFieldsIn: tObjects; VAR yyFieldsOut: tObjects; VAR yyEnv1: tEnv; VAR yyEnv2: tVoid; VAR yynStruct: SHORTCARD; VAR yySelect: tSelectors);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Variant:
+  VariantyVariantyObjects3: tObjects;
+  VariantyVariantyFieldsIn: tObjects;
+  VariantyVariantynUnion: SHORTCARD;
+  VariantyVariantySelect: tSelectors;
+  VariantyNextyObjects3: tObjects;
+  VariantyNextynStruct: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Variants:
+(* line 653 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+(* line 478 "modula.cg" *)
+ yyObjects3		:= NoObjects			;
+| Tree.Variants0:
+(* line 653 "modula.cg" *)
+yyFieldsOut :=		yyFieldsIn	;
+(* line 478 "modula.cg" *)
+ yyObjects3		:= NoObjects			;
+| Tree.Variant:
+(* line 1543 "modula.cg" *)
+		yyt^.Variant.StructId:= GenSelector ('V', yynStruct + 1);
+(* line 1547 "modula.cg" *)
+
+		    VariantyNextynStruct	:=		yynStruct + 1	;
+yyVisit2Variants (yyt^.Variant.Next, VariantyNextyObjects3, yyFieldsIn, VariantyVariantyFieldsIn, yyEnv1, yyEnv2, VariantyNextynStruct, yySelect);
+(* line 1545 "modula.cg" *)
+
+		    VariantyVariantySelect	:= mSelectors (yyt^.Variant.StructId, yySelect);
+(* line 1546 "modula.cg" *)
+
+		    VariantyVariantynUnion	:= 0				;
+yyVisit2Fields (yyt^.Variant.Variant, VariantyVariantyObjects3, VariantyVariantyFieldsIn, yyFieldsOut, yyEnv1, yyEnv2, VariantyVariantynUnion, VariantyVariantySelect);
+(* line 479 "modula.cg" *)
+ yyObjects3		:= UNION (VariantyVariantyObjects3, VariantyNextyObjects3);
+   ELSE
+   END;
+  END;
+ END yyVisit2Variants;
+
+PROCEDURE yyVisit3Variants (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Variant:
+  VariantyVariantyIdsOut: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Variants:
+(* line 1285 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Variants0:
+(* line 1285 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.Variant:
+yyVisit1Labels (yyt^.Variant.Labels, yyEnv3);
+yyVisit3Fields (yyt^.Variant.Variant, yyEnv3, yyIdsIn, VariantyVariantyIdsOut);
+yyVisit3Variants (yyt^.Variant.Next, yyEnv3, VariantyVariantyIdsOut, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit3Variants;
+
+PROCEDURE yyVisit1FormalTypes (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyPosIn: SHORTCARD; VAR yyPosOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.FormalType:
+  FormalTypeyTypeyCntOut: SHORTCARD;
+  FormalTypeyTypeyPosOut: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.FormalTypes:
+(* line 1829 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+| Tree.FormalTypes0:
+(* line 1829 "modula.cg" *)
+yyPosOut :=		yyPosIn		;
+| Tree.FormalType:
+(* line 1493 "modula.cg" *)
+ yyt^.FormalType.Type^.Type.CntIn	:= 0		;
+(* line 1297 "modula.cg" *)
+
+		    yyt^.FormalType.Type^.Type.Module	:=		yyModule		;
+(* line 1295 "modula.cg" *)
+ yyt^.FormalType.Type^.Type.Kind	:=		yyKind		;
+yyVisit1Type (yyt^.FormalType.Type, FormalTypeyTypeyCntOut, yyPosIn, FormalTypeyTypeyPosOut);
+yyVisit1FormalTypes (yyt^.FormalType.Next, yyKind, yyModule, FormalTypeyTypeyPosOut, yyPosOut);
+   ELSE
+   END;
+  END;
+ END yyVisit1FormalTypes;
+
+PROCEDURE yyVisit2FormalTypes (yyt: Tree.tTree; VAR yyTypes: tTypes; VAR yyEnv1: tEnv; VAR yyEnv2: tVoid);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.FormalType:
+  FormalTypeyTypeyTypeObj: tObject;
+  FormalTypeyNextyTypes: tTypes;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.FormalTypes:
+(* line 658 "modula.cg" *)
+		     yyTypes	:= NoTypes			;
+| Tree.FormalTypes0:
+(* line 658 "modula.cg" *)
+		     yyTypes	:= NoTypes			;
+| Tree.FormalType:
+yyt^.FormalType.Type^.Type.Env1:=yyEnv1;
+(* line 660 "modula.cg" *)
+
+		FormalTypeyTypeyTypeObj	:= NoObject			;
+yyVisit2Type (yyt^.FormalType.Type, FormalTypeyTypeyTypeObj);
+yyt^.FormalType.Type^.Type.Env2:=yyEnv2;
+yyVisit3Type (yyt^.FormalType.Type);
+yyVisit2FormalTypes (yyt^.FormalType.Next, FormalTypeyNextyTypes, yyEnv1, yyEnv2);
+(* line 659 "modula.cg" *)
+		     yyTypes	:= mTypes (yyt^.FormalType.IsVAR, yyt^.FormalType.Type^.Type.Type2, FormalTypeyNextyTypes);
+   ELSE
+   END;
+  END;
+ END yyVisit2FormalTypes;
+
+PROCEDURE yyVisit3FormalTypes (yyt: Tree.tTree; VAR yyEnv3: tEnv; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.FormalType:
+  FormalTypeyTypeyIdsOut: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.FormalTypes:
+(* line 1294 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.FormalTypes0:
+(* line 1294 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.FormalType:
+yyVisit4Type (yyt^.FormalType.Type, yyEnv3, yyIdsIn, FormalTypeyTypeyIdsOut);
+yyVisit3FormalTypes (yyt^.FormalType.Next, yyEnv3, FormalTypeyTypeyIdsOut, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit3FormalTypes;
+
+PROCEDURE yyVisit1EnumIds (yyt: Tree.tTree; VAR yyType: tType; VAR yyIndexIn: SHORTCARD; VAR yyIndexOut: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.EnumIds1:
+  EnumIds1yNextyIndexIn: SHORTCARD;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.EnumIds:
+(* line 575 "modula.cg" *)
+yyIndexOut :=		yyIndexIn		;
+(* line 574 "modula.cg" *)
+		    yyt^.EnumIds.Objects	:= NoObjects			;
+| Tree.EnumIds0:
+(* line 575 "modula.cg" *)
+yyIndexOut :=		yyIndexIn		;
+(* line 574 "modula.cg" *)
+		    yyt^.EnumIds0.Objects	:= NoObjects			;
+| Tree.EnumIds1:
+(* line 578 "modula.cg" *)
+
+			    yyt^.EnumIds1.Object	:= mEnumLiteral1 (yyt^.EnumIds1.Ident, yyType, yyIndexIn);
+(* line 577 "modula.cg" *)
+
+		EnumIds1yNextyIndexIn	:=		yyIndexIn + 1	;
+yyVisit1EnumIds (yyt^.EnumIds1.Next, yyType, EnumIds1yNextyIndexIn, yyIndexOut);
+(* line 579 "modula.cg" *)
+
+			    yyt^.EnumIds1.Objects	:= mElmt (yyt^.EnumIds1.Ident, FALSE, yyt^.EnumIds1.Object, yyt^.EnumIds1.Next^.EnumIds.Objects);
+   ELSE
+   END;
+  END;
+ END yyVisit1EnumIds;
+
+PROCEDURE yyVisit2EnumIds (yyt: Tree.tTree; VAR yyKind: SHORTCARD; VAR yyModule: tIdent; VAR yyIdsIn: tIdents; VAR yyIdsOut: tIdents);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.EnumIds1:
+  EnumIds1yNextyIdsIn: tIdents;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.EnumIds:
+(* line 1174 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.EnumIds0:
+(* line 1174 "modula.cg" *)
+yyIdsOut :=		yyIdsIn		;
+| Tree.EnumIds1:
+(* line 1178 "modula.cg" *)
+
+		  IF yyKind IN {Definition, Foreign} THEN
+				yyt^.EnumIds1.CIdent	:= DefineCIdent (yyt^.EnumIds1.Object, MakeQualified (yyModule, yyt^.EnumIds1.Ident));
+		    EnumIds1yNextyIdsIn	:=		yyIdsIn		;
+		  ELSIF NameConflict (yyIdsIn, eConst, yyt^.EnumIds1.Ident) THEN
+				yyt^.EnumIds1.CIdent	:= DefineCIdent (yyt^.EnumIds1.Object, Rename (yyt^.EnumIds1.Ident));
+		    EnumIds1yNextyIdsIn	:=		yyIdsIn		;
+		  ELSE
+				yyt^.EnumIds1.CIdent	:= DefineCIdent (yyt^.EnumIds1.Object, yyt^.EnumIds1.Ident)	;
+		    EnumIds1yNextyIdsIn	:= DeclareIdent (yyIdsIn, eConst, yyt^.EnumIds1.Ident);
+		  END;			
+yyVisit2EnumIds (yyt^.EnumIds1.Next, yyKind, yyModule, EnumIds1yNextyIdsIn, yyIdsOut);
+   ELSE
+   END;
+  END;
+ END yyVisit2EnumIds;
+
+PROCEDURE yyVisit1Expr (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyOpenAccessOrCall: BOOLEAN; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Binary:
+  BinaryyLopyOpenAccessOrCall: BOOLEAN;
+  BinaryyLopyGlobalPtrs: BOOLEAN;
+  BinaryyLopyStrsOut: tStrings;
+  BinaryyRopyOpenAccessOrCall: BOOLEAN;
+  BinaryyRopyGlobalPtrs: BOOLEAN;
+ | Tree.FuncCall:
+  FuncCallyDesignatoryOpenAccessOrCall: BOOLEAN;
+  FuncCallyDesignatoryGlobalPtrs: BOOLEAN;
+  FuncCallyDesignatoryStrsOut: tStrings;
+  FuncCallyActualsyTypes: tTypes;
+  FuncCallyActualsyFormals: tTypes;
+  FuncCallyActualsyIsCConst: BOOLEAN;
+  FuncCallyActualsyGlobalPtrs: BOOLEAN;
+ | Tree.Set:
+  SetyBaseTypeyOpenAccessOrCall: BOOLEAN;
+  SetyBaseTypeyGlobalPtrs: BOOLEAN;
+  SetyBaseTypeyStrsOut: tStrings;
+  SetyElemsyIsCConst: BOOLEAN;
+ | Tree.BitSet:
+  BitSetyElemsyIsCConst: BOOLEAN;
+ | Tree.Qualid1:
+  Qualid1yQualidyOpenAccessOrCall: BOOLEAN;
+  Qualid1yQualidyGlobalPtrs: BOOLEAN;
+ | Tree.Subscript:
+  SubscriptyDesignatoryGlobalPtrs: BOOLEAN;
+  SubscriptyDesignatoryStrsOut: tStrings;
+  SubscriptyIndexyOpenAccessOrCall: BOOLEAN;
+  SubscriptyIndexyGlobalPtrs: BOOLEAN;
+ | Tree.Deref:
+  DerefyDesignatoryOpenAccessOrCall: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Expr:
+(* line 962 "modula.cg" *)
+ yyt^.Expr.Type	:=	NoType				;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1671 "modula.cg" *)
+ yyt^.Expr.IsCConst		:= TRUE				;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Binary:
+yyVisit1Expr (yyt^.Binary.Lop, yyEnv, yyLevel, BinaryyLopyOpenAccessOrCall, BinaryyLopyGlobalPtrs, yyStrsIn, BinaryyLopyStrsOut);
+yyVisit1Expr (yyt^.Binary.Rop, yyEnv, yyLevel, BinaryyRopyOpenAccessOrCall, BinaryyRopyGlobalPtrs, BinaryyLopyStrsOut, yyStrsOut);
+(* line 963 "modula.cg" *)
+ yyt^.Binary.Type	:=	ResultType (yyt^.Binary.Operator, yyt^.Binary.Lop^.Expr.Type, yyt^.Binary.Rop^.Expr.Type);
+(* line 1612 "modula.cg" *)
+
+	  IF ((yyt^.Binary.Lop^.Expr.Type = TypeBITSET) OR (yyt^.Binary.Lop^.Expr.Type^.Kind = Set1)) AND
+	     ((yyt^.Binary.Rop^.Expr.Type = TypeBITSET) OR (yyt^.Binary.Rop^.Expr.Type^.Kind = Set1)) THEN
+	    CASE yyt^.Binary.Operator OF
+	    | Times		:	yyt^.Binary.COperator := cIntersection	;
+	    | Plus		:	yyt^.Binary.COperator := cUnion		;
+	    | Minus		:	yyt^.Binary.COperator := cDifference	;
+	    | Divide		:	yyt^.Binary.COperator := cSymDiff		;
+	    | LessEqual		:	yyt^.Binary.COperator := cIsSubset1		;
+	    | GreaterEqual	:	yyt^.Binary.COperator := cIsSubset2		;
+	    | NotEqual		:	yyt^.Binary.COperator := cNotEqual		;
+	    | Equal		:	yyt^.Binary.COperator := cEqual		;
+	    ELSE			yyt^.Binary.COperator := cNoOp		;
+	    END;
+	  ELSE
+	    CASE yyt^.Binary.Operator OF
+	    | NotEqual		:	yyt^.Binary.COperator := cNotEqual		;
+	    | Less		:	yyt^.Binary.COperator := cLess		;
+	    | Equal		:	yyt^.Binary.COperator := cEqual		;
+	    | Greater		:	yyt^.Binary.COperator := cGreater		;
+	    | And		:	yyt^.Binary.COperator := cAnd		;
+	    | Div		:	yyt^.Binary.COperator := cDivide		;
+	    | In		:	yyt^.Binary.COperator := cIn		;
+	    | Mod		:	yyt^.Binary.COperator := cMod		;
+	    | Or		:	yyt^.Binary.COperator := cOr		;
+	    | Times		:	yyt^.Binary.COperator := cTimes		;
+	    | Plus		:	yyt^.Binary.COperator := cPlus		;
+	    | Minus		:	yyt^.Binary.COperator := cMinus		;
+	    | Divide		:	yyt^.Binary.COperator := cDivide		;
+	    | LessEqual		:	yyt^.Binary.COperator := cLessEqual		;
+	    | GreaterEqual	:	yyt^.Binary.COperator := cGreaterEqual	;
+	    END;
+	  END;		
+(* line 1945 "modula.cg" *)
+ yyGlobalPtrs		:= BinaryyLopyGlobalPtrs OR
+					   BinaryyRopyGlobalPtrs	;
+(* line 1672 "modula.cg" *)
+
+		  IF yyt^.Binary.COperator IN {cAnd, cOr, cIsSubset1, cIsSubset2} THEN
+		    yyt^.Binary.IsCConst		:= FALSE			;
+		  ELSE
+		    yyt^.Binary.IsCConst		:= yyt^.Binary.Lop^.Expr.IsCConst AND
+					   yyt^.Binary.Rop^.Expr.IsCConst	;
+		  END;			
+(* line 1746 "modula.cg" *)
+ yyOpenAccessOrCall	:= BinaryyLopyOpenAccessOrCall OR
+					   BinaryyRopyOpenAccessOrCall;
+| Tree.Unary:
+yyVisit1Expr (yyt^.Unary.Mop, yyEnv, yyLevel, yyOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 964 "modula.cg" *)
+ yyt^.Unary.Type	:=	ResultType (yyt^.Unary.Operator, yyt^.Unary.Mop^.Expr.Type, yyt^.Unary.Mop^.Expr.Type);
+(* line 1646 "modula.cg" *)
+
+	  CASE yyt^.Unary.Operator OF
+	  | Minus	:	yyt^.Unary.COperator := cMinus			;
+	  | Not		:	yyt^.Unary.COperator := cNot			;
+	  END;		
+(* line 1679 "modula.cg" *)
+
+		  IF yyt^.Unary.COperator = cNot THEN
+		    yyt^.Unary.IsCConst		:= FALSE			;
+		  ELSE
+		    yyt^.Unary.IsCConst		:= yyt^.Unary.Mop^.Expr.IsCConst	;
+		  END;			
+| Tree.IntConst:
+(* line 965 "modula.cg" *)
+ yyt^.IntConst.Type	:=	TypeIntCard			;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1671 "modula.cg" *)
+ yyt^.IntConst.IsCConst		:= TRUE				;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.RealConst:
+(* line 966 "modula.cg" *)
+ yyt^.RealConst.Type	:=	TypeREAL			;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1671 "modula.cg" *)
+ yyt^.RealConst.IsCConst		:= TRUE				;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.StringConst:
+(* line 967 "modula.cg" *)
+
+		  IF Length (yyt^.StringConst.StringVal) = 1 THEN
+		    yyt^.StringConst.Type	:=	TypeStringChar			;
+		  ELSE
+		    yyt^.StringConst.Type	:=	TypeSTRING			;
+		  END;		
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1671 "modula.cg" *)
+ yyt^.StringConst.IsCConst		:= TRUE				;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.CharConst:
+(* line 973 "modula.cg" *)
+ yyt^.CharConst.Type	:=	TypeCHAR			;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1671 "modula.cg" *)
+ yyt^.CharConst.IsCConst		:= TRUE				;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.FuncCall:
+yyVisit1Designator (yyt^.FuncCall.Designator, yyEnv, yyLevel, FuncCallyDesignatoryOpenAccessOrCall, FuncCallyDesignatoryGlobalPtrs, yyStrsIn, FuncCallyDesignatoryStrsOut);
+(* line 1014 "modula.cg" *)
+ FuncCallyActualsyFormals	:= GetFormals (yyt^.FuncCall.Designator^.Designator.Type)	;
+yyVisit1Actuals (yyt^.FuncCall.Actuals, yyEnv, FuncCallyActualsyTypes, FuncCallyActualsyFormals, yyLevel, FuncCallyActualsyIsCConst, FuncCallyActualsyGlobalPtrs, FuncCallyDesignatoryStrsOut, yyStrsOut);
+(* line 974 "modula.cg" *)
+
+		  IF yyt^.FuncCall.Designator^.Designator.Type^.Kind = StdProcType1 THEN
+		    yyt^.FuncCall.Type	:=	StdResultType (yyt^.FuncCall.Designator^.Designator.Type, FuncCallyActualsyTypes);
+		  ELSIF yyt^.FuncCall.Designator^.Designator.Type^.Kind = ProcType1 THEN
+		    yyt^.FuncCall.Type	:=	GetResultType (yyt^.FuncCall.Designator^.Designator.Type)	;
+		  ELSE
+		    
+		    yyt^.FuncCall.Type	:=	yyt^.FuncCall.Designator^.Designator.Type			;
+		  END;		
+(* line 1948 "modula.cg" *)
+ yyGlobalPtrs		:= FuncCallyDesignatoryGlobalPtrs OR
+					   FuncCallyActualsyGlobalPtrs	;
+(* line 1685 "modula.cg" *)
+
+		  IF (yyt^.FuncCall.Designator^.Designator.Type^.Kind = StdProcType1) AND
+		     (yyt^.FuncCall.Designator^.Designator.Type^.StdProcType1.StdProc IN
+		     {ProcCHR, ProcFLOAT, ProcMAX, ProcMIN, ProcODD,
+		      ProcORD, ProcSIZE, ProcTRUNC, ProcVAL, ProcTSIZE}) THEN
+		    yyt^.FuncCall.IsCConst		:= FuncCallyActualsyIsCConst	;
+		  ELSE
+		    yyt^.FuncCall.IsCConst		:= FALSE			;
+		  END;			
+(* line 1749 "modula.cg" *)
+ yyOpenAccessOrCall	:= 	    NOT	yyt^.FuncCall.IsCConst	;
+| Tree.Set:
+yyVisit1Qualid (yyt^.Set.BaseType, yyEnv, yyLevel, SetyBaseTypeyOpenAccessOrCall, SetyBaseTypeyGlobalPtrs, yyStrsIn, SetyBaseTypeyStrsOut);
+(* line 984 "modula.cg" *)
+ yyt^.Set.Type	:=	yyt^.Set.BaseType^.Qualid.Type			;
+yyVisit1Elems (yyt^.Set.Elems, yyEnv, yyLevel, SetyElemsyIsCConst, yyOpenAccessOrCall, yyGlobalPtrs, SetyBaseTypeyStrsOut, yyStrsOut);
+(* line 1694 "modula.cg" *)
+ yyt^.Set.IsCConst		:= SetyElemsyIsCConst	;
+| Tree.BitSet:
+(* line 985 "modula.cg" *)
+ yyt^.BitSet.Type	:=	TypeBITSET			;
+yyVisit1Elems (yyt^.BitSet.Elems, yyEnv, yyLevel, BitSetyElemsyIsCConst, yyOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 1695 "modula.cg" *)
+ yyt^.BitSet.IsCConst		:= BitSetyElemsyIsCConst	;
+| Tree.Designator:
+(* line 962 "modula.cg" *)
+ yyt^.Designator.Type	:=	NoType				;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1696 "modula.cg" *)
+ yyt^.Designator.IsCConst		:= FALSE			;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Qualid:
+(* line 932 "modula.cg" *)
+ yyt^.Qualid.Object	:= NoObject					;
+(* line 962 "modula.cg" *)
+ yyt^.Qualid.Type	:=	NoType				;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid.IsGlobalPtr		:= NestedUse (yyt^.Qualid.Object, yyLevel)	;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid.IsCConst		:= FALSE			;
+		  END;			
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Qualid0:
+(* line 933 "modula.cg" *)
+ yyt^.Qualid0.Object	:= Identify (yyt^.Qualid0.Ident, yyEnv)			;
+(* line 986 "modula.cg" *)
+ yyt^.Qualid0.Type	:=	GetType (yyt^.Qualid0.Object)		;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid0.IsGlobalPtr		:= NestedUse (yyt^.Qualid0.Object, yyLevel)	;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1953 "modula.cg" *)
+ yyGlobalPtrs		:=		yyt^.Qualid0.IsGlobalPtr	;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid0.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid0.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid0.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid0.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid0.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid0.IsCConst		:= FALSE			;
+		  END;			
+(* line 1752 "modula.cg" *)
+ yyOpenAccessOrCall	:= IsOpenArray (yyt^.Qualid0.Object)		;
+| Tree.Qualid1:
+yyVisit1Qualid (yyt^.Qualid1.Qualid, yyEnv, yyLevel, Qualid1yQualidyOpenAccessOrCall, Qualid1yQualidyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 934 "modula.cg" *)
+ yyt^.Qualid1.Object	:= Identify2 (yyt^.Qualid1.Ident, GetObjects (yyt^.Qualid1.Qualid^.Qualid.Object));
+(* line 987 "modula.cg" *)
+ yyt^.Qualid1.Type	:=	GetType (yyt^.Qualid1.Object)		;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid1.IsGlobalPtr		:= NestedUse (yyt^.Qualid1.Object, yyLevel)	;
+(* line 1954 "modula.cg" *)
+ yyGlobalPtrs		:= Qualid1yQualidyGlobalPtrs OR
+							yyt^.Qualid1.IsGlobalPtr	;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid1.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid1.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid1.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid1.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid1.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid1.IsCConst		:= FALSE			;
+		  END;			
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Subscript:
+yyVisit1Designator (yyt^.Subscript.Designator, yyEnv, yyLevel, yyOpenAccessOrCall, SubscriptyDesignatoryGlobalPtrs, yyStrsIn, SubscriptyDesignatoryStrsOut);
+(* line 988 "modula.cg" *)
+ yyt^.Subscript.Type	:=      GetElemType (yyt^.Subscript.Designator^.Designator.Type)	;
+yyVisit1Expr (yyt^.Subscript.Index, yyEnv, yyLevel, SubscriptyIndexyOpenAccessOrCall, SubscriptyIndexyGlobalPtrs, SubscriptyDesignatoryStrsOut, yyStrsOut);
+(* line 1956 "modula.cg" *)
+ yyGlobalPtrs		:= SubscriptyDesignatoryGlobalPtrs OR
+					   SubscriptyIndexyGlobalPtrs	;
+(* line 1696 "modula.cg" *)
+ yyt^.Subscript.IsCConst		:= FALSE			;
+| Tree.Deref:
+yyVisit1Designator (yyt^.Deref.Designator, yyEnv, yyLevel, DerefyDesignatoryOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 989 "modula.cg" *)
+ yyt^.Deref.Type	:=	GetTargetType (yyt^.Deref.Designator^.Designator.Type)	;
+(* line 1696 "modula.cg" *)
+ yyt^.Deref.IsCConst		:= FALSE			;
+(* line 1754 "modula.cg" *)
+ yyOpenAccessOrCall	:= TRUE				;
+| Tree.Select:
+yyVisit1Designator (yyt^.Select.Designator, yyEnv, yyLevel, yyOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 935 "modula.cg" *)
+ yyt^.Select.Object	:= Identify2 (yyt^.Select.Field, GetFields (yyt^.Select.Designator^.Designator.Type));
+(* line 990 "modula.cg" *)
+ yyt^.Select.Type	:=	GetType (yyt^.Select.Object)		;
+(* line 1696 "modula.cg" *)
+ yyt^.Select.IsCConst		:= FALSE			;
+   ELSE
+   END;
+  END;
+ END yyVisit1Expr;
+
+PROCEDURE yyVisit1Designator (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyOpenAccessOrCall: BOOLEAN; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Qualid1:
+  Qualid1yQualidyOpenAccessOrCall: BOOLEAN;
+  Qualid1yQualidyGlobalPtrs: BOOLEAN;
+ | Tree.Subscript:
+  SubscriptyDesignatoryGlobalPtrs: BOOLEAN;
+  SubscriptyDesignatoryStrsOut: tStrings;
+  SubscriptyIndexyOpenAccessOrCall: BOOLEAN;
+  SubscriptyIndexyGlobalPtrs: BOOLEAN;
+ | Tree.Deref:
+  DerefyDesignatoryOpenAccessOrCall: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Designator:
+(* line 962 "modula.cg" *)
+ yyt^.Designator.Type	:=	NoType				;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1696 "modula.cg" *)
+ yyt^.Designator.IsCConst		:= FALSE			;
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Qualid:
+(* line 932 "modula.cg" *)
+ yyt^.Qualid.Object	:= NoObject					;
+(* line 962 "modula.cg" *)
+ yyt^.Qualid.Type	:=	NoType				;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid.IsGlobalPtr		:= NestedUse (yyt^.Qualid.Object, yyLevel)	;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid.IsCConst		:= FALSE			;
+		  END;			
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Qualid0:
+(* line 933 "modula.cg" *)
+ yyt^.Qualid0.Object	:= Identify (yyt^.Qualid0.Ident, yyEnv)			;
+(* line 986 "modula.cg" *)
+ yyt^.Qualid0.Type	:=	GetType (yyt^.Qualid0.Object)		;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid0.IsGlobalPtr		:= NestedUse (yyt^.Qualid0.Object, yyLevel)	;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1953 "modula.cg" *)
+ yyGlobalPtrs		:=		yyt^.Qualid0.IsGlobalPtr	;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid0.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid0.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid0.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid0.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid0.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid0.IsCConst		:= FALSE			;
+		  END;			
+(* line 1752 "modula.cg" *)
+ yyOpenAccessOrCall	:= IsOpenArray (yyt^.Qualid0.Object)		;
+| Tree.Qualid1:
+yyVisit1Qualid (yyt^.Qualid1.Qualid, yyEnv, yyLevel, Qualid1yQualidyOpenAccessOrCall, Qualid1yQualidyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 934 "modula.cg" *)
+ yyt^.Qualid1.Object	:= Identify2 (yyt^.Qualid1.Ident, GetObjects (yyt^.Qualid1.Qualid^.Qualid.Object));
+(* line 987 "modula.cg" *)
+ yyt^.Qualid1.Type	:=	GetType (yyt^.Qualid1.Object)		;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid1.IsGlobalPtr		:= NestedUse (yyt^.Qualid1.Object, yyLevel)	;
+(* line 1954 "modula.cg" *)
+ yyGlobalPtrs		:= Qualid1yQualidyGlobalPtrs OR
+							yyt^.Qualid1.IsGlobalPtr	;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid1.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid1.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid1.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid1.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid1.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid1.IsCConst		:= FALSE			;
+		  END;			
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Subscript:
+yyVisit1Designator (yyt^.Subscript.Designator, yyEnv, yyLevel, yyOpenAccessOrCall, SubscriptyDesignatoryGlobalPtrs, yyStrsIn, SubscriptyDesignatoryStrsOut);
+(* line 988 "modula.cg" *)
+ yyt^.Subscript.Type	:=      GetElemType (yyt^.Subscript.Designator^.Designator.Type)	;
+yyVisit1Expr (yyt^.Subscript.Index, yyEnv, yyLevel, SubscriptyIndexyOpenAccessOrCall, SubscriptyIndexyGlobalPtrs, SubscriptyDesignatoryStrsOut, yyStrsOut);
+(* line 1956 "modula.cg" *)
+ yyGlobalPtrs		:= SubscriptyDesignatoryGlobalPtrs OR
+					   SubscriptyIndexyGlobalPtrs	;
+(* line 1696 "modula.cg" *)
+ yyt^.Subscript.IsCConst		:= FALSE			;
+| Tree.Deref:
+yyVisit1Designator (yyt^.Deref.Designator, yyEnv, yyLevel, DerefyDesignatoryOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 989 "modula.cg" *)
+ yyt^.Deref.Type	:=	GetTargetType (yyt^.Deref.Designator^.Designator.Type)	;
+(* line 1696 "modula.cg" *)
+ yyt^.Deref.IsCConst		:= FALSE			;
+(* line 1754 "modula.cg" *)
+ yyOpenAccessOrCall	:= TRUE				;
+| Tree.Select:
+yyVisit1Designator (yyt^.Select.Designator, yyEnv, yyLevel, yyOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 935 "modula.cg" *)
+ yyt^.Select.Object	:= Identify2 (yyt^.Select.Field, GetFields (yyt^.Select.Designator^.Designator.Type));
+(* line 990 "modula.cg" *)
+ yyt^.Select.Type	:=	GetType (yyt^.Select.Object)		;
+(* line 1696 "modula.cg" *)
+ yyt^.Select.IsCConst		:= FALSE			;
+   ELSE
+   END;
+  END;
+ END yyVisit1Designator;
+
+PROCEDURE yyVisit1Qualid (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyOpenAccessOrCall: BOOLEAN; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Qualid1:
+  Qualid1yQualidyOpenAccessOrCall: BOOLEAN;
+  Qualid1yQualidyGlobalPtrs: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Qualid:
+(* line 932 "modula.cg" *)
+ yyt^.Qualid.Object	:= NoObject					;
+(* line 962 "modula.cg" *)
+ yyt^.Qualid.Type	:=	NoType				;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid.IsGlobalPtr		:= NestedUse (yyt^.Qualid.Object, yyLevel)	;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1944 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid.IsCConst		:= FALSE			;
+		  END;			
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+| Tree.Qualid0:
+(* line 933 "modula.cg" *)
+ yyt^.Qualid0.Object	:= Identify (yyt^.Qualid0.Ident, yyEnv)			;
+(* line 986 "modula.cg" *)
+ yyt^.Qualid0.Type	:=	GetType (yyt^.Qualid0.Object)		;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid0.IsGlobalPtr		:= NestedUse (yyt^.Qualid0.Object, yyLevel)	;
+(* line 2059 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1953 "modula.cg" *)
+ yyGlobalPtrs		:=		yyt^.Qualid0.IsGlobalPtr	;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid0.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid0.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid0.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid0.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid0.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid0.IsCConst		:= FALSE			;
+		  END;			
+(* line 1752 "modula.cg" *)
+ yyOpenAccessOrCall	:= IsOpenArray (yyt^.Qualid0.Object)		;
+| Tree.Qualid1:
+yyVisit1Qualid (yyt^.Qualid1.Qualid, yyEnv, yyLevel, Qualid1yQualidyOpenAccessOrCall, Qualid1yQualidyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 934 "modula.cg" *)
+ yyt^.Qualid1.Object	:= Identify2 (yyt^.Qualid1.Ident, GetObjects (yyt^.Qualid1.Qualid^.Qualid.Object));
+(* line 987 "modula.cg" *)
+ yyt^.Qualid1.Type	:=	GetType (yyt^.Qualid1.Object)		;
+(* line 1952 "modula.cg" *)
+ yyt^.Qualid1.IsGlobalPtr		:= NestedUse (yyt^.Qualid1.Object, yyLevel)	;
+(* line 1954 "modula.cg" *)
+ yyGlobalPtrs		:= Qualid1yQualidyGlobalPtrs OR
+							yyt^.Qualid1.IsGlobalPtr	;
+(* line 1697 "modula.cg" *)
+
+		  IF (yyt^.Qualid1.Object^.Kind = Const1	 ) OR
+		     (yyt^.Qualid1.Object^.Kind = EnumLiteral1) OR
+		     (yyt^.Qualid1.Object^.Kind = TypeDecl1	 ) OR
+		     (yyt^.Qualid1.Object^.Kind = Opaque1	 ) THEN
+		    yyt^.Qualid1.IsCConst		:= TRUE				;
+		  ELSE
+		    yyt^.Qualid1.IsCConst		:= FALSE			;
+		  END;			
+(* line 1745 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+   ELSE
+   END;
+  END;
+ END yyVisit1Qualid;
+
+PROCEDURE yyVisit1Elems (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyIsCConst: BOOLEAN; VAR yyOpenAccessOrCall: BOOLEAN; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Elems1:
+  Elems1yNextyIsCConst: BOOLEAN;
+  Elems1yNextyOpenAccessOrCall: BOOLEAN;
+ | Tree.Elem:
+  ElemyNextyIsCConst: BOOLEAN;
+  ElemyNextyOpenAccessOrCall: BOOLEAN;
+  ElemyNextyGlobalPtrs: BOOLEAN;
+  ElemyNextyStrsIn: tStrings;
+  ElemyElemyOpenAccessOrCall: BOOLEAN;
+  ElemyElemyGlobalPtrs: BOOLEAN;
+ | Tree.ElemRange:
+  ElemRangeyNextyIsCConst: BOOLEAN;
+  ElemRangeyNextyOpenAccessOrCall: BOOLEAN;
+  ElemRangeyNextyGlobalPtrs: BOOLEAN;
+  ElemRangeyNextyStrsIn: tStrings;
+  ElemRangeyLwbyOpenAccessOrCall: BOOLEAN;
+  ElemRangeyLwbyGlobalPtrs: BOOLEAN;
+  ElemRangeyLwbyStrsOut: tStrings;
+  ElemRangeyUpbyOpenAccessOrCall: BOOLEAN;
+  ElemRangeyUpbyGlobalPtrs: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Elems:
+(* line 2083 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1961 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1757 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+(* line 1707 "modula.cg" *)
+ yyIsCConst		:= TRUE				;
+| Tree.Elems0:
+(* line 2083 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1961 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1757 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+(* line 1707 "modula.cg" *)
+ yyIsCConst		:= TRUE				;
+| Tree.Elems1:
+yyVisit1Elems (yyt^.Elems1.Next, yyEnv, yyLevel, Elems1yNextyIsCConst, Elems1yNextyOpenAccessOrCall, yyGlobalPtrs, yyStrsIn, yyStrsOut);
+(* line 1757 "modula.cg" *)
+ yyOpenAccessOrCall	:= FALSE			;
+(* line 1707 "modula.cg" *)
+ yyIsCConst		:= TRUE				;
+| Tree.Elem:
+yyVisit1Expr (yyt^.Elem.Elem, yyEnv, yyLevel, ElemyElemyOpenAccessOrCall, ElemyElemyGlobalPtrs, yyStrsIn, ElemyNextyStrsIn);
+yyVisit1Elems (yyt^.Elem.Next, yyEnv, yyLevel, ElemyNextyIsCConst, ElemyNextyOpenAccessOrCall, ElemyNextyGlobalPtrs, ElemyNextyStrsIn, yyStrsOut);
+(* line 1963 "modula.cg" *)
+ yyGlobalPtrs		:= ElemyElemyGlobalPtrs OR
+					   ElemyNextyGlobalPtrs	;
+(* line 1758 "modula.cg" *)
+ yyOpenAccessOrCall	:= ElemyElemyOpenAccessOrCall OR
+					   ElemyNextyOpenAccessOrCall;
+(* line 1708 "modula.cg" *)
+ yyIsCConst		:= yyt^.Elem.Elem^.Expr.IsCConst AND
+					   ElemyNextyIsCConst	;
+| Tree.ElemRange:
+yyVisit1Expr (yyt^.ElemRange.Lwb, yyEnv, yyLevel, ElemRangeyLwbyOpenAccessOrCall, ElemRangeyLwbyGlobalPtrs, yyStrsIn, ElemRangeyLwbyStrsOut);
+yyVisit1Expr (yyt^.ElemRange.Upb, yyEnv, yyLevel, ElemRangeyUpbyOpenAccessOrCall, ElemRangeyUpbyGlobalPtrs, ElemRangeyLwbyStrsOut, ElemRangeyNextyStrsIn);
+yyVisit1Elems (yyt^.ElemRange.Next, yyEnv, yyLevel, ElemRangeyNextyIsCConst, ElemRangeyNextyOpenAccessOrCall, ElemRangeyNextyGlobalPtrs, ElemRangeyNextyStrsIn, yyStrsOut);
+(* line 1965 "modula.cg" *)
+ yyGlobalPtrs		:= ElemRangeyLwbyGlobalPtrs OR
+					   ElemRangeyUpbyGlobalPtrs OR
+					   ElemRangeyNextyGlobalPtrs	;
+(* line 1760 "modula.cg" *)
+ yyOpenAccessOrCall	:= ElemRangeyLwbyOpenAccessOrCall OR
+					   ElemRangeyUpbyOpenAccessOrCall OR
+					   ElemRangeyNextyOpenAccessOrCall;
+(* line 1710 "modula.cg" *)
+ yyIsCConst		:= yyt^.ElemRange.Lwb^.Expr.IsCConst AND
+					   yyt^.ElemRange.Upb^.Expr.IsCConst AND
+					   ElemRangeyNextyIsCConst	;
+   ELSE
+   END;
+  END;
+ END yyVisit1Elems;
+
+PROCEDURE yyVisit1Actuals (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyTypes: tTypes; VAR yyFormals: tTypes; VAR yyLevel: SHORTCARD; VAR yyIsCConst: BOOLEAN; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Actual:
+  ActualyExpryOpenAccessOrCall: BOOLEAN;
+  ActualyExpryGlobalPtrs: BOOLEAN;
+  ActualyExpryStrsOut: tStrings;
+  ActualyNextyTypes: tTypes;
+  ActualyNextyFormals: tTypes;
+  ActualyNextyIsCConst: BOOLEAN;
+  ActualyNextyGlobalPtrs: BOOLEAN;
+  ActualyNextyStrsOut: tStrings;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Actuals:
+(* line 2092 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1969 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1714 "modula.cg" *)
+ yyIsCConst		:= TRUE				;
+(* line 992 "modula.cg" *)
+ yyTypes	:=	NoTypes				;
+| Tree.Actuals0:
+(* line 2092 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1969 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+(* line 1714 "modula.cg" *)
+ yyIsCConst		:= TRUE				;
+(* line 992 "modula.cg" *)
+ yyTypes	:=	NoTypes				;
+| Tree.Actual:
+(* line 1018 "modula.cg" *)
+Head (yyFormals, yyt^.Actual.IsVAR, yyt^.Actual.Formal);
+yyVisit1Expr (yyt^.Actual.Expr, yyEnv, yyLevel, ActualyExpryOpenAccessOrCall, ActualyExpryGlobalPtrs, yyStrsIn, ActualyExpryStrsOut);
+(* line 1016 "modula.cg" *)
+ ActualyNextyFormals	:= Tail (yyFormals)		;
+yyVisit1Actuals (yyt^.Actual.Next, yyEnv, ActualyNextyTypes, ActualyNextyFormals, yyLevel, ActualyNextyIsCConst, ActualyNextyGlobalPtrs, ActualyExpryStrsOut, ActualyNextyStrsOut);
+(* line 2096 "modula.cg" *)
+
+		IF ((yyt^.Actual.Expr^.Expr.Type = TypeSTRING) OR (yyt^.Actual.Expr^.Expr.Type = TypeStringChar)) AND 	
+		   (yyt^.Actual.Formal^.Kind = Array1) AND NOT IsOpen (yyt^.Actual.Formal) THEN
+				yyt^.Actual.String	:= GenString ()			;
+				yyStrsOut	:= mStringPar (yyt^.Actual.String, yyt^.Actual.Formal, yyt^.Actual.Expr, ActualyNextyStrsOut);
+		ELSE
+				yyt^.Actual.String	:= NoIdent			;
+				yyStrsOut	:= ActualyNextyStrsOut		;
+		END;			
+(* line 1970 "modula.cg" *)
+ yyGlobalPtrs		:= ActualyExpryGlobalPtrs OR
+					   ActualyNextyGlobalPtrs	;
+(* line 1715 "modula.cg" *)
+ yyIsCConst		:= yyt^.Actual.Expr^.Expr.IsCConst AND
+					   ActualyNextyIsCConst	;
+(* line 993 "modula.cg" *)
+ yyTypes	:=	mTypes (FALSE, yyt^.Actual.Expr^.Expr.Type, ActualyNextyTypes)	;
+   ELSE
+   END;
+  END;
+ END yyVisit1Actuals;
+
+PROCEDURE yyVisit1Stmts (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings; VAR yyType: tType);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Assign:
+  AssignyNextyGlobalPtrs: BOOLEAN;
+  AssignyNextyStrsIn: tStrings;
+  AssignyDesignatoryOpenAccessOrCall: BOOLEAN;
+  AssignyDesignatoryGlobalPtrs: BOOLEAN;
+  AssignyDesignatoryStrsOut: tStrings;
+  AssignyExpryOpenAccessOrCall: BOOLEAN;
+  AssignyExpryGlobalPtrs: BOOLEAN;
+ | Tree.Call:
+  CallyNextyGlobalPtrs: BOOLEAN;
+  CallyNextyStrsIn: tStrings;
+  CallyDesignatoryOpenAccessOrCall: BOOLEAN;
+  CallyDesignatoryGlobalPtrs: BOOLEAN;
+  CallyDesignatoryStrsOut: tStrings;
+  CallyActualsyTypes: tTypes;
+  CallyActualsyFormals: tTypes;
+  CallyActualsyIsCConst: BOOLEAN;
+  CallyActualsyGlobalPtrs: BOOLEAN;
+ | Tree.If:
+  IfyNextyGlobalPtrs: BOOLEAN;
+  IfyNextyStrsIn: tStrings;
+  IfyCondyOpenAccessOrCall: BOOLEAN;
+  IfyCondyGlobalPtrs: BOOLEAN;
+  IfyCondyStrsOut: tStrings;
+  IfyThenyGlobalPtrs: BOOLEAN;
+  IfyThenyStrsOut: tStrings;
+  IfyElsifsyGlobalPtrs: BOOLEAN;
+  IfyElsifsyStrsOut: tStrings;
+  IfyElseyGlobalPtrs: BOOLEAN;
+ | Tree.Case:
+  CaseyNextyGlobalPtrs: BOOLEAN;
+  CaseyNextyStrsIn: tStrings;
+  CaseyExpryOpenAccessOrCall: BOOLEAN;
+  CaseyExpryGlobalPtrs: BOOLEAN;
+  CaseyExpryStrsOut: tStrings;
+  CaseyCasesyGlobalPtrs: BOOLEAN;
+  CaseyCasesyStrsOut: tStrings;
+  CaseyElseyGlobalPtrs: BOOLEAN;
+ | Tree.While:
+  WhileyNextyGlobalPtrs: BOOLEAN;
+  WhileyNextyStrsIn: tStrings;
+  WhileyCondyOpenAccessOrCall: BOOLEAN;
+  WhileyCondyGlobalPtrs: BOOLEAN;
+  WhileyCondyStrsOut: tStrings;
+  WhileyStmtsyGlobalPtrs: BOOLEAN;
+ | Tree.Repeat:
+  RepeatyNextyGlobalPtrs: BOOLEAN;
+  RepeatyNextyStrsIn: tStrings;
+  RepeatyStmtsyGlobalPtrs: BOOLEAN;
+  RepeatyStmtsyStrsOut: tStrings;
+  RepeatyCondyOpenAccessOrCall: BOOLEAN;
+  RepeatyCondyGlobalPtrs: BOOLEAN;
+ | Tree.Loop:
+  LoopyNextyGlobalPtrs: BOOLEAN;
+  LoopyNextyStrsIn: tStrings;
+  LoopyStmtsyGlobalPtrs: BOOLEAN;
+ | Tree.For:
+  ForyNextyGlobalPtrs: BOOLEAN;
+  ForyNextyStrsIn: tStrings;
+  ForyQualidyOpenAccessOrCall: BOOLEAN;
+  ForyQualidyGlobalPtrs: BOOLEAN;
+  ForyQualidyStrsOut: tStrings;
+  ForyFromyOpenAccessOrCall: BOOLEAN;
+  ForyFromyGlobalPtrs: BOOLEAN;
+  ForyFromyStrsOut: tStrings;
+  ForyToyOpenAccessOrCall: BOOLEAN;
+  ForyToyGlobalPtrs: BOOLEAN;
+  ForyToyStrsOut: tStrings;
+  ForyByyOpenAccessOrCall: BOOLEAN;
+  ForyByyGlobalPtrs: BOOLEAN;
+  ForyByyStrsOut: tStrings;
+  ForyStmtsyGlobalPtrs: BOOLEAN;
+ | Tree.With:
+  WithyNextyGlobalPtrs: BOOLEAN;
+  WithyNextyStrsIn: tStrings;
+  WithyDesignatoryOpenAccessOrCall: BOOLEAN;
+  WithyDesignatoryGlobalPtrs: BOOLEAN;
+  WithyDesignatoryStrsOut: tStrings;
+  WithyStmtsyEnv: tEnv;
+  WithyStmtsyGlobalPtrs: BOOLEAN;
+ | Tree.Return2:
+  Return2yNextyGlobalPtrs: BOOLEAN;
+  Return2yNextyStrsIn: tStrings;
+  Return2yResultyOpenAccessOrCall: BOOLEAN;
+  Return2yResultyGlobalPtrs: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Stmts:
+(* line 2106 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1973 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+| Tree.Stmts0:
+(* line 2106 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 1973 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+| Tree.Stmt:
+yyVisit1Stmts (yyt^.Stmt.Next, yyEnv, yyLevel, yyGlobalPtrs, yyStrsIn, yyStrsOut, yyType);
+| Tree.Assign:
+yyVisit1Designator (yyt^.Assign.Designator, yyEnv, yyLevel, AssignyDesignatoryOpenAccessOrCall, AssignyDesignatoryGlobalPtrs, yyStrsIn, AssignyDesignatoryStrsOut);
+yyVisit1Expr (yyt^.Assign.Expr, yyEnv, yyLevel, AssignyExpryOpenAccessOrCall, AssignyExpryGlobalPtrs, AssignyDesignatoryStrsOut, AssignyNextyStrsIn);
+yyVisit1Stmts (yyt^.Assign.Next, yyEnv, yyLevel, AssignyNextyGlobalPtrs, AssignyNextyStrsIn, yyStrsOut, yyType);
+(* line 1975 "modula.cg" *)
+ yyGlobalPtrs		:= AssignyDesignatoryGlobalPtrs OR
+					   AssignyExpryGlobalPtrs OR
+					   AssignyNextyGlobalPtrs	;
+| Tree.Call:
+yyVisit1Designator (yyt^.Call.Designator, yyEnv, yyLevel, CallyDesignatoryOpenAccessOrCall, CallyDesignatoryGlobalPtrs, yyStrsIn, CallyDesignatoryStrsOut);
+(* line 2214 "modula.cg" *)
+
+		IF (yyt^.Call.Designator^.Designator.Type^.Kind = StdProcType1) THEN
+		  IF (yyt^.Call.Designator^.Designator.Type^.StdProcType1.StdProc = ProcNEW) THEN
+		    yyt^.Call.AllocOrDealloc	:= Identify (IdentALLOC, yyEnv);
+		  ELSIF (yyt^.Call.Designator^.Designator.Type^.StdProcType1.StdProc = ProcDISPOSE) THEN
+		    yyt^.Call.AllocOrDealloc	:= Identify (IdentDEALLOC, yyEnv);
+		  ELSE
+		    yyt^.Call.AllocOrDealloc	:= NoObject			;
+		  END;
+		ELSE
+		    yyt^.Call.AllocOrDealloc	:= NoObject			;
+		END;				
+(* line 1015 "modula.cg" *)
+ CallyActualsyFormals	:= GetFormals (yyt^.Call.Designator^.Designator.Type)	;
+yyVisit1Actuals (yyt^.Call.Actuals, yyEnv, CallyActualsyTypes, CallyActualsyFormals, yyLevel, CallyActualsyIsCConst, CallyActualsyGlobalPtrs, CallyDesignatoryStrsOut, CallyNextyStrsIn);
+yyVisit1Stmts (yyt^.Call.Next, yyEnv, yyLevel, CallyNextyGlobalPtrs, CallyNextyStrsIn, yyStrsOut, yyType);
+(* line 1978 "modula.cg" *)
+ yyGlobalPtrs		:= CallyDesignatoryGlobalPtrs OR
+					   CallyActualsyGlobalPtrs OR
+					   CallyNextyGlobalPtrs	;
+| Tree.If:
+yyVisit1Expr (yyt^.If.Cond, yyEnv, yyLevel, IfyCondyOpenAccessOrCall, IfyCondyGlobalPtrs, yyStrsIn, IfyCondyStrsOut);
+yyVisit1Stmts (yyt^.If.Then, yyEnv, yyLevel, IfyThenyGlobalPtrs, IfyCondyStrsOut, IfyThenyStrsOut, yyType);
+yyVisit1Elsifs (yyt^.If.Elsifs, yyEnv, yyLevel, IfyElsifsyGlobalPtrs, IfyThenyStrsOut, IfyElsifsyStrsOut, yyType);
+yyVisit1Stmts (yyt^.If.Else, yyEnv, yyLevel, IfyElseyGlobalPtrs, IfyElsifsyStrsOut, IfyNextyStrsIn, yyType);
+yyVisit1Stmts (yyt^.If.Next, yyEnv, yyLevel, IfyNextyGlobalPtrs, IfyNextyStrsIn, yyStrsOut, yyType);
+(* line 1981 "modula.cg" *)
+ yyGlobalPtrs		:= IfyCondyGlobalPtrs OR
+					   IfyThenyGlobalPtrs OR
+					   IfyElsifsyGlobalPtrs OR
+					   IfyElseyGlobalPtrs OR
+					   IfyNextyGlobalPtrs	;
+| Tree.Case:
+yyVisit1Expr (yyt^.Case.Expr, yyEnv, yyLevel, CaseyExpryOpenAccessOrCall, CaseyExpryGlobalPtrs, yyStrsIn, CaseyExpryStrsOut);
+yyVisit1Cases (yyt^.Case.Cases, yyEnv, yyLevel, CaseyCasesyGlobalPtrs, CaseyExpryStrsOut, CaseyCasesyStrsOut, yyType);
+yyVisit1Stmts (yyt^.Case.Else, yyEnv, yyLevel, CaseyElseyGlobalPtrs, CaseyCasesyStrsOut, CaseyNextyStrsIn, yyType);
+yyVisit1Stmts (yyt^.Case.Next, yyEnv, yyLevel, CaseyNextyGlobalPtrs, CaseyNextyStrsIn, yyStrsOut, yyType);
+(* line 1986 "modula.cg" *)
+ yyGlobalPtrs		:= CaseyExpryGlobalPtrs OR
+					   CaseyCasesyGlobalPtrs OR
+					   CaseyElseyGlobalPtrs OR
+					   CaseyNextyGlobalPtrs	;
+| Tree.While:
+yyVisit1Expr (yyt^.While.Cond, yyEnv, yyLevel, WhileyCondyOpenAccessOrCall, WhileyCondyGlobalPtrs, yyStrsIn, WhileyCondyStrsOut);
+yyVisit1Stmts (yyt^.While.Stmts, yyEnv, yyLevel, WhileyStmtsyGlobalPtrs, WhileyCondyStrsOut, WhileyNextyStrsIn, yyType);
+yyVisit1Stmts (yyt^.While.Next, yyEnv, yyLevel, WhileyNextyGlobalPtrs, WhileyNextyStrsIn, yyStrsOut, yyType);
+(* line 1990 "modula.cg" *)
+ yyGlobalPtrs		:= WhileyCondyGlobalPtrs OR
+					   WhileyStmtsyGlobalPtrs OR
+					   WhileyNextyGlobalPtrs	;
+| Tree.Repeat:
+yyVisit1Stmts (yyt^.Repeat.Stmts, yyEnv, yyLevel, RepeatyStmtsyGlobalPtrs, yyStrsIn, RepeatyStmtsyStrsOut, yyType);
+yyVisit1Expr (yyt^.Repeat.Cond, yyEnv, yyLevel, RepeatyCondyOpenAccessOrCall, RepeatyCondyGlobalPtrs, RepeatyStmtsyStrsOut, RepeatyNextyStrsIn);
+yyVisit1Stmts (yyt^.Repeat.Next, yyEnv, yyLevel, RepeatyNextyGlobalPtrs, RepeatyNextyStrsIn, yyStrsOut, yyType);
+(* line 1993 "modula.cg" *)
+ yyGlobalPtrs		:= RepeatyStmtsyGlobalPtrs OR
+					   RepeatyCondyGlobalPtrs OR
+					   RepeatyNextyGlobalPtrs	;
+| Tree.Loop:
+yyVisit1Stmts (yyt^.Loop.Stmts, yyEnv, yyLevel, LoopyStmtsyGlobalPtrs, yyStrsIn, LoopyNextyStrsIn, yyType);
+yyVisit1Stmts (yyt^.Loop.Next, yyEnv, yyLevel, LoopyNextyGlobalPtrs, LoopyNextyStrsIn, yyStrsOut, yyType);
+(* line 1996 "modula.cg" *)
+ yyGlobalPtrs		:= LoopyStmtsyGlobalPtrs OR
+					   LoopyNextyGlobalPtrs	;
+| Tree.For:
+yyVisit1Qualid (yyt^.For.Qualid, yyEnv, yyLevel, ForyQualidyOpenAccessOrCall, ForyQualidyGlobalPtrs, yyStrsIn, ForyQualidyStrsOut);
+yyVisit1Expr (yyt^.For.From, yyEnv, yyLevel, ForyFromyOpenAccessOrCall, ForyFromyGlobalPtrs, ForyQualidyStrsOut, ForyFromyStrsOut);
+yyVisit1Expr (yyt^.For.To, yyEnv, yyLevel, ForyToyOpenAccessOrCall, ForyToyGlobalPtrs, ForyFromyStrsOut, ForyToyStrsOut);
+(* line 1042 "modula.cg" *)
+
+		  IF yyt^.For.To^.Expr.IsCConst THEN
+		    CompConst (yyt^.For.To, yyEnv, yyt^.For.ToVal)				;
+		  ELSE
+		    yyt^.For.ToVal	:= ErrorValue				;
+		  END;		
+yyVisit1Expr (yyt^.For.By, yyEnv, yyLevel, ForyByyOpenAccessOrCall, ForyByyGlobalPtrs, ForyToyStrsOut, ForyByyStrsOut);
+yyVisit1Stmts (yyt^.For.Stmts, yyEnv, yyLevel, ForyStmtsyGlobalPtrs, ForyByyStrsOut, ForyNextyStrsIn, yyType);
+yyVisit1Stmts (yyt^.For.Next, yyEnv, yyLevel, ForyNextyGlobalPtrs, ForyNextyStrsIn, yyStrsOut, yyType);
+(* line 1048 "modula.cg" *)
+ CompConst (yyt^.For.By, yyEnv, yyt^.For.ByVal); 
+(* line 1998 "modula.cg" *)
+ yyGlobalPtrs		:= ForyQualidyGlobalPtrs OR
+					   ForyFromyGlobalPtrs OR
+					   ForyToyGlobalPtrs OR
+					   ForyStmtsyGlobalPtrs OR
+					   ForyNextyGlobalPtrs	;
+| Tree.With:
+yyVisit1Designator (yyt^.With.Designator, yyEnv, yyLevel, WithyDesignatoryOpenAccessOrCall, WithyDesignatoryGlobalPtrs, yyStrsIn, WithyDesignatoryStrsOut);
+(* line 898 "modula.cg" *)
+ WithyStmtsyEnv	:= mEnv (GetFields (yyt^.With.Designator^.Designator.Type), yyEnv);
+yyVisit1Stmts (yyt^.With.Stmts, WithyStmtsyEnv, yyLevel, WithyStmtsyGlobalPtrs, WithyDesignatoryStrsOut, WithyNextyStrsIn, yyType);
+yyVisit1Stmts (yyt^.With.Next, yyEnv, yyLevel, WithyNextyGlobalPtrs, WithyNextyStrsIn, yyStrsOut, yyType);
+(* line 2003 "modula.cg" *)
+ yyGlobalPtrs		:= WithyDesignatoryGlobalPtrs OR
+					   WithyStmtsyGlobalPtrs OR
+					   WithyNextyGlobalPtrs	;
+| Tree.Exit:
+yyVisit1Stmts (yyt^.Exit.Next, yyEnv, yyLevel, yyGlobalPtrs, yyStrsIn, yyStrsOut, yyType);
+| Tree.Return1:
+yyVisit1Stmts (yyt^.Return1.Next, yyEnv, yyLevel, yyGlobalPtrs, yyStrsIn, yyStrsOut, yyType);
+| Tree.Return2:
+yyVisit1Expr (yyt^.Return2.Result, yyEnv, yyLevel, Return2yResultyOpenAccessOrCall, Return2yResultyGlobalPtrs, yyStrsIn, Return2yNextyStrsIn);
+(* line 1743 "modula.cg" *)
+ yyt^.Return2.OpenAccessOrCall	:= Return2yResultyOpenAccessOrCall;
+(* line 2192 "modula.cg" *)
+	     yyt^.Return2.ResultType	:=		yyType		;
+yyVisit1Stmts (yyt^.Return2.Next, yyEnv, yyLevel, Return2yNextyGlobalPtrs, Return2yNextyStrsIn, yyStrsOut, yyType);
+(* line 2006 "modula.cg" *)
+ yyGlobalPtrs		:= Return2yResultyGlobalPtrs OR
+					   Return2yNextyGlobalPtrs	;
+   ELSE
+   END;
+  END;
+ END yyVisit1Stmts;
+
+PROCEDURE yyVisit1Elsifs (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings; VAR yyType: tType);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Elsifs1:
+  Elsifs1yCondyOpenAccessOrCall: BOOLEAN;
+  Elsifs1yCondyGlobalPtrs: BOOLEAN;
+  Elsifs1yCondyStrsOut: tStrings;
+  Elsifs1yStmtsyGlobalPtrs: BOOLEAN;
+  Elsifs1yStmtsyStrsOut: tStrings;
+  Elsifs1yNextyGlobalPtrs: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Elsifs:
+(* line 2144 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 2009 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+| Tree.Elsifs0:
+(* line 2144 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 2009 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+| Tree.Elsifs1:
+yyVisit1Expr (yyt^.Elsifs1.Cond, yyEnv, yyLevel, Elsifs1yCondyOpenAccessOrCall, Elsifs1yCondyGlobalPtrs, yyStrsIn, Elsifs1yCondyStrsOut);
+yyVisit1Stmts (yyt^.Elsifs1.Stmts, yyEnv, yyLevel, Elsifs1yStmtsyGlobalPtrs, Elsifs1yCondyStrsOut, Elsifs1yStmtsyStrsOut, yyType);
+yyVisit1Elsifs (yyt^.Elsifs1.Next, yyEnv, yyLevel, Elsifs1yNextyGlobalPtrs, Elsifs1yStmtsyStrsOut, yyStrsOut, yyType);
+(* line 2010 "modula.cg" *)
+ yyGlobalPtrs		:= Elsifs1yCondyGlobalPtrs OR
+					   Elsifs1yStmtsyGlobalPtrs OR
+					   Elsifs1yNextyGlobalPtrs 	;
+   ELSE
+   END;
+  END;
+ END yyVisit1Elsifs;
+
+PROCEDURE yyVisit1Cases (yyt: Tree.tTree; VAR yyEnv: tEnv; VAR yyLevel: SHORTCARD; VAR yyGlobalPtrs: BOOLEAN; VAR yyStrsIn: tStrings; VAR yyStrsOut: tStrings; VAR yyType: tType);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Cases1:
+  Cases1yStmtsyGlobalPtrs: BOOLEAN;
+  Cases1yStmtsyStrsOut: tStrings;
+  Cases1yNextyGlobalPtrs: BOOLEAN;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Cases:
+(* line 2150 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 2014 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+| Tree.Cases0:
+(* line 2150 "modula.cg" *)
+yyStrsOut :=		yyStrsIn		;
+(* line 2014 "modula.cg" *)
+ yyGlobalPtrs		:= FALSE			;
+| Tree.Cases1:
+yyVisit1Labels (yyt^.Cases1.Labels, yyEnv);
+yyVisit1Stmts (yyt^.Cases1.Stmts, yyEnv, yyLevel, Cases1yStmtsyGlobalPtrs, yyStrsIn, Cases1yStmtsyStrsOut, yyType);
+yyVisit1Cases (yyt^.Cases1.Next, yyEnv, yyLevel, Cases1yNextyGlobalPtrs, Cases1yStmtsyStrsOut, yyStrsOut, yyType);
+(* line 2015 "modula.cg" *)
+ yyGlobalPtrs		:= Cases1yStmtsyGlobalPtrs OR
+					   Cases1yNextyGlobalPtrs	;
+   ELSE
+   END;
+  END;
+ END yyVisit1Cases;
+
+PROCEDURE yyVisit1Labels (yyt: Tree.tTree; VAR yyEnv: tEnv);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | Tree.Label:
+  LabelyLabelyLevel: SHORTCARD;
+  LabelyLabelyOpenAccessOrCall: BOOLEAN;
+  LabelyLabelyGlobalPtrs: BOOLEAN;
+  LabelyLabelyStrsIn: tStrings;
+  LabelyLabelyStrsOut: tStrings;
+ | Tree.LabelRange:
+  LabelRangeyLwbyLevel: SHORTCARD;
+  LabelRangeyLwbyOpenAccessOrCall: BOOLEAN;
+  LabelRangeyLwbyGlobalPtrs: BOOLEAN;
+  LabelRangeyLwbyStrsIn: tStrings;
+  LabelRangeyLwbyStrsOut: tStrings;
+  LabelRangeyUpbyLevel: SHORTCARD;
+  LabelRangeyUpbyOpenAccessOrCall: BOOLEAN;
+  LabelRangeyUpbyGlobalPtrs: BOOLEAN;
+  LabelRangeyUpbyStrsIn: tStrings;
+  LabelRangeyUpbyStrsOut: tStrings;
+ END; END;
+ BEGIN
+  WITH yyTempo DO
+   CASE yyt^.Kind OF
+| Tree.Labels:
+| Tree.Labels0:
+| Tree.Labels1:
+yyVisit1Labels (yyt^.Labels1.Next, yyEnv);
+| Tree.Label:
+(* line 1038 "modula.cg" *)
+ CompConst (yyt^.Label.Label, yyEnv, yyt^.Label.LabelVal); 
+(* line 2155 "modula.cg" *)
+ LabelyLabelyStrsIn	:= NoStrings 	;
+(* line 1570 "modula.cg" *)
+ LabelyLabelyLevel	:= 0		;
+yyVisit1Expr (yyt^.Label.Label, yyEnv, LabelyLabelyLevel, LabelyLabelyOpenAccessOrCall, LabelyLabelyGlobalPtrs, LabelyLabelyStrsIn, LabelyLabelyStrsOut);
+yyVisit1Labels (yyt^.Label.Next, yyEnv);
+| Tree.LabelRange:
+(* line 1039 "modula.cg" *)
+ CompConst (yyt^.LabelRange.Lwb, yyEnv, yyt^.LabelRange.LwbVal); 
+(* line 2157 "modula.cg" *)
+
+		    LabelRangeyUpbyStrsIn	:= NoStrings 	;
+(* line 1572 "modula.cg" *)
+
+		    LabelRangeyUpbyLevel	:= 0		;
+yyVisit1Expr (yyt^.LabelRange.Upb, yyEnv, LabelRangeyUpbyLevel, LabelRangeyUpbyOpenAccessOrCall, LabelRangeyUpbyGlobalPtrs, LabelRangeyUpbyStrsIn, LabelRangeyUpbyStrsOut);
+(* line 2156 "modula.cg" *)
+ LabelRangeyLwbyStrsIn	:= NoStrings 	;
+(* line 1571 "modula.cg" *)
+ LabelRangeyLwbyLevel	:= 0		;
+yyVisit1Expr (yyt^.LabelRange.Lwb, yyEnv, LabelRangeyLwbyLevel, LabelRangeyLwbyOpenAccessOrCall, LabelRangeyLwbyGlobalPtrs, LabelRangeyLwbyStrsIn, LabelRangeyLwbyStrsOut);
+yyVisit1Labels (yyt^.LabelRange.Next, yyEnv);
+(* line 1040 "modula.cg" *)
+ CompConst (yyt^.LabelRange.Upb, yyEnv, yyt^.LabelRange.UpbVal); 
+   ELSE
+   END;
+  END;
+ END yyVisit1Labels;
+
+PROCEDURE BeginSemantics;
+ BEGIN
+(* line 88 "modula.cg" *)
+
+  BeginUniqueIds;
+
+ END BeginSemantics;
+
+PROCEDURE CloseSemantics;
+ BEGIN
+(* line 92 "modula.cg" *)
+
+  CloseUniqueIds;
+
+ END CloseSemantics;
+
+BEGIN
+END Semantics.

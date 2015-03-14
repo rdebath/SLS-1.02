@@ -1,0 +1,66 @@
+
+.nf
+	ir	\fBtable\fR	indx, ifn[, ixmode][, ixoff][, iwrap]
+	ir	\fBtablei\fR	indx, ifn[, ixmode][, ixoff][, iwrap]
+	kr	\fBtable\fR	kndx, ifn[, ixmode][, ixoff][, iwrap]
+	kr	\fBtablei\fR	kndx, ifn[, ixmode][, ixoff][, iwrap]
+	ar	\fBtable\fR	andx, ifn[, ixmode][, ixoff][, iwrap]
+	ar	\fBtablei\fR	andx, ifn[, ixmode][, ixoff][, iwrap]
+	kr	\fBoscil1\fR	idel, kamp, idur, ifn
+	kr	\fBoscil1i\fR	idel, kamp, idur, ifn
+.fi
+
+Table values are accessed by direct indexing or by incremental sampling.
+
+INITIALIZATION
+
+\fIifn\fR - function table number.  \fBtablei, oscil1i\fR require the
+extended guard point.
+
+\fIixmode\fR (optional) - ndx data mode. 0 = raw ndx, 1 = normalized (0 to
+1).  The default value is 0.
+
+\fIixoff\fR (optional) - amount by which ndx is to be offset.  For a table
+with origin at center, use tablesize/2 (raw) or .5 (normalized).  The
+default value is 0.
+
+\fIiwrap\fR (optional) - wraparound ndx flag.  0 = nowrap (ndx<0 treated as
+ndx=0; ndx>tablesize sticks at ndx=size), 1 = wraparound.  The default
+value is 0.
+
+\fIidel\fR - delay in seconds before \fBoscil1\fR incremental sampling begins.
+
+\fIidur\fR - duration in seconds to sample through the \fBoscil1\fR table
+just once.  A zero or negative value will cause all initialization to be
+skipped.
+
+
+PERFORMANCE
+
+\fBtable\fR invokes table lookup on behalf of init, control or audio
+indices.  These indices can be raw entry numbers (0,1,2...siz-1) or scaled
+values (0 to 1-e).  Indices are first modified by the offset value then
+checked for range before table lookup (see \fIiwrap\fR).  If ndx is likely
+to be full scale, or if interpolation is being used, the table should have
+an extended guard point.  \fBtable\fR indexed by a periodic phasor (see
+\fBphsor\fR) will simulate an oscillator.
+
+\fBoscil1\fR accesses values by sampling once through the function table at
+a rate determined by \fIidur\fR.  For the first \fIidel\fR seconds, the
+point of scan will reside at the first location of the table; it will then
+begin moving through the table at a constant rate, reaching the end in
+another \fIidur\fR seconds; from that time on (i.e. after \fIidel + idur\fR
+seconds) it will remain pointing at the last location.  Each value obtained
+from sampling is then multiplied by an amplitude factor \fIkamp\fR before
+being written into the result.
+
+\fBtablei\fR and \fBoscil1i\fR are interpolating units in which the
+fractional part of ndx is used to interpolate between adjacent table
+entries.  The smoothness gained by interpolation is at some small cost in
+execution time (see also \fBoscili\fR, etc.), but the interpolating and
+non-interpolating units are otherwise interchangable.  Note that when
+\fBtablei\fR uses a periodic index whose modulo \fIn\fR is less than the
+power of 2 table length, the interpolation process requires that there be
+an (\fIn\fR+1)th table value that is a repeat of the 1st (see F statement
+in Score).
+.bp

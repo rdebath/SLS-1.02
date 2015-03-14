@@ -1,0 +1,1060 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+ 
+
+File: elisp,  Node: Building Emacs,  Next: Pure Storage,  Prev: GNU Emacs Internals,  Up: GNU Emacs Internals
+
+Building Emacs
+==============
+
+   The first step in building Emacs is to compile the C sources. 
+This produces a program called `temacs', also called a "bare impure
+Emacs".  It contains the Emacs Lisp interpreter and I/O routines, but
+not the editing commands.
+
+   Then, to create a working Emacs editor, issue the command `temacs
+-l loadup'.  This directs `temacs' to evaluate the Lisp files
+specified in the file `loadup.el'.  These files set up the normal
+Emacs editing environment, resulting in an Emacs which is still
+impure but no longer bare.
+
+   It takes long time to load the standard Lisp files.  Luckily, you
+don't have to do this each time you run Emacs; `temacs' can dump out
+an executable program called `xemacs' which has these files
+preloaded.  `xemacs' starts more quickly because it does not need to
+load the files.  It is `xemacs' that is normally installed under the
+name `emacs' for users to run.
+
+   To create `xemacs', use the command `temacs -batch -l loadup
+dump'.  The purpose of `-batch' here is to prevent `temacs' from
+trying to initialize any of its data on the terminal; this ensures
+that the tables of terminal information are empty in the dumped Emacs.
+
+   When the `xemacs' executable is started, it will automatically
+load the user's `.emacs' file, or the default initialization file
+`default.el' if the user has none.  With the `.emacs' file, you can
+produce a version of Emacs that suits you and is not the same as the
+version other people use.  With `default.el', you can customize Emacs
+for all the users at your site who don't choose to customize it for
+themselves.  (For further reflection: why is this different from the
+case of the barber who shaves every man who doesn't shave himself?)
+
+   On some systems, dumping does not work.  Then, you must start
+Emacs with the `temacs -l loadup' command each time you use it.  This
+takes a long time, but since you need to start Emacs once a day at
+most--and once a week or less frequently if you never log out--the
+extra time is not too severe a problem.
+
+   Before `xemacs' is dumped, the documentation strings for primitive
+and preloaded functions (and variables) need to be found in the file
+where they are stored.  This is done by calling `Snarf-documentation'
+(*note Accessing Documentation::.).  These strings are omitted from
+`temacs' to save space.  *Note Documentation Basics::.
+
+ * Function: dump-emacs TO-FILE FROM-FILE
+     This function dumps the current state of Emacs into an
+     executable file TO-FILE.  It takes symbols from FROM-FILE (this
+     is normally the executable file `temacs').
+
+     If you use this function in an Emacs that was already dumped,
+     you must set `command-line-processed' to `nil' first for good
+     results.  *Note Command Line Arguments::.
+
+ * Command: emacs-version
+     This function returns a string describing the version of Emacs
+     that is running.  It is useful to include this string in bug
+     reports.
+
+          (emacs-version)
+            => "GNU Emacs 18.36.1 of Fri Feb 27 1987 on slug (berkeley-unix)"
+
+     Called interactively, the function prints the same information
+     in the echo area.
+
+ * Variable: emacs-build-time
+     The value of this variable is the time at which Emacs was built
+     at the local site.
+
+          emacs-build-time
+               => "Fri Feb 27 14:55:57 1987"
+
+ * Variable: emacs-version
+     The value of this variable is the version of Emacs being run. 
+     It is a string, e.g. `"18.36.1"'.
+
+
+
+File: elisp,  Node: Pure Storage,  Next: Garbage Collection,  Prev: Building Emacs,  Up: GNU Emacs Internals
+
+Pure Storage
+============
+
+   There are two types of storage in GNU Emacs Lisp for user-created
+Lisp objects: "normal storage" and "pure storage".  Normal storage is
+where all the new data which is created during an Emacs session is
+kept; see the following section for information on normal storage. 
+Pure storage is used for certain data in the preloaded standard Lisp
+files: data that should never change during actual use of Emacs.
+
+   Pure storage is allocated only while `temacs' is loading the
+standard preloaded Lisp libraries.  In the file `xemacs', it is
+marked as read-only (on operating systems which permit this), so that
+the memory space can be shared by all the Emacs jobs running on the
+machine at once.  Pure storage is not expandable; a fixed amount is
+allocated when Emacs is compiled, and if that is not sufficient for
+the preloaded libraries, `temacs' crashes.  If that happens, you will
+have to increase the compilation parameter `PURESIZE' in the file
+`config.h'.  This normally won't happen unless you try to preload
+additional libraries or add features to the standard ones.
+
+ * Function: purecopy OBJECT
+     This function makes a copy of OBJECT in pure storage and returns
+     it.  It copies strings by simply making a new string with the
+     same characters in pure storage.  It recursively copies the
+     contents of vectors and cons cells.  It does not make copies of
+     symbols, or any other objects, but just returns them unchanged. 
+     It signals an error if asked to copy markers.
+
+     This function is used only while Emacs is being built and
+     dumped, and is called only in the file `emacs/lisp/loaddefs.el'.
+
+ * Variable: pure-bytes-used
+     The value of this variable is the number of bytes of pure
+     storage allocated so far.  Typically, in a dumped Emacs, this
+     number is very close to the total amount of pure storage
+     available--if it were not, we would preallocate less.
+
+ * Variable: purify-flag
+     This variable determines whether `defun' should make a copy of
+     the function definition in pure storage.  If it is non-`nil',
+     then the function definition is copied into pure storage.
+
+     This flag is `t' while loading all of the basic functions for
+     building Emacs initially (allowing those functions to be
+     sharable and non-collectible).  It is set to `nil' when Emacs is
+     saved out as `xemacs'.  The flag is set and reset in the C
+     sources.
+
+     You should not change this flag in a running Emacs.
+
+
+
+File: elisp,  Node: Garbage Collection,  Next: Writing Emacs Primitives,  Prev: Pure Storage,  Up: GNU Emacs Internals
+
+Garbage Collection
+==================
+
+   When a program creates a list or the user defines a new function
+(such as by loading a library), then that data is placed in normal
+storage.  If normal storage runs low, then Emacs asks the operating
+system to allocate more memory in blocks of 1k bytes.  Each block is
+used for one type of Lisp object, so symbols, cons cells, markers,
+etc. are segregated in distinct blocks in memory.  (Vectors, buffers
+and certain other editing types, which are fairly large, are
+allocated in individual blocks, one per object, while strings are
+packed into blocks of 8k bytes.)
+
+   It is quite common to use some storage for a while, then release
+it by, for example, killing a buffer or deleting the last pointer to
+an object.  Emacs provides a "garbage collector" to reclaim this
+abandoned storage.  (This name is traditional, but "garbage recycler"
+might be a more intuitive metaphor for this facility.)
+
+   The garbage collector operates by scanning all the objects that
+have been allocated and marking those that are still accessible to
+Lisp programs.  To begin with, all the symbols, their values and
+associated function definitions, and any data presently on the stack,
+are accessible.  Any objects which can be reached indirectly through
+other accessible objects are also accessible.
+
+   When this is finished, all inaccessible objects are garbage.  No
+matter what the Lisp program or the user does, it is impossible to
+refer to them, since there is no longer a way to reach them.  Their
+space might as well be reused, since no one will notice.  That is
+what the garbage collector arranges to do.
+
+   Unused cons cells are chained together onto a "free list" for
+future allocation; likewise for symbols and markers.  The accessible
+strings are compacted so they are contiguous in memory; then the rest
+of the space formerly occupied by strings is made available to the
+string creation functions.  Vectors, buffers, windows and other large
+objects are individually allocated and freed using `malloc'.
+
+     Common Lisp note: unlike other Lisps, GNU Emacs Lisp does not
+     call the garbage collector when the free list is empty. 
+     Instead, it simply requests the operating system to allocate
+     more storage, and processing continues until `gc-cons-threshold'
+     bytes have been used.
+
+     This means that you can make sure that the garbage collector
+     will not run during a certain portion of a Lisp program by
+     calling the garbage collector explicitly just before it
+     (provided that portion of the program does not use so much space
+     as to force a second garbage collection).
+
+ * Command: garbage-collect
+     This command runs a garbage collection, and returns information
+     on the amount of space in use.  (Garbage collection can also
+     occur spontaneously if you use more than `gc-cons-threshold'
+     bytes of Lisp data since the previous garbage collection.)
+
+     `garbage-collect' returns a list containing the following
+     information:
+
+          ((USED-CONSES . FREE-CONSES)
+           (USED-SYMS . FREE-SYMS)
+           (USED-MARKERS . FREE-MARKERS)
+           USED-STRING-CHARS 
+           USED-VECTOR-SLOTS)
+          
+          (garbage-collect)
+               => ((3435 . 2332) (1688 . 0) (57 . 417) 24510 3839)
+
+     Here is a table explaining each element:
+
+    USED-CONSES
+          The number of cons cells in use.
+
+    FREE-CONSES
+          The number of cons cells for which space has been obtained
+          from the operating system, but that are not currently being
+          used.
+
+    USED-SYMS
+          The number of symbols in use.
+
+    FREE-SYMS
+          The number of symbols for which space has been obtained
+          from the operating system, but that are not currently being
+          used.
+
+    USED-MARKERS
+          The number of markers in use.
+
+    FREE-MARKERS
+          The number of markers for which space has been obtained
+          from the operating system, but that are not currently being
+          used.
+
+    USED-STRING-CHARS
+          The total size of all strings, in characters.
+
+    USED-VECTOR-SLOTS
+          The total number of elements of existing vectors.
+
+ * User Option: gc-cons-threshold
+     The value of this variable is the number of bytes of storage
+     that must be allocated for Lisp objects after one garbage
+     collection in order to request another garbage collection.  A
+     cons cell counts as eight bytes, a string as one byte per
+     character plus a few bytes of overhead, and so on.  (Space
+     allocated to the contents of buffers does not count.)  Note that
+     the new garbage collection does not happen immediately when the
+     threshold is exhausted, but only the next time the Lisp
+     evaluator is called.
+
+     The initial threshold value is 100,000.  If you specify a larger
+     value, garbage collection will happen less often.  This reduces
+     the amount of time spent garbage collecting, but increases total
+     memory use.  You may want to do this when running a program
+     which creates lots of Lisp data.
+
+     You can make collections more frequent by specifying a smaller
+     value, down to 10,000.  A value less than 10,000 will remain in
+     effect only until the subsequent garbage collection, at which
+     time `garbage-collect' will set the threshold back to 100,000.
+
+
+
+File: elisp,  Node: Writing Emacs Primitives,  Next: Object Internals,  Prev: Garbage Collection,  Up: GNU Emacs Internals
+
+Writing Emacs Primitives
+========================
+
+   Lisp primitives are Lisp functions implemented in C.  The details
+of interfacing the C function so that Lisp can call it are handled by
+a few C macros.  The only way to really understand how to write new C
+code is to read the source, but we can explain some things here.
+
+   An example of a special form is the definition of `or', from
+`eval.c'.  (An ordinary function would have the same general
+appearance.)
+
+     DEFUN ("or", For, Sor, 0, UNEVALLED, 0,
+       "Eval args until one of them yields non-NIL, then return that value.\n\
+     The remaining args are not evalled at all.\n\
+     If all args return NIL, return NIL.")
+       (args)
+          Lisp_Object args;
+     {
+       register Lisp_Object val;
+       Lisp_Object args_left;
+       struct gcpro gcpro1;
+     
+       if (NULL(args))
+         return Qnil;
+     
+       args_left = args;
+       GCPRO1 (args_left);
+     
+       do
+         {
+           val = Feval (Fcar (args_left));
+           if (!NULL (val))
+             break;
+           args_left = Fcdr (args_left);
+         }
+       while (!NULL(args_left));
+     
+       UNGCPRO;
+       return val;
+     }
+
+   Let's start with a precise explanation of the arguments to the
+`DEFUN' macro:
+
+  1. The first argument is the name of the Lisp symbol to define with
+     this function; it is `or'.
+
+  2. The second argument is the C function name for this function. 
+     This is the name that is used in C code for calling the
+     function.  The name is, by convention, `F' prepended to the Lisp
+     name, with all dashes (`-') in the Lisp name changed to
+     underscores.  Thus, to call this function from C code, call
+     `For'.  Remember that the arguments must be of type
+     `Lisp_Object'; various macros and functions for creating values
+     of type `Lisp_Object' are declared in the file `lisp.h'.
+
+  3. The third argument is a C variable name to use for a structure
+     that holds the data for the subr object that represents the
+     function in Lisp.  This structure conveys the Lisp symbol name
+     to the initialization routine that will create the symbol and
+     store the subr object as its definition.  By convention, this
+     name is the C function name with `F' replaced with `S'.
+
+  4. The fourth argument is the minimum number of arguments that the
+     function requires.  In this case, no arguments are required.
+
+  5. The fifth argument is the maximum number of arguments that the
+     function accepts.  Alternatively, it can be `UNEVALLED',
+     indicating a special form that receives unevaluated arguments. 
+     A function with the equivalent of an `&rest' argument would have
+     `MANY' in this position.  Both `UNEVALLED' and `MANY' are
+     macros.  This argument must be one of these macros or a number
+     at least as large as the fourth argument.
+
+  6. The sixth argument is an interactive specification, a string
+     such as might be used as the argument of `interactive' in a Lisp
+     function.  In this case it is 0 (a null pointer), indicating
+     that this function cannot be called interactively.  A value of
+     `""' indicates an interactive function not taking arguments.
+
+  7. The last argument is the documentation string.  It is written
+     just like a documentation string for a function defined in Lisp,
+     except you must write `\n\' at the end of each line.  In
+     particular, the first line should be a single sentence.
+
+   After the call to the `DEFUN' macro, you must write the list of
+argument names that every C function must have, followed by ordinary
+C declarations for them.  Normally, all the arguments must be
+declared as `Lisp_Object'.  If the function has no upper limit on the
+number of arguments in Lisp, then in C it receives two arguments: the
+number of Lisp arguments, and the address of a block containing their
+values.  These have types `int' and `Lisp_Object *'.
+
+   Within the function `For' itself, note the use of the macros
+`GCPRO1' and `UNGCPRO'.  `GCPRO1' is used to "protect" a variable
+from garbage collection--to inform the garbage collector that it must
+look in that variable and regard its contents as an accessible
+object.  This is necessary whenever you call `Feval' or anything that
+can directly or indirectly call `Feval'.  At such a time, any Lisp
+object that you intend to refer to again must be protected somehow. 
+`UNGCPRO' cancels the protection of the variables that are protected
+in the current function.  It is necessary to do this explicitly.
+
+   For most data types, it suffices to know that one pointer to the
+object is protected; as long as the object is not recycled, all
+pointers to it remain valid.  This is not so for strings, because the
+garbage collector can move them.  When a string is moved, any
+pointers to it that the garbage collector does not know about will
+not be properly relocated.  Therefore, all pointers to strings must
+be protected across any point where garbage collection may be possible.
+
+   The macro `GCPRO1' protects just one local variable.  If you want
+to protect two, use `GCPRO2' instead; repeating `GCPRO1' will not
+work.  There are also `GCPRO3' and `GCPRO4'.
+
+   In addition to using these macros, you must declare the local
+variables such as `gcpro1' which they implicitly use.  If you protect
+two variables, with `GCPRO2', you must declare `gcpro1' and `gcpro2',
+as it uses them both.  Alas, we can't explain all the tricky details
+here.
+
+   Defining the C function is not enough; you must also create the
+Lisp symbol for the primitive and store a suitable subr object in its
+function cell.  This is done by adding code to an initialization
+routine.  The code looks like this:
+
+     defsubr (&SUBR-STRUCTURE-NAME);
+
+SUBR-STRUCTURE-NAME is the name you used as the third argument to
+`DEFUN'.
+
+   If you are adding a primitive to a file that already has Lisp
+primitives defined in it, find the function (near the end of the
+file) named `syms_of_SOMETHING', and add that function call to it. 
+If the file doesn't have this function, or if you create a new file,
+add to it a `syms_of_FILENAME' (e.g., `syms_of_myfile').  Then find
+the spot in `emacs.c' where all of these functions are called, and
+add a call to `syms_of_FILENAME' there.
+
+   This function `syms_of_FILENAME' is also the place to define any C
+variables which are to be visible as Lisp variables.  `DEFVAR_LISP'
+is used to make a C variable of type `Lisp_Object' visible in Lisp. 
+`DEFVAR_INT' is used to make a C variable of type `int' visible in
+Lisp with a value that is an integer.
+
+   Here is another function, with more complicated arguments.  This
+comes from the code for the X Window System, and it demonstrates the
+use of macros and functions to manipulate Lisp objects.
+
+     DEFUN ("coordinates-in-window-p", Fcoordinates_in_window_p,
+       Scoordinates_in_window_p, 2, 2,
+       "xSpecify coordinate pair: \nXExpression which evals to window: ",
+       "Return non-nil if POSITIONS (a list, (SCREEN-X SCREEN-Y)) is in WINDOW.\n\  
+       Returned value is list of positions expressed\n\
+       relative to window upper left corner.")
+       (coordinate, window)
+          register Lisp_Object coordinate, window;
+     {
+       register Lisp_Object xcoord, ycoord;
+     
+       if (!CONSP (coordinate)) wrong_type_argument (Qlistp, coordinate);
+       CHECK_WINDOW (window, 2);
+       xcoord = Fcar (coordinate);
+       ycoord = Fcar (Fcdr (coordinate));
+       CHECK_NUMBER (xcoord, 0);
+       CHECK_NUMBER (ycoord, 1);
+       if ((XINT (xcoord) < XINT (XWINDOW (window)->left))
+           || (XINT (xcoord) >= (XINT (XWINDOW (window)->left)
+                                 + XINT (XWINDOW (window)->width))))
+         {
+           return Qnil;
+         }
+       XFASTINT (xcoord) -= XFASTINT (XWINDOW (window)->left);
+       if (XINT (ycoord) == (screen_height - 1))
+         return Qnil;
+       if ((XINT (ycoord) < XINT (XWINDOW (window)->top))
+           || (XINT (ycoord) >= (XINT (XWINDOW (window)->top)
+                                 + XINT (XWINDOW (window)->height)) - 1))
+         {
+           return Qnil;
+         }
+       XFASTINT (ycoord) -= XFASTINT (XWINDOW (window)->top);
+       return (Fcons (xcoord, Fcons (ycoord, Qnil)));
+     }
+
+   Note that you cannot directly call functions defined in Lisp as,
+for example, the primitive function `Fcons' is called above.  You
+must create the appropriate Lisp form, protect everything from
+garbage collection, and `Feval' the form, as was done in `For' above.
+
+   `eval.c' is a very good file to look through for examples;
+`lisp.h' contains the definitions for some important macros and
+functions.
+
+
+
+File: elisp,  Node: Object Internals,  Prev: Writing Emacs Primitives,  Up: GNU Emacs Internals
+
+Object Internals
+================
+
+   GNU Emacs Lisp manipulates many different types of data.  The
+actual data are stored in a heap and the only access that programs
+have to it is through pointers.  Pointers are thirty-two bits wide in
+most implementations.  Depending on the operating system and type of
+machine for which you compile Emacs, twenty-four to twenty-six bits
+are used to address the object, and the remaining six to eight bits
+are used for a tag that identifies the object's type.
+
+   Because all access to data is through tagged pointers, it is
+always possible to determine the type of any object.  This allows
+variables to be untyped, and the values assigned to them to be
+changed without regard to type.  Function arguments also can be of
+any type; if you want a function to accept only a certain type of
+argument, you must check the type explicitly using a suitable
+predicate (*note Type Predicates::.).
+
+* Menu:
+
+* Buffer Internals::    Components of a buffer structure.
+* Window Internals::    Components of a window structure.
+* Process Internals::   Components of a process structure.
+
+ 
+
+File: elisp,  Node: Buffer Internals,  Next: Window Internals,  Prev: Object Internals,  Up: Object Internals
+
+Buffer Internals
+----------------
+
+   Buffers contain fields not directly accessible by the Lisp
+programmer.  We describe them here, naming them by the names used in
+the C code.  Many are accessible indirectly in Lisp programs via Lisp
+primitives.
+
+`name'
+     The buffer name is a string which names the buffer.  It is
+     guaranteed to be unique.  *Note Buffer Names::.
+
+`save_modified'
+     This field contains the time when the buffer was last saved, as
+     an integer.  *Note Buffer Modification::.
+
+`modtime'
+     This field contains the modification time of the visited file. 
+     It is set when the file is written or read.  Every time the
+     buffer is written to the file, this field is compared to the
+     modification time of the file.  *Note Buffer Modification::.
+
+`auto_save_modified'
+     This field contains the time when the buffer was last auto-saved.
+
+`last_window_start'
+     This field contains the `window-start' position in the buffer as
+     of the last time the buffer was displayed in a window.
+
+`undodata'
+     This field points to the buffer's undo stack.  *Note Undo::.
+
+`syntax_table_v'
+     This field contains the syntax table for the buffer.  *Note
+     Syntax Tables::.
+
+`markers'
+     This field contains the chain of all markers that point into the
+     buffer.  At each deletion or motion of the buffer gap, all of
+     these markers must be checked and perhaps updated.  *Note
+     Markers::.
+
+`backed_up'
+     This field is a flag which tells whether a backup file has been
+     made for the visited file of this buffer.
+
+`mark'
+     This field contains the mark for the buffer.  The mark is a
+     marker, hence it is also included on the list `markers'.  *Note
+     The Mark::.
+
+`local_var_alist'
+     This field contains the association list containing all of the
+     variables local in this buffer, and their values.  A copy of
+     this list is returned by the function `buffer-local-variables'. 
+     *Note Buffer-Local Variables::.
+
+`mode_line_format'
+     This field contains a Lisp object which controls how to display
+     the mode line for this buffer.  *Note Mode Line Format::.
+
+
+
+File: elisp,  Node: Window Internals,  Next: Process Internals,  Prev: Buffer Internals,  Up: Object Internals
+
+Window Internals
+----------------
+
+   Windows have the following accessible fields:
+
+`height'
+     The height of the window, measured in lines.
+
+`width'
+     The width of the window, measured in columns.
+
+`buffer'
+     The buffer which the window is displaying.  This may change
+     often during the life of the window.
+
+`start'
+     The position in the buffer which is the first character to be
+     displayed in the window.
+
+`pointm'
+     This is the value of point in the current buffer when this
+     window is selected; when it is not selected, it retains its
+     previous value.
+
+`left'
+     This is the left-hand edge of the window, measured in columns. 
+     (The leftmost column on the screen is column 0.)
+
+`top'
+     This is the top edge of the window, measured in lines.  (The top
+     line on the screen is line 0.)
+
+`next'
+     This is the window that is the next in the chain of siblings.
+
+`prev'
+     This is the window that is the previous in the chain of siblings.
+
+`force_start'
+     This is a flag which, if non-`nil', says that the window has
+     been scrolled explicitly by the Lisp program.  At the next
+     redisplay, if point is off the screen, instead of scrolling the
+     window to show the text around point, point will be moved to a
+     location that is on the screen.
+
+`hscroll'
+     This is the number of columns that the display in the window is
+     scrolled horizontally to the left.  Normally, this is 0.
+
+`use_time'
+     This is the last time that the window was selected.  This field
+     is used by `get-lru-window'.
+
+
+
+File: elisp,  Node: Process Internals,  Prev: Window Internals,  Up: Object Internals
+
+Process Internals
+-----------------
+
+   The fields of a process are:
+
+`name'
+     A string, the name of the process.
+
+`command'
+     A list containing the command arguments that were used to start
+     this process.
+
+`filter'
+     A function used to accept output from the process instead of a
+     buffer, or `nil'.
+
+`sentinel'
+     A function called whenever the process receives a signal, or
+     `nil'.
+
+`buffer'
+     The associated buffer of the process.
+
+`pid'
+     An integer, the Unix process ID.
+
+`childp'
+     A flag, non-`nil' if this is really a child process.  It is
+     `nil' for a network connection.
+
+`flags'
+     A symbol indicating the state of the process.  Possible values
+     include `run', `stop', `closed', etc.
+
+`reason'
+     An integer, the Unix signal number that the process received
+     that caused the process to terminate or stop.  If the process
+     has exited, then this is the exit code it specified.
+
+`mark'
+     A marker indicating the position of end of last output from this
+     process inserted into the buffer.  This is usually the end of
+     the buffer.
+
+`kill_without_query'
+     A flag, non-`nil' meaning this process should not cause
+     confirmation to be needed if Emacs is killed.
+
+
+
+File: elisp,  Node: Standard Errors,  Next: Standard Buffer-Local Variables,  Prev: GNU Emacs Internals,  Up: Top
+
+Standard Errors
+***************
+
+   Here is the complete list of the error symbols in standard Emacs,
+grouped by concept.  The list includes each symbol's message (on the
+`error-message' property of the symbol), and a cross reference to a
+description of how the error can occur.
+
+   Each error symbol has an `error-conditions' property which is a
+list of symbols.  Normally, this list includes the error symbol
+itself, and the symbol `error'.  Occasionally it includes additional
+symbols, which are intermediate classifications, narrower than
+`error' but broader than a single error symbol.  For example, all the
+errors in accessing files have the condition `file-error'.
+
+   As a special exception, the error symbol `quit' does not have the
+condition `error', because quitting is not considered an error.
+
+   *Note Errors::, for an explanation of how errors are generated and
+handled.
+
+`SYMBOL'
+     STRING; REFERENCE.
+
+`error'
+     `"error"'; see `error' in *Note Errors::.
+
+`quit'
+     `"Quit"'; see *Note Quitting::.
+
+`args-out-of-range'
+     `"Args out of range"'; see *Note Sequences Arrays Vectors::.
+
+`arith-error'
+     `"Arithmetic error"'; see `/' and `%' in *Note Numbers::.
+
+`beginning-of-buffer'
+     `"Beginning of buffer"'; see *Note Motion::.
+
+`buffer-read-only'
+     `"Buffer is read-only"'; see *Note Read Only Buffers::.
+
+`end-of-buffer'
+     `"End of buffer"'; see *Note Motion::.
+
+`end-of-file'
+     `"End of file during parsing"'; see *Note Input Functions::. 
+     This is not a `file-error'.
+
+`file-error'
+     *Note Files::.  This error, and its subcategories, do not have
+     error-strings, because the error message is constructed from the
+     data items alone when the error condition `file-error' is present.
+
+`file-locked'
+     *Note File Locks::.  This is a `file-error'.
+
+`file-already-exists'
+     *Note Writing to Files::.  This is a `file-error'.
+
+`file-supersession'
+     *Note Buffer Modification::.  This is a `file-error'.
+
+`invalid-function'
+     `"Invalid function"'; see *Note Classifying Lists::.
+
+`invalid-read-syntax'
+     `"Invalid read syntax"'; see *Note Input Functions::.
+
+`invalid-regexp'
+     `"Invalid regexp"'; see *Note Regular Expressions::.
+
+`no-catch'
+     `"No catch for tag"'; see *Note Catch and Throw::.
+
+`search-failed'
+     `"Search failed"'; see *Note Searching and Matching::.
+
+`setting-constant'
+     `"Attempt to set a constant symbol"'; the values of the symbols
+     `nil' and `t' may not be changed.
+
+`void-function'
+     `"Symbol's function definition is void"';
+      see *Note Function Cells::.
+
+`void-variable'
+     `"Symbol's value as variable is void"';
+      see *Note Accessing Variables::.
+
+`wrong-number-of-arguments'
+     `"Wrong number of arguments"'; see *Note Classifying Lists::.
+
+`wrong-type-argument'
+     `"Wrong type argument"'; see *Note Type Predicates::.
+
+
+
+File: elisp,  Node: Standard Buffer-Local Variables,  Next: Standard Keymaps,  Prev: Standard Errors,  Up: Top
+
+Standard Buffer-Local Variables
+*******************************
+
+   The table below shows all of the variables that are automatically
+local (when set) in each buffer in Emacs Version 18 with the common
+packages loaded.
+
+`abbrev-mode'
+     *Note Abbrevs::.
+
+`auto-fill-hook'
+     *Note Auto Filling::.
+
+`buffer-auto-save-file-name'
+     *Note Auto-Saving::.
+
+`buffer-backed-up'
+     *Note Backup Files::.
+
+`buffer-file-name'
+     *Note Buffer File Name::.
+
+`buffer-read-only'
+     *Note Read Only Buffers::.
+
+`buffer-saved-size'
+     *Note Point::.
+
+`case-fold-search'
+     *Note Searching and Case::.
+
+`ctl-arrow'
+     *Note Control Char Display::.
+
+`default-directory'
+     *Note System Environment::.
+
+`fill-column'
+     *Note Auto Filling::.
+
+`left-margin'
+     *Note Indentation::.
+
+`local-abbrev-table'
+     *Note Abbrevs::.
+
+`major-mode'
+     *Note Mode Help::.
+
+`mark-ring'
+     *Note The Mark::.
+
+`minor-modes'
+     *Note Minor Modes::.
+
+`mode-name'
+     *Note Mode Line Variables::.
+
+`overwrite-mode'
+     *Note Insertion::.
+
+`paragraph-separate'
+     *Note Standard Regexps::.
+
+`paragraph-start'
+     *Note Standard Regexps::.
+
+`require-final-newline'
+     *Note Insertion::.
+
+`selective-display'
+     *Note Selective Display::.
+
+`selective-display-ellipses'
+     *Note Selective Display::.
+
+`tab-width'
+     *Note Control Char Display::.
+
+`truncate-lines'
+     *Note Truncation::.
+
+
+
+File: elisp,  Node: Standard Keymaps,  Next: Standard Hooks,  Prev: Standard Buffer-Local Variables,  Up: Top
+
+Standard Keymaps
+****************
+
+   The following symbols are used as the names for various keymaps. 
+Some of these exist when Emacs is first started, others are only
+loaded when their respective mode is used.  This is not an exhaustive
+list.
+
+   Almost all of these maps are used as local maps.  Indeed, of the
+modes that presently exist, only Vip mode and Terminal mode ever
+change the global keymap.
+
+`Buffer-menu-mode-map'
+     A full keymap used by Buffer Menu mode.
+
+`c-mode-map'
+     A sparse keymap used in C mode as a local map.
+
+`command-history-map'
+     A full keymap used by Command History mode.
+
+`ctl-x-4-map'
+     A sparse keymap for subcommands of the prefix `C-x 4'.
+
+`ctl-x-map'
+     A full keymap for `C-x' commands.
+
+`debugger-mode-map'
+     A full keymap used by Debugger mode.
+
+`dired-mode-map'
+     A full keymap for `dired-mode' buffers.
+
+`doctor-mode-map'
+     A sparse keymap used by Doctor mode.
+
+`edit-abbrevs-map'
+     A sparse keymap used in `edit-abbrevs'.
+
+`edit-tab-stops-map'
+     A sparse keymap used in `edit-tab-stops'.
+
+`electric-buffer-menu-mode-map'
+     A full keymap used by Electric Buffer Menu mode.
+
+`electric-history-map'
+     A full keymap used by Electric Command History mode.
+
+`emacs-lisp-mode-map'
+     A sparse keymap used in Emacs Lisp mode.
+
+`function-keymap'
+     The keymap for the definitions of keypad and function keys.
+       If there are none, then it contains an empty sparse keymap.
+
+`fundamental-mode-map'
+     The local keymap for Fundamental mode.
+       It is empty and should not be changed.
+
+`Helper-help-map'
+     A full keymap used by the help utility package.
+       It has the same keymap in its value cell and in its function
+     cell.
+
+`Info-edit-map'
+     A sparse keymap used by the `e' command of Info.
+
+`Info-mode-map'
+     A sparse keymap containing Info commands.
+
+`lisp-interaction-mode-map'
+     A sparse keymap used in Lisp mode.
+
+`lisp-mode-map'
+     A sparse keymap used in Lisp mode.
+
+`mode-specific-map'
+     The keymap for characters following `C-c'.  Note, this is in the
+     global map.  This map is not actually mode specific: its name
+     was chosen to be informative for the user in `C-h b'
+     (`display-bindings'), where it describes the main use of the
+     `C-c' prefix key.
+
+`mouse-map'
+     A sparse keymap for mouse commands from the X Window System.
+
+`occur-mode-map'
+     A local keymap used in Occur mode.
+
+`text-mode-map'
+     A sparse keymap used by Text mode.
+
+`view-mode-map'
+     A full keymap used by View mode.
+
+
+
+File: elisp,  Node: Standard Hooks,  Next: Index,  Prev: Standard Keymaps,  Up: Top
+
+Standard Hooks
+**************
+
+   The following is a list of hooks available with the distributed
+18.52 version of GNU Emacs.  Some of these hooks are called with
+`run-hooks' and can be a list of functions.  Others are not called
+with `run-hooks' and may or may not allow a list of functions.  For
+example, the `suspend-hook' can only reference a single function. 
+*Note Hooks::, for more information about using hooks.
+
+     *Note:* in version 19, `blink-paren-hook' and `auto-fill-hook'
+     are renamed to `blink-paren-function' and `auto-fill-function'
+     respectively, since they are not called by the `run-hooks'
+     function.
+
+`auto-fill-hook'
+`blink-paren-hook'
+`c-mode-hook'
+`command-history-hook'
+`comment-indent-hook'
+`define-hooked-global-abbrev'
+`define-hooked-local-abbrev'
+`dired-mode-hook'
+`disabled-command-hook'
+`edit-picture-hook'
+`electric-buffer-menu-mode-hook'
+`electric-command-history-hook'
+`electric-help-mode-hook'
+`emacs-lisp-mode-hook'
+`find-file-hooks'
+`find-file-not-found-hooks'
+`fortran-comment-hook'
+`fortran-mode-hook'
+`ftp-setup-write-file-hooks'
+`ftp-write-file-hook'
+`indent-mim-hook'
+`LaTeX-mode-hook'
+`ledit-mode-hook'
+`lisp-indent-hook'
+`lisp-interaction-mode-hook'
+`lisp-mode-hook'
+`m2-mode-hook'
+`mail-mode-hook'
+`mail-setup-hook'
+`medit-mode-hook'
+`mh-compose-letter-hook'
+`mh-folder-mode-hook'
+`mh-letter-mode-hook'
+`mim-mode-hook'
+`news-mode-hook'
+`news-reply-mode-hook'
+`news-setup-hook'
+`nroff-mode-hook'
+`outline-mode-hook'
+`plain-TeX-mode-hook'
+`prolog-mode-hook'
+`protect-innocence-hook'
+`rmail-edit-mode-hook'
+`rmail-mode-hook'
+`rmail-summary-mode-hook'
+`scheme-indent-hook'
+`scheme-mode-hook'
+`scribe-mode-hook'
+`shell-mode-hook'
+`shell-set-directory-error-hook'
+`suspend-hook'
+`suspend-resume-hook'
+`temp-buffer-show-hook'
+`term-setup-hook'
+`terminal-mode-hook'
+`terminal-mode-break-hook'
+`TeX-mode-hook'
+`text-mode-hook'
+`vi-mode-hook'
+`view-hook'
+`write-file-hooks'
+`x-process-mouse-hook'
+

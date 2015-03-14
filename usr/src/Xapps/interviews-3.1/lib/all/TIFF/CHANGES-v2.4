@@ -1,0 +1,140 @@
+$Header: /usr/people/sam/tiff/RCS/CHANGES-v2.4,v 1.6 91/11/26 10:48:22 sam Exp $
+
+TIFF Software "Release" 2.4
+---------------------------
+Changes in libtiff:
+
+Version 2.4.2 release:
+    o The Group 4 encoding routine has been corrected to write an EOFB
+      at the end of each strip; previously it wrote it only at the end
+      of the last strip.
+    o A new routine, TIFFTileRowSize has been added; it returns the
+      number of bytes in each of row a tile.
+    o The error+warning handler support has been changed so that clients
+      can substitute handler routines at runtime with the new
+      TIFFSetErrorHandler routine.  This was necessary for certain
+      shared library implementations.
+    o The picio and sgi compression schemes have been removed.
+    o Some ANSI C and portability problems have been fixed.
+    o A portability problem with tif_dir.c on Sun 4 machines was fixed.
+    o LZW and fax compression routines were fixed to handle tiles correctly.
+    o The calculation of tile size for images with only one tile was corrected.
+    o IBM RS/6000/AIX portability "problems" were corrected.
+    o An incorrect function prototype in tiffio.h was corrected.
+    o A Makefile.aix was added.
+
+Version 2.4.1 release:
+    o The internals of the TIFF data structure are no longer public;
+      this forced the addition of several query functions (thanks
+      to JT Conklin).
+    o The structure members tif_*encode* were renamed to improve the
+      understability of the code (or so I think).
+    o The encoding and decoding methods are now split out into separate
+      row, strip, and tile entry points.  This was necessary so that
+      compression algorithms that use the data organization can work
+      properly/effectively.
+    o The encoding and decoding methods now get passed the sample
+      being encoded/decoded.  This value only makes sense when the
+      image has PlanarConfiguration=2 (packed/interleaved data).  This
+      is needed by JPEG.
+!   o The ImageWidth and ImageLength tags are now ``treated'' as u_long
+!     values.  In particular, td_imagewidth & td_imagelength are now
+!     u_long and the get & set interfaces now assume u_long values.
+!     NOTE THAT THIS IS AN INCOMPATIBLE CHANGE FROM v2.3 OF THE LIBRARY
+!     AND REQUIRES CHANGES TO APPLICATIONS THAT USE THE LIBRARY.
+!   o The interface to TIFFPrintDirectory has been changed to take
+!     a bitset of flags that control the print of the large data
+!     structures (e.g. the colormap).  NOTE THAT THIS IS AN INCOMPATIBLE
+!     CHANGE FROM v2.3 OF THE LIBRARY ...
+    o The library should work on Macintosh systems (although this may
+      have been broken by my most recent changes).
+    o All the supported compression algorithms are now conditionally
+      compiled into the library.  This means that when you build the
+      library, you only get the code that you request.
+    o There was a bug where a directory tag w/ one SHORT inline value
+      was not correctly processed.
+    o All usage of the C-preprocessor to generate tokens through string
+      concatentation has been eliminated.
+    o The null compression logic now correctly handles more than a
+      single scanline of data.
+    o Support has been added for 2 features that are supposed to be
+      part of TIFF version 6.0:
+	tiled images	TileWidth, TileLength, TileByteOffsets, and
+			TileByteCounts tags
+	cmyk images	a PhotometricInterpretation definition and
+			a new InkSet tag
+      New library interfaces are provided for reading and writing tiles.
+      Note that tiled images can NOT be read as strips and vice versa.
+    o Basic functionality has been added in preparation for JPEG
+      compression support:
+	YCbCr photometric definition
+	C-Cube JPEG tags (still may change)
+        hooks to a stubbed out set of JPEG compression routines
+      Support for JPEG-related tags is conditionally compiled into the
+      library under the JPEG_SUPPORT define.
+    o It is now possible to supply an I/O buffer for the library to
+      use when reading+writing strips+tiles.  This can be combined with a
+      change to the null decompression routine to avoid memory-to-memory
+      copies.
+    o Support is provided for 3D volumes of data through the TileDepth
+      and ImageDepth tags (registered to SGI).  Note that the only
+      way to read volumetric data is through the tile-based interface
+      routines.
+    o A new DataType tag, registered to SGI, specifies whether data
+      is untyped, signed integer data, unsigned integer data, or
+      IEEE floating point data.  The BitsPerSample tag must be
+      consulted to determine the width of the data.
+    o The Group 3 and Group 4 facsimile decoding routines have been
+      rewritten to be faster and possibly more understandable.  Optional
+      uncompressed data in G3-2D and G4 is now handled (though not
+      generated).
+    o The Group 3 encoding and decoding routines have been corrected
+      so that an EOL code is now expected at the front of a line, instead
+      of at the end.  When processing files written by older versions of
+      this library, this can result in an off-by-one inconsistency
+      between the value of the ImageWidth tag and the actual number of
+      rows of data in an image.  This should not be a fatal error;
+      although it will result in spurious "Premature EOF" messages.
+    o An obscure bug in the packbits decoding logic was fixed.
+
+Changes in the tools:
+
+Version 2.4.2 release:
+    o gif2tiff now generates 16-bit colormaps instead of 8-bit.
+    o sgigt.c now handles 1-, 2-, and 4-bit palette images.
+    o New -l and -m options were added to sgigt.c to force the
+      FillOrder tag to be LSB2MSB and MSB2LSB, respectively.
+    o A -ignore flag was added to tiffcp to ignore read errors
+      when copying data.
+    o A Makefile.aix was added.
+    o Some cruft (e.g. hist.c, fixit.c) has been removed.
+
+Version 2.4.1 release:
+    o the contributed tools have been reorganzed in a separate
+      "contrib" subtree.
+    o tiff2ps has been virtually rewritten by Dan Sears and is now
+      useful for printing B&W and color TIFF images on PostScript
+      printers (although colorimage is required for color images).
+    o sgigt.c now ignores read errors so that images w/ a recoverable
+      error are now displayed more completely.  Error diagnostics
+      have been made consistent. Images are read by strips or
+      tiles, rather than the previous scanline.  An RGB window
+      will be used if the hardware supports it and the image warrants it.
+    o fax2tiff now properly sets the XResolution tag.
+    o A bug in ras2tiff's handling of the colormap has been fixed.
+    o tiffcp has new options to set the FillOrder tag.
+    o tiffdither has new options for generating 2D Group 3 and
+      Group 4 compressed images.
+    o tiffdump understands the new tags added to libtiff.
+    o tiffinfo has been updated to use the new interface to
+      TIFFPrintDirectory.
+    o a new tool sgi2tiff converts an SGI image file to TIFF; it
+      requires the SGI -limage library and so is probably useful
+      only on SGI equipment
+    o a new tool gif2tiff converts a GIF87 format file to TIFF;
+      this tool is based on Paul Haeberli's fromgif program
+    o sgisv.c has been updated to use the documented interface
+      for reading pixels from the display
+    o Dan Sears has provided an updated version of contrib/dbs/xtiff
+    o contrib.xtiff has been removed since it's out of date and most
+      of its functionality has been subsumed contrib/dbs/xtiff.

@@ -1,0 +1,77 @@
+
+.nf
+	ar	\fBpluck\fR	kamp, kcps, icps, ifn, imeth [, iparm1, iparm2]
+.fi
+
+Audio output is a naturally decaying plucked string or drum sound based on the
+Karplus-Strong algorithms.
+
+INITIALIZATION
+
+\fIicps\fR - intended pitch value in cps, used to set up a buffer of
+1 cycle of audio samples
+which will be smoothed over time by a chosen decay method.
+\fIicps\fR normally anticipates the value of \fIkcps\fR, but may be set
+artificially high or low to influence the size of the sample buffer.
+
+\fIifn\fR - table number of a stored function used to initialize the cyclic
+decay buffer.  If \fIifn\fR = 0, a random sequence will be used instead.
+
+\fIimeth\fR - method of natural decay.  There are six, some of which use
+parameters values that follow.
+.sp .5
+.in 3
+.ti -2
+1 - simple averaging.  A simple smoothing process, uninfluenced by
+parameter values.
+.br
+.ti -2
+2 - stretched averaging.  As above, with smoothing time stretched
+by a factor of \fIiparm1\fR ( >= 1 ).
+.br
+.ti -2
+3 - simple drum.  The range from pitch to noise is controlled by a 'roughness
+factor' in \fIiparm1\fR (0 to 1).  Zero gives the plucked string effect,
+while 1 reverses the polarity of every sample (octave down, odd harmonics).
+The setting .5 gives an optimum snare drum.
+.br
+.ti -2
+4 - stretched drum.  Combines both roughness and stretch factors.
+\fIiparm1\fR is roughness (0 to 1),
+and \fIiparm2\fR the stretch factor ( >= 1 ).
+.br
+.ti -2
+5 - weighted averaging.  As method 1, with \fIiparm1\fR weighting the
+current sample (the status quo) and \fIiparm2\fR weighting the previous
+adjacent one.  \fIiparm1 + iparm2\fR must be <= 1.
+.br
+.ti -2
+6 - 1st order recursive filter, with coefs .5.  Unaffected by parameter values.
+
+.in 0
+\fIiparm1, iparm2\fR (optional) - parameter values for use by the
+smoothing algorithms (above).  The default values are both 0.
+
+PERFORMANCE
+
+An internal audio buffer, filled at I-time according to \fIifn\fR,
+is continually resampled with periodicity \fIkcps\fR and the resulting
+output is multiplied by \fIkamp\fR.  Parallel with the sampling, the
+buffer is smoothed to simulate the effect of natural decay.
+
+Plucked strings (1,2,5,6) are best realized by starting with a random
+noise source, which is rich in initial harmonics.
+Drum sounds (methods 3, 4) work best with a flat source (wide pulse),
+which produces a deep noise attack and sharp decay.
+
+The original Karplus-Strong algorithm used a fixed number of samples
+per cycle, which caused serious quantization of the pitches available and
+their intonation.  This implementation resamples a buffer at the exact pitch
+given by \fIkcps\fR, which can be varied for vibrato and glissando effects.
+For low values of the orch sampling rate (e.g. \fIsr\fR = 10000),
+high frequencies will store only very few samples (\fIsr/icps\fR).
+Since this may cause noticeable noise in the resampling process,
+the internal buffer has a minimum size of 64 samples.
+This can be further enlarged by setting \fIicps\fR to some
+artificially lower pitch.
+.bp

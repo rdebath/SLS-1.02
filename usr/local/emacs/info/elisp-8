@@ -1,0 +1,1249 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Function Cells,  Next: Related Topics,  Prev: Anonymous Functions,  Up: Functions
+
+Accessing Function Cell Contents
+================================
+
+   The "function definition" of a symbol is the object stored in the
+function cell of the symbol.  The functions described here access,
+test, and set the function cell of symbols.
+
+ * Function: symbol-function SYMBOL
+     This returns the object in the function cell of SYMBOL.  If the
+     symbol's function cell is void, a `void-function' error is
+     signaled.
+
+     This function does not check that the returned object is a
+     legitimate function.
+
+          (defun bar (n) (+ n 2))
+               => bar
+          (symbol-function 'bar)
+               => (lambda (n) (+ n 2))
+          (fset 'baz 'bar)
+               => bar
+          (symbol-function 'baz)
+               => bar
+
+   If you have never given a symbol any function definition, we say
+that that symbol's function cell is "void".  In other words, the
+function cell does not have any Lisp object in it.  If you try to
+call such a symbol as a function, it signals a `void-function' error.
+
+   Note that void is not the same as `nil' or the symbol `void'.  The
+symbols `nil' and `void' are Lisp objects, and can be stored into a
+function cell just as any other object can be (and they can be valid
+functions if you define them in turn with `defun'); but `nil' or
+`void' is *an object*.  A void function cell contains no object
+whatsoever.
+
+   You can test the voidness of a symbol's function definition with
+`fboundp'.  After you have given a symbol a function definition, you
+can make it void once more using `fmakunbound'.
+
+ * Function: fboundp SYMBOL
+     Returns `t' if the symbol has an object in its function cell,
+     `nil' otherwise.  It does not check that the object is a
+     legitimate function.
+
+ * Function: fmakunbound SYMBOL
+     This function makes SYMBOL's function cell void, so that a
+     subsequent attempt to access this cell will cause a
+     `void-function' error.  (See also `makunbound', in *Note Local
+     Variables::.)
+
+          (defun foo (x) x)
+               => x
+          (fmakunbound 'foo)
+               => x
+          (foo 1)
+          error--> Symbol's function definition is void: foo
+
+ * Function: fset SYMBOL OBJECT
+     This function stores OBJECT in the function cell of SYMBOL.  The
+     result is OBJECT.  Normally OBJECT should be a function or the
+     name of a function, but this is not checked.
+
+     There are three normal uses of this function:
+
+        * Copying one symbol's function definition to another.  (In
+          other words, making an alternate name for a function.)
+
+        * Giving a symbol a function definition that is not a list
+          and therefore cannot be made with `defun'.  *Note
+          Classifying Lists::, for an example of this usage.
+
+        * In constructs for defining or altering functions.  If
+          `defun' were not a primitive, it could be written in Lisp
+          (as a macro) using `fset'.
+
+     Here are examples of the first two uses:
+
+          ;; Give `first' the same definition `car' has.
+          (fset 'first (symbol-function 'car))
+               => #<subr car>
+          (first '(1 2 3))
+               => 1
+          
+          ;; Make the symbol `car' the function definition of `xfirst'.
+          (fset 'xfirst 'car)
+               => car
+          (xfirst '(1 2 3))
+               => 1
+          (symbol-function 'xfirst)
+               => car
+          (symbol-function (symbol-function 'xfirst))
+               => #<subr car>
+
+             ;; Define a named keyboard macro.
+          (fset 'kill-two-lines "\^u2\^k")
+               => "\^u2\^k"
+
+   When writing a function that extends a previously defined
+function, the following idiom is often used:
+
+     (fset 'old-foo (symbol-function 'foo))
+     
+     (defun foo ()
+       "Just like old-foo, except more so."
+       (old-foo)
+       (more-so))
+
+This does not work properly if `foo' has been defined to autoload. 
+In such a case, when `foo' calls `old-foo', Lisp will attempt to
+define `old-foo' by loading a file.  Since this presumably defines
+`foo' rather than `old-foo', it will not produce the proper results. 
+The only way to avoid this problem is to make sure the file is loaded
+before moving aside the old definition of `foo'.
+
+
+
+File: elisp,  Node: Related Topics,  Prev: Function Cells,  Up: Functions
+
+Other Topics Related to Functions
+=================================
+
+   Here is a table of several functions that do things related to
+function calling and function definitions.
+
+`apply'
+     *Note Calling Functions::.
+
+`autoload'
+     *Note Autoload::.
+
+`call-interactively'
+     *Note Interactive Call::.
+
+`commandp'
+     *Note Interactive Call::.
+
+`documentation'
+     *Note Accessing Documentation::.
+
+`eval'
+     *Note Eval::.
+
+`funcall'
+     *Note Calling Functions::.
+
+`ignore'
+     *Note Calling Functions::.
+
+`interactive'
+     *Note Using Interactive::.
+
+`interactive-p'
+     *Note Interactive Call::.
+
+`mapatoms'
+     *Note Creating Symbols::.
+
+`mapcar'
+     *Note Mapping Functions::.
+
+`mapconcat'
+     *Note Mapping Functions::.
+
+`undefined'
+     *Note Key Lookup::.
+
+
+
+File: elisp,  Node: Macros,  Next: Loading,  Prev: Functions,  Up: Top
+
+Macros
+******
+
+   "Macros" enable you to define new control constructs and other
+language features.  A macro is defined much like a function, but
+instead of telling how to compute a value, it tells how to compute
+another Lisp expression which will in turn compute the value.  We
+call this expression the "expansion" of the macro.
+
+   Macros can do this because they operate on the unevaluated
+expressions for the arguments, not on the argument values as
+functions do.  They can therefore construct an expansion containing
+these argument expressions or parts of them.
+
+* Menu:
+
+* Simple Macro::            A basic example.
+* Expansion::               How, when and why macros are expanded.
+* Compiling Macros::        How macros are expanded by the compiler.
+* Defining Macros::         How to write a macro definition.
+* Backquote::               Easier construction of list structure.
+* Problems with Macros::    Don't evaluate the macro arguments too many times.
+                              Don't hide the user's variables.
+
+ 
+
+File: elisp,  Node: Simple Macro,  Next: Expansion,  Prev: Macros,  Up: Macros
+
+A Simple Example of a Macro
+===========================
+
+   Suppose we would like to define a Lisp construct to increment a
+variable value, much like the `++' operator in C.  We would like to
+write `(inc x)' and have the effect of `(setq x (1+ x))'.  Here's a
+macro definition that will do the job:
+
+     (defmacro inc (var)
+        (list 'setq var (list '1+ var)))
+
+   When this is called with `(inc x)', the argument `var' has the
+value `x'--*not* the *value* of `x'.  The body of the macro uses this
+to construct the expansion, which is `(setq x (1+ x))'.  Once the
+macro definition returns this expansion, Lisp proceeds to evaluate
+it, thus incrementing `x'.
+
+
+
+File: elisp,  Node: Expansion,  Next: Compiling Macros,  Prev: Simple Macro,  Up: Macros
+
+Expansion of a Macro Call
+=========================
+
+   A macro call looks just like a function call in that it is a list
+which starts with the name of the macro.  The rest of the elements of
+the list are the arguments of the macro.
+
+   Evaluation of the macro call begins like evaluation of a function
+call except for one crucial difference: the macro arguments are the
+actual expressions appearing in the macro call.  They are not
+evaluated before they are given to the macro definition.  By
+contrast, the arguments of a function are results of evaluating the
+elements of the function call list.
+
+   Having obtained the arguments, Lisp invokes the macro definition
+just as a function is invoked.  The argument variables of the macro
+are bound to the argument values from the macro call, or to a list of
+them in the case of a `&rest' argument.  And the macro body executes
+and returns its value just as a function body does.
+
+   The second crucial difference between macros and functions is that
+the value returned by the macro body is not the value of the macro
+call.  Instead, it is an alternate expression for computing that
+value, also known as the "expansion" of the macro.  The Lisp
+interpreter proceeds to evaluate the expansion as soon as it comes
+back from the macro.
+
+   Since the expansion is evaluated in the normal manner, it may
+contain calls to other macros.  It may even be a call to the same
+macro, though this is unusual.
+
+   You can see the expansion of a given macro call by calling
+`macroexpand':
+
+ * Function: macroexpand FORM &optional ENVIRONMENT
+     This function expands FORM, if it is a macro call.  If the
+     result is another macro call, it is expanded in turn, until
+     something which is not a macro call results.  That is the value
+     returned by `macroexpand'.  If FORM is not a macro call to begin
+     with, it is returned as given.
+
+     Note that `macroexpand' does not look at the subexpressions of
+     FORM (although some macro definitions may do so).  If they are
+     macro calls themselves, `macroexpand' will not expand them.
+
+     If ENVIRONMENT is provided, it specifies an alist of macro
+     definitions that shadow the currently defined macros.  This is
+     used by byte compilation.
+
+          (defmacro inc (var)
+              (list 'setq var (list '1+ var)))
+               => inc
+          
+          (macroexpand '(inc r))
+               => (setq r (1+ r))
+          
+          (defmacro inc2 (var1 var2)
+              (list 'progn (list 'inc var1) (list 'inc var2)))
+               => inc2
+          
+          (macroexpand '(inc2 r s))
+               => (progn (inc r) (inc s))        ; `inc' not expanded here.
+
+ 
+
+File: elisp,  Node: Compiling Macros,  Next: Defining Macros,  Prev: Expansion,  Up: Macros
+
+Macros and Byte Compilation
+===========================
+
+   You might ask why we take the trouble to compute an expansion for
+a macro and then evaluate the expansion.  Why not have the macro body
+produce the desired results directly?  The reason has to do with
+compilation.
+
+   When a macro call appears in a Lisp program being compiled, the
+Lisp compiler calls the macro definition just as the interpreter
+would, and receives an expansion.  But instead of evaluating this
+expansion, it compiles expansion as if it had appeared directly in
+the program.  As a result, the compiled code produces the value and
+side effects intended for the macro, but executes at full compiled
+speed.  This would not work if the macro body computed the value and
+side effects itself--they would be computed at compile time, which is
+not useful.
+
+   In order for compilation of macro calls to work, the macros must
+be defined in Lisp when the calls to them are compiled.  The compiler
+has a special feature to help you do this: if a file being compiled
+contains a `defmacro' form, the macro is defined temporarily for the
+rest of the compilation of that file.  To use this feature, you must
+define the macro in the same file where it is used and before its
+first use.
+
+   While byte-compiling a file, any `require' calls at top-level are
+executed.  One way to ensure that necessary macro definitions are
+available during compilation is to require the file that defines them.
+*Note Features::.
+
+
+
+File: elisp,  Node: Defining Macros,  Next: Backquote,  Prev: Compiling Macros,  Up: Macros
+
+Defining Macros
+===============
+
+   A Lisp macro is a list whose CAR is `macro'.  Its CDR should be a
+function; expansion of the macro works by applying the function (with
+`apply') to the list of unevaluated argument-expressions from the
+macro call.
+
+   It is possible to use an anonymous Lisp macro just like an
+anonymous function, but this is never done, because it does not make
+sense to pass an anonymous macro to mapping functions such as
+`mapcar'.  In practice, all Lisp macros have names, and they are
+usually defined with the special form `defmacro'.
+
+ * Special Form: defmacro NAME ARGUMENT-LIST BODY-FORMS...
+     `defmacro' defines the symbol NAME as a macro that looks like
+     this:
+
+          (macro lambda ARGUMENT-LIST . BODY-FORMS)
+
+     This macro object is stored in the function cell of NAME.  The
+     value returned by evaluating the `defmacro' form is NAME, but
+     usually we ignore this value.
+
+     The shape and meaning of ARGUMENT-LIST is the same as in a
+     function, and the keywords `&rest' and `&optional' may be used
+     (*note Argument List::.).  Macros may have a documentation
+     string, but any `interactive' declaration is ignored since
+     macros cannot be called interactively.
+
+
+
+File: elisp,  Node: Backquote,  Next: Problems with Macros,  Prev: Defining Macros,  Up: Macros
+
+Backquote
+=========
+
+   It could prove rather awkward to write macros of significant size,
+simply due to the number of times the function `list' needs to be
+called.  To make writing these forms easier, a macro ``' (often
+called "backquote") exists.
+
+   Backquote allows you to quote a list, but selectively evaluate
+elements of that list.  In the simplest case, it is identical to the
+special form `quote' (*note Quoting::.).  For example, these two
+forms yield identical results:
+
+     (` (a list of (+ 2 3) elements))
+          => (a list of (+ 2 3) elements)
+     (quote (a list of (+ 2 3) elements))
+          => (a list of (+ 2 3) elements)
+
+   By inserting a special marker, `,', inside of the argument to
+backquote, it is possible to evaluate desired portions of the argument:
+
+     (list 'a 'list 'of (+ 2 3) 'elements)
+          => (a list of 5 elements)
+     (` (a list of (, (+ 2 3)) elements))
+          => (a list of 5 elements)
+
+   It is also possible to have an evaluated list "spliced" into the
+resulting list by using the special marker `,@'.  The elements of the
+spliced list become elements at the same level as the other elements
+of the resulting list.  The equivalent code without using ``' is
+often unreadable.  Here are some examples:
+
+     (setq some-list '(2 3))
+          => (2 3)
+     (cons 1 (append some-list '(4) some-list))
+          => (1 2 3 4 2 3)
+     (` (1 (,@ some-list) 4 (,@ some-list)))
+          => (1 2 3 4 2 3)
+     
+     (setq list '(hack foo bar))
+          => (hack foo bar)
+     (cons 'use
+       (cons 'the
+         (cons 'words (append (cdr list) '(as elements)))))
+          => (use the words foo bar as elements)
+     (` (use the words (,@ (cdr list)) as elements (,@ nil)))
+          => (use the words foo bar as elements)
+
+   The reason for `(,@ nil)' is to avoid a bug in Emacs version 18. 
+The bug occurs when a call to `,@' is followed only by constant
+elements.  Thus,
+
+     (` (use the words (,@ (cdr list)) as elements))
+
+would not work, though it really ought to.  `(,@ nil)' avoids the
+problem by being a nonconstant element that does not affect the result.
+
+ * Macro: ` LIST
+     This macro returns LIST as `quote' would, except that the list
+     is copied each time this expression is evaluated, and any
+     sublist of the form `(, SUBEXP)' is replaced by the value of
+     SUBEXP.  Any sublist of the form `(,@ LISTEXP)' is replaced by
+     evaluating LISTEXP and splicing its elements into the containing
+     list in place of this sublist.  (A single sublist can in this
+     way be replaced by any number of new elements in the containing
+     list.)
+
+     There are certain contexts in which `,' would not be recognized
+     and should not be used:
+
+          ;; Use of a `,' expression as the CDR of a list.
+          (` (a . (, 1)))                                 ; Not `(a . 1)'
+               => (a \, 1)                                
+          
+          ;; Use of `,' in a vector.
+          (` [a (, 1) c])                                 ; Not `[a 1 c]'
+               error--> Wrong type argument                      
+          
+          ;; Use of a `,' as the entire argument of ``'.
+          (` (, 2))                                       ; Not 2
+               => (\, 2)
+
+     Common Lisp note: in Common Lisp, `,' and `,@' are implemented
+     as reader macros, so they do not require parentheses.  Emacs
+     Lisp implements them as functions because reader macros are not
+     supported (to save space).
+
+
+
+File: elisp,  Node: Problems with Macros,  Prev: Backquote,  Up: Macros
+
+Common Problems Using Macros
+============================
+
+   The basic facts of macro expansion have all been described above,
+but there consequences are often counterintuitive.  This section
+describes some important consequences that can lead to trouble, and
+rules to follow to avoid trouble.
+
+* Menu:
+
+* Argument Evaluation::    The expansion should evaluate each macro arg once.
+* Surprising Local Vars::  Local variable bindings in the expansion
+                              require special care.
+* Eval During Expansion::  Don't evaluate them; put them in the expansion.
+* Repeated Expansion::     Avoid depending on how many times expansion is done.
+
+ 
+
+File: elisp,  Node: Argument Evaluation,  Next: Surprising Local Vars,  Prev: Problems with Macros,  Up: Problems with Macros
+
+Evaluating Macro Arguments Too Many Times
+-----------------------------------------
+
+   When defining a macro you must pay attention to the number of
+times the arguments will be evaluated when the expansion is executed.
+The following macro (used to facilitate iteration) illustrates the
+problem.  This macro allows us to write a simple "for" loop such as
+one might find in Pascal.
+
+     (defmacro for (var from init to final do &rest body)
+       "Execute a simple \"for\" loop, e.g.,
+         (for i from 1 to 10 do (print i))."
+       (list 'let (list (list var init))
+             (cons 'while (cons (list '<= var final)
+                                (append body (list (list 'inc var)))))))
+     => for
+     
+     (for i from 1 to 3 do
+        (setq square (* i i))
+        (princ (format "\n%d %d" i square)))
+     ==>
+     (let ((i 1))
+       (while (<= i 3)
+         (setq square (* i i))
+         (princ (format "%d      %d" i square))
+         (inc i)))
+     
+          -|1       1
+          -|2       4
+          -|3       9
+     => nil
+
+(The arguments `from', `to', and `do' in this macro are "syntactic
+sugar"; they are entirely ignored.  The idea is that you will write
+noise words (such as `from', `to', and `do') in those positions in
+the macro call.)
+
+   This macro suffers from the defect that FINAL is evaluated on
+every iteration.  If FINAL is a constant, this is not a problem.  If
+it is a more complex form, say `(long-complex-calculation x)', this
+can slow down the execution significantly.  If FINAL has side
+effects, executing it more than once is probably incorrect.
+
+   A well-designed macro definition takes steps to avoid this problem
+by producing an expansion that evaluates the argument expressions
+exactly once unless repeated evaluation is part of the intended
+purpose of the macro.  Here is a correct expansion for the `for' macro:
+
+     (let ((i 1)
+           (max 3))
+       (while (<= i max)
+         (setq square (* i i))
+         (princ (format "%d      %d" i square))
+         (inc i)))
+
+   Here is a macro definition that creates this expansion:
+
+     (defmacro for (var from init to final do &rest body)
+       "Execute a simple for loop: (for i from 1 to 10 do (print i))."
+       (` (let (((, var) (, init))
+                (max (, final)))
+            (while (<= (, var) max)
+              (,@ body)
+              (inc (, var))))))
+
+   Unfortunately, this introduces another problem.
+
+   Proceed to the following node.
+
+
+
+File: elisp,  Node: Surprising Local Vars,  Next: Eval During Expansion,  Prev: Argument Evaluation,  Up: Problems with Macros
+
+Local Variables in Macro Expansions
+-----------------------------------
+
+   In the previous section, the definition of `for' was fixed as
+follows to make the expansion evaluate the macro arguments the proper
+number of times:
+
+     (defmacro for (var from init to final do &rest body)
+       "Execute a simple for loop: (for i from 1 to 10 do (print i))."
+       (` (let (((, var) (, init))
+                (max (, final)))
+            (while (<= (, var) max)
+              (,@ body)
+              (inc (, var))))))
+
+   The new definition of `for' has a new problem: it introduces a
+local variable named `max' which the user does not expect.  This will
+cause trouble in examples such as the following:
+
+     (let ((max 0))
+       (for x from 0 to 10 do
+         (let ((this (frob x)))
+           (if (< max this)
+               (setq max this)))))
+
+The references to `max' inside the body of the `for', which are
+supposed to refer to the user's binding of `max', will instead access
+the binding made by `for'.
+
+   The way to correct this is to use an uninterned symbol instead of
+`max' (*note Creating Symbols::.).  The uninterned symbol can be
+bound and referred to just like any other symbol, but since it is
+created by `for', we know that it cannot appear in the user's program.
+Since it is not interned, there is no way the user can put it into
+the program later.  It will not appear anywhere except where put by
+`for'.  Here is a definition of `for' which works this way:
+
+     (defmacro for (var from init to final do &rest body)
+       "Execute a simple for loop: (for i from 1 to 10 do (print i))."
+       (let ((tempvar (make-symbol "max")))
+         (` (let (((, var) (, init))
+                  ((, tempvar) (, final)))
+              (while (<= (, var) (, tempvar))
+                     (,@ body)
+                     (inc (, var)))))))
+
+This creates an uninterned symbol named `max' and puts it in the
+expansion instead of the usual interned symbol `max' that appears in
+expressions ordinarily.
+
+
+
+File: elisp,  Node: Eval During Expansion,  Next: Repeated Expansion,  Prev: Surprising Local Vars,  Up: Problems with Macros
+
+Evaluating Macro Arguments in Expansion
+---------------------------------------
+
+   Another problem can happen if you evaluate any of the macro
+argument expressions during the computation of the expansion, such as
+by calling `eval' (*note Eval::.).  If the argument is supposed to
+refer to the user's variables, you may have trouble if the user
+happens to use a variable with the same name as one of the macro
+arguments.  Inside the macro body, the macro argument binding is the
+most local binding of this variable, so any references inside the
+form being evaluated will refer to it.  Here is an example:
+
+     (defmacro foo (a)
+       (list 'setq (eval a) t))
+          => foo
+     (setq x 'b)
+     (foo x) ==> (setq b t)
+          => t                  ; and `b' has been set.
+     ;; but
+     (setq a 'b)
+     (foo a) ==> (setq 'b t)     ; invalid!
+     error--> Symbol's value is void: b
+
+   It makes a difference whether the user types `a' or `x', because
+`a' conflicts with the macro argument variable `a'.
+
+   In general it is best to avoid calling `eval' in a macro
+definition at all.
+
+
+
+File: elisp,  Node: Repeated Expansion,  Prev: Eval During Expansion,  Up: Problems with Macros
+
+How Many Times is the Macro Expanded?
+-------------------------------------
+
+   Occasionally problems result from the fact that a macro call is
+expanded each time it is evaluated in an interpreted function, but is
+expanded only once (during compilation) for a compiled function.  If
+the macro definition has side effects, they will work differently
+depending on how many times the macro is expanded.
+
+   In particular, constructing objects is a kind of side effect.  If
+the macro is called once, then the objects are constructed only once.
+In other words, the same structure of objects is used each time the
+macro call is executed.  In interpreted operation, the macro is
+reexpanded each time, producing a fresh collection of objects each
+time.  Usually this does not matter--the objects have the same
+contents whether they are shared or not.  But if the surrounding
+program does side effects on the objects, it makes a difference
+whether they are shared.  Here is an example:
+
+     (defmacro new-object ()
+       (list 'quote (cons nil nil)))
+     
+     (defun initialize (condition)
+       (let ((object (new-object)))
+         (if condition
+     	(setcar object condition))
+         object))
+
+If `initialize' is interpreted, a new list `(nil)' is constructed
+each time `initialize' is called.  Thus, no side-effect survives
+between calls.  If `initialize' is compiled, then the macro
+`new-object' is expanded during compilation, producing a single
+"constant" `(nil)' that is reused and altered each time `initialize'
+is called.
+
+
+
+File: elisp,  Node: Loading,  Next: Byte Compilation,  Prev: Macros,  Up: Top
+
+Loading
+*******
+
+   Loading a file of Lisp code means bringing its contents into the
+Lisp environment in the form of Lisp objects.  Emacs finds and opens
+the file, reads the text, evaluates each form, and then closes the
+file.
+
+   The load functions evaluate all the expressions in a file just as
+the `eval-current-buffer' function evaluates all the expressions in a
+buffer.  The difference is that the load functions read and evaluate
+the text in the file as found on disk, not the text in an Emacs buffer.
+
+   The loaded file must contain Lisp expressions, either as source
+code or, optionally, as byte-compiled code.  Each form in the file is
+called a "top-level form".  There is no special format for the forms
+in a loadable file; any form in a file may equally well be typed
+directly into a buffer and evaluated there.  (Indeed, most code is
+tested this way.)  Most often, the forms are function definitions and
+variable definitions.
+
+   A file containing Lisp code is often called a "library".  Thus,
+the "Rmail library" is a file containing code for Rmail mode. 
+Similarly, a "Lisp library directory" is a directory of files
+containing Lisp code.
+
+* Menu:
+
+* How Programs Do Loading::     The `load' function and others.
+* Autoload::                    Setting up a function to autoload.
+* Repeated Loading::            Precautions about loading a file twice.
+* Features::                    Loading a library if it isn't already loaded.
+
+ 
+
+File: elisp,  Node: How Programs Do Loading,  Next: Autoload,  Prev: Loading,  Up: Loading
+
+How Programs Do Loading
+=======================
+
+   There are several interface functions for loading.  For example,
+the `autoload' function creates a Lisp object that loads a file when
+it is evaluated (*note Autoload::.).  `require' also causes files to
+be loaded (*note Features::.).  Ultimately, all these facilities call
+the `load' function to do the work.
+
+ * Function: load FILENAME &optional MISSING-OK NOMESSAGE NOSUFFIX
+     This function finds and opens a file of Lisp code, evaluates all
+     the forms in it, and closes the file.
+
+     To find the file, `load' first looks for a file named
+     `FILENAME.elc', that is, for a file whose name has `.elc'
+     appended.  If such a file exists, it is loaded.  But if there is
+     no file by that name, then `load' looks for a file whose name
+     has `.el' appended.  If that file exists, it is loaded. 
+     Finally, if there is no file by either name, `load' looks for a
+     file named FILENAME with nothing appended, and loads it if it
+     exists.  (The `load' function is not clever about looking at
+     FILENAME.  In the perverse case of a file named `foo.el.el',
+     evaluation of `(load "foo.el")' will indeed find it.)
+
+     If the optional argument NOSUFFIX is non-`nil', then the
+     suffixes `.elc' and `.el' are not tried.  In this case, the file
+     name must be specified precisely.
+
+     If FILENAME is a relative file name, such as `foo.bar' or
+     `baz/foo.bar', Emacs searches for the file using the variable
+     `load-path'.  Emacs does this by appending FILENAME to each of
+     the directories listed in `load-path', and loading the first
+     file it finds whose name matches.  The current default directory
+     is tried only if it is specified in `load-path', where it is
+     represented as `nil'.  All three possible suffixes are tried in
+     the first directory in `load-path', then all three in the second
+     directory in `load-path', etc.
+
+     Messages like `Loading foo...' and `Loading foo...done' are
+     printed in the echo area while loading unless NOMESSAGE is
+     non-`nil'.
+
+     Any errors that are encountered while loading a file cause
+     `load' to abort.  If the load was done for the sake of
+     `autoload', certain kinds of top-level forms, those which define
+     functions, are undone.
+
+     The error `file-error' is signaled (with `Cannot open load file
+     FILENAME') if no file is found.  No error is signaled if
+     MISSING-OK is non-`nil'--then `load' just returns `nil'.
+
+     `load' returns `t' if the file loads successfully.
+
+ * User Option: load-path
+     The value of this variable is a list of directories to search
+     when loading files with `load'.  Each element is a string (which
+     must be a directory name) or `nil' (which stands for the current
+     working directory).  The value of `load-path' is initialized
+     from the environment variable `EMACSLOADPATH', if it exists;
+     otherwise it is set to the default specified in
+     `emacs/src/paths.h' when Emacs is built.
+
+     The syntax of `EMACSLOADPATH' is the same as that of `PATH';
+     fields are separated by `:', and `.' is used for the current
+     default directory.  Here is an example of how to set your
+     `EMACSLOADPATH' variable from a `csh' `.login' file:
+
+          setenv EMACSLOADPATH .:/user/liberte/emacs:/usr/local/lib/emacs/lisp
+
+     Here is how to set it using `sh':
+
+          export EMACSLOADPATH
+          EMACSLOADPATH=.:/user/liberte/emacs:/usr/local/lib/emacs/lisp
+
+     Here is an example of code you can place in a `.emacs' file to
+     add several directories to the front of your default `load-path':
+
+          (setq load-path
+                (append
+                 (list nil
+                       "/user/liberte/emacs"
+                       "/usr/local/lisplib")
+                 load-path))
+
+     In this example, the path searches the current working directory
+     first, followed by `/user/liberte/emacs' and
+     `/usr/local/lisplib', which are then followed by the standard
+     directories for Lisp code.
+
+     When Emacs 18 is processing command options `-l' or `-load'
+     which specify Lisp libraries to be loaded, it temporarily adds
+     the current directory to the front of `load-path' so that files
+     in the current directory can be specified easily.  Emacs version
+     19 will also find such files in the current directory but
+     without altering `load-path'.
+
+ * Variable: load-in-progress
+     This variable is non-`nil' if Emacs is in the process of loading
+     a file, and it is `nil' otherwise.  This is how `defun' and
+     `provide' determine whether a load is in progress, so that their
+     effect can be undone if the load fails.
+
+   To learn how `load' is used to build Emacs, see *Note Building
+Emacs::.
+
+
+
+File: elisp,  Node: Autoload,  Next: Repeated Loading,  Prev: How Programs Do Loading,  Up: Loading
+
+Autoload
+========
+
+   The "autoload" facility allows you to make a function or macro
+available but put off loading its actual definition.  An attempt to
+call a symbol whose definition is an autoload object automatically
+reads the file to install the real definition and its other
+associated code, and then calls the real definition.
+
+   To prepare a function or macro for autoloading, you must call
+`autoload', specifying the function name and the name of the file to
+be loaded.  This is usually done when Emacs is first built, by files
+such as `emacs/lisp/loaddefs.el'.
+
+   The following example shows how `doctor' is prepared for
+autoloading in `loaddefs.el':
+
+     (autoload 'doctor "doctor"
+       "\
+     Switch to *doctor* buffer and start giving psychotherapy."
+       t)
+
+The backslash and newline immediately following the double-quote are
+a convention used only in the preloaded Lisp files such as
+`loaddefs.el'; they cause the documentation string to be put in the
+`etc/DOC' file.  (*Note Building Emacs::.)  In any other source file,
+you would write just this:
+
+     (autoload 'doctor "doctor"
+       "Switch to *doctor* buffer and start giving psychotherapy."
+       t)
+
+   Calling `autoload' creates an autoload object containing the name
+of the file and some other information, and makes this the definition
+of the specified symbol.  When you later try to call that symbol as a
+function or macro, the file is loaded; the loading should redefine
+that symbol with its proper definition.  After the file completes
+loading, the function or macro is called as if it had been there
+originally.
+
+   If, at the end of loading the file, the desired Lisp function or
+macro has not been defined, then the error `error' is signaled (with
+data `"Autoloading failed to define function FUNCTION-NAME"').
+
+   The autoloaded file may, of course, contain other definitions and
+may require or provide one or more features.  If the file is not
+completely loaded (due to an error in the evaluation of the contents)
+any function definitions or `provide' calls that occurred during the
+load are undone.  This is to ensure that the next attempt to call any
+function autoloading from this file will try again to load the file. 
+If not for this, then some of the functions in the file might appear
+defined, but they may fail to work properly for the lack of certain
+subroutines defined later in the file and not loaded successfully.
+
+ * Function: autoload SYMBOL FILENAME &optional DOCSTRING INTERACTIVE
+          MACRO
+     This function defines the function (or macro) named SYMBOL so as
+     to load automatically from FILENAME.  The string FILENAME is a
+     file name which will be passed to `load' when the function is
+     called.
+
+     The argument DOCSTRING is the documentation string for the
+     function.  Normally, this is the same string that is in the
+     function definition itself.  This makes it possible to look at
+     the documentation without loading the real definition.
+
+     If INTERACTIVE is non-`nil', then the function can be called
+     interactively.  This lets completion in `M-x' work without
+     loading the function's real definition.  The complete
+     interactive specification need not be given here.  If MACRO is
+     non-`nil', then the function is really a macro.
+
+     If SYMBOL already has a non-`nil' function definition that is
+     not an autoload object, `autoload' does nothing and returns
+     `nil'.  If the function cell of SYMBOL is void, or is already an
+     autoload object, then it is set to an autoload object that looks
+     like this:
+
+          (autoload FILENAME DOCSTRING INTERACTIVE MACRO)
+
+     For example,
+
+          (symbol-function 'run-prolog)
+               => (autoload "prolog" 169681 t nil)
+
+     In this case, `"prolog"' is the name of the file to load, 169681
+     is the reference to the documentation string in the
+     `emacs/etc/DOC' file (*note Documentation Basics::.), `t' means
+     the function is interactive, and `nil' that it is not a macro.
+
+
+
+File: elisp,  Node: Repeated Loading,  Next: Features,  Prev: Autoload,  Up: Loading
+
+Repeated Loading
+================
+
+   You may load a file more than once in an Emacs session.  For
+example, after you have rewritten and reinstalled a function
+definition by editing it in a buffer, you may wish to return to the
+original version; you can do this by reloading the file in which it
+is located.
+
+   When you load or reload files, bear in mind that the `load' and
+`load-library' functions automatically load a byte-compiled file
+rather than a non-compiled file of similar name.  If you rewrite a
+file that you intend to save and reinstall, remember to byte-compile
+it if necessary; otherwise you may find yourself inadvertently
+reloading the older, byte-compiled file instead of your newer,
+non-compiled file!
+
+   When writing the forms in a library, keep in mind that the library
+might be loaded more than once.  For example, the choice of `defvar'
+vs. `defconst' for defining a variable depends on whether it is
+desirable to reinitialize the variable if the library is reloaded:
+`defconst' does so, and `defvar' does not.  (*Note Defining
+Variables::.)
+
+   The simplest way to add an element to an alist is like this:
+
+     (setq minor-mode-alist (cons '(leif-mode " Leif") minor-mode-alist))
+
+But this would add multiple elements if the library is reloaded.  To
+avoid the problem, write this:
+
+     (or (assq 'leif-mode minor-mode-alist)
+         (setq minor-mode-alist
+               (cons '(leif-mode " Leif") minor-mode-alist)))
+
+   Occasionally you will want to test explicitly whether a library
+has already been loaded; you can do so as follows:
+
+     (if (not (boundp 'foo-was-loaded))
+         EXECUTE-FIRST-TIME-ONLY)
+     
+     (setq foo-was-loaded t)
+
+
+
+File: elisp,  Node: Features,  Prev: Repeated Loading,  Up: Loading
+
+Features
+========
+
+   `provide' and `require' are an alternative to `autoload' for
+loading files automatically.  They work in terms of named "features".
+Autoloading is triggered by calling a specific function, but a
+feature is loaded the first time another program asks for it by name.
+
+   The use of named features simplifies the task of determining
+whether required definitions have been defined.  A feature name is a
+symbol that stands for a collection of functions, variables, etc.  A
+program that needs the collection may ensure that they are defined by
+"requiring" the feature.  If the file that contains the feature has
+not yet been loaded, then it will be loaded (or an error will be
+signaled if it cannot be loaded).  The file thus loaded must
+"provide" the required feature or an error will be signaled.
+
+   To require the presence of a feature, call `require' with the
+feature name as argument.  `require' looks in the global variable
+`features' to see whether the desired feature has been provided
+already.  If not, it loads the feature from the appropriate file. 
+This file should call `provide' at the top-level to add the feature
+to `features'.
+
+   Features are normally named after the files they are provided in
+so that `require' need not be given the file name.
+
+   For example, in `emacs/lisp/prolog.el',  the definition for
+`run-prolog' includes the following code:
+
+     (interactive)
+     (require 'shell)
+     (switch-to-buffer (make-shell "prolog" "prolog"))
+     (inferior-prolog-mode))
+
+The expression `(require 'shell)' loads the file `shell.el' if it has
+not yet been loaded.  This ensures that `make-shell' is defined.
+
+   The `shell.el' file contains the following top-level expression:
+
+     (provide 'shell)
+
+This adds `shell' to the global `features' list when the `shell' file
+is loaded, so that `(require 'shell)' will henceforth know that
+nothing needs to be done.
+
+   When `require' is used at top-level in a file, it takes effect if
+you byte-compile that file (*note Byte Compilation::.).  This is in
+case the required package contains macros that the byte compiler must
+know about.
+
+   Although top-level calls to `require' are evaluated during byte
+compilation, `provide' calls are not.  Therefore, you can ensure that
+a file of definitions is loaded before it is byte-compiled by
+including a `provide' followed by a `require' for the same feature,
+as in the following example.
+
+     (provide 'my-feature)  ; Ignored by byte compiler, evaluated by `load'.
+     (require 'my-feature)  ; Evaluated by byte compiler.
+
+  * Function: provide FEATURE
+     This function announces that FEATURE is now loaded, or being
+     loaded, into the current Emacs session.  This means that the
+     facilities associated with FEATURE are or will be available for
+     other Lisp programs.
+
+     The direct effect of calling `provide' is to add FEATURE to the
+     front of the list `features' if it is not already in the list. 
+     The argument FEATURE must be a symbol.  `provide' returns FEATURE.
+
+          features
+               => (bar bish)
+          
+          (provide 'foo)
+               => foo
+          features
+               => (foo bar bish)
+
+     During autoloading, if the file is not completely loaded (due to
+     an error in the evaluation of the contents) any function
+     definitions or `provide' calls that occurred during the load are
+     undone.  *Note Autoload::.
+
+ * Function: require FEATURE &optional FILENAME
+     This function checks whether FEATURE is present in the current
+     Emacs session (using `(featurep FEATURE)'; see below).  If it is
+     not, then `require' loads FILENAME with `load'.  If FILENAME is
+     not supplied, then the name of the symbol FEATURE is used as the
+     file name to load.
+
+     If FEATURE is not provided after the file has been loaded, Emacs
+     will signal the error `error' (with data `Required feature
+     FEATURE was not provided').
+
+ * Function: featurep FEATURE
+     This function returns `t' if FEATURE has been provided in the
+     current Emacs session (i.e., FEATURE is a member of `features'.)
+
+ * Variable: features
+     The value of this variable is a list of symbols that are the
+     features loaded in the current Emacs session.  Each symbol was
+     put in this list with a call to `provide'.  The order of the
+     elements in the `features' list is not significant.
+
+
+
+File: elisp,  Node: Byte Compilation,  Next: Debugging,  Prev: Loading,  Up: Top
+
+Byte Compilation
+****************
+
+   GNU Emacs Lisp has a "compiler" that translates functions written
+in Lisp into a special representation called "byte-code" that can be
+executed more efficiently.  The compiler replaces Lisp function
+definitions with byte-code.  When a byte-code function is called, its
+definition is evaluated by the "byte-code interpreter".
+
+   Because the byte-compiled code is evaluated by the byte-code
+interpreter, instead of being executed directly by the machine's
+hardware (as true compiled code is), byte-code is completely
+transportable from machine to machine without recompilation.  It is
+not, however, as fast as true compiled code.
+
+   *Note Compilation Errors::, for how to investigate errors
+occurring in byte compilation.
+
+* Menu:
+
+* Compilation Functions::       Byte compilation functions.
+* Disassembly::                 Disassembling byte-code; how to read byte-code.
+
+ 
+
+File: elisp,  Node: Compilation Functions,  Next: Disassembly,  Prev: Byte Compilation,  Up: Byte Compilation
+
+The Compilation Functions
+=========================
+
+   An individual function or macro definition may be byte-compiled
+with the `byte-compile' function.  A whole file may be byte-compiled
+with `byte-compile-file' and several files may be byte-compiled with
+`byte-recompile-directory' or `batch-byte-compile'.  Only `defun' and
+`defmacro' forms in a file are byte-compiled; other top-level forms
+are not altered by byte compilation.
+
+   Be careful when byte-compiling code that uses macros.  Macro calls
+are expanded when they are compiled, so the macros must already be
+defined for proper compilation.  For more details, see *Note
+Compiling Macros::.
+
+   While byte-compiling a file, any `require' calls at top-level are
+executed.  One way to ensure that necessary macro definitions are
+available during compilation is to require the file that defines them.
+*Note Features::.
+
+   A byte-compiled function is not as efficient as a primitive
+function written in C, but will run much faster than the version
+written in Lisp.  For a rough comparison, consider the example below:
+
+     (defun silly-loop (n)
+       "Return time before and after N iterations of a loop."
+       (let ((t1 (current-time-string)))
+         (while (> (setq n (1- n)) 
+                   0))
+         (list t1 (current-time-string))))
+     => silly-loop
+     
+     (silly-loop 100000)
+     => ("Thu Jan 12 20:18:38 1989" 
+         "Thu Jan 12 20:19:29 1989")  ; 51 seconds
+     
+     (byte-compile 'silly-loop)
+     => [Compiled code not shown]
+     
+     (silly-loop 100000)
+     => ("Thu Jan 12 20:21:04 1989" 
+         "Thu Jan 12 20:21:17 1989")  ; 13 seconds
+
+   In this example, the interpreted code required 51 seconds to run,
+whereas the byte-compiled code required 13 seconds.  These results
+are representative, but actual results will vary greatly.
+
+ * Function: byte-compile SYMBOL
+     This function byte-compiles the function definition of SYMBOL,
+     replacing the previous definition with the compiled one.  The
+     function definition of SYMBOL must be the actual code for the
+     function; i.e., the compiler will not follow indirection to
+     another symbol.  `byte-compile' does not compile macros. 
+     `byte-compile' returns the new, compiled definition of SYMBOL.
+
+          (defun factorial (integer)
+            "Compute factorial of INTEGER."
+            (if (= 1 integer) 1
+              (* integer (factorial (1- integer)))))
+               => factorial
+          
+          (byte-compile 'factorial)
+               => (lambda (integer) 
+                           "Compute factorial of INTEGER." 
+                           (byte-code "\301^HU\203
+          ^@\301\202^Q^@\302^H\303^HS!\"\207"
+                                      [integer 1 * factorial] 4))
+
+     The string that is the first argument of `byte-code' is the
+     actual byte-code.  Each character in it is an instruction.  The
+     vector contains all the constants, variable names and function
+     names used by the function, except for certain primitives that
+     are coded as special instructions.
+
+     The `byte-compile' function is not autoloaded as are
+     `byte-compile-file' and `byte-recompile-directory'.
+
+ * Command: byte-compile-file FILENAME
+     This function compiles a file of Lisp code named FILENAME into a
+     file of byte-code.  The output file's name is made by appending
+     `c' to the end of FILENAME.
+
+     Compilation works by reading the input file one form at a time. 
+     If it is a definition of a function or macro, the compiled
+     function or macro definition is written out.  Other forms are
+     copied out unchanged.  All comments are discarded when the input
+     file is read.
+
+     This command returns `t'.  When called interactively, it prompts
+     for the file name.
+
+          % ls -l push*
+          -rw-r--r--  1 lewis             791 Oct  5 20:31 push.el
+          
+          (byte-compile-file "~/emacs/push.el")
+               => t
+          
+          % ls -l push*
+          -rw-r--r--  1 lewis             791 Oct  5 20:31 push.el
+          -rw-rw-rw-  1 lewis             638 Oct  8 20:25 push.elc
+
+ * Command: byte-recompile-directory DIRECTORY FLAG
+     This function recompiles every `.el' file in DIRECTORY that
+     needs recompilation.  A file needs recompilation if a `.elc'
+     file exists but is older than the `.el' file.
+
+     If a `.el' file exists, but there is no corresponding `.elc'
+     file, then FLAG is examined.  If it is `nil', the file is
+     ignored.  If it is non-`nil', the user is asked whether the file
+     should be compiled.
+
+     The returned value of this command is unpredictable.
+
+ * Function: batch-byte-compile
+     This function runs `byte-compile-file' on the files remaining on
+     the command line.  This function must be used only in a batch
+     execution of Emacs, as it kills Emacs on completion.  Each file
+     will be processed, even if an error occurs while compiling a
+     previous file.  (The file with the error will not, of course,
+     produce any compiled code.)
+
+          % emacs -batch -f batch-byte-compile *.el
+
+ * Function: byte-code CODE-STRING DATA-VECTOR MAX-STACK
+     This is the function that actually interprets byte-code.  A
+     byte-compiled function is actually defined with a body that
+     calls `byte-code'.  Don't call this function yourself.  Only the
+     byte compiler knows how to generate valid calls to this function.
+
+

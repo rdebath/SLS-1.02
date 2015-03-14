@@ -1,0 +1,471 @@
+.\" @(#)man/man8/mkpath.an	1.3 8/2/92 03:32:41
+.de pP
+.if n .sp 1
+.if t .sp .4
+..
+.de tP
+.pP
+.ta \\n(pDu
+.ti -\\n(pDu
+..
+.TH MKPATH X_MAN8_EXT_X "31 January 1988" "Local"
+.SH NAME
+mkpath \- make a pathalias output file
+.SH SYNOPSIS
+.na
+.B X_UTIL_BIN_DIR_X/mkpath
+.RB [ \-v ]
+.RB [ \-V ]
+.RB [ \-x ]
+.RB [ \-e ]
+.RB [ \-n ]
+[
+.B \-t
+.I trace
+] [
+.I path_config
+]
+.br
+.B X_UTIL_BIN_DIR_X/dcasehost
+[
+.B \-c
+]
+.br
+.ad
+.SH DESCRIPTION
+.I Mkpath
+creates
+.IR pathalias (X_MAN8_EXT_X)
+output given a configuration file that describes the various sources
+of input that will be used in generating this output, and how these
+sources of input are to be used.  The name of this configuration file
+is given as the
+.I path_config
+argument.
+If
+.I path_config
+is
+.BR \- ,
+then a specification will be taken from the standard input.
+If
+.I path_config
+is omitted, then the default specification
+.I X_LIB_DIR_X/maps/mkpath.conf
+is used.  Unless redirected in the configuration file, path data is
+written to the standard output.
+.PP
+.I Dcasehost
+converts the hostname in a stream of pathalias data to lower case.
+Normally, dcasehost assumes that the hostname is in the first field in
+each line, where a field is delimited by whitespace.  If the
+.B \-c
+option is specified, then the hostname is assumed to be in the second
+field.  This is for compatibility with the
+.B \-c
+option to
+.IR pathalias (8).
+See the pathalias man page for more information.
+.PP
+The
+.IR dcasehost
+command is intended to be used only within the
+.I mkpath
+command.
+.SH "CONFIGURATION FILE FORMAT"
+The format of the path configuration file is a set of lines containing
+directives.  Blank lines are ignored and the character ``#'' begins a
+comment which continues until the end of the line.
+The various possible directives are described below.
+.PP
+In these directive descriptions, an argument of
+.I arg
+refers to one of the following types of arguments:
+.nr pD \w'`\fIshell-command\fP`'u+2n
+.TP \n(pDu
+\&'\fIliteral\fP'
+Literal data specified inline.  (single quotes)
+.TP \n(pDu
+`\fIshell-command\fP`
+Take data from the standard output of this shell command.  (back quotes)
+.TP \n(pDu
+\fIfilename ...\fP
+Take data from the named file or files.  Files may be specified using
+shell globbing notation, with
+.B "* ?"
+and
+.BR "[]" .
+.PP
+The `\fIshell-command\fP` form preserves newlines and whitespace and
+is thus not entirely equivalent to usage in
+.IR sh (1).
+The following lines result in the same input to pathalias:
+.pP
+.in +.5i
+.ta .6i 2i
+.nf
+map	`cat food`	# ackpft!
+map	food	# oop ack!
+.fi
+.DT
+.in -.5i
+.pP
+For the `\fIshell-command\fP` and '\fIliteral\fP' forms, the filename
+used for error messages is
+.IR [stdin] .
+.TP
+\fBmap\fP \fIarg\fP
+Specify map data to be given as input to pathalias.  Each file is
+preceded by a line containing:
+.pP
+.in +.5i
+file { \fIpathname\fP }
+.in -.5i
+.pP
+where
+.I pathname
+is the full pathname to the file.  This will cause error messages from
+pathalias to refer to the correct file.  Each file is followed by the
+line containing:
+.pP
+.in +.5i
+private {}
+.in -.5i
+.pP
+to force the end of scope for any
+.B private
+directives within the map files.
+.TP
+\fBsafemap\fP	\fIarg\fP
+This is similar to the
+.B map
+directive, and can be used when you do not have sufficient control
+over what the files contain.  If a map file contains the pathalias
+directives
+.B delete
+and
+.BR adjust ,
+those directives are removed and flagged as errors, before the file is
+passed to pathalias.  If a map file contains pathalias
+.B file
+directives, those directives are simply removed.  No error message is
+produced in this case.
+.TP
+\fBdelete\fP \fIarg\fP
+Specify hosts, links or networks which are to be deleted at this
+point.  That is, all previous references to any of these items will be
+forgotten.
+.TP
+\fBadjust\fP \fIarg\fP
+Specify hosts or networks that add on a surcharge
+to any route though them.
+By default, this surcharge is 4000.
+Costs can also be added to each site as with pathalias.
+For example, the following is a valid adjust file:
+.pP
+.in +.5i
+.ta \w'pathsort'u+2n +18n
+.nf
+walldrug glotz			# default surcharge of 4000 
+kgbvax(1000), kremvax(DEAD)	# surcharge of 1000 & DEAD
+nsavax(FAST)			# reduces cost, FAST < 0
+.fi
+.in -.5i
+.pP
+Be careful when using negative adjust surcharges.
+The pathalias program will complain if a cost of a link drops
+below zero.
+.TP
+\fBdead\fP \fIarg\fP
+Specify hosts, links or networks which are to be assigned a cost of
+DEAD.
+.TP
+\fBtext\fP \fIarg\fP
+Within an execution block, described in a later section, the given
+specified text is sent as the standard input to a pathalias command.
+Otherwise, it is written to the standard output for the
+.I mkpath
+command.
+.TP
+\fBfile\fP \fIfilename\fP
+Set the file to be used by pathalias for error
+messages, starting on the next line of pathalias input.
+The next line will be reported as if it came from
+the first line of the file \fIfilename\fP.
+The
+.B file
+command does
+.I not
+change where pathalias will read next,
+only what pathalias calls the line should an error occur.
+.TP
+\fBcd\fP [ \fIdir\fP ]
+By default,
+the current directory used by
+.I mkpath
+begins in the directory of the configuration file, or in the current
+directory if the configuration is read from the standard input.  The
+.B cd
+command without a
+.I dir
+argument changes to the directory from which
+.I mkpath
+was invoked.  A
+.I dir
+arg of
+.B \-
+changes the directory to the default directory based on the name of
+the configuration file.
+Otherwise,
+.I dir
+becomes the current directory for file and shell command references.
+.TP
+\fBsh\fP \fIcmd\fP
+The given shell command is executed.
+.TP
+\fBpathalias\fP \fIflags\fP
+Process the pathalias input directives that have been collected since
+the last
+.B pathalias
+or
+.B pathsort
+directive and execute the
+.IR pathalias (X_MAN8_EXT_X)
+command with this input.
+The specified
+.I flags
+are given as arguments to pathalias.  These flags can also contain i/o
+redirection, or pipes to other shell commands.  For example, the
+following is an acceptable use of the
+.B pathalias
+directive:
+.in +.5i
+.pP
+pathalias -l hostname | mkdbm -o paths
+.in -.5i
+.TP
+\fBpathsort\fP [ \fIflags\fP ]
+This is equivalent to the following directive:
+.pP
+.in +.5i
+pathalias \-i \-D | dcasehost | sort -T X_TMP_DIR_X \fIflags\fP ...
+.in -.5i
+.pP
+An example of a potentially useful
+.B pathsort
+directive is:
+.pP
+.in +.5i
+pathsort | sed 's/!foo!/!foobar!/'
+.in -.5i
+A
+.B pathsort
+directive is assumed to follow the end of a configuration file if an
+execution block is not terminated prior to the end of file.
+.SH "EXECUTION BLOCKS"
+Directives are executed in blocks.
+A
+.BR map ,
+.BR safemap ,
+.BR delete ,
+.BR adjust ,
+.BR dead
+or
+.BR file
+directive starts a block.
+Successive directives continue it.
+A
+.B pathalias
+or
+.B pathsort
+directive ends a block.  The end of a file can end a block, generating
+an implicit
+.B pathsort
+directive.
+.PP
+Encountering the end of a block normally results in the execution of a
+.IR pathalias (X_MAN8_EXT_X)
+command.  The exception is when a end of block command is read when
+no block was started.  In this case the block is ignored.
+.PP
+When the start of a block is seen, all directives up to the end of the
+block are collected and fed into the resulting
+.IR pathalias (X_MAN8_EXT_X)
+command.  Directives such as
+.BR cd ,
+.B sh
+or
+.B text
+within a block only effect that block.  Therefore, a
+.B cd
+directive within a block will only change the directory for the
+remainder of that block, whereas a
+.B cd
+directive outside of a block has a global effect.
+.PP
+Additionally a
+.B text
+or
+.B sh
+directive will feed its standard output into the block's
+pathalias command when it is inside a block, while a
+.B text
+or
+.B sh
+directive outside of a block will send its output direct to the standard
+output of the
+.I mkpath
+command.  This later effect allows for the injection of literal
+pathalias output into the output stream.
+.SH OPTIONS
+The following options are recognized by
+.IR mkpath :
+.TP
+.B \-v
+The internal
+.IR sh (1)
+commands are executed with a
+.B \-v
+option, thus echoing the commands that are piped to the shell prior to
+their being processed.
+.TP
+.B \-V
+Tell any pathalias commands to produce verbose messages.
+.TP
+.B \-x
+Pass the
+.B \-x
+flag to invocations of the shell, causing commands which are about to
+execute to be echoed.
+.TP
+.B \-e
+Pass the
+.B \-e
+flag to invocations of the shell, causing shells to exit whenever a
+command returns a non-zero exit status.  In addition, the
+.I mkpath
+program will exit when it encounters a syntax error or unknown
+directive.
+.TP
+.B \-n
+Disable the execution of any shell commands that
+.I mkpath
+generates.  This is useful with the
+.B \-v
+option and disables the
+.BR \-x ,
+.B \-e
+and
+.B \-V
+options.
+.TP
+.BI \-t " trace"
+Cause the input to pathalias to be copied into the file
+.IR trace .
+.PP
+.SH EXAMPLES
+Here is a simple example of a 
+.I mkpath
+configuration file:
+.pP
+.RS
+.nf
+.ta \w'pathsort'u+2n +18n
+# world.conf - configure our map setup to build world.map
+
+# get the usenet world maps
+cd      /usr/spool/uumaps
+safemap [ud].*
+
+# merge in the new maps
+cd      /usr/lib/smail/maps
+safemap newmap/*.map
+
+# delete our site and merge our private map data
+delete  `uuname -l`
+map     world.map private.map tweak.map
+.fi
+.RE
+.pP
+This configuration file can be used for a UUCP gateway host:
+.pP
+.RS
+.ne 4v
+.nf
+# Pathalias database for a UUCP gateway
+
+# map information is stored under this directory
+cd /usr/lib/smail
+
+# build paths to USENET hosts
+map	usenet/[du].*	# grab all published maps, start of block
+delete	`uuname \-l`	# delete published references to our site
+dead	dead	# links and sites with cost of DEAD
+map	ourmap	# add our up-to-date map file
+pathsort	> paths.global	# end of block
+
+# build paths for our local domain
+map	local.map	# major domain info, start of block
+cd	../uts	# cd only affects this block
+map	domain.map	# map for uts.amdahl.com domain
+adjust	'flaky'	# add 4000 to routes thru \fIflaky\fP
+adjust	'flako(HOURLY)'	# add HOURLY to routes thru \fIflako\fP
+pathsort	> paths.local	# end of block
+
+# build a sorted forces file, from the source forces file
+sh	mkline \-t forces | dcasehost | sort -u +0 -1 > forces.sort
+
+# output paths and clean up
+sh	pathmerge forces.sort paths.local paths.global
+sh	rm \-f forces.sort paths.local paths.global  # cleanup
+.fi
+.RE
+.SH "SEE ALSO"
+.IR pathalias (X_MAN8_EXT_X),
+.IR mkline (X_MAN8_EXT_X),
+.IR mkdbm (X_MAN8_EXT_X),
+.IR mkhpath (X_MAN8_EXT_X),
+.IR mkuuwho (X_MAN8_EXT_X),
+.IR sort (1),
+.IR sh (1),
+.IR smail (X_MAN5_EXT_X),
+.IR smail (X_MAN8_EXT_X)
+and
+.IR pathmerge (X_MAN8_EXT_X).
+.SH BUGS
+The first ``#'' character on a line begins a comment regardless of
+whether or not it is within quotes.
+.PP
+The
+.B \-e
+option does not stop all execution, only command execution within an
+instance of the shell created by
+.IR mkpath .
+.PP
+Continuation lines are not currently allowed in the configuration
+file.  Each command must be on a single line.
+.PP
+For errors reported by pathalias for input that came from the
+configuration file itself, the line number reported is likely to be
+incorrect, because the pathalias
+.I file
+cannot be used to set a line number within the file.
+.PP
+If both
+.B \-V
+and
+.B \-t
+are used, the
+.B \-V
+option must precede
+.B \-t .
+.SH COPYRIGHT
+Copyright(C)1987, 1988 Ronald S. Karr and Landon Curt Noll
+.br
+Copyright(C)1992 Ronald S. Karr
+.br
+See a file COPYING,
+distributed with the source code,
+or type
+.I "smail \-bc"
+for distribution rights and restrictions
+associated with this software.

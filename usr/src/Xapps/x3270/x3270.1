@@ -1,0 +1,228 @@
+'\\" t
+.TH X3270 1 "July 25 1990"
+.SH NAME
+x3270 \- IBM remote host access tool
+.SH SYNOPSIS
+.B x3270
+[
+.B -model
+[ 
+.B 2345
+] ]
+[
+.B -mono
+]
+[
+.B -keymap name
+]
+host
+.SH DESCRIPTION
+.B x3270
+opens a telnet connection to the given IBM host in an X window.
+The created window provides a fairly complete IBM 3278 terminal
+emulation.
+Since the window created by
+.B x3270
+uses its own
+font for displaying characters, is a fairly accurate representation of a 3278.
+It is similar to
+.B tn3270 (1)
+except that it is X based, not curses based.
+.PP
+.B X3270 
+is a toolkit based program, it also understands all of the standard options
+and resources.  The most important are "-rv" and "*reverseVideo" on mono
+systems.
+.PP
+Them type of 3278 to be emulated is given by the -model switch.
+The sizes of various emulated models are:
+.RS
+.TS
+l l .
+Model 2	80x24
+Model 3	80x30
+Model 4	80x43
+Model 5	132x27
+.TE
+.RE
+The default is Model 4 emulation.
+.SH KEYMAPS
+.PP
+The type of keyboard may be specified with the -keymap switch
+or using either the 
+KEYMAP or KEYBD environment variables.  The types of supported
+keyboards include hp-k1, ncd, sun-k4, and sun-k3.
+.PP
+The X Toolkit translation mechanism is used to provide keyboard emulation.
+It maps 
+.B events
+into 
+.B actions.
+The best documentation can be found with X11R4 X toolkit documents, but the
+following should suffice for simple customization.
+.PP
+An Xt event consists of (at least) four fields.  The first is called a
+.B modifier.
+It may be any combination of meta, shift and ctrl.  If it is prefaced by !,
+it means those modifiers only.  The second field is the specific event,
+in 
+.B x3270
+usually just <Key>.  The third field is the detail field, which gives the
+actual key.  The name of the key may be determined using the R4 xev
+program.  The last field is the action, which is the internal emulator
+function.  A complete list of actions may be found later in the manual.
+.PP
+There are three levels of translation tables in
+.B x3270.
+The first is a default, compiled in table. It defines alphabetic, numeric,
+function keys, and such basic functions as Enter and Delete.  It allows a
+minimal useful functionality.
+.PP
+The second level is a keyboard specific table, which is found in the
+application default file, which defines actions for such things as keypad
+keys, and keys unique to certain keyboards.
+.PP
+The third level is a user customizable table which may be used to augment or
+override key definitions.  This will typically be found in the users 
+.B .Xdefaults
+file. The naming for a sun4 keyboard would be:
+.RS
+x3270.keymap.default:
+.br
+x3270.keymap.sun4:
+.br
+x3270.keymap.sun4.user:
+.RE
+.PP
+The default translation table is:
+.RS
+.TS
+l l .
+<Expose>:	Redraw()\\n\\
+<Key>Return:	Enter()\\n\\
+<Key>Linefeed:	Newline()\\n\\
+!Shift<Key>Tab:	BackTab()\\n\\
+<Key>Tab:	Tab()\\n\\
+<Key>Home:	Home()\\n\\
+<Key>Left:	Left()\\n\\
+!Meta<Key>Left:	Left2()\\n\\
+<Key>Right:	Right()\\n\\
+!Meta<Key>Right:	Right2()\\n\\
+<Key>Up:	Up()\\n\\
+<Key>Down:	Down()\\n\\
+<Key>Delete:	Delete()\\n\\
+<Key>BackSpace:	Left()\\n\\
+<Btn1Down>:	MoveCursor()\\n\\
+!Meta<Key>F1:	PF13()\\n\\
+!Meta<Key>F2:	PF14()\\n\\
+!Meta<Key>F3:	PF15()\\n\\
+!Meta<Key>F4:	PF16()\\n\\
+!Meta<Key>F5:	PF17()\\n\\
+!Meta<Key>F6:	PF18()\\n\\
+!Meta<Key>F7:	PF19()\\n\\
+!Meta<Key>F8:	PF20()\\n\\
+!Meta<Key>F9:	PF21()\\n\\
+!Meta<Key>F10:	PF22()\\n\\
+!Meta<Key>F11:	PF23()\\n\\
+!Meta<Key>F12:	PF24()\\n\\
+<Key>F1:	PF1()\\n\\
+<Key>F2:	PF2()\\n\\
+<Key>F3:	PF3()\\n\\
+<Key>F4:	PF4()\\n\\
+<Key>F5:	PF5()\\n\\
+<Key>F6:	PF6()\\n\\
+<Key>F7:	PF7()\\n\\
+<Key>F8:	PF8()\\n\\
+<Key>F9:	PF9()\\n\\
+<Key>F10:	PF10()\\n\\
+<Key>F11:	PF11()\\n\\
+<Key>F12:	PF12()\\n\\
+Meta<Key>c:	Clear()\\n\\
+Meta<Key>r:	Reset()\\n\\
+Meta<Key>1:	PA1()\\n\\
+Meta<Key>2:	PA2()\\n\\
+Meta<Key>i:	Insert()\\n\\
+Meta<Key>d:	Delete()\\n\\
+Meta<Key>h:	Home()\\n\\
+Ctrl<Key>h:	Left()\\n\\
+:<Key>:	Default()
+.TE
+.RE
+.PP
+Note that the left button may be used to move the cursor.  Meta is the
+diamond shaped key on a sun4, Alt on an NCD, Extend Char on an HP.
+The following xmodmap 
+command must be used on the NCD to allow use the the Alt key:
+.PP
+.RS
+xmodmap -e "keysym Alt_L = Meta_L"
+.RE
+.PP
+This is the complete list of actions:
+.RS
+.TS
+l l l l
+.
+Redraw	Insert	Enter	AltCursor
+MonoCase	Tab	BackTab	Reset
+Left	Left2	Right	Right2
+Up	Down	Newline	Dup	FieldMark
+PA1	PA2	Req	Clear
+CursorSelect	EraseEOF	EraseInput
+Home Delete	Default	MoveCursor	String
+PF1-PF24
+.TE
+.RE
+.SH MACROS
+A simple macro facility is provided via the String action.  The arguments to
+String() are one or more double-quoted strings which are inserted directly
+as if typed.  Hex constants may be entered in the form 0xff, and the C
+backslash conventions are honored as follows:
+.RS
+.TS
+l l.
+\eb	Left
+\ef	Clear
+\en	Enter
+\er	Newline
+\et	Tab
+.TE
+.RE
+.PP
+An example action would be:
+.RS
+Meta<Key>p: String("probs clearrdr\en")
+.RE
+.PP
+.B Note:
+The strings are in ASCII and converted to EBCDIC, so beware of inserting
+control codes.
+.SH COLOR
+.B X3270 
+does not understand IBM 3270 color protocols.  It merely draws text in one
+of three colors depending on the field attributes.  Those colors may be
+customized using the following resources:
+.nf
+	x3270.normalColor:	green
+	x3270.boldColor:	cyan
+	x3270.inputColor:	orange
+	x3270.colorBackground:	black
+.fi
+.PP
+It is possible to get monochrome colors and behaviour using the -mono
+switch.
+.SH FILES
+/usr/lib/X11/app-defaults/X3270
+.SH "SEE ALSO"
+telnet(1), tn3270(1)
+.br
+X Toolkit Intrinsics (R4 version)
+.SH AUTHORS
+Robert Viduya - SunView based 3270tool
+.br
+Jeff Sparkes - X11 port
+.SH BUGS
+Since the custom font is not substitutable, the program cannot be coerced into
+using a different sized font.
+This means that the window is essentially fixed in size.
+If somebody wishes to contribute different sized fonts, I'll welcome them.

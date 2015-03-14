@@ -1,0 +1,1349 @@
+(* $Id: Scanner.mi,v 2.10 1992/08/18 09:05:32 grosch rel grosch $ *)
+
+IMPLEMENTATION MODULE Scanner;
+ 
+IMPORT SYSTEM, Checks, System, General, Positions, IO, DynArray, Strings, Source;
+(* line 41 "modula.rex" *)
+
+FROM Strings	IMPORT
+  tString	, AssignEmpty	, Concatenate	, Append	,
+  SubString	, Length	, StringToNumber, ArrayToString	;
+
+FROM StringMem	IMPORT
+  tStringRef	, PutString	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	, MakeIdent	;
+
+FROM Errors	IMPORT
+  ErrorMessageP	, Error		, Warning	,
+  IllegalChar	, UnclosedComment,UnclosedString, Underscores	;
+
+FROM Tokens	IMPORT
+  TokIdent	, TokDecConst	, TokOctalConst	, TokHexConst	,
+  TokCharConst	, TokRealConst	,
+  TokStringConst, TokNotEqual	, TokLParent	, TokRParent	,
+  TokTimes	, TokPlus	, TokComma	, TokMinus	,
+  TokDot	, TokRange	, TokDivide	, TokColon	,
+  TokAssign	, TokSemiColon	, TokLess	, TokLessEqual	,
+  TokEqual	, TokGreater	, TokGreaterEqual, TokLBracket	,
+  TokRBracket	, TokArrow	, TokLBrace	, TokBar	,
+  TokRBrace	, TokAnd	, TokArray	, TokBegin	,
+  TokBy		, TokCase	, TokConst	, TokDefinition	,
+  TokDiv	, TokDo		, TokElse	, TokElsif	,
+  TokEnd	, TokExit	, TokExport	, TokFor	,
+  TokFrom	, TokIf		, TokImplementation, TokImport	,
+  TokIn		, TokLoop	, TokMod	, TokModule	,
+  TokNot	, TokOf		, TokOr		, TokPointer	,
+  TokProcedure	, TokQualified	, TokRecord	, TokRepeat	,
+  TokReturn	, TokSet	, TokThen	, TokTo		,
+  TokType	, TokUntil	, TokVar	, TokWhile	,
+  TokWith	, TokForeign	;
+
+VAR
+  NestingLevel	: CARDINAL	;
+  DefaultString	,			(* empty string		*)
+  DefaultReal	: tStringRef	;	(* 1.0			*)
+  String	: tString	;
+  UnderscoreUsed: BOOLEAN	;
+
+PROCEDURE ErrorAttribute (Token: CARDINAL; VAR Attribute: tScanAttribute);
+BEGIN
+  CASE Token OF
+  | TokIdent		: Attribute.Ident	:= NoIdent;
+  | TokDecConst		,
+    TokOctalConst	,
+    TokHexConst		: Attribute.IntValue	:= 1;
+  | TokCharConst	: Attribute.CharValue	:= CHR (0);
+  | TokRealConst	: Attribute.RealValue	:= DefaultReal;
+  | TokStringConst	: Attribute.StringValue	:= DefaultString;
+  ELSE ;
+  END;
+END ErrorAttribute;
+
+ 
+CONST
+   yyTabSpace		= 8;
+   yyDNoState		= 0;
+   yyFileStackSize	= 16;
+   yyInitBufferSize	= 1024 * 8 + 256;
+yyFirstCh	= 0C;
+yyLastCh	= 177C;
+yyEolCh	= 12C;
+yyEobCh	= 177C;
+yyDStateCount	= 235;
+yyTableSize	= 897;
+yyEobState	= 31;
+yyDefaultState	= 32;
+STD	= 1;
+Comment	= 3;
+Str1	= 5;
+Str2	= 7;
+ 
+TYPE
+   yyTableElmt		= SHORTCARD;
+   yyStateRange		= yyTableElmt [0 .. yyDStateCount];
+   yyTableRange		= yyTableElmt [0 .. yyTableSize];
+   yyCombType		= RECORD Check, Next: yyStateRange; END;
+   yyCombTypePtr	= POINTER TO yyCombType;
+   yytChBufferPtr	= POINTER TO ARRAY [0 .. 1000000] OF CHAR;
+   yyChRange		= [yyFirstCh .. yyLastCh];
+
+VAR
+   yyBasePtr		: ARRAY yyStateRange	OF LONGCARD	;
+   yyDefault		: ARRAY yyStateRange	OF yyStateRange	;
+   yyComb		: ARRAY yyTableRange	OF yyCombType	;
+   yyEobTrans		: ARRAY yyStateRange	OF yyStateRange	;
+   yyToLower, yyToUpper	: ARRAY yyChRange	OF CHAR		;
+
+   yyStateStack		: POINTER TO ARRAY [0 .. 1000000] OF yyStateRange;
+   yyStateStackSize	: LONGINT;
+   yyStartState		: yyStateRange;
+   yyPreviousStart	: yyStateRange;
+   yyCh			: CHAR;
+ 
+   yySourceFile		: System.tFile;
+   yyEof		: BOOLEAN;
+   yyChBufferPtr	: yytChBufferPtr;
+   yyChBufferStart	: INTEGER;
+   yyChBufferSize	: LONGINT;
+   yyChBufferIndex	: INTEGER;
+   yyBytesRead		: INTEGER;
+   yyLineCount		: CARDINAL;
+   yyLineStart		: INTEGER;
+
+   yyFileStackPtr	: SHORTCARD;
+   yyFileStack		: ARRAY [1 .. yyFileStackSize] OF RECORD
+   			     SourceFile		: System.tFile;
+			     Eof		: BOOLEAN;
+   			     ChBufferPtr	: yytChBufferPtr;
+			     ChBufferStart	: INTEGER;
+			     ChBufferSize	: LONGINT;
+   			     ChBufferIndex	: INTEGER;
+   			     BytesRead		: INTEGER;
+   			     LineCount		: CARDINAL;
+   			     LineStart		: INTEGER;
+			  END;
+
+PROCEDURE GetToken (): INTEGER;
+   VAR
+      yyState		: yyStateRange;
+      yyTablePtr	: yyCombTypePtr;
+      yyRestartFlag	: BOOLEAN;
+      yyi, yySource, yyTarget, yyChBufferFree	: INTEGER;
+(* line 99 "modula.rex" *)
+ VAR String, S, Word: tString; 
+BEGIN
+   LOOP
+      yyState		:= yyStartState;
+      TokenLength 	:= 0;
+ 
+      (* ASSERT yyChBuffer [yyChBufferIndex] = first character *)
+ 
+      LOOP		(* eventually restart after sentinel *)
+	 LOOP		(* execute as many state transitions as possible *)
+	    					(* determine next state *)
+	    yyTablePtr := yyCombTypePtr (yyBasePtr [yyState] +
+	       ORD (yyChBufferPtr^ [yyChBufferIndex]) * SYSTEM.TSIZE (yyCombType));
+	    IF yyTablePtr^.Check # yyState THEN
+	       yyState := yyDefault [yyState];
+	       IF yyState = yyDNoState THEN EXIT; END;
+	    ELSE
+	       yyState := yyTablePtr^.Next;
+	       INC (TokenLength);
+	       yyStateStack^ [TokenLength] := yyState;	(* push state *)
+	       INC (yyChBufferIndex);		(* get next character *)
+	    END;
+	 END;
+ 
+	 LOOP					(* search for last final state *)
+CASE yyStateStack^ [TokenLength] OF
+|235
+:
+(* line 144 "modula.rex" *)
+NestingLevel := 1; yyStart (Comment);
+yyRestartFlag := FALSE; EXIT;
+|234
+:
+(* line 146 "modula.rex" *)
+INC (NestingLevel);
+yyRestartFlag := FALSE; EXIT;
+|232
+:
+(* line 147 "modula.rex" *)
+DEC (NestingLevel);
+			    IF NestingLevel = 0 THEN yyStart (STD); END;
+yyRestartFlag := FALSE; EXIT;
+|11
+,23
+,36
+,231
+,233
+:
+(* line 149 "modula.rex" *)
+
+yyRestartFlag := FALSE; EXIT;
+|14
+:
+(* line 151 "modula.rex" *)
+
+yyRestartFlag := FALSE; EXIT;
+|12
+,24
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 155 "modula.rex" *)
+GetWord (Word);
+			   Attribute.IntValue	:= StringToNumber (Word, 10);
+			   RETURN TokDecConst;
+yyRestartFlag := FALSE; EXIT;
+|22
+:
+DEC (yyChBufferIndex, 2);
+DEC (TokenLength, 2);
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 155 "modula.rex" *)
+GetWord (Word);
+			   Attribute.IntValue	:= StringToNumber (Word, 10);
+			   RETURN TokDecConst;
+yyRestartFlag := FALSE; EXIT;
+|21
+:
+DEC (yyChBufferIndex, 2);
+DEC (TokenLength, 2);
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 155 "modula.rex" *)
+GetWord (Word);
+			   Attribute.IntValue	:= StringToNumber (Word, 10);
+			   RETURN TokDecConst;
+yyRestartFlag := FALSE; EXIT;
+|18
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 158 "modula.rex" *)
+GetWord (Word);
+			   SubString (Word, 1, Length (Word) - 1, String);
+			   Attribute.IntValue	:= StringToNumber (String, 8);
+			   RETURN TokOctalConst;
+yyRestartFlag := FALSE; EXIT;
+|19
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 162 "modula.rex" *)
+GetWord (Word);
+			   SubString (Word, 1, Length (Word) - 1, String);
+			   Attribute.CharValue	:= CHR (StringToNumber (String, 8));
+			   RETURN TokCharConst;
+yyRestartFlag := FALSE; EXIT;
+|20
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 166 "modula.rex" *)
+
+			   GetWord (Word);
+			   SubString (Word, 1, Length (Word) - 1, String);
+			   Attribute.IntValue	:= StringToNumber (String, 16);
+			   RETURN TokHexConst;
+yyRestartFlag := FALSE; EXIT;
+|16
+,25
+,26
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 171 "modula.rex" *)
+
+			   GetWord (Word);
+			   Attribute.RealValue	:= PutString (Word);
+			   RETURN TokRealConst;
+yyRestartFlag := FALSE; EXIT;
+|230
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 176 "modula.rex" *)
+AssignEmpty (String); yyStart (Str1);
+yyRestartFlag := FALSE; EXIT;
+|10
+,37
+:
+(* line 177 "modula.rex" *)
+GetWord (S); Concatenate (String, S);
+yyRestartFlag := FALSE; EXIT;
+|229
+:
+(* line 178 "modula.rex" *)
+yyStart (STD);
+			    Attribute.StringValue:= PutString (String);
+			    RETURN TokStringConst;
+yyRestartFlag := FALSE; EXIT;
+|228
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 182 "modula.rex" *)
+AssignEmpty (String); yyStart (Str2);
+yyRestartFlag := FALSE; EXIT;
+|9
+,38
+:
+(* line 183 "modula.rex" *)
+GetWord (S); Concatenate (String, S);
+yyRestartFlag := FALSE; EXIT;
+|227
+:
+(* line 184 "modula.rex" *)
+yyStart (STD);
+			    Attribute.StringValue:= PutString (String);
+			    RETURN TokStringConst;
+yyRestartFlag := FALSE; EXIT;
+|226
+:
+(* line 188 "modula.rex" *)
+Append (String, 11C); yyTab;
+yyRestartFlag := FALSE; EXIT;
+|225
+:
+(* line 189 "modula.rex" *)
+yyEol (0); yyStart (STD);
+			    ErrorMessageP (UnclosedString, Error, Attribute.Position);
+			    Attribute.StringValue:= PutString (String);
+			    RETURN TokStringConst;
+yyRestartFlag := FALSE; EXIT;
+|224
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 194 "modula.rex" *)
+RETURN TokNotEqual;
+yyRestartFlag := FALSE; EXIT;
+|223
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 195 "modula.rex" *)
+RETURN TokAnd;
+yyRestartFlag := FALSE; EXIT;
+|222
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 196 "modula.rex" *)
+RETURN TokLParent;
+yyRestartFlag := FALSE; EXIT;
+|221
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 197 "modula.rex" *)
+RETURN TokRParent;
+yyRestartFlag := FALSE; EXIT;
+|220
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 198 "modula.rex" *)
+RETURN TokTimes;
+yyRestartFlag := FALSE; EXIT;
+|219
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 199 "modula.rex" *)
+RETURN TokPlus;
+yyRestartFlag := FALSE; EXIT;
+|218
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 200 "modula.rex" *)
+RETURN TokComma;
+yyRestartFlag := FALSE; EXIT;
+|217
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 201 "modula.rex" *)
+RETURN TokMinus;
+yyRestartFlag := FALSE; EXIT;
+|215
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 202 "modula.rex" *)
+RETURN TokDot;
+yyRestartFlag := FALSE; EXIT;
+|216
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 203 "modula.rex" *)
+RETURN TokRange;
+yyRestartFlag := FALSE; EXIT;
+|214
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 204 "modula.rex" *)
+RETURN TokDivide;
+yyRestartFlag := FALSE; EXIT;
+|212
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 205 "modula.rex" *)
+RETURN TokColon;
+yyRestartFlag := FALSE; EXIT;
+|213
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 206 "modula.rex" *)
+RETURN TokAssign;
+yyRestartFlag := FALSE; EXIT;
+|211
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 207 "modula.rex" *)
+RETURN TokSemiColon;
+yyRestartFlag := FALSE; EXIT;
+|208
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 208 "modula.rex" *)
+RETURN TokLess;
+yyRestartFlag := FALSE; EXIT;
+|210
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 209 "modula.rex" *)
+RETURN TokLessEqual;
+yyRestartFlag := FALSE; EXIT;
+|209
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 210 "modula.rex" *)
+RETURN TokNotEqual;
+yyRestartFlag := FALSE; EXIT;
+|207
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 211 "modula.rex" *)
+RETURN TokEqual;
+yyRestartFlag := FALSE; EXIT;
+|205
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 212 "modula.rex" *)
+RETURN TokGreater;
+yyRestartFlag := FALSE; EXIT;
+|206
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 213 "modula.rex" *)
+RETURN TokGreaterEqual;
+yyRestartFlag := FALSE; EXIT;
+|204
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 214 "modula.rex" *)
+RETURN TokLBracket;
+yyRestartFlag := FALSE; EXIT;
+|203
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 215 "modula.rex" *)
+RETURN TokRBracket;
+yyRestartFlag := FALSE; EXIT;
+|202
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 216 "modula.rex" *)
+RETURN TokArrow;
+yyRestartFlag := FALSE; EXIT;
+|201
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 217 "modula.rex" *)
+RETURN TokLBrace;
+yyRestartFlag := FALSE; EXIT;
+|200
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 218 "modula.rex" *)
+RETURN TokBar;
+yyRestartFlag := FALSE; EXIT;
+|199
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 219 "modula.rex" *)
+RETURN TokRBrace;
+yyRestartFlag := FALSE; EXIT;
+|198
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 220 "modula.rex" *)
+RETURN TokNot;
+yyRestartFlag := FALSE; EXIT;
+|197
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 222 "modula.rex" *)
+RETURN TokAnd;
+yyRestartFlag := FALSE; EXIT;
+|195
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 223 "modula.rex" *)
+RETURN TokArray;
+yyRestartFlag := FALSE; EXIT;
+|190
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 224 "modula.rex" *)
+RETURN TokBegin;
+yyRestartFlag := FALSE; EXIT;
+|186
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 225 "modula.rex" *)
+RETURN TokBy;
+yyRestartFlag := FALSE; EXIT;
+|184
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 226 "modula.rex" *)
+RETURN TokCase;
+yyRestartFlag := FALSE; EXIT;
+|181
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 227 "modula.rex" *)
+RETURN TokConst;
+yyRestartFlag := FALSE; EXIT;
+|176
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 228 "modula.rex" *)
+RETURN TokDefinition;
+yyRestartFlag := FALSE; EXIT;
+|167
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 229 "modula.rex" *)
+RETURN TokDiv;
+yyRestartFlag := FALSE; EXIT;
+|165
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 230 "modula.rex" *)
+RETURN TokDo;
+yyRestartFlag := FALSE; EXIT;
+|163
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 231 "modula.rex" *)
+RETURN TokElse;
+yyRestartFlag := FALSE; EXIT;
+|162
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 232 "modula.rex" *)
+RETURN TokElsif;
+yyRestartFlag := FALSE; EXIT;
+|158
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 233 "modula.rex" *)
+RETURN TokEnd;
+yyRestartFlag := FALSE; EXIT;
+|156
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 234 "modula.rex" *)
+RETURN TokExit;
+yyRestartFlag := FALSE; EXIT;
+|154
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 235 "modula.rex" *)
+RETURN TokExport;
+yyRestartFlag := FALSE; EXIT;
+|41
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 236 "modula.rex" *)
+RETURN TokFor;
+yyRestartFlag := FALSE; EXIT;
+|148
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 237 "modula.rex" *)
+RETURN TokFrom;
+yyRestartFlag := FALSE; EXIT;
+|145
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 238 "modula.rex" *)
+RETURN TokIf;
+yyRestartFlag := FALSE; EXIT;
+|144
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 239 "modula.rex" *)
+RETURN TokImplementation;
+yyRestartFlag := FALSE; EXIT;
+|133
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 240 "modula.rex" *)
+RETURN TokImport;
+yyRestartFlag := FALSE; EXIT;
+|128
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 241 "modula.rex" *)
+RETURN TokIn;
+yyRestartFlag := FALSE; EXIT;
+|126
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 242 "modula.rex" *)
+RETURN TokLoop;
+yyRestartFlag := FALSE; EXIT;
+|119
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 243 "modula.rex" *)
+RETURN TokMod;
+yyRestartFlag := FALSE; EXIT;
+|122
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 244 "modula.rex" *)
+RETURN TokModule;
+yyRestartFlag := FALSE; EXIT;
+|116
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 245 "modula.rex" *)
+RETURN TokNot;
+yyRestartFlag := FALSE; EXIT;
+|113
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 246 "modula.rex" *)
+RETURN TokOf;
+yyRestartFlag := FALSE; EXIT;
+|112
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 247 "modula.rex" *)
+RETURN TokOr;
+yyRestartFlag := FALSE; EXIT;
+|110
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 248 "modula.rex" *)
+RETURN TokPointer;
+yyRestartFlag := FALSE; EXIT;
+|104
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 249 "modula.rex" *)
+RETURN TokProcedure;
+yyRestartFlag := FALSE; EXIT;
+|95
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 250 "modula.rex" *)
+RETURN TokQualified;
+yyRestartFlag := FALSE; EXIT;
+|86
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 251 "modula.rex" *)
+RETURN TokRecord;
+yyRestartFlag := FALSE; EXIT;
+|82
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 252 "modula.rex" *)
+RETURN TokRepeat;
+yyRestartFlag := FALSE; EXIT;
+|78
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 253 "modula.rex" *)
+RETURN TokReturn;
+yyRestartFlag := FALSE; EXIT;
+|72
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 254 "modula.rex" *)
+RETURN TokSet;
+yyRestartFlag := FALSE; EXIT;
+|69
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 255 "modula.rex" *)
+RETURN TokThen;
+yyRestartFlag := FALSE; EXIT;
+|66
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 256 "modula.rex" *)
+RETURN TokTo;
+yyRestartFlag := FALSE; EXIT;
+|65
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 257 "modula.rex" *)
+RETURN TokType;
+yyRestartFlag := FALSE; EXIT;
+|61
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 258 "modula.rex" *)
+RETURN TokUntil;
+yyRestartFlag := FALSE; EXIT;
+|56
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 259 "modula.rex" *)
+RETURN TokVar;
+yyRestartFlag := FALSE; EXIT;
+|53
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 260 "modula.rex" *)
+RETURN TokWhile;
+yyRestartFlag := FALSE; EXIT;
+|49
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 261 "modula.rex" *)
+RETURN TokWith;
+yyRestartFlag := FALSE; EXIT;
+|45
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 262 "modula.rex" *)
+RETURN TokForeign;
+yyRestartFlag := FALSE; EXIT;
+|13
+,39
+,40
+,42
+,43
+,44
+,46
+,47
+,48
+,50
+,51
+,52
+,54
+,55
+,57
+,58
+,59
+,60
+,62
+,63
+,64
+,67
+,68
+,70
+,71
+,73
+,74
+,75
+,76
+,77
+,79
+,80
+,81
+,83
+,84
+,85
+,87
+,88
+,89
+,90
+,91
+,92
+,93
+,94
+,96
+,97
+,98
+,99
+,100
+,101
+,102
+,103
+,105
+,106
+,107
+,108
+,109
+,111
+,114
+,115
+,117
+,118
+,120
+,121
+,123
+,124
+,125
+,127
+,129
+,130
+,131
+,132
+,134
+,135
+,136
+,137
+,138
+,139
+,140
+,141
+,142
+,143
+,146
+,147
+,149
+,150
+,151
+,152
+,153
+,155
+,157
+,159
+,160
+,161
+,164
+,166
+,168
+,169
+,170
+,171
+,172
+,173
+,174
+,175
+,177
+,178
+,179
+,180
+,182
+,183
+,185
+,187
+,188
+,189
+,191
+,192
+,193
+,194
+,196
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 264 "modula.rex" *)
+
+			   GetWord (Word);
+			   Attribute.Ident	:= MakeIdent (Word);
+			   RETURN TokIdent;
+yyRestartFlag := FALSE; EXIT;
+|15
+:
+Attribute.Position.Line   := yyLineCount;
+Attribute.Position.Column := yyChBufferIndex - yyLineStart - TokenLength;
+(* line 269 "modula.rex" *)
+
+			   (* MOCKA allows '_' in Modula-2 identifiers !!! *)
+			   UnderscoreUsed	:= TRUE;
+			   GetWord (Word);
+			   Attribute.Ident	:= MakeIdent (Word);
+			   RETURN TokIdent;
+yyRestartFlag := FALSE; EXIT;
+|35
+:
+(* BlankAction *)
+WHILE yyChBufferPtr^ [yyChBufferIndex] = ' ' DO INC (yyChBufferIndex); END;
+yyRestartFlag := FALSE; EXIT;
+|34
+:
+(* TabAction *)
+DEC (yyLineStart, 7 - (yyChBufferIndex - yyLineStart - 2) MOD 8);
+yyRestartFlag := FALSE; EXIT;
+|33
+:
+(* EolAction *)
+INC (yyLineCount);
+yyLineStart := yyChBufferIndex - 1;
+yyRestartFlag := FALSE; EXIT;
+|1
+,2
+,3
+,4
+,5
+,6
+,7
+,8
+,17
+,27
+,28
+,29
+,30
+:
+	    (* non final states *)
+		  DEC (yyChBufferIndex);	(* return character *)
+		  DEC (TokenLength)		(* pop state *)
+ 
+| 32:
+		  Attribute.Position.Line   := yyLineCount;
+		  Attribute.Position.Column := yyChBufferIndex - yyLineStart;
+		  INC (yyChBufferIndex);
+		  TokenLength := 1;
+(* line 112 "modula.rex" *)
+ ErrorMessageP (IllegalChar, Error, Attribute.Position); 
+	          yyRestartFlag := FALSE; EXIT;
+
+	    |  yyDNoState	:		(* automatic initialization *)
+		  yyGetTables;
+		  yyStateStack^ [0] := yyDefaultState; (* stack underflow sentinel *)
+		  IF yyFileStackPtr = 0 THEN
+		     yyInitialize;
+		     yySourceFile := System.StdInput;
+		  END;
+	          yyRestartFlag := FALSE; EXIT;
+
+| 31:
+		  DEC (yyChBufferIndex);	(* undo last state transition *)
+		  DEC (TokenLength);		(* get previous state *)
+		  IF TokenLength = 0 THEN
+		     yyState := yyStartState;
+		  ELSE
+		     yyState := yyStateStack^ [TokenLength];
+		  END;
+
+		  IF yyChBufferIndex # yyChBufferStart + yyBytesRead THEN
+		     yyState := yyEobTrans [yyState];	(* end of buffer sentinel in buffer *)
+		     IF yyState # yyDNoState THEN
+			INC (yyChBufferIndex);
+			INC (TokenLength);
+			yyStateStack^ [TokenLength] := yyState;
+			yyRestartFlag := TRUE; EXIT;
+		     END;
+		  ELSE				(* end of buffer reached *)
+
+		     (* copy initial part of token in front of input buffer *)
+
+		     yySource := yyChBufferIndex - TokenLength - 1;
+		     yyTarget := General.MaxAlign - TokenLength MOD General.MaxAlign - 1;
+		     IF yySource # yyTarget THEN
+			FOR yyi := 1 TO TokenLength DO
+			   yyChBufferPtr^ [yyTarget + yyi] := yyChBufferPtr^ [yySource + yyi];
+			END;
+			DEC (yyLineStart, yySource - yyTarget);
+			yyChBufferStart := yyTarget + TokenLength + 1;
+		     ELSE
+			yyChBufferStart := yyChBufferIndex;
+		     END;
+
+		     IF NOT yyEof THEN		(* read buffer and restart *)
+			yyChBufferFree := General.Exp2 (General.Log2 (yyChBufferSize - 4 - General.MaxAlign - TokenLength));
+			IF yyChBufferFree < yyChBufferSize DIV 8 THEN
+			   DynArray.ExtendArray (yyChBufferPtr, yyChBufferSize, SYSTEM.TSIZE (CHAR));
+			   IF yyChBufferPtr = NIL THEN yyErrorMessage (1); END;
+			   yyChBufferFree := General.Exp2 (General.Log2 (yyChBufferSize - 4 - General.MaxAlign - TokenLength));
+			   IF yyStateStackSize < yyChBufferSize THEN
+			      DynArray.ExtendArray (yyStateStack, yyStateStackSize, SYSTEM.TSIZE (yyStateRange));
+			      IF yyStateStack = NIL THEN yyErrorMessage (1); END;
+			   END;
+			END;
+			yyChBufferIndex := yyChBufferStart;
+			yyBytesRead := Source.GetLine (yySourceFile, SYSTEM.ADR
+			   (yyChBufferPtr^ [yyChBufferIndex]), yyChBufferFree);
+			IF yyBytesRead <= 0 THEN yyBytesRead := 0; yyEof := TRUE; END;
+			yyChBufferPtr^ [yyChBufferStart + yyBytesRead    ] := yyEobCh;
+			yyChBufferPtr^ [yyChBufferStart + yyBytesRead + 1] := 0C;
+			yyRestartFlag := TRUE; EXIT;
+		     END;
+
+		     IF TokenLength = 0 THEN	(* end of file reached *)
+			Attribute.Position.Line   := yyLineCount;
+			Attribute.Position.Column := yyChBufferIndex - yyLineStart;
+			CloseFile;
+			IF yyFileStackPtr = 0 THEN
+(* line 114 "modula.rex" *)
+
+  (* UnderscoreUsed, NestingLevel, and start state have to be reset,	*)
+  (* because scanner is called for more than one file !!!		*)
+  IF yyStartState = Comment THEN
+    ErrorMessageP (UnclosedComment, Error, Attribute.Position);
+    NestingLevel := 0;
+  END;
+  IF yyStartState # STD THEN
+    yyStart (STD);
+  END;
+  IF UnderscoreUsed THEN
+    ErrorMessageP (Underscores, Warning, Attribute.Position);
+    UnderscoreUsed := FALSE;
+  END;
+
+			END;
+			IF yyFileStackPtr = 0 THEN RETURN EofToken; END;
+			yyRestartFlag := FALSE; EXIT;
+		     END;
+		  END;
+	    ELSE
+	       yyErrorMessage (0);
+	    END;
+	 END;
+	 IF yyRestartFlag THEN ELSE EXIT; END;
+      END;
+   END;
+   END GetToken;
+ 
+PROCEDURE BeginFile (FileName: ARRAY OF CHAR);
+   BEGIN
+      IF yyStateStack^ [0] = yyDNoState THEN	(* have tables been read in ? *)
+	 yyGetTables;
+	 yyStateStack^ [0] := yyDefaultState;	(* stack underflow sentinel *)
+      END;
+      yyInitialize;
+      yySourceFile := Source.BeginSource (FileName);
+      IF yySourceFile < 0 THEN yyErrorMessage (5); END;
+   END BeginFile;
+
+PROCEDURE yyInitialize;
+   BEGIN
+      IF yyFileStackPtr >= yyFileStackSize THEN yyErrorMessage (3); END;
+      INC (yyFileStackPtr);			(* push file *)
+      WITH yyFileStack [yyFileStackPtr] DO
+	 SourceFile	:= yySourceFile		;
+	 Eof		:= yyEof		;
+	 ChBufferPtr	:= yyChBufferPtr	;
+	 ChBufferStart	:= yyChBufferStart	;
+	 ChBufferSize	:= yyChBufferSize	;
+	 ChBufferIndex	:= yyChBufferIndex	;
+	 BytesRead	:= yyBytesRead		;
+	 LineCount	:= yyLineCount		;
+	 LineStart	:= yyLineStart		;
+      END;
+						(* initialize file state *)
+      yyChBufferSize	:= yyInitBufferSize;
+      DynArray.MakeArray (yyChBufferPtr, yyChBufferSize, SYSTEM.TSIZE (CHAR));
+      IF yyChBufferPtr = NIL THEN yyErrorMessage (1); END;
+      yyChBufferStart	:= General.MaxAlign;
+      yyChBufferPtr^ [yyChBufferStart - 1] := yyEolCh; (* begin of line indicator *)
+      yyChBufferPtr^ [yyChBufferStart    ] := yyEobCh; (* end of buffer sentinel *)
+      yyChBufferPtr^ [yyChBufferStart + 1] := 0C;
+      yyChBufferIndex	:= yyChBufferStart;
+      yyEof		:= FALSE;
+      yyBytesRead	:= 0;
+      yyLineCount	:= 1;
+      yyLineStart	:= yyChBufferStart - 1;
+   END yyInitialize;
+
+PROCEDURE CloseFile;
+   BEGIN
+      IF yyFileStackPtr = 0 THEN yyErrorMessage (4); END;
+      Source.CloseSource (yySourceFile);
+      DynArray.ReleaseArray (yyChBufferPtr, yyChBufferSize, SYSTEM.TSIZE (CHAR));
+      WITH yyFileStack [yyFileStackPtr] DO	(* pop file *)
+	 yySourceFile	:= SourceFile		;
+	 yyEof		:= Eof			;
+	 yyChBufferPtr	:= ChBufferPtr		;
+	 yyChBufferStart:= ChBufferStart	;
+	 yyChBufferSize	:= ChBufferSize		;
+	 yyChBufferIndex:= ChBufferIndex	;
+	 yyBytesRead	:= BytesRead		;
+	 yyLineCount	:= LineCount		;
+	 yyLineStart	:= LineStart		;
+      END;
+      DEC (yyFileStackPtr);		
+   END CloseFile;
+
+PROCEDURE GetWord (VAR Word: Strings.tString);
+   VAR i, WordStart	: INTEGER;
+   BEGIN
+      WordStart := yyChBufferIndex - TokenLength - 1;
+      FOR i := 1 TO TokenLength DO
+	 Word.Chars [i] := yyChBufferPtr^ [WordStart + i];
+      END;
+      Word.Length := TokenLength;
+   END GetWord;
+ 
+PROCEDURE GetLower (VAR Word: Strings.tString);
+   VAR i, WordStart	: INTEGER;
+   BEGIN
+      WordStart := yyChBufferIndex - TokenLength - 1;
+      FOR i := 1 TO TokenLength DO
+	 Word.Chars [i] := yyToLower [yyChBufferPtr^ [WordStart + i]];
+      END;
+      Word.Length := TokenLength;
+   END GetLower;
+ 
+PROCEDURE GetUpper (VAR Word: Strings.tString);
+   VAR i, WordStart	: INTEGER;
+   BEGIN
+      WordStart := yyChBufferIndex - TokenLength - 1;
+      FOR i := 1 TO TokenLength DO
+	 Word.Chars [i] := yyToUpper [yyChBufferPtr^ [WordStart + i]];
+      END;
+      Word.Length := TokenLength;
+   END GetUpper;
+ 
+PROCEDURE yyStart (State: yyStateRange);
+   BEGIN
+      yyPreviousStart	:= yyStartState;
+      yyStartState	:= State;
+   END yyStart;
+ 
+PROCEDURE yyPrevious;
+   VAR s	: yyStateRange;
+   BEGIN
+      s		      := yyStartState;
+      yyStartState    := yyPreviousStart;
+      yyPreviousStart := s;
+   END yyPrevious;
+ 
+PROCEDURE yyEcho;
+   VAR i	: INTEGER;
+   BEGIN
+      FOR i := yyChBufferIndex - TokenLength TO yyChBufferIndex - 1 DO
+	 IO.WriteC (IO.StdOutput, yyChBufferPtr^ [i]);
+      END;
+   END yyEcho;
+ 
+PROCEDURE yyLess (n: INTEGER);
+   BEGIN
+      DEC (yyChBufferIndex, TokenLength - n);
+      TokenLength := n;
+   END yyLess;
+ 
+PROCEDURE yyTab;
+   BEGIN
+      DEC (yyLineStart, yyTabSpace - 1 - (yyChBufferIndex - yyLineStart - 2) MOD yyTabSpace);
+   END yyTab;
+
+PROCEDURE yyTab1 (a: INTEGER);
+   BEGIN
+      DEC (yyLineStart, yyTabSpace - 1 - (yyChBufferIndex - yyLineStart - TokenLength + a - 1) MOD yyTabSpace);
+   END yyTab1;
+
+PROCEDURE yyTab2 (a, b: INTEGER);
+   BEGIN
+      DEC (yyLineStart, yyTabSpace - 1 - (yyChBufferIndex - yyLineStart - TokenLength + a - 1) MOD yyTabSpace);
+   END yyTab2;
+
+PROCEDURE yyEol (Column: INTEGER);
+   BEGIN
+      INC (yyLineCount);
+      yyLineStart := yyChBufferIndex - 1 - Column;
+   END yyEol;
+
+PROCEDURE output (c: CHAR);
+   BEGIN
+      IO.WriteC (IO.StdOutput, c);
+   END output;
+
+PROCEDURE unput (c: CHAR);
+   BEGIN
+      DEC (yyChBufferIndex);
+      yyChBufferPtr^ [yyChBufferIndex] := c;
+   END unput;
+
+PROCEDURE input (): CHAR;
+   BEGIN
+      IF yyChBufferIndex = yyChBufferStart + yyBytesRead THEN
+	 IF NOT yyEof THEN
+	    DEC (yyLineStart, yyBytesRead);
+	    yyChBufferIndex := 0;
+	    yyChBufferStart := 0;
+	    yyBytesRead := Source.GetLine (yySourceFile, yyChBufferPtr, General.Exp2 (General.Log2 (yyChBufferSize)));
+	    IF yyBytesRead <= 0 THEN yyBytesRead := 0; yyEof := TRUE; END;
+	    yyChBufferPtr^ [yyBytesRead    ] := yyEobCh;
+	    yyChBufferPtr^ [yyBytesRead + 1] := 0C;
+	 END;
+      END;
+      IF yyChBufferIndex = yyChBufferStart + yyBytesRead THEN
+	 RETURN 0C;
+      ELSE
+	 INC (yyChBufferIndex);
+	 RETURN yyChBufferPtr^ [yyChBufferIndex - 1];
+      END
+   END input;
+
+PROCEDURE BeginScanner;
+   BEGIN
+(* line 101 "modula.rex" *)
+
+  UnderscoreUsed := FALSE;
+  NestingLevel := 0;
+
+  AssignEmpty (String);
+  DefaultString := PutString (String);
+
+  ArrayToString ("1.0", String);
+  DefaultReal := PutString (String);
+
+   END BeginScanner;
+ 
+PROCEDURE CloseScanner;
+   BEGIN
+   END CloseScanner;
+ 
+PROCEDURE yyGetTables;
+   VAR
+      BlockSize, j, n	: CARDINAL;
+      TableFile	: System.tFile;
+      i		: yyStateRange;
+      Base	: ARRAY yyStateRange OF yyTableRange;
+   BEGIN
+      BlockSize	:= 64000 DIV SYSTEM.TSIZE (yyCombType);
+      TableFile := System.OpenInput (ScanTabName);
+      Checks.ErrorCheck ("yyGetTables.OpenInput", TableFile);
+      IF (yyGetTable (TableFile, SYSTEM.ADR (Base      )) DIV SYSTEM.TSIZE (yyTableElmt) - 1 # yyDStateCount) OR
+         (yyGetTable (TableFile, SYSTEM.ADR (yyDefault )) DIV SYSTEM.TSIZE (yyTableElmt) - 1 # yyDStateCount) OR
+         (yyGetTable (TableFile, SYSTEM.ADR (yyEobTrans)) DIV SYSTEM.TSIZE (yyTableElmt) - 1 # yyDStateCount)
+	 THEN
+	 yyErrorMessage (2);
+      END;
+      n := 0;
+      j := 0;
+      WHILE j <= yyTableSize DO
+         INC (n, yyGetTable (TableFile, SYSTEM.ADR (yyComb [j])) DIV SYSTEM.TSIZE (yyCombType));
+         INC (j, BlockSize);
+      END;
+      IF n # yyTableSize + 1 THEN yyErrorMessage (2); END;
+      System.Close (TableFile);
+
+      FOR i := 0 TO yyDStateCount DO
+	 yyBasePtr [i] := LONGCARD (SYSTEM.ADR (yyComb [Base [i]]));
+      END;
+   END yyGetTables;
+ 
+PROCEDURE yyGetTable (TableFile: System.tFile; Address: SYSTEM.ADDRESS): CARDINAL;
+   VAR
+      N		: INTEGER;
+      Length	: yyTableElmt;
+   BEGIN
+      N := System.Read (TableFile, SYSTEM.ADR (Length), SYSTEM.TSIZE (yyTableElmt));
+      Checks.ErrorCheck ("yyGetTable.Read1", N);
+      N := System.Read (TableFile, Address, Length);
+      Checks.ErrorCheck ("yyGetTable.Read2", N);
+      RETURN Length;
+   END yyGetTable;
+ 
+PROCEDURE yyErrorMessage (ErrorCode: SHORTCARD);
+   BEGIN
+      Positions.WritePosition (IO.StdError, Attribute.Position);
+      CASE ErrorCode OF
+   | 0: IO.WriteS (IO.StdError, ": Scanner: internal error");
+   | 1: IO.WriteS (IO.StdError, ": Scanner: out of memory");
+   | 2: IO.WriteS (IO.StdError, ": Scanner: table mismatch");
+   | 3: IO.WriteS (IO.StdError, ": Scanner: too many nested include files");
+   | 4: IO.WriteS (IO.StdError, ": Scanner: file stack underflow (too many calls of CloseFile)");
+   | 5: IO.WriteS (IO.StdError, ": Scanner: cannot open input file");
+      END;
+      IO.WriteNl (IO.StdError); Exit;
+   END yyErrorMessage;
+ 
+PROCEDURE yyExit;
+   BEGIN
+      IO.CloseIO; System.Exit (1);
+   END yyExit;
+
+BEGIN
+   ScanTabName		:= "Scanner.Tab";
+   Exit			:= yyExit;
+   yyFileStackPtr	:= 0;
+   yyStartState		:= 1;			(* set up for auto init *)
+   yyPreviousStart	:= 1;
+   yyBasePtr [yyStartState] := LONGCARD (SYSTEM.ADR (yyComb [0]));
+   yyDefault [yyStartState] := yyDNoState;
+   yyComb [0].Check	:= yyDNoState;
+   yyChBufferPtr	:= SYSTEM.ADR (yyComb [0]);	(* dirty trick *)
+   yyChBufferIndex	:= 1;				(* dirty trick *)
+   yyStateStackSize	:= yyInitBufferSize;
+   DynArray.MakeArray (yyStateStack, yyStateStackSize, SYSTEM.TSIZE (yyStateRange));
+   yyStateStack^ [0]	:= yyDNoState;
+   
+   FOR yyCh := yyFirstCh TO yyLastCh DO yyToLower [yyCh] := yyCh; END;
+   yyToUpper := yyToLower;
+   FOR yyCh := 'A' TO 'Z' DO
+      yyToLower [yyCh] := CHR (ORD (yyCh) - ORD ('A') + ORD ('a'));
+   END;
+   FOR yyCh := 'a' TO 'z' DO
+      yyToUpper [yyCh] := CHR (ORD (yyCh) - ORD ('a') + ORD ('A'));
+   END;
+END Scanner.

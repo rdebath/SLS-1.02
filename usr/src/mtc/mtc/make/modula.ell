@@ -1,0 +1,265 @@
+(* ELL(1) Grammar for MODULA-2 in EBNF *)
+
+GLOBAL	{
+FROM System	IMPORT Exit;
+FROM IO		IMPORT StdOutput, WriteS, WriteNl, CloseIO;
+FROM Idents	IMPORT tIdent, WriteIdent;
+FROM Scanner	IMPORT BeginScanner, CloseScanner, tScanAttribute;
+FROM Errors	IMPORT NumberOfErrors;
+
+PROCEDURE Halt;
+BEGIN
+  CloseIO;
+  IF NumberOfErrors () = 0 THEN
+    Exit (0);
+  ELSE
+    Exit (1);
+  END;
+END Halt;
+}
+
+BEGIN	{ BeginScanner; }
+
+CLOSE	{ CloseScanner; }
+
+TOKEN
+
+   Ident		= 1
+   Integer		= 2
+   Char			= 4
+   Real			= 6
+   String		= 7
+   '#'			= 8
+   '('			= 9
+   ')'			= 10
+   '*'			= 11
+   '+'			= 12
+   ','			= 13
+   '-'			= 14
+   '.'			= 15
+   '..'			= 16
+   '/'			= 17
+   ':'			= 18
+   ':='			= 19
+   ';'			= 20
+   '<'			= 21
+   '<='			= 22
+   '='			= 24
+   '>'			= 25
+   '>='			= 26
+   '['			= 27
+   ']'			= 28
+   '^'			= 29
+   '{'			= 30
+   '|'			= 31
+   '}'			= 32
+   'AND'		= 34
+   'ARRAY'		= 35
+   'BEGIN'		= 36
+   'BY'			= 37
+   'CASE'		= 38
+   'CONST'		= 39
+   'DEFINITION'		= 40
+   'DIV'		= 41
+   'DO'			= 42
+   'ELSE'		= 43
+   'ELSIF'		= 44
+   'END'		= 45
+   'EXIT'		= 46
+   'EXPORT'		= 47
+   'FOR'		= 48
+   'FROM'		= 49
+   'IF'			= 50
+   'IMPLEMENTATION'	= 51
+   'IMPORT'		= 52
+   'IN'			= 53
+   'LOOP'		= 54
+   'MOD'		= 55
+   'MODULE'		= 56
+   'NOT'		= 57
+   'OF'			= 58
+   'OR'			= 59
+   'POINTER'		= 60
+   'PROCEDURE'		= 61
+   'QUALIFIED'		= 62
+   'RECORD'		= 63
+   'REPEAT'		= 64
+   'RETURN'		= 65
+   'SET'		= 66
+   'THEN'		= 67
+   'TO'			= 68
+   'TYPE'		= 69
+   'UNTIL'		= 70
+   'VAR'		= 71
+   'WHILE'		= 72
+   'WITH'		= 73
+   'FOREIGN'		= 74
+
+RULE
+
+CompilationUnit		: 'DEFINITION'
+
+		  	( 'MODULE' Ident ';'
+			{ WriteS     (StdOutput, "DEFINITION MODULE ")	; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			  Import *
+			{ WriteS     (StdOutput, "END ")		; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			{ Halt;						  }
+
+			| 'FOR' Ident 'MODULE' Ident ';'
+			{ WriteS     (StdOutput, "DEFINITION MODULE ")	; }
+			{ WriteIdent (StdOutput, Ident3.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			  Import *
+			{ WriteS     (StdOutput, "END ")		; }
+			{ WriteIdent (StdOutput, Ident3.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			{ Halt;						  }
+			)
+			  Definition * 'END' Ident '.'
+
+			| 'FOREIGN' 'MODULE' Ident ';'
+			{ WriteS     (StdOutput, "FOREIGN MODULE ")	; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			  Import *
+			{ WriteS     (StdOutput, "END ")		; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			{ Halt;						  }
+			  Definition * 'END' Ident '.'
+
+			| 'IMPLEMENTATION' 'MODULE' Ident [ Priority ] ';'
+			{ WriteS     (StdOutput, "IMPLEMENTATION MODULE "); }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			  Import *
+			{ WriteS     (StdOutput, "END ")		; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			{ Halt;						  }
+			  Block Ident '.'
+
+			| 'MODULE' Ident [ Priority ] ';'
+			{ WriteS     (StdOutput, "PROGRAM MODULE ")	; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			  Import *
+			{ WriteS     (StdOutput, "END ")		; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			{ Halt;						  }
+			  Block Ident '.' .
+
+Number			: Integer
+			| Char
+			| Real .
+Qualident		: Ident || '.' .
+
+ConstantDeclaration	: Ident '=' ConstExpression .
+ConstExpression		: Expression .
+
+TypeDeclaration		: Ident '=' Type .
+Type			: SimpleType
+			| 'ARRAY' ( SimpleType || ',' ) 'OF' Type
+			| 'RECORD' FieldListSequence 'END'
+			| 'SET' 'OF' SimpleType
+			| 'POINTER' 'TO' Type
+			| 'PROCEDURE' [ FormalTypeList ] .
+SimpleType		: Qualident [ '[' ConstExpression '..' ConstExpression ']' ]
+			| '(' IdentList ')'
+			| '[' ConstExpression '..' ConstExpression ']' .
+IdentList		: Ident || ',' .
+FieldListSequence	: FieldList || ';' .
+FieldList		: IdentList ':' Type
+			| 'CASE' [ Ident ] ':' Qualident 'OF' ( Variant || '|' )
+			     [ 'ELSE' FieldListSequence ] 'END'
+			| .
+Variant			: [ CaseLabelList ':' FieldListSequence ] .
+CaseLabelList		: CaseLabels || ',' .
+CaseLabels		: ConstExpression [ '..' ConstExpression ] .
+FormalTypeList		: '(' [ ( [ 'VAR' ] FormalType ) || ',' ] ')' [ ':' Qualident ] .
+
+VariableDeclaration	: IdentList ':' Type .
+Designator		: Ident ( '.' Ident | '[' ExpList ']' | '^' ) * .
+
+ExpList			: Expression || ',' .
+Expression		: SimpleExpression [ Relation SimpleExpression ] .
+Relation		: '=' | '#' | '<' | '<=' | '>' | '>=' | 'IN' .
+SimpleExpression	: [ '+' | '-' ] Term ( AddOperator Term ) * .
+AddOperator		: '+' | '-' | 'OR' .
+Term			: Factor ( MulOperator Factor ) * .
+MulOperator		: '*' | '/' | 'DIV' | 'MOD' | 'AND' .
+Factor			: Number
+			| String
+			| Set 
+			| Designator ( [ ActualParameters ] | Set )
+			| '(' Expression ')'
+			| 'NOT' Factor .
+Set			: '{' [ Element || ','] '}' .
+Element			: Expression [ '..' Expression ] .
+ActualParameters	: '(' [ ExpList ] ')' .
+
+Statement		: Designator ( ':=' Expression | [ActualParameters] )
+			| 'IF' Expression 'THEN' StatementSequence
+			     ( 'ELSIF' Expression 'THEN' StatementSequence ) *
+			     [ 'ELSE' StatementSequence ] 'END'
+			| 'CASE' Expression 'OF' ( Case || '|' ) [ 'ELSE' StatementSequence ] 'END'
+			| 'WHILE' Expression 'DO' StatementSequence 'END'
+			| 'REPEAT' StatementSequence 'UNTIL' Expression
+			| 'LOOP' StatementSequence 'END'
+			| 'FOR' Ident ':=' Expression 'TO' Expression
+			     [ 'BY' ConstExpression ] 'DO' StatementSequence 'END'
+			| 'WITH' Designator 'DO' StatementSequence 'END'
+			| 'EXIT'
+			| 'RETURN' [ Expression ]
+			| .
+StatementSequence	: Statement || ';' .
+Case			: [ CaseLabelList ':' StatementSequence ] .
+
+ProcedureDeclaration	: ProcedureHeading ';' Block Ident .
+ProcedureHeading	: 'PROCEDURE' Ident [ FormalParameters ] .
+Block			: Declaration * [ 'BEGIN' StatementSequence ] 'END' .
+Declaration		: 'CONST' ( ConstantDeclaration ';' ) *
+			| 'TYPE' ( TypeDeclaration ';' ) *
+			| 'VAR' ( VariableDeclaration ';' ) *
+			| ProcedureDeclaration ';'
+			| ModuleDeclaration ';' .
+FormalParameters	: '(' [ FPSection || ';' ] ')' [ ':' Qualident ] .
+FPSection		: [ 'VAR' ] IdentList ':' FormalType .
+FormalType		: [ 'ARRAY' 'OF' ] Qualident .
+
+ModuleDeclaration	: 'MODULE' Ident [ Priority ] ';' Import * [ Export ] Block Ident .
+Priority		: '[' ConstExpression ']' .
+Export			: 'EXPORT' [ 'QUALIFIED' ] IdentList ';' .
+
+Import			: 'FROM' Ident 'IMPORT' IdentList ';'
+			{ WriteS     (StdOutput, "   IMPORT ")		; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+
+			| 'IMPORT' ( Ident
+			{ WriteS     (StdOutput, "   IMPORT ")		; }
+			{ WriteIdent (StdOutput, Ident1.Ident)		; }
+			{ WriteS     (StdOutput, " ;")			; }
+			{ WriteNl    (StdOutput)			; }
+			  ) || ',' ';' .
+
+Definition		: 'CONST' ( ConstantDeclaration ';' ) *
+			| 'TYPE' ( Ident [ '=' Type ] ';' ) *
+			| 'VAR' ( VariableDeclaration ';' ) *
+			| ProcedureHeading ';' .

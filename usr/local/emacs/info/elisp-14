@@ -1,0 +1,1247 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Subroutines of Visiting,  Prev: Visiting Functions,  Up: Visiting Files
+
+Subroutines of Visiting
+-----------------------
+
+   The `find-file-noselect' function uses the `create-file-buffer'
+and `after-find-file' functions as subroutines.  Sometimes it is
+useful to call them directly.
+
+ * Function: create-file-buffer FILENAME
+     This function creates a suitably named buffer for visiting
+     FILENAME, and returns it.  The string FILENAME (sans directory)
+     is used unchanged if that name is free; otherwise, a string such
+     as `<2>' is appended to get an unused name.  See also *Note
+     Creating Buffers::.
+
+     *Note:* `create-file-buffer' does *not* associate the new buffer
+     with a file and does not make it the current buffer.
+
+          (create-file-buffer "foo")
+               => #<buffer foo>
+          (create-file-buffer "foo")
+               => #<buffer foo<2>>
+          (create-file-buffer "foo")
+               => #<buffer foo<3>>
+
+     This function is used by `find-file-noselect'.
+
+ * Function: after-find-file &optional ERROR WARN
+     This function is called by `find-file-noselect' and by the
+     default revert function (*note Reverting::.).  It sets the
+     buffer major mode, and parses local variables (*note Auto Major
+     Mode::.).
+
+     If there was an error in opening the file, the calling function
+     should pass ERROR a non-`nil' value.  In that case,
+     `after-find-file' issues a warning: `(New File)'.  Note that,
+     for serious errors, you would not even call `after-find-file'. 
+     Only "file not found" errors get here with a non-`nil' ERROR.
+
+     If WARN is non-`nil', then this function issues a warning if an
+     auto-save file exists and is more recent than the visited file.
+
+     The last thing `after-find-file' does is call all the functions
+     in `find-file-hooks'.
+
+
+
+File: elisp,  Node: Saving Buffers,  Next: Reading from Files,  Prev: Visiting Files,  Up: Files
+
+Saving Buffers
+==============
+
+   When you edit a file in Emacs, you are actually working on a
+buffer that is visiting that file--that is, the contents of the file
+are copied into the buffer and the copy is what you edit.  Changes to
+the buffer do not change the file until you "save" the buffer, which
+means copying the contents of the buffer into the file.
+
+ * Command: save-buffer &optional BACKUP-OPTION
+     This function saves the contents of the current buffer in its
+     visited file if the buffer has been modified since it was last
+     visited or saved.  Otherwise it does nothing.
+
+     `save-buffer' is responsible for making backup files.  Normally,
+     BACKUP-OPTION is `nil', and `save-buffer' makes a backup file
+     only if this is the first save or if the buffer was previously
+     modified.  Other values for BACKUP-OPTION request the making of
+     backup files in other circumstances:
+
+        * With an argument of 4 or 64, reflecting 1 or 3 `C-u''s, the
+          `save-buffer' function marks this version of the file to be
+          backed up when the buffer is next saved.
+
+        * With an argument of 16 or 64, reflecting 2 or 3 `C-u''s,
+          the `save-buffer' function unconditionally backs up the
+          previous version of the file before saving it.
+
+ * Command: save-buffers-kill-emacs &optional KILL-SILENTLY-P
+     This function offers to save each buffer that needs to be saved,
+     and then kills the Emacs job.  With a non-`nil' value of the
+     optional KILL-SILENTLY-P argument, it unconditionally and
+     silently saves all the file-visiting buffers, and then kills the
+     job.
+
+     The `save-buffers-kill-emacs' function is defined as follows:
+
+          (defun save-buffers-kill-emacs (&optional arg)
+            "Offer to save each buffer, then kill this Emacs fork..."
+            (interactive "P")
+            (save-some-buffers arg t)
+            (kill-emacs))
+
+ * Command: save-some-buffers &optional SAVE-SILENTLY-P EXITING
+     This command saves some modified file-visiting buffers. 
+     Normally it asks the user about each buffer.  If the function is
+     called with a non-`nil' value of the optional SAVE-SILENTLY-P
+     argument, this function saves all the file-visiting buffers
+     without querying the user.
+
+     The optional EXITING argument, if non-`nil', requests this
+     function to offer also to save certain other buffers that are
+     not visiting files.  These are buffers that have a non-`nil'
+     local value of `buffer-offer-save'.  (A user who says yes to
+     saving one of these will be asked to specify a file name to
+     use.)  The `save-buffers-kill-emacs' function passes a non-`nil'
+     value for this argument.
+
+ * Variable: buffer-offer-save
+     When this variable is non-`nil' in a buffer, Emacs offers to
+     save the buffer on exit even if the buffer is not visiting a
+     file.  The variable is automatically local in all buffers. 
+     Normally, Mail mode (used for editing outgoing mail) sets this
+     to `t'.
+
+ * Command: write-file FILENAME
+     This function writes the current buffer into file FILENAME,
+     makes the buffer visit that file, and marks it not modified. 
+     The buffer is renamed to correspond to FILENAME unless that name
+     is already in use.
+
+ * Variable: write-file-hooks
+     The value of this variable is a list of functions to be called
+     before writing out a buffer to its visited file.  If one of them
+     returns non-`nil', the file is considered already written and
+     the rest of the functions are not called, nor is the usual code
+     for writing the file executed.
+
+     If the `file-precious-flag' variable is `nil', the file is moved
+     to the backup file before any of the hooks are called.  If none
+     of the hooks actually write the file, but one does return
+     non-`nil', the file will not exist, although the backup will.
+
+     Here is an example showing how to add an element to
+     `write-file-hooks' but avoid adding it twice:
+
+          (or (memq 'my-write-file-hook write-file-hooks)
+              (setq write-file-hooks 
+                    (cons 'my-write-file-hook write-file-hooks)))
+
+ * Variable: file-precious-flag
+     If this variable is non-`nil', then `save-buffer' protects
+     against I/O errors while saving by renaming the original file to
+     a temporary name before writing the new contents of the file. 
+     If the new contents are successfully written, the renamed
+     original file is deleted.  Otherwise, it is renamed back to the
+     original name.  This procedure prevents problems such as a lack
+     of disk space from resulting in an invalid file.
+
+     Some modes set this non-`nil' locally in particular buffers.
+
+ * User Option: require-final-newline
+     This variable determines whether files may be written out that
+     do *not* end with a newline.  If the value of the variable is
+     `t', then Emacs silently puts a newline at the end of the file
+     whenever the buffer being saved does not already end in one.  If
+     the value of the variable is non-`nil', but not `t', then Emacs
+     asks the user whether to add a newline each time the case arises.
+
+     If the value of the variable is `nil', then Emacs doesn't add
+     newlines at all.  `nil' is the default value, but a few major
+     modes change it to `t'.
+
+
+
+File: elisp,  Node: Reading from Files,  Next: Writing to Files,  Prev: Saving Buffers,  Up: Files
+
+Reading from Files
+==================
+
+   You can copy a file directly from the disk and insert it into a
+buffer using the `insert-file-contents' function, or its interactive
+variant, `insert-file'.
+
+ * Command: insert-file FILENAME
+     This function inserts the contents of file FILENAME into the
+     current buffer after point, and sets the mark at the end of the
+     inserted text.  An error is signaled if FILENAME is not the name
+     of a file that can be read.  This function is for interactive
+     use and does little more than call `insert-file-contents'.
+
+ * Function: insert-file-contents FILENAME &optional VISIT
+     This function inserts the contents of file FILENAME into the
+     current buffer after point. It returns a list of the absolute
+     file name and the length of the data inserted.  An error is
+     signaled if FILENAME is not the name of a file that can be read.
+
+     If VISIT is non-`nil', it also marks the buffer as unmodified
+     and sets up various fields in the buffer so that it is visiting
+     the file FILENAME: these include the buffer's visited file name
+     and its last save file modtime.  This feature is used by
+     `find-file-noselect' and you should probably not use it yourself.
+
+
+
+File: elisp,  Node: Writing to Files,  Next: File Locks,  Prev: Reading from Files,  Up: Files
+
+Writing to Files
+================
+
+   You can write the contents of a buffer, or part of a buffer,
+directly to a file on disk using the `append-to-file' and
+`write-region' functions.  Don't use these functions to write to
+files that are being visited; that could cause confusion in the
+mechanisms for visiting.
+
+ * Command: append-to-file START END FILENAME
+     This function appends the contents of the region delimited by
+     START and END in the current buffer to the end of file FILENAME.
+     If that file does not exist, it is created.  This function
+     returns `nil'.
+
+     An error is signaled if FILENAME specifies a nonwritable file,
+     or a nonexistent file in a directory where files cannot be
+     created.
+
+ * Command: write-region START END FILENAME &optional APPEND VISIT
+     This function writes the region (of the current buffer)
+     delimited by START and END into the file specified by FILENAME.
+
+     If APPEND is non-`nil', then the region is appended to the
+     existing file contents (if any).
+
+     If VISIT is `t', then Emacs establishes an association between
+     the buffer and the file: the buffer is then visiting that file. 
+     It also sets the last file modification time for the current
+     buffer to FILENAME's modtime, and marks the buffer as not
+     modified.  This feature is used by `write-file' and you should
+     probably not use it yourself.
+
+     Normally, this function displays a message `Wrote file FILENAME'
+     in the echo area.  If VISIT is neither `t' nor `nil', then this
+     message is inhibited.  This feature is useful for programs that
+     use files for internal purposes, files which the user does not
+     need to know about.
+
+
+
+File: elisp,  Node: File Locks,  Next: Information about Files,  Prev: Writing to Files,  Up: Files
+
+File Locks
+==========
+
+   When two users edit the same file at the same time, they are
+likely to interfere with each other.  Emacs tries to prevent this
+situation from arising by recording a "file lock" when a file is
+being modified.  Emacs can then detect the first attempt to modify a
+buffer visiting a file that is locked by another Emacs job, and ask
+the user what to do.
+
+   File locks do not work properly when multiple machines can share
+filesystems, such as with NFS.  Perhaps a better file locking system
+will be implemented in the future.  When file locks do not work, it
+is possible for two users to make changes simultaneously, but Emacs
+will still be able to warn the user who saves second.  Also, the
+detection of modification of a buffer visiting a file changed on disk
+catches some cases of simultaneous editing; see *Note Modification
+Time::.
+
+ * Function: file-locked-p FILENAME
+     This function returns `nil' if the file FILENAME is not locked
+     by this Emacs process.  It returns `t' if it is locked by this
+     Emacs, and it returns the name of the user who has locked it if
+     it is locked by someone else.
+
+          (file-locked-p "foo")
+               => nil
+
+ * Function: lock-buffer &optional FILENAME
+     This function locks the file FILENAME, if the current buffer is
+     modified.  The argument FILENAME defaults to the current
+     buffer's visited file.  Nothing is done if the current buffer is
+     not visiting a file, or is not modified.
+
+ * Function: unlock-buffer
+     This function unlocks the file being visited in the current
+     buffer, if the buffer is modified.  If the buffer is not
+     modified, then the file should not be locked, so this function
+     does nothing.  It also does nothing if the current buffer is not
+     visiting a file.
+
+ * Function: ask-user-about-lock FILE OTHER-USER
+     This function is called when the user tries to modify FILE, but
+     it is locked by another user name OTHER-USER.  The value it
+     returns controls what Emacs will do with the file:
+
+        * A value of `t' tells Emacs to grab the lock on the file. 
+          Then this user may edit the file and OTHER-USER loses the
+          lock.
+
+        * A value of `nil' tells Emacs to ignore the lock and let
+          this user edit the file anyway.
+
+        * This function may instead signal a `file-locked' error, in
+          which case the change to the buffer which the user was
+          about to make does not take place.
+
+          The error message for this error looks like this:
+
+               error--> File is locked: FILE OTHER-USER
+
+          where `file' is the name of the file and OTHER-USER is the
+          name of the user who has locked the file.
+
+     The default definition of this function asks the user to choose
+     what to do.  If you wish, you can replace the
+     `ask-user-about-lock' function with your own version that
+     decides in another way.  The code for its usual definition is in
+     `userlock.el'.
+
+
+
+File: elisp,  Node: Information about Files,  Next: Contents of Directories,  Prev: File Locks,  Up: Files
+
+Information about Files
+=======================
+
+   The functions described in this section are similar in as much as
+they all operate on strings which are interpreted as file names.  All
+have names that begin with the word `file'.  These functions all
+return information about actual files or directories, so their
+arguments must all exist as actual files or directories unless
+otherwise noted.
+
+   Most of the file-oriented functions take a single argument,
+FILENAME, which must be a string.  The file name is expanded using
+`expand-file-name', so `~' is handled correctly, as are relative file
+names (including `../').  Environment variable substitutions, such as
+`$HOME', are not recognized by these functions.
+
+* Menu:
+
+* Testing Accessibility::   Is a given file readable?  Writable?
+* Kinds of Files::          Is it a directory?  A link?
+* File Attributes::         How large is it?  Any other names?  Etc.
+
+ 
+
+File: elisp,  Node: Testing Accessibility,  Next: Kinds of Files,  Prev: Information about Files,  Up: Information about Files
+
+Testing Accessibility
+---------------------
+
+   These functions test for permission to access a file in specific
+ways.
+
+ * Function: file-exists-p FILENAME
+     This function returns `t' if a file named FILENAME appears to
+     exist.  This does not mean you can necessarily read the file,
+     only that you can find out its attributes.  (On Unix, this is
+     true if the file exists and you have execute permission on the
+     containing directories, regardless of the protection of the file
+     itself.)
+
+     If the file does not exist, or if fascist access control
+     policies prevent you from finding the attributes of the file,
+     this function returns `nil'.
+
+ * Function: file-readable-p FILENAME
+     This function returns `t' if a file named FILENAME exists and
+     you can read it.  It returns `nil' otherwise.
+
+          (file-readable-p "files.texi")
+               => t
+          (file-exists-p "/usr/spool/mqueue")
+               => t
+          (file-readable-p "/usr/spool/mqueue")
+               => nil
+
+ * Function: file-writable-p FILENAME
+     This function returns `t' if FILENAME can be written or created
+     by you.  It is writable if the file exists and you can write it.
+     It is creatable if the file does not exist, but the specified
+     directory does exist and you can write in that directory. 
+     `file-writable-p' returns `nil' otherwise.
+
+     In the third example below, `foo' is not writable because the
+     parent directory does not exist, even though the user could
+     create it.
+
+          (file-writable-p "~rms/foo")
+               => t
+          (file-writable-p "/foo")
+               => nil
+          (file-writable-p "~rms/no-such-dir/foo")
+               => nil
+
+ * Function: file-newer-than-file-p FILENAME1 FILENAME2
+     This functions returns `t' if the file FILENAME1 is newer than
+     file FILENAME2.  If FILENAME1 does not exist, it returns `nil'. 
+     If FILENAME2 does not exist, it returns `t'.
+
+     In the following example, assume that the file `aug-19' was
+     written on the 19th, and `aug-20' was written on the 20th.  The
+     file `no-file' doesn't exist at all.
+
+          (file-newer-than-file-p "aug-19" "aug-20")
+               => nil
+          (file-newer-than-file-p "aug-20" "aug-19")
+               => t
+          (file-newer-than-file-p "aug-19" "no-file")
+               => t
+          (file-newer-than-file-p "no-file" "aug-19")
+               => nil
+
+
+
+File: elisp,  Node: Kinds of Files,  Next: File Attributes,  Prev: Testing Accessibility,  Up: Information about Files
+
+Distinguishing Kinds of Files
+-----------------------------
+
+   This section describes how to distinguish directories and symbolic
+links from ordinary files.
+
+ * Function: file-symlink-p FILENAME
+     If FILENAME is a symbolic link, the `file-symlink-p' function
+     returns the file name to which it is linked.  This may be the
+     name of a text file, a directory, or even another symbolic link,
+     or of no file at all.
+
+     If FILENAME is not a symbolic link (or there is no such file),
+     `file-symlink-p' returns `nil'.
+
+          (file-symlink-p "foo")
+               => nil
+          (file-symlink-p "sym-link")
+               => "foo"
+          (file-symlink-p "sym-link2")
+               => "sym-link"
+          (file-symlink-p "/bin")
+               => "/pub/bin"
+
+ * Function: file-directory-p FILENAME
+     This function returns `t' if FILENAME is the name of an existing
+     directory, `nil' otherwise.
+
+          (file-directory-p "~rms")
+               => t
+          (file-directory-p "~rms/lewis/files.texi")
+               => nil
+          (file-directory-p "~rms/lewis/no-such-file")
+               => nil
+          (file-directory-p "$HOME")
+               => nil
+          (file-directory-p (substitute-in-file-name "$HOME"))
+               => t
+
+
+
+File: elisp,  Node: File Attributes,  Prev: Kinds of Files,  Up: Information about Files
+
+Other Information about Files
+-----------------------------
+
+   This section describes the functions for getting detailed
+information about a file, other than its contents.  This information
+includes the mode bits that control access permission, the owner and
+group numbers, the number of names, the inode number, the size, and
+the times of access and modification.
+
+ * Function: file-modes FILENAME
+     This function returns the mode bits of FILENAME, as an integer. 
+     The mode bits are also called the file permissions, and they
+     specify access control in the usual Unix fashion.  If the
+     low-order bit is 1, then the file is executable by all users, if
+     the second lowest-order bit is 1, then the file is writable by
+     all users, etc.
+
+     The highest value returnable is 4095 (7777 octal), meaning that
+     everyone has read, write, and execute permission, that the SUID
+     bit is set for both others and group, and that the sticky bit is
+     set.
+
+          (file-modes "~/junk/diffs")
+               => 492               ; decimal integer
+          (format "%o" 492)
+               => 754               ; convert to octal
+          
+          (set-file-modes "~/junk/diffs" 438)
+               => nil
+          
+          (format "%o" 438)
+               => 666               ; convert to octal
+          
+          % ls -l diffs
+            -rw-rw-rw-  1 lewis    0    3063 Oct 30 16:00 diffs
+
+ * Function: file-nlinks FILENAME
+     This functions returns the number of names (i.e., hard links)
+     that file FILENAME has.  If the file does not exist, then this
+     function returns `nil'.  Note that symbolic links have no effect
+     on this function, because they are not considered to be names of
+     the files they link to.
+
+          % ls -l foo*
+          -rw-rw-rw-  2 rms             4 Aug 19 01:27 foo
+          -rw-rw-rw-  2 rms             4 Aug 19 01:27 foo1
+          
+          (file-nlinks "foo")
+               => 2
+          (file-nlinks "doesnt-exist")
+               => nil
+
+ * Function: file-attributes FILENAME
+     This function returns a list of attributes of file FILENAME.  If
+     the specified file cannot be opened, it returns `nil'.
+
+     The elements of the list, in order, are:
+
+       1. `t' for a directory, a string for a symbolic link (the name
+          linked to), or `nil' for a text file.
+
+       2. The number of names the file has.  Alternate names, also
+          known as hard links, can be created with `add-name-to-file'
+          (*note Changing File Attributes::.).
+
+       3. The file's UID.
+
+       4. The file's GID.
+
+       5. The time of last access, as a list of two integers.  The
+          first integer has the high-order 16 bits of time, the
+          second has the low 16 bits.
+
+       6. The time of last modification as a list of two integers (as
+          above).
+
+       7. The time of last status change as a list of two integers
+          (as above).
+
+       8. The size of the file in bytes.
+
+       9. The file's modes, as a string of ten letters or dashes as
+          in `ls -l'.
+
+      10. `t' if the file's GID would change if file were deleted and
+          recreated; `nil' otherwise.
+
+      11. The file's inode number.
+
+     For example, here are the file attributes for `files.texi':
+
+          (file-attributes "files.texi")
+               =>  (nil 
+                    1 
+                    2235 
+                    75 
+                    (8489 20284) 
+                    (8489 20284) 
+                    (8489 20285)
+                    14906 
+                    "-rw-rw-rw-" 
+                    nil 
+                    20920)
+
+     and here is how the result is interpreted:
+
+    `nil'
+          is neither a directory nor a symbolic link.
+
+    `1'
+          has only one name (the name `files.texi' in the current
+          default directory).
+
+    `2235'
+          is owned by the user with UID 2235.
+
+    `75'
+          is in the group with GID 75.
+
+    `(8489 20284)'
+          was last accessed on Aug 19 00:09.  Unfortunately, you
+          cannot convert this number into a time string in Emacs.
+
+    `(8489 20284)'
+          was last accessed on Aug 19 00:09.
+
+    `(8489 20285)'
+          last had its inode changed on Aug 19 00:09.
+
+    `14906'
+          is 14906 characters long.
+
+    `"-rw-rw-rw-"'
+          has a mode of read and write access for the owner, group,
+          and world.
+
+    `nil'
+          would retain the same GID if it were recreated.
+
+    `20920'
+          has an inode number of 20920.
+
+
+
+File: elisp,  Node: Contents of Directories,  Next: Changing File Attributes,  Prev: Information about Files,  Up: Files
+
+Contents of Directories
+=======================
+
+   A directory is a kind of file that contains other files entered
+under various names.  Directories are a feature of the file system.
+
+   Emacs can list the names of the files in a directory as a Lisp
+list, or display the names in a buffer using the `ls' shell command. 
+In the latter case, it can optionally display information about each
+file, depending on the value of switches passed to the `ls' command.
+
+ * Function: directory-files DIRECTORY &optional FULL-NAME MATCH-REGEXP
+     This function returns a list of the names of the files in the
+     directory DIRECTORY.
+
+     If FULL-NAME is non-`nil', the function returns the files'
+     absolute file names.  Otherwise, it returns just the names
+     relative to the specified directory.
+
+     If MATCH-REGEXP is non-`nil', function returns only those file
+     names that contain that regular expression--the other file names
+     are discarded from the list.
+
+          (directory-files "~lewis")
+               => ("#foo#" "#foo.el#" "." ".."
+                   "dired-mods.el" "files.texi" "files.texi.~1~")
+
+     An error is signaled if DIRECTORY is not the name of a directory
+     that can be read.
+
+ * Function: file-name-all-versions FILE DIRNAME
+     This function returns a list of all versions of the file named
+     FILE in directory DIRNAME.
+
+ * Command: list-directory FILESPEC &optional VERBOSE
+     This command displays a list of files in or matching FILESPEC. 
+     It calls the shell command `ls', passing it options under the
+     control of VERBOSE.
+
+     The argument FILESPEC may be either a directory name or a file
+     name containing optional wildcards.  Wildcards are processed by
+     the shell.
+
+     The options passed to `ls' are the value of
+     `list-directory-verbose-switches' if VERBOSE is non-`nil';
+     `list-directory-brief-switches' otherwise.  Interactively, the
+     raw prefix argument is used for VERBOSE.
+
+ * Variable: list-directory-brief-switches
+     This variable contains switches for `list-directory' to pass to
+     `ls' for a short or "brief" listing.  The default value is
+     `"-CF"'.
+
+ * Variable: list-directory-verbose-switches
+     This variable contains switches for `list-directory' to pass to
+     `ls' for a verbose or "long" listing.  The default value is
+     `"-l"'.
+
+
+
+File: elisp,  Node: Changing File Attributes,  Next: File Names,  Prev: Contents of Directories,  Up: Files
+
+Changing File Names and Attributes
+==================================
+
+   The functions in this section rename, copy, delete, link, and set
+the modes of files.
+
+   In the functions that have an argument NEWNAME, if a file by the
+name of NEWNAME already exists, the actions taken depend on the value
+of the argument OK-IF-ALREADY-EXISTS:
+
+   * A `file-already-exists' error is signaled if
+     OK-IF-ALREADY-EXISTS is `nil'.
+
+   * Confirmation is requested if OK-IF-ALREADY-EXISTS is a number.
+
+   * No confirmation is requested if OK-IF-ALREADY-EXISTS is any
+     other value, in which case the old file is removed.
+
+ * Function: add-name-to-file OLDNAME NEWNAME &optional
+          OK-IF-ALREADY-EXISTS
+     This function gives the file named OLDNAME the additional name
+     NEWNAME.  This means that NEWNAME will be a new "hard link" to
+     OLDNAME.
+
+     In the first part of the following example, we list two files,
+     `foo' and `foo3'.
+
+          % ls -l fo*
+          -rw-rw-rw-  1 rms            29 Aug 18 20:32 foo
+          -rw-rw-rw-  1 rms            24 Aug 18 20:31 foo3
+
+     Then we evaluate the form `(add-name-to-file "~/lewis/foo"
+     "~/lewis/foo2")'.  Again we list the files.  This shows two
+     names, `foo' and `foo2'.
+
+          (add-name-to-file "~/lewis/foo1" "~/lewis/foo2")
+               => nil
+          
+          % ls -l fo*
+          -rw-rw-rw-  2 rms            29 Aug 18 20:32 foo
+          -rw-rw-rw-  2 rms            29 Aug 18 20:32 foo2
+          -rw-rw-rw-  1 rms            24 Aug 18 20:31 foo3
+
+     Finally, we evaluate `(add-name-to-file "~/lewis/foo"
+     "~/lewis/foo3" t)', and list the files again.  Now there are
+     three names for one file: `foo', `foo2', and `foo3'.  The old
+     contents of `foo3' are lost.
+
+          (add-name-to-file "~/lewis/foo1" "~/lewis/foo3")
+               => nil
+          
+          % ls -l fo*
+          -rw-rw-rw-  3 rms            29 Aug 18 20:32 foo
+          -rw-rw-rw-  3 rms            29 Aug 18 20:32 foo2
+          -rw-rw-rw-  3 rms            29 Aug 18 20:32 foo3
+
+     This function is meaningless on VMS, where multiple names for
+     one file are not allowed.
+
+     See also `file-nlinks' in *Note Information about Files::.
+
+ * Command: rename-file FILENAME NEWNAME &optional OK-IF-ALREADY-EXISTS
+     This command renames the file FILENAME as NEWNAME.
+
+     If FILENAME has additional names aside from FILENAME, it
+     continues to have those names.  In fact, adding the name NEWNAME
+     with `add-name-to-file' and then deleting FILENAME has the same
+     effect as renaming, aside from momentary intermediate states.
+
+     In an interactive call, this function prompts for FILENAME and
+     NEWNAME in the minibuffer; also, it requests confirmation if
+     NEWNAME already exists.
+
+ * Command: copy-file OLDNAME NEWNAME &optional OK-IF-EXISTS TIME
+     This command copies the file OLDNAME to NEWNAME.  An error is
+     signaled if OLDNAME does not exist.
+
+     If TIME is non-`nil', then this functions gives the new file the
+     same last-modified time that the old one has.  (This works on
+     only some operating systems.)
+
+     In an interactive call, this function prompts for FILENAME and
+     NEWNAME in the minibuffer; also, it requests confirmation if
+     NEWNAME already exists.
+
+ * Command: delete-file FILENAME
+     This command deletes the file FILENAME, like the shell command
+     `rm FILENAME'.  If the file has multiple names, it continues to
+     exist under the other names.
+
+     A suitable kind of `file-error' error is signaled if the file
+     does not exist, or is not deletable.  (In Unix, a file is
+     deletable if its directory is writable.)
+
+ * Command: make-symbolic-link FILENAME NEWNAME &optional OK-IF-EXISTS
+     This command makes a symbolic link to FILENAME, named NEWNAME. 
+     This is like the shell command `ln -s FILENAME NEWNAME'.
+
+     In an interactive call, FILENAME and NEWNAME are read in the
+     minibuffer, and OK-IF-EXISTS is set to the numeric prefix
+     argument.
+
+ * Function: set-file-modes FILENAME MODE
+     This function sets mode bits of FILENAME to MODE (which must be
+     a integer).  Only the 12 low bits of MODE are used.
+
+
+
+File: elisp,  Node: File Names,  Prev: Changing File Attributes,  Up: Files
+
+File Names
+==========
+
+   Files are generally referred to by their names, in Emacs as
+elsewhere.  File names in Emacs are represented as strings.  The
+functions that operate on a file all expect a file name argument.
+
+   In addition to operating on files themselves, Emacs Lisp programs
+often need to operate on the names; i.e., to take them apart and to
+use part of a name to construct related file names.  This section
+describes how to manipulate file names.
+
+   The functions in this section do not actually access files, so
+they can operate on file names that do not refer to an existing file
+or directory.
+
+   On VMS, all these functions understand both VMS file name syntax
+and Unix syntax.  This is so that all the standard Lisp libraries can
+specify file names in Unix syntax and work properly on VMS without
+change.
+
+* Menu:
+
+* File Name Components::  The directory part of a file name, and the rest.
+* Directory Names::       A directory's name as a directory
+                            is different from its name as a file.
+* Relative File Names::   Some file names are relative to a current directory.
+* File Name Expansion::   Converting relative file names to absolute ones.
+* Unique File Names::     Generating names for temporary files.
+* File Name Completion::  Finding the completions for a given file name.
+
+ 
+
+File: elisp,  Node: File Name Components,  Next: Directory Names,  Up: File Names
+
+File Name Components
+--------------------
+
+   The operating system groups files into directories.  To specify a
+file, you must specify the directory, and the file's name in that
+directory.  Therefore, a file name in Emacs is considered to have two
+main parts: the "directory name" part, and the "nondirectory" part
+(or "file name within the directory").  Either part may be empty. 
+Concatenating these two parts reproduces the original file name.
+
+   On Unix, the directory part is everything up to and including the
+last slash; the nondirectory part is the rest.  The rules in VMS
+syntax are complicated.
+
+   For some purposes, the nondirectory part is further subdivided
+into the name and the version number.  On Unix, only backup files
+have version numbers in their names; on VMS, every file has a version
+number, but most of the time the file name actually used in Emacs
+omits the version number.  Version numbers are found mostly in
+directory lists.
+
+ * Function: file-name-directory FILENAME
+     This function returns the directory part of FILENAME (or `nil'
+     if FILENAME does not include a directory part).  On Unix, the
+     function returns a string ending in a slash.  On VMS, it returns
+     a string ending in one of the three characters `:', `]', or `>'.
+
+          (file-name-directory "lewis/foo")     ; Unix example
+               => "lewis/"
+          (file-name-directory "foo")           ; Unix example
+               => nil
+          (file-name-directory "[X]FOO.TMP")    ; VMS example
+               => "[X]"
+
+ * Function: file-name-nondirectory FILENAME
+     This function returns the nondirectory part of FILENAME.
+
+          (file-name-nondirectory "lewis/foo")
+               => "foo"
+          (file-name-nondirectory "foo")
+               => "foo"
+          ;; The following example is accurate only on VMS.
+          (file-name-nondirectory "[X]FOO.TMP")
+               => "FOO.TMP"
+
+ * Function: file-name-sans-versions FILENAME
+     This function returns FILENAME without any file version numbers,
+     backup version numbers, or trailing tildes.
+
+          (file-name-sans-versions "~rms/foo.~1~")
+               => "~rms/foo"
+          (file-name-sans-versions "~rms/foo~")
+               => "~rms/foo"
+          (file-name-sans-versions "~rms/foo")
+               => "~rms/foo"
+          ;; The following example applies to VMS only.
+          (file-name-sans-versions "foo;23")
+               => "foo"
+
+
+
+File: elisp,  Node: Directory Names,  Next: Relative File Names,  Prev: File Name Components,  Up: File Names
+
+Directory Names
+---------------
+
+   A "directory name" is the name of a directory.  A directory is a
+kind of file, and it has a file name, which is related to the
+directory name but not identical to it.  (This is not quite the same
+as the usual Unix terminology.)  These two different names for the
+same entity are related by a syntactic transformation.  On Unix, this
+is simple: a directory name ends in a slash, whereas the directory's
+name as a file lacks that slash.  On VMS, the relationship is more
+complicated.
+
+   The difference between a directory name and its name as a file is
+subtle but crucial.  When an Emacs variable or function argument is
+described as being a directory name, a file name of a directory is
+not acceptable.
+
+   All of these functions take a single argument, FILENAME, which
+must be a string.  Environment variable substitutions such as
+`$HOME', and the symbols `~', and `..', are *not* expanded.  Use
+`expand-file-name' or `substitute-in-file-name' for that (*note File
+Name Expansion::.).
+
+ * Function: file-name-as-directory FILENAME
+     This function returns a string representing FILENAME in a form
+     that the operating system will interpret as the name of a
+     directory.  In Unix, this means that a slash is appended to the
+     string.  On VMS, the function converts a string of the form
+     `[X]Y.DIR.1' to the form `[X.Y]'.
+
+          (file-name-as-directory "~rms/lewis")
+               => "~rms/lewis/"
+
+ * Function: directory-file-name DIRNAME
+     This function returns a string representing DIRNAME in a form
+     that the operating system will interpret as the name of a file. 
+     On Unix, this means that a final slash is removed from the
+     string.  On VMS, the function converts a string of the form
+     `[X.Y]' to `[X]Y.DIR.1'.
+
+          (directory-file-name "~lewis/")
+               => "~lewis"
+
+
+
+File: elisp,  Node: Relative File Names,  Next: File Name Expansion,  Prev: Directory Names,  Up: File Names
+
+Absolute and Relative File Names
+--------------------------------
+
+   All the directories in the file system form a tree starting at the
+root directory.  A file name can specify all the directory names
+starting from the root of the tree; then it is called an "absolute"
+file name.  Or it can specify the position of the file in the tree
+relative to a default directory; then it is called an "relative" file
+name.  On Unix, an absolute file name starts with a slash or a tilde
+(`~'), and a relative one does not.  The rules on VMS are complicated.
+
+ * Function: file-name-absolute-p FILENAME
+     This function returns `t' if file FILENAME is an absolute file
+     name, `nil' otherwise.  On VMS, this function understands both
+     Unix syntax and VMS syntax.
+
+          (file-name-absolute-p "~rms/foo")
+               => t
+          (file-name-absolute-p "rms/foo")
+               => nil
+          (file-name-absolute-p "$HOME")
+               => nil
+          (file-name-absolute-p "/user/rms/foo")
+               => t
+
+
+
+File: elisp,  Node: File Name Expansion,  Next: Unique File Names,  Prev: Relative File Names,  Up: File Names
+
+Functions that Expand Filenames
+-------------------------------
+
+   "Expansion" of a file name means converting a relative file name
+to an absolute one.  Since this is done relative to a default
+directory, you must specify the default directory name as well as the
+file name to be expanded.  Expansion also canonicalizes file names by
+eliminating redundancies such as `./' and `NAME/../'.
+
+ * Function: expand-file-name FILENAME &optional DIRECTORY
+     This function converts FILENAME to an absolute file name.  If
+     DIRECTORY is supplied, it is the directory to start with if
+     FILENAME is relative.  Otherwise, the current buffer's value of
+     `default-directory' is used.  For example:
+
+          (expand-file-name "foo")
+               => "/xcssun/users/rms/lewis/foo"
+          (expand-file-name "../foo")
+               => "/xcssun/users/rms/foo"
+          (expand-file-name "foo" "/usr/spool")
+               => "/usr/spool/foo"
+          (expand-file-name "$HOME/foo")
+               => "/xcssun/users/rms/lewis/$HOME/foo"
+
+     Filenames containing `.' or `..' are simplified to their
+     canonical form:
+
+          (expand-file-name "bar/../foo")
+               => "/xcssun/users/rms/lewis/foo"
+
+     `~/' is expanded into the user's home directory.  A `/' or `~'
+     following a `/' is taken to be the start of an absolute file
+     name that overrides what precedes it, so everything before that
+     `/' or `~' is deleted.  For example:
+
+          (expand-file-name "/a1/gnu//usr/local/lib/emacs/etc/MACHINES")
+               => "/usr/local/lib/emacs/etc/MACHINES"
+          (expand-file-name "/a1/gnu/~/foo")
+               => "/xcssun/users/rms/foo"
+
+     In both cases, `/a1/gnu/' has been discarded because an absolute
+     file name follows it.
+
+     Note that `expand-file-name' does *not* expand environment
+     variables; that is done only by `substitute-in-file-name'.
+
+ * Variable: default-directory
+     The value of this buffer-local variable is the default directory
+     for the current buffer.  It is local in every buffer. 
+     `expand-file-name' uses the default directory when its second
+     argument is `nil'.
+
+     On Unix systems, the value is always a string ending with a slash.
+
+          default-directory
+               => "/user/lewis/manual/"
+
+ * Function: substitute-in-file-name FILENAME
+     This function replaces environment variables names in FILENAME
+     with the values to which they are set by the operating system. 
+     Following standard Unix shell syntax, `$' is the prefix to
+     substitute an environment variable value.
+
+     The environment variable name is the series of alphanumeric
+     characters (including underscores) that follow the `$'.  If the
+     character following the `$' is a `{', then the variable name is
+     everything up to the matching `}'.
+
+     Here we assume that the environment variable `HOME', which holds
+     the user's home directory name, has the value `/xcssun/users/rms'.
+
+          (substitute-in-file-name "$HOME/foo")
+               => "/xcssun/users/rms/foo"
+
+     If a `~' or a `/' appears following a `/', after substitution,
+     everything before the following `/' is discarded:
+
+          (substitute-in-file-name "bar/~/foo")
+               => "~/foo"
+          (substitute-in-file-name "/usr/local/$HOME/foo")
+               => "/xcssun/users/rms/foo"
+
+     On VMS, `$' substitution is not done, so this function does
+     nothing on VMS except discard superfluous initial components as
+     shown above.
+
+
+
+File: elisp,  Node: Unique File Names,  Next: File Name Completion,  Prev: File Name Expansion,  Up: File Names
+
+Generating Unique File Names
+----------------------------
+
+   Some programs need to write temporary files.  Here is the usual
+way to construct a name for such a file:
+
+     (concat "/tmp/" (make-temp-name NAME-OF-APPLICATION))
+
+The directory `/tmp/' is chosen because that is the standard place on
+Unix for temporary files.  The task of `make-temp-name' is to prevent
+two different users or two different jobs from trying to use the same
+name.
+
+ * Function: make-temp-name STRING
+     This function generates string that can be used as a unique name.
+     The name will start with the prefix STRING, and finish with a
+     number that is different in each Emacs job.
+
+          (make-temp-name "foo")
+               => "foo021304"
+          (make-temp-name "foo")
+               => "foo021304"
+
+     To prevent conflicts among different application libraries run
+     in the same Emacs, each application should have its own STRING. 
+     The number added to the end of the name distinguishes between
+     the same application running in different Emacses.
+
+
+
+File: elisp,  Node: File Name Completion,  Prev: Unique File Names,  Up: File Names
+
+File Name Completion
+--------------------
+
+   This section describes low-level subroutines for completing a file
+name.  For other completion functions, see *Note Completion::.
+
+ * Function: file-name-all-completions PARTIAL-FILENAME DIRECTORY
+     This function returns a list of all possible completions for a
+     file whose name starts with PARTIAL-FILENAME in directory
+     DIRECTORY.  The order of the completions is the order of the
+     files in the directory, which is unpredictable and conveys no
+     useful information.
+
+     The argument PARTIAL-FILENAME must be a file name containing no
+     directory part and no slash.  The current buffer's default
+     directory is prepended to DIRECTORY, if DIRECTORY is not an
+     absolute file name.
+
+     In the following example, suppose that the current default
+     directory, `~rms/lewis', has five files whose names begin with
+     `f': `foo', `file~', `file.c', `file.c.~1~', and `file.c.~2~'.
+
+          (file-name-all-completions "f" "")
+               => ("foo" "file~" "file.c.~2~" "file.c.~1~" "file.c")
+          
+          (file-name-all-completions "fo" "")  
+               => ("foo")
+
+ * Function: file-name-completion FILENAME DIRECTORY
+     This function completes the file name FILENAME in directory
+     DIRECTORY.  It returns the longest prefix common to all file
+     names in directory DIRECTORY that start with FILENAME.
+
+     If only one match exists and FILENAME matches it exactly, the
+     function returns `t'.  The function returns `nil' if directory
+     DIRECTORY contains no name starting with FILENAME.
+
+     In the following example, suppose that the current default
+     directory has five files whose names begin with `f': `foo',
+     `file~', `file.c', `file.c.~1~', and `file.c.~2~'.
+
+          (file-name-completion "fi" "")
+               => "file"
+          
+          (file-name-completion "file.c.~1" "")
+               => "file.c.~1~"
+          
+          (file-name-completion "file.c.~1~" "")
+               => t
+          
+          (file-name-completion "file.c.~3" "")
+               => nil
+
+ * User Option: completion-ignored-extensions
+     `file-name-completion' usually ignores file names that end in
+     any string in this list.  It does not ignore them when all the
+     possible completions end in one of these suffixes or when a
+     buffer showing all possible completions is displayed.
+
+     A typical value might look like this:
+
+          completion-ignored-extensions
+               => (".o" ".elc" "~" ".dvi")
+
+
+
+File: elisp,  Node: Backups and Auto-Saving,  Next: Buffers,  Prev: Files,  Up: Top
+
+Backups and Auto-Saving
+***********************
+
+   Backup files and auto-save files are two methods by which Emacs
+tries to protect the user from the consequences of crashes or of the
+user's own errors.  Auto-saving preserves the text from earlier in
+the current editing session; backup files preserve file contents
+prior to the current session.
+
+* Menu:
+
+* Backup Files::   How backup files are made; how their names are chosen.
+* Auto-Saving::    How auto-save files are made; how their names are chosen.
+* Reverting::      `revert-buffer', and how to customize what it does.
+
+ 
+
+File: elisp,  Node: Backup Files,  Next: Auto-Saving,  Prev: Backups and Auto-Saving,  Up: Backups and Auto-Saving
+
+Backup Files
+============
+
+   A "backup file" is a copy of the old contents of a file you are
+editing.  Emacs makes a backup file the first time you save a buffer
+into its visited file.  Normally, this means that the backup file
+contains the contents of the file as it was before the current
+editing session.  The contents of the backup file normally remain
+unchanged once it exists.
+
+   Backups are usually made by renaming the visited file to a new name.
+Optionally, you can specify that backup files should be made by
+copying the visited file.  This choice makes a difference for files
+with multiple names; it also can affect whether the edited file
+remains owned by the original owner or becomes owned by the user
+editing it.
+
+   By default, Emacs makes a single backup file for each file edited.
+You can alternatively request numbered backups; then each new backup
+file gets a new name.  You can delete old numbered backups when you
+don't want them any more, or Emacs can delete them automatically.
+
+* Menu:
+
+* Making Backups::     How Emacs makes backup files, and when.
+* Rename or Copy::     Two alternatives: renaming the old file or copying it.
+* Numbered Backups::   Keeping multiple backups for each source file.
+* Backup Names::       How backup file names are computed; customization.
+
+ 
+
+File: elisp,  Node: Making Backups,  Next: Rename or Copy,  Prev: Backup Files,  Up: Backup Files
+
+Making Backup Files
+-------------------
+
+ * Function: backup-buffer
+     This function makes a backup of the file visited by the current
+     buffer, if appropriate.  It is called by `save-buffer' before
+     saving the buffer the first time.
+
+ * Variable: buffer-backed-up
+     This buffer-local variable indicates whether this buffer's file
+     has been backed up on account of this buffer.  If it is
+     non-`nil', then the backup file has been written.  Otherwise,
+     the file should be backed up when it is next saved (if backup
+     files are enabled).
+
+ * Variable: make-backup-files
+     This variable determines whether or not backup files will be
+     created.  If it is non-`nil', then Emacs will create a backup of
+     each file when it is saved for the first time.
+
+     The following example shows how to change the
+     `make-backup-files' variable only in the `RMAIL' buffer and not
+     elsewhere.  Setting it `nil' stops Emacs from making backups of
+     the `RMAIL' file, which may save disk space.  (You would put
+     this code in your `.emacs' file.)
+
+          (setq rmail-mode-hook 
+                (function (lambda ()
+                            (make-local-variable 'make-backup-files)
+                            (setq make-backup-files nil)))
+
+

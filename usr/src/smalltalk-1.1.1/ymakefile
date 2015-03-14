@@ -1,0 +1,219 @@
+/*******************************************************************
+ * 
+ * Copyright (C) 1990, 1991 Free Software Foundation, Inc.
+ * Written by Steve Byrne.
+ * 
+ * This file is part of GNU Smalltalk.
+ *  
+ * GNU Smalltalk is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 1, or (at your option) any later 
+ * version.
+ * 
+ * GNU Smalltalk is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with
+ * GNU Smalltalk; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
+ ********************************************************************/
+
+#include "mstconfig.h"
+#include "mstpaths.h"
+
+#ifndef DEFAULT_LIBRARIES
+#define DEFAULT_LIBRARIES -lm
+#endif
+
+/* The configuration files can define extra flags for the C compiler
+ * using this definition
+ */
+#ifndef EXTRA_CC_FLAGS
+#define EXTRA_CC_FLAGS
+#endif
+
+
+#ifdef USE_READLINE
+/* assumes that readline is installed in ./readline */
+READLINEDEF = -DUSE_READLINE -I.
+READLINELIB = -L./readline -lreadline -ltermcap
+#endif
+
+
+#ifndef SYSTEM_MALLOC
+#ifdef HAVE_ALLOCA
+mallocobj = malloc.o
+#else
+mallocobj = alloca.o malloc.o
+#endif
+#endif
+
+
+/* just to be sure the sh is used */
+SHELL=/bin/sh
+
+/* Enable recompilation of certain other files depending on system type.  */
+
+#ifndef OTHER_FILES
+#define OTHER_FILES
+#endif
+
+/* Enable inclusion of object files in temacs depending on system type.  */
+#ifndef OBJECTS_SYSTEM
+#define OBJECTS_SYSTEM
+#endif
+
+#ifndef OBJECTS_MACHINE
+#define OBJECTS_MACHINE
+#endif
+
+
+/* Some machines have alloca built-in.
+   They should define HAVE_ALLOCA, or may just let alloca.s
+   be used but generate no code.
+   Some have it written in assembler in alloca.s.
+   Some use the C version in alloca.c (these define C_ALLOCA in mstconfig.h).
+   */
+
+#ifdef C_ALLOCA
+ALLOCA = alloca.o alloc.o
+alloca.o: alloca.c
+#else
+#ifdef NEED_ALLOCA
+ALLOCA = alloca.o
+alloca.o : alloca.s mstconfig.h
+/* $(CPP) is cc -E, which may get confused by filenames
+   that do not end in .c.  So copy file to a safe name.  */
+	cp alloca.s allocatem.c
+/* remove any ^L, blank lines, and preprocessor comments,
+   since some assemblers barf on them */
+	$(CPP) allocatem.c | \
+	sed -e 's///' -e 's/^#.*//' | \
+	sed -n -e '/^..*$$/p' > allocatem.s
+	-rm -f alloca.o
+/* Xenix, in particular, needs to run assembler via cc.  */
+	cc -c allocatem.s
+	mv allocatem.o alloca.o
+	rm allocatem.s allocatem.c
+#endif /* NEED_ALLOCA */
+#endif /* not C_ALLOCA */
+
+
+
+/* System-specific programs to be made.
+   OTHER_FILES, OBJECTS_SYSTEM and OBJECTS_MACHINE
+   select which of these should be compiled.  */
+
+
+
+/*************
+ *
+ * These variables you may wish to change
+ *
+ *************/
+
+/* Mail path to GNU Smalltalk maintainer (Steve Byrne) */
+MAINTAINER = 'nfsun!sbyrne@uunet.uu.net'
+
+/* Compilation flags definitions */
+CFLAGS_NORMAL   = -g EXTRA_CC_FLAGS 
+CFLAGS_PROFILE  = -g -pg -DUSE_MONCONTROL EXTRA_CC_FLAGS 
+CFLAGS_OPTIMIZE = -O -DOPTIMIZE EXTRA_CC_FLAGS 
+
+/* Actual compilation flags and compiler definition */
+CFLAGS = $(CFLAGS_NORMAL) $(READLINEDEF)
+
+
+
+/********************************************************************
+ * The following definitions are not something that the casual user would
+ * want to change.
+ ********************************************************************/
+
+OBJS =  mstmain.o   mst.tab.o   mstlex.o    mststr.o    mstid.o \
+	msttree.o   mstbyte.o   mstinterp.o mstcomp.o   mstsym.o \
+	mstdict.o   mstoop.o    mstsave.o   mstcint.o 	mstsysdep.o \
+	$(USER_OBJS) $(ALLOCA)
+
+SRCS =  mstmain.c   mst.tab.c   mstlex.c    mststr.c    mstid.c \
+	msttree.c   mstbyte.c   mstinterp.c mstcomp.c   mstsym.c \
+	mstdict.c   mstoop.c    mstsave.c   mstcint.c 	mstsysdep.c
+
+
+LIBS =  DEFAULT_LIBRARIES $(USER_LIBS) $(READLINELIB)
+
+
+all: mst
+
+mst: $(OBJS)
+	$(CC) -o mst $(CFLAGS) $(OBJS) $(LIBS)
+
+mst.tab.h mst.tab.c: mst.y
+	bison -dv mst.y
+
+mstmain.o mstlex.c: mst.tab.h
+
+mstlex.o: mst.tab.h
+
+/* These depend on the oop table size */
+mstsave.o mstoop.o mstmain.o mstsym.o: mstoop.h
+
+/*
+ * Install the files into the proper place
+ */
+
+install:
+	if test ! -d KERNEL_PATH ; then      \
+	    mkdir -p KERNEL_PATH ;           \
+	fi
+	cp *.st KERNEL_PATH
+	(cd KERNEL_PATH; chmod +r *.st)
+	if test ! -d IMAGE_PATH ; then      \
+	    mkdir -p IMAGE_PATH ;           \
+	fi
+	(x=`pwd`; cd IMAGE_PATH; $$x/mst -Vi)
+
+/***
+ *** Experimental Linting of the code
+ ***/
+lint: $(SRCS)
+	lint $(SRCS)
+
+lexdebug:
+	$(CC) -c $(XCFLAGS) -DLEXDEBUG mstmain.c
+	$(MAKE) -f xmakefile mst
+
+profile:
+	make CFLAGS='$(CFLAGS) -pg -Dprofiling'
+
+senddiffs: diffs
+	kermit -e 1000 -s mst.diffs
+
+mail-diffs:
+	@echo "Please enter a brief note describing the contents of"
+	@echo "the diffs file that you've created.  End with Ctrl-D."
+	@cat > mst.diffs.note
+	@echo "-----------------------------------" >> mst.diffs.note
+	@### If there's a more portable/better way to do this, please
+	@### don't hesitate to fix this and send the new version back -- SBB
+	@cat mst.diffs.note mst.diffs | mail $(MAINTAINER)
+
+diffs:
+	mk_mst_diffs
+
+setup:
+	@if [ -f ./orig ] ; then \
+		echo "./orig exists, but is not a directory" ; \
+		exit 1 ; \
+	fi
+	rm -rf ./orig
+	mkdir ./orig
+	tar cbf 20 - `cat mstfiles` | (cd ./orig; tar xbBf 20 -)
+
+
+
+
+

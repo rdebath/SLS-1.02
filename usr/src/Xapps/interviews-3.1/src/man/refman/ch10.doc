@@ -1,0 +1,179 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 9
+%label{bevel}{?}
+%label{button}{?}
+%label{menu}{?}
+%label{adjustable}{?}
+%label{valuator}{?}
+%label{field-editor}{10.2}
+%label{dialog}{10.3}
+%label{filechooser}{10.4}
+%label{dialogkit}{10.1}
+
+\begin{document}
+%
+%
+\chapter{DialogKit}%
+%
+\float{figure}{10-\pagenumber{00}}%378.8 -642.8 -2
+\float{figure}{10-\pagenumber{00}}%378.8 -642.8 0
+Whereas WidgetKit provides operations for creating common look-and-feel
+components such as scrollbars, menus, and buttons, DialogKit is creates
+higher-level dialog objects.  The current implementation of DialogKit
+provides only field editors and file choosers, but in the future this
+kit will provide operations for creating confirmers, quit dialogs,
+and information messages.  Figure%
+%
+\code{interface DialogKit \{\
+\quad static DialogKit* instance();\
+\quad FieldEditor* field\_editor(\
+\quad \quad const String\& sample, Style*, FieldEditorAction* = nil
+
+\quad ) const;\
+\quad FileChooser* file\_chooser(\
+\quad \quad constString\& dir, Style*, FileChooserAction* = nil\
+\quad ) const;\
+\};%
+%
+\figurecaption{DialogKit operations\label{dialogkit}}%
+%
+%0.240021 1.19989 1
+}%
+%
+ \ref{dialogkit} shows the operations provided by DialogKit.%
+%
+\section{Field editor}%
+%
+Many application need simple editors for entering or browsing data.  A
+field editor is suitable for incorporating into other components,
+such as a dialog box.  Figure%
+%
+\code{interface FieldEditorAction  Resource \{\
+\quad void execute(FieldEditor*, boolean accept);\
+\};\smallskip
+interface FieldEditorCallback(T) : FieldEditorAction \{\
+\quad FieldEditorCallback(T)(T*, void (T::*)(FieldEditor*, boolean
+accept));\
+\};\smallskip
+interface FieldEditor : InputHandler \{\
+\quad FieldEditor(const char* sample, Style*, FieldEditorAction* =
+nil);\
+\quad FieldEditor(const String\& sample, Style*, FieldEditorAction*
+= nil);\smallskip
+\quad void field(const char*);\
+\quad void field(const String\&);\
+\quad void select(int pos);\
+\quad void select(int left, int right);\
+\quad void edit();\
+\quad void edit(const char*, int left, int right);\
+\quad void edit(const String\&, int left, int right);\
+\quad const char* text() const;\
+\quad void text(String\&) const;\
+\};%
+%
+\figurecaption{Field editor class interface\label{field-editor}.}%
+%
+%-2.63998 -307.92 1
+}%
+%
+ \ref{field-editor} shows the field editor class interface.
+
+\quad Clicking inside the editor (or calling FieldEditor::edit) initiates
+an edit.  Subsequent keyboard events, regardless of the pointer location,
+are interpreted as editing operations on the text.  Clicking outside
+the editor terminates the editing.
+
+\quad Text is selected with the pointer or with the keyboard.  A single
+click of the left button selects a new insertion point between characters.  Dragging
+across the text selects a range of characters.  A set of control characters
+is mapped into common editing operations.  A character not specifically
+associated with commands is inserted in place of the current selection,
+the replaced text is discarded, and the selection becomes an insertion
+point following the inserted character.  The commands defined are:\smallskip
+\quad \quad character-left (^B)\
+\quad \quad character-right (^F)\
+\quad \quad beginning-of-text (^A)\
+\quad \quad end-of-text (^E)\
+\quad \quad erase (^H or DEL)\
+\quad \quad delete (^D)\
+\quad \quad select-all (^U)\
+\quad \quad select-word(^W)\smallskip
+Strings that are too long to fit into the editor can be scrolled horizontally.  Clicking
+the middle button inside the editor initiates \252grab-scrolling\272.  While
+the button is down the editor scrolls the text to follow the pointer,
+giving the appearance that the user is dragging the text.  Clicking
+the right button engages \252rate-scrolling\272, a joy-stick-like
+scrolling interface in which the scrolling rate increases as the user
+drags the pointer away from the initial click location.
+
+\quad The field editor constructor is passed a sample string, used
+to compute its natural size, a style for customization, and a field
+editor action to execute when editing returns.  Editing normally completes
+when a carriage return or tab is entered; abnormally when an escape
+character is entered.
+
+\quad FieldEditor::field sets the contents of the string being edited.  FieldEditor::select
+sets the insertion point or subrange within the edit string.  FieldEditor::edit
+initiates an edit.  Specifying a string and selection range is short-hand
+for first calling FieldEditor::field and FieldEditor::select.  FieldEditor::text
+returns the current value of the string being edited.  The caller
+must copy the string to save the contents, as it will be modified
+by a subsequent edit.%
+%
+\section{Dialog}%
+%
+A dialog is an object that can be posted temporarily and grabs input
+until it is dismissed.  Figure%
+%
+\code{interface DIalog : InputHandler \{\
+\quad Dialog(Glyph*, Style*);\
+\quad boolean post\_for(Window*, float = 0.5, float = 0.5);\
+\quad boolean post\_at(Coord x, Coord y, float = 0.5, float = 0.5);\
+\quad boolean run();\
+\quad void dismiss(boolean accept);\
+\};%
+%
+\figurecaption{Dialog protocol\label{dialog}}%
+%
+%-1.67998 2.15985 2
+}%
+%
+ \ref{dialog} shows the Dialog protocol.  Dialog::post\_for creates
+a transient window for the dialog and aligns over the given window
+using the given x and y alignment.  The default is for the dialog
+to be centered over the window.
+
+\quad Dialog::post\_at creates a top-level window aligned around the
+given position.  Dialog::run blocks until Dialog::dismiss is called,
+and Dialog::run returns the value of the parameter that is passed
+to Dialog::dismiss.%
+%
+\section{FileChooser}%
+%
+A file chooser is a dialog subclass that allows the user to select
+a file in a directory and returns the file name.  Figure%
+%
+\code{interface FileChooserAction : Resource \{\
+\quad void execute(FileChooser*, boolean accept);\
+\};\smallskip
+interface FileChooserCallback(T) : FileChooserAction \{\
+\quad FileChooserCallback(T)(T*, void (T::*)(FileChooser*, boolean
+accept));\
+\};\smallskip
+interface FileChooser : Dialog \{\
+\quad const String* selected() const;\
+\quad void reread();\
+\};%
+%
+\figurecaption{FileChooser protocol\label{filechooser}}%
+%
+%0.240013 -400.08 2
+}%
+%
+ \ref{filechooser} shows the FileChooser protocol.
+
+%
+\end{document}

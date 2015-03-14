@@ -1,0 +1,41 @@
+#define ScoreDir $(LIBDIR)      /* Directory for the score file. */
+#define ScoreFile xtetris-scores/* Filename for the score file. */
+#define BitmapDir $(INCDIR)/bitmaps /* May need to change this to
+				       /usr/include/X11/bitmaps, if you get a
+				       message like "can't convert string
+				       'stripe4' to pixmap." */
+
+        BITMAPS = stripe4 
+        DEFINES = -DHIGH_SCORE_TABLE=\"$(LIBDIR)/xtetris-scores\"
+        HEADERS = defs.h
+           SRCS = main.c init.c shape.c support.c notify.c window.c score.c\
+                  draw.c
+           OBJS = main.o init.o shape.o support.o notify.o window.o score.o\
+                  draw.o
+LOCAL_LIBRARIES = $(XAWLIB) $(XMULIB) $(XTOOLLIB) $(XLIB) -lm
+        DEPLIBS = $(DEPXAWLIB) $(DEPXMULIB) $(DEPXTOOLLIB) $(DEPXLIB) 
+
+ComplexProgramTarget(xtetris)
+
+AllTarget(Xtetris.ad)	/* This is necessary because of a stupid bug with
+				respect to the ".customization" resource.
+				It does not propagate to the popup widgets,
+				and so they fetch their values using a
+				NULL customization.  Difficult bug to find! */
+AllTarget(Xtetris.c.ad)
+AllTarget(Xtetris.bw.ad)
+
+InstallAppDefaults(Xtetris.c)
+InstallAppDefaults(Xtetris.bw)
+InstallAppDefaults(Xtetris)
+
+InstallMultipleFlags($(BITMAPS),BitmapDir,-m 444)
+InstallMultipleFlags(ScoreFile,ScoreDir,$(SCOREFLAGS))
+Xtetris.c.ad: Xtetris.ad.all
+	xrdb -n Xtetris.ad.all -DCOLOR > Xtetris.c.ad
+Xtetris.bw.ad: Xtetris.ad.all
+	xrdb -n Xtetris.ad.all -UCOLOR > Xtetris.bw.ad
+Xtetris.ad: Xtetris.ad.all
+	xrdb -n Xtetris.ad.all -UCOLOR > Xtetris.ad
+clean::
+	$(RM) Xtetris.c.ad Xtetris.bw.ad Xtetris.ad

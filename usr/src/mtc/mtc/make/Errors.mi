@@ -1,0 +1,82 @@
+IMPLEMENTATION MODULE Errors;
+
+FROM SYSTEM	IMPORT ADDRESS;
+FROM IO		IMPORT tFile, StdError, WriteC, WriteNl, WriteS, WriteI,
+		       WriteB, WriteR, CloseIO;
+FROM Sets	IMPORT tSet;
+FROM Positions	IMPORT tPosition, WritePosition;
+
+TYPE tArray	= ARRAY [0..256] OF CHAR;
+
+VAR ErrorCount	: CARDINAL;
+
+PROCEDURE NumberOfErrors(): CARDINAL;
+BEGIN
+   RETURN ErrorCount;
+END NumberOfErrors;
+
+PROCEDURE WriteErrorMessage (ErrorCode, ErrorClass: CARDINAL; Position: tPosition);
+   BEGIN
+      INC (ErrorCount);
+      WritePosition (StdError, Position); WriteS (StdError, ': ');
+
+      CASE ErrorClass OF
+      |  Fatal		: WriteS (StdError, 'Fatal      ');
+      |  Restriction	: WriteS (StdError, 'Restriction');
+      |  Error		: WriteS (StdError, 'Error      ');
+      |  Warning	: WriteS (StdError, 'Warning    ');
+      |  Repair		: WriteS (StdError, 'Repair     ');
+      |  Note		: WriteS (StdError, 'Note       ');
+      |  Information	: WriteS (StdError, 'Information');
+      ELSE WriteS (StdError, 'Error class: '); WriteI (StdError, ErrorClass, 0);
+      END;
+
+      CASE ErrorCode OF
+      |  NoText		:
+      |  SyntaxError	: WriteS (StdError, ' syntax error');
+      |  ExpectedTokens	: WriteS (StdError, ' expected tokens:');
+      |  RestartPoint	: WriteS (StdError, ' restart point');
+      |  TokenInserted	: WriteS (StdError, ' token inserted :');
+      |  ReadParseTable	: WriteS (StdError, ' error reading Pars.Tab');
+      |  IllegalChar	: WriteS (StdError, " illegal character");
+      |  UnclosedComment: WriteS (StdError, " unclosed comment");
+      |  UnclosedString	: WriteS (StdError, " unclosed string");
+      ELSE WriteS (StdError, ' error code: '); WriteI (StdError, ErrorCode, 0);
+      END;
+   END WriteErrorMessage;
+
+PROCEDURE ErrorMessage	(ErrorCode, ErrorClass: CARDINAL; Position: tPosition);
+   BEGIN
+     WriteErrorMessage (ErrorCode, ErrorClass, Position); WriteNl (StdError);
+     IF ErrorClass = Fatal THEN CloseIO; HALT; END;
+   END ErrorMessage;
+
+PROCEDURE ErrorMessageI	(ErrorCode, ErrorClass: CARDINAL; Position: tPosition;
+			 InfoClass: CARDINAL; Info: ADDRESS);
+   VAR
+      PtrToInteger	: POINTER TO INTEGER;
+      PtrToShort	: POINTER TO SHORTCARD;
+      PtrToLong		: POINTER TO LONGINT;
+      PtrToReal		: POINTER TO REAL;
+      PtrToBoolean	: POINTER TO BOOLEAN;
+      PtrToCharacter	: POINTER TO CHAR;
+      PtrToArray	: POINTER TO tArray;
+   BEGIN
+      WriteErrorMessage (ErrorCode, ErrorClass, Position); WriteS (StdError, ' ');
+      CASE InfoClass OF
+      | Integer: PtrToInteger	:= Info; WriteI (StdError, PtrToInteger^, 0);
+      | Short  : PtrToShort	:= Info; WriteI (StdError, PtrToShort^, 0);
+      | Long   : PtrToLong	:= Info; WriteI (StdError, PtrToLong^, 0);
+      | Real   : PtrToReal	:= Info; WriteR (StdError, PtrToReal^, 1, 10, 1);
+      | Boolean: PtrToBoolean	:= Info; WriteB (StdError, PtrToBoolean^);
+      | Character:PtrToCharacter:= Info; WriteC (StdError, PtrToCharacter^);
+      | Array	: PtrToArray	:= Info; WriteS (StdError, PtrToArray^);
+      ELSE
+      END;
+      WriteNl (StdError);
+      IF ErrorClass = Fatal THEN CloseIO; HALT; END;
+   END ErrorMessageI;
+
+BEGIN
+  ErrorCount := 0;
+END Errors.

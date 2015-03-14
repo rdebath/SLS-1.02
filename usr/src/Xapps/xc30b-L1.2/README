@@ -1,0 +1,322 @@
+XC README, patchlevel 3.0bL1.2 KI4N  22 Apr 92
+XC README, patchlevel 3.0b JPRadley 6 Jun 91
+This file (and every other one in the distribution) uses 4-character tabstops.
+The supplied .exrc file sets ts=4 and sw=4, for vi's purposes.
+
+        R E L E A S E    N O T E S
+
+This release is an enhancement of XC 3.0b. But other than some bug fixes,
+overall it remains essentially the same except in the XMODEM file transfer
+protocol module. This module has been reworked considerably to improve
+handshaking and to correct a serious bug in the send CRC calculation.
+XMODEM-1K (old YMODEM) has been added as an option. Checksum error
+detection has been reinstated as an automatic fallback should XC be
+unable to negotiate a CRC transfer. XMODEM-1K will automatically fallback
+to 128 byte packets during receive if the sender requests. Other areas
+of change amount to a slightly more robust handling of buffer pointers to
+avoid overrun. The initial goal was porting this for LINUX but there is 
+nothing LINUX specific here other than making fewer assumptions about 
+termcap capabilities to compensate for the still developing LINUX OS.
+With this release support for translation of MS-DOS extended ASCII
+to LINUX extended ASCII has been added. Use "set dos_mode on" to 
+enable translation when connected to DOS BBSs.
+
+One thing to note is that the delete code 0x7f is trapped and mapped
+to 0x08 (control H) as termcap for LINUX was unable to handle this 
+properly. If you are porting this to another system, you may want to
+change this. This release was tested under LINUX 0.95c and compiled
+with GCC 1.40.
+
+
+For more information concerning this port, you may contact me by
+dropping a note by MAC's PLACE BBS  919-891-1111. For information
+on XC as a whole, you should contact J.P.Radley who is the present
+caretaker for XC. The rest of this document is his doing.
+
+                                    Thomas McWilliams KI4N
+                                           
+	B A C K G R O U N D
+
+Once upon a time (in 1985 or so), a fellow named Eric Coe wrote a Unix dialout
+telecommunications program called XCOMM.  This program was substantially
+upgraded and improved by another fellow named Larry Gensch, who brought XCOMM
+up to Version 2.2.  Version 2.2 included a simple script language, 128-byte
+Xmodem and Compuserve Quick-B file-transfer protocols, and some other stuff.
+Fred Buck then changed the program name to XCMALT, which it maintained until
+June 1991, when Jean-Pierre Radley renamed it XC.
+
+XC is a massive expansion and modification of XCOMM 2.2.  Many bugs in
+XCOMM 2.2 have been fixed, and many advertised features that didn't work in
+XCOMM 2.2 do work in XC.  Also, XC includes a fullscreen dialing
+directory; a totally rewritten and much more powerful script language
+allowing, among other things, remote execution of shell commands and
+unattended protocol-controlled file transfer (provided that your system also
+has Chuck Forsberg's "rz/sz" Xmodem/Ymodem/Zmodem program, available free for
+the download from many sources), a flexible variable mechanism, including 
+access to shell environment variables, and more; BREAK-signal capability; the
+capability to upload a file in ASCII from within a script; and miscellaneous
+cosmetic changes.
+
+But while XC incorporates much of Larry Gensch's work, it's not supported
+by Larry Gensch.  The changes from XCOMM 2.2 are the product of Steve Manes,
+who installed uucp LCKfile support and special compile-time tuning for SCO
+Xenix, and who wrote the fullscreen dialing directory; Fred Buck, who rewrote
+the script language, performed various bugfixes and alterations, and installed
+special compile-time tuning for the Tandy 6000; and Jean-Pierre Radley, who
+installed the B+ Protocol, used more termcap features, and is now the
+"caretaker" of XC.
+
+
+	I N S T A L L A T I O N
+
+Edit xc.h. There are various definitions that have to be set according
+to your flavor of Unix, your preference for default directories, and other
+user-definable items. LOCKDIR in xcport.c might also need to change.
+
+Choose the proper flags for your case in the Makefile. Change the definition
+of INSDIR, which is the directory where you wish XC to reside.
+Typing just "make" will compile XC; typing "make install" will strip out
+its symbol table, place the program in INSDIR, and make it "suid uucp". This
+is necessary if it is going to suspend or restart "getty" on a dial-in/dial-
+out port.
+
+The "xc.nro" file is 'nroff' source for a manual page which describes the
+command-line options, the various commands once you're running XC, script
+language, file transfers, and the price of milk in Soviet Georgia in 1986.
+This file MUST pass through 'tbl' and 'col', e.g.,
+	"tbl xc.nro | nroff -man | col > /usr/man/cat.L/xc.L".
+
+The Makefile also has targets for 'man' and 'catman', which can automatically
+format and install "xc.nro" for you. There are a few choices you must make
+for directories, extensions, and the use of "compress" or "pack".
+
+Some distribution files that you might adapt to your own purposes:
+
+	.exrc		- sets tabstops and shiftwidth to 4, which is necessary
+				  properly view every file in the XC distribution.
+				  Also includes some map settings useful for handling
+				  captures of CompuServe Forum messages.
+
+	xc.init         - sample startup script
+
+        phonelist       - sample dialing directory data file
+
+	.callhq		- sample script for calling a Unix/Xenix system
+
+	.c24		- sample script for calling Compuserve
+
+	.uni		- sample script for calling CompuServe and going to
+				  the UnixForum
+
+	.autocis	- sample script to call CompuServe, get any waiting
+			      Mail into a capture file, then visit the PRACTICE
+			      and the UNIX Fora in turn, uploading any prepared
+			      messages, capturing all new messages into separate
+				  files, then hanging up.
+
+
+	X C    R E V I S I O N    H I S T O R Y
+
+Version 3.0bL1.2 McWilliams 22 Apr 92
+        Added extended character set support for LINUX by mapping
+        DOS characters to LINUX extended ASCII.
+        Minor cosmetic changes in help menus.
+
+Version 3.0bL1.1 McWilliams 02 Apr 92
+        Fixed bug in send CRC calculation.
+        Added 1K XMODEM protocol (old YMODEM).
+        Added automatic CRC/Checksum/packet size negotiation.
+        Added pauz() to automatically refresh screen after
+        displaying an error message.
+	Added -w command line switch disables call waiting.
+        Added -p command line switch for pulse dialing.
+        Moved CRC table to xcrctbl.h         
+        Bounds overrun checking on keyboard buffers.
+        Map 0x7f to 0x08 for Linux 0.95a compatability.
+        Modules affected by this patch level are xcmain.c,
+        xcsubs.c, xcport.c, xcxmdm.c, xcdial.c ; Added xcrctbl.h 
+             
+
+Version 3.0b Radley  08 Jul 1991
+	Elminated mklow/mkhigh in favor of tolower/toupper
+	Shortened inter-line delay in script transmittal
+
+Version 3.0a Radley  29 Jun 1991
+	Bugs re DIDO ports logic
+	Spelling errors in xc.nro
+	Added Buck-type CIS macros to .exrc
+
+Version 3.0 Radley	06 Jun 1991
+	Program name XC replace XCMALT, by Jean-Pierre Radley
+
+	Ditched nap() in favor of times()
+	Cleaned up error handling in xcscrpt.c
+	Used NULLS and NULLF where appropriate
+	Used same crc table for xmodem and B+ (Mike Barton)
+	Increased size of f[] in xcdial.c (Tom Cattrall)
+	Introduced XC_PATH (Dan Everhart)
+	Won't mistake a directory for a script (clue from Bob Stockler)
+	Added "hangup" script keyword (Dan Everhart)
+	Forced 8N1 setting on opening port (clue from John James & Russ Ranshaw)
+	Cleaned up manual page
+	Included 38400 speed
+	Deleted ioctl(TCFLSH) from s_exit() (David Kindred)
+	Fixed spurious return to dialing directory after B_Transfer (David Kindred)
+	Fixed auto toggle after dialing without a script (clue from Roger Chaplin)
+	Use carat-char for a ctrl-char in waitfor as well as in transmit
+	Added MY_ESC-Q to quit XC from terminal mode (clue from Bill Hobson)
+
+
+	X C M A L T    R E V I S I O N    H I S T O R Y
+
+
+Version 2.9 Radley	2 Sep 1990
+	Fixed error messages and file opening in xcb+.c when permission denied.
+
+Version 2.8 Radley  1 Sep 1990
+	Fixed interrupt handling when dialing from phonelist (clue from Jim Asman)
+	Merged xcparse.c into xcscrpt.c
+	Fixed backspace handling in getline()
+	Used getline() inside man_dial()
+	Did away with using /dev/tty
+	For cron: do not bother with TERM if !isatty()
+	Fixed page counting in dial directory routines (clue from Mike Squires)
+	Changed Msg[80] to Msg[SM_BUFF] (clue from Dave Cardinal )
+	Fixed a bad tgetstr() call (clue from Per Bilse)
+
+Version 2.7 Radley  12 June 1990
+	Merge install.doc into xcmalt.h and README
+	Change xcmalt.doc to nroff source
+	Add cr_add flag to insert [or not] CRs after NLs in B+ uploads
+
+Version 2.6.1 Betz, Cattrall, Roberts, Scothorne, Radley  13 May 90
+	Use separate rxbuf and kbbuf for port/keyboard input (Tom Cattrall)
+	Stretched some sleep and nap delays (Doug Scothorne)
+	Removed '/' from INSDIR definition in Makefile (Tom Betz)
+	Fixed bug in while/do/call script/done logic (clue from Tom Roberts)
+	Removed dd_done variable
+	Fixed terminal(todir) logic
+
+Version 2.6 Radley  29 April 1990
+	Reinstated SCO 2.2 ungetty calls
+	Deleted crc setting, xmodem now always done with CRC
+	Added auto flag, automatically start capture on entering terminal mode
+	Used tputs() for screen control strings.
+
+Version 2.5 George Pontis & Jean-Pierre Radley  19 April 1990
+	Use ioctl.h only for the T6000
+	Fixed calls to nap() for BSD
+	Fixed statbuf() declaration bug in xcport.c
+	Included mklow()/mkhigh() as frontends to tolower()/toupper()
+	Included NOSHELL option
+	Exits mopen() if no port specified
+
+Version 2.4 Radley	31 Mar 1990
+	Made all identifiers unique in first seven characters.
+	Replaced incorrect references to "baud" and "baud-rate" by
+	  "bps" and "bits/second"
+
+Version 2.3 Radley  19 Feb 1990
+	B-Plus replaces Quick-B
+	Reinstated xclog code
+	No mungmode variable; overwriting of a file interactively confirmed.
+	No term variable; all transfers return to Terminal mode.
+	Added timer.c, to calibrate the built-in nap() code.
+
+Version 2.2	Radley	05 Jan 1990
+	Removed XCLUDE termio setting, which locked port on first fopen()
+	Change setuid to be uid of 'uucp'
+	Fixed set/get/uid routines
+	Revised menu display
+	Removed xclog code from xccisb.c
+	Changed many TCSETAW ioctl calls to TCSETA
+
+Version 2.1	Radley	12 Dec 1989
+	Revised all inverse video displays
+	Took out more unnecessary routines
+	Permitted operation from 'cron' or 'at'
+	Fixed some of the interrupt routines
+	Removed PUT_TAKE manifest, code for put/take now always included
+	Fixed some of the mopen() routines.
+	Did away with DRIBBLE, use nap() instead
+
+Version 2.0	Radley	9 Aug 1989
+	Added openfile routine (credit to George Pontis)
+	Added LIBDIR (credit to George Pontis)
+	Used setbuf on local tty (credit to George Pontis)
+	Eliminated fflush() calls
+	Fixed put and take code
+	Deleted SCO 2.2 ungetty stuff
+
+Version 1.0 ...all in or about, oh, say, 1988.
+	CD-independent modem opening added by Fred Buck/J-P Radley
+	Broken shell-escape mechanism fixed by Fred Buck
+	Tandy 6000 LCKfile support added by Fred Buck
+	Flexible LCKfile support added by Steve Manes
+	Same, for SCO 2.2, added by J-P Radley
+	Fullscreen dialing directory added by Steve Manes
+	Fullscreen dialing directory tuned by Fred Buck/J-P Radley
+	Shell-escape ignore-SIGINT bug fixed by Fred Buck
+	Command-mode ignore-xon/xoff bug fixed by Fred Buck
+	Script parsing greatly extended by Fred Buck
+	"BYE" sequence to modem on exit added by Fred Buck
+
+	Program named XCMALT instead of XCOMM, by Fred Buck
+
+
+	X C O M M    R E V I S I O N    H I S T O R Y
+
+
+Version 2.2	larry gensch	14 Dec 87	Major code restructure
+	Reduced program and command options
+	Added SET command for setting various parameters
+	Added HANGUP command for disconnecting modem
+	Modified xccisb.c code to support CIS "Quick B" Protocol
+	Added xcscrpt.c code for processing script files
+	Added SCRIPT= parameter to phonebook processing (auto-logon scripts)
+	Added CIS parameter for CIS <ENQ> auto transfers
+	Added NL parameter for newline translation
+	Added HANGUP command from terminal mode
+	Added SCRIPT command from terminal mode
+
+Version 2.1b	larry gensch	11 Nov 87	Bug Fix release
+	(no bugs in the code, just some portability fixes)
+	Changed "sigset" in xccisb to "signal"
+	Removed #include <setjmp.h> from xcxmdm
+
+Version 2.1a	larry gensch	28 Oct 87	General Update
+	Added CIS "B" Protocol (c, ct commands)
+	Added BAUD= & BITS= parameters to phonelist file.
+	Switched some command letters
+	Revised command line parsing to use getopt()
+
+Version 2.0	larry gensch	19 Oct 87	Revisions for System V.3
+	Changed <sgtty> references to <termio> (modified ioctl(2) calls)
+	Changed terminal mode function keys to <ESC> sequences; added
+		getconchr()
+
+Version 1.1	Eric E Coe	21 Jul 85
+	Autodial for Hayes-compatible modem.
+	General rearranging of the code
+
+Version 1.0	Eric E Coe	12 Apr 85
+	Program created
+
+
+===================================
+
+
+Note: in the original XCOMM file "install.doc", Larry Gensch gave his
+various mail addresses for users to reach him about bug reports, upgrade
+requests, and the like.  But Larry doesn't support (or in fact have anything
+to do with) XCMALT, except that XCMALT is based on XCOMM 2.2, so there's no
+point in including this information here.
+Fred Buck, who made the major changes from XCOMM to XCMALT, passed away in
+early 1989.
+Jean-Pierre Radley has since been shepherding the program as it evolved from
+XCMALT to XC.
+
+Gripes, bugs, and comments accepted by:
+	Jean-Pierre Radley
+	   jpr@jpr.com
+	   72160.1341@compuserve.com

@@ -1,0 +1,813 @@
+Info file: ipc.info,    -*-Text-*-
+produced by texinfo-format-buffer
+from file: ipc.texi
+
+     
+This file documents the System V style inter process communication
+primitives available under linux.
+ 
+Copyright (C) 1992  krishna balasubramanian
+     
+Permission is granted to use this material and the accompanying
+programs within the terms of the GNU GPL.
+     
+
+
+
+
+File: ipc.info  Node: top, Prev: (dir), Up: (dir), Next: Overview
+
+System V IPC.
+*************
+
+These facilities are provided to maintain compatibility with programs
+developed on system V unix systems and others that rely on these system
+V mechanisms to accomplish inter process communication (IPC).
+
+
+* Menu:
+
+* Overview::  		What is system V ipc? Overall mechanisms.
+* Messages::  		System calls for message passing.
+* Semaphores:: 		System calls for semaphores.
+* Shared Memory:: 	System calls for shared memory access.
+* Installation:: 	Setting up IPC and various limits.
+* Notes:: 		Miscellaneous notes.
+
+
+File: ipc.info  Node: Overview, Prev: top, Up: top, Next: example
+
+Overview
+========
+
+System V IPC consists of three mechanisms:
+  Messages -- exchange messages with any process or server.
+  Semaphores -- allow unrelated processes to synchronize execution.
+  Shared memory -- allow unrelated processes to share memory.
+
+* Menu:
+
+* example:: 	Using shared memory.
+* perms:: 	Description of access permissions.
+* syscalls::    Overview of ipc system calls.
+
+Access to all resources is permitted on the basis of permissions set up
+when the resource was created.
+
+A resource here consists of message queue, a semaphore set (array) or a
+shared memory segment.
+
+A resource must first be allocated by a creator before it is used.  The
+creator assigns an owner (by default the creator). After use the
+resource must be explicitly destroyed by the creator or owner.
+
+A resource is identified by a numeric ID. Typically a creator defines a
+KEY that may be used to access the resource. The user process may then
+use this KEY in the "get" system call to obtain the ID for the
+corresponding resource. This ID is then used for all further access. A
+library call "ftok" is provided to translate pathnames or strings to
+numeric keys.
+
+There are system and implementation defined limits on the number and
+sizes of resources of any given type. Some of these are imposed by the
+implementation or system and others by the system administrator during
+initialization of the ipc facility (*Note Installation::).
+
+
+
+
+File: ipc.info  Node: example, Prev: Overview, Up: Overview, Next: perms
+
+example
+=======
+
+Here is a code fragment with pointers on how to use shared memory. The
+same methods are applicable to other resources.
+
+In a typical access sequence the creator allocates a new instance of the
+resource with the `get' system call using the IPC_CREAT flag.
+
+creator:
+     int id; key_t key; 
+     key = ftok (~creator/ipckey);
+     perms = 0666;			/* read-write for all */
+     id = shmget (key, size, IPC_CREATE | perms); 
+     exit (0);	/* quit leaving resource allocated */
+
+Users then gain access to the resource using the same key.
+
+user:
+     char *shmaddr;
+     key = ftok (~creator/ipckey);
+     id = shmget (key, 0, 004);		/* default size   */
+     if (id == -1)
+           perror ("shmget ...");	
+     shmaddr = shmat (id, 0, SHM_RDNLY); /* attach segment for reading */
+     if (shmaddr == (char *) -1)
+           perror ("shmat ...");	
+
+     local_var = shmaddr + 3; 	/* read segment etc. */
+
+     shmdet (shmaddr);		/* detach segment */
+
+When the resource is no longer needed the creator should remove it:
+
+creator process 2:
+     key = ftok (~creator/ipckey)
+     id = shmget (key, 0, perms)
+     shmctl (id, IPC_RMID, NULL);
+
+
+
+File: ipc.info  Node: perms, Prev: example, Up: Overview, Next: syscalls
+
+Permissions
+===========
+
+An entry contains an IPC_PERM struct which defines the creator, owner
+access perms for the structure, and times of last access. This is
+defined in <sys/ipc.h>.  The Lowest nine bits of request flags are
+compared with IPC_PERMS.MODE to determine if access is allowed.
+
+The creating process is the default owner. The owner can be reassigned
+by creator and has creator perms. Only the owner, creator or super-user
+can delete the resource.
+
+As for files access permissions are specified as read, write and exec
+for user, group or other though the exec perms are unused. For example
+0624 grants read-write to owner, write-only to group and read-only
+access to others.
+ 
+
+
+
+File: ipc.info  Node: syscalls, Prev: perms, Up: Overview, Next: Messages
+
+IPC system calls
+================
+
+This section provides an overview of the IPC system calls. See the
+specific sections on each type of resource for further information.
+
+Each type of mechanism provides a "get", "ctl" and one or more "op"
+system calls that allow the user to creat or procure the resource (get),
+define its behaviour or destroy it (ctl) and manipulate the resources
+(op).
+	
+"get" system call 
+
+It takes a KEY and returns a numeric ID that is used for further access.
+The ID is an index into the resource table. A sequence number is
+maintained and incremented when a resource is destroyed so that acceses
+using an obselete ID will fail.
+
+The user also specifies the permissions and other behaviour
+charecteristics for the current access.
+
+key   = IPC_PRIVATE => new instance of resource is initialized.
+flags = IPC_CREAT   => resource created for KEY if it does not exist.
+	IPC_CREAT | IPC_EXCL => fail if resource exists for KEY.
+    	IPC_NOWAIT  => return with error if a wait is required.
+
+examples : *Note msgget::, *Note semget::, *Note shmget::.
+
+
+
+"ctl" system call 
+
+Alters the information stored in the structure that describes the
+resource indexed by ID. The creator cannot be changed.  The Owner or
+creator can delete the entry.  This handles commands IPC_STAT, IPC_SET,
+IPC_RMID and resource specific commands described later.
+
+Commands supported by all ctl calls:
+
+IPC_STAT : read info on resource  specified by id into buffer.
+	The user must allocate a buffer and must have read access. 
+IPC_SET : write info from buffer into resource data structure. The 
+	user must have write access.
+IPC_RMID : remove resource. The user must be the owner, creator or
+	super-user.
+
+examples: *Note msgctl::, *Note semctl::, *Note shmctl::.
+
+
+
+"op" system call
+
+Used to send or receive messages, read or alter semaphore values, attach
+or detach shared memory segments.  The IPC_NOWAIT flag will cause the
+operation to fail if the process has to wait on the call.
+
+examples: *Note msgsnd::,*Note msgrcv::,*Note semop::,*Note shmat::,
+	*Note shmdt::.
+
+
+
+
+File: ipc.info  Node: Messages, Prev: Overview, Up: top, Next: msgget
+
+Messages
+========
+
+To send or receive a message the user allocates a structure that looks 
+like a msgbuf but with an array mtext of the required size. Messages
+have a type associated with them so that the listener can choose to
+receive only messages of a given type.
+
+     struct msgbuf 
+         long mtype;      type of message (*Note msgrcv::).
+         char mtext[1];   message text .. why is this not a ptr?
+
+
+* Menu:
+
+* msgget::
+* msgsnd::
+* msgrcv::
+* msgctl::
+* msglimits:: Implementation defined limits.
+
+
+
+File: ipc.info  Node: msgget, Prev: Messages, Up: Messages, Next: msgsnd
+
+msgget
+------
+
+A message queue is allocated by a msgget system call.
+
+	msqid = msgget (key_t key, int msgflg);
+
+key: an integer usually got from ftok(pathname) or IPC_PRIVATE
+
+msgflg: 
+  IPC_CREAT used to create a new resource 
+  IPC_EXCL used with IPC_CREAT to ensure failure if the resource exists.
+  rwxrwxrwx  access permissions.
+
+returns: msqid on success. -1 on failure. 
+
+A message queue is allocated if there is no resource corresponding to
+the given key. The access permissions specified are then copied into the
+msg_perms struct for the array along with the user-id etc. The user must
+use the IPC_CREAT or IPC_PRIVATE flags if a new instance is to be
+allocated.
+
+If a resource already exists, the access permissions are verified, the
+resource is verified as being currently active.
+
+errors:
+
+EACCES : (procure) do not have permission for specified access.
+EEXIST : (allocate) IPC_CREAT | IPC_EXCL specified and resource already exists.
+EIDRM  : (procure) The resource was removed.
+ENOSPC : All id's are taken (max of MSGMNI id's system-wide)
+ENOENT : Resource does not exist and IPC_CREAT not specified.
+
+notes: permissions must still be specified when using IPC_PRIVATE.
+
+
+
+
+File: ipc.info  Node: msgsnd, Prev: msgget, Up: Messages, Next: msgrcv
+
+msgsnd
+------
+
+	int msgsnd (int msqid, struct msgbuf *msgp, int msgsz, int msgflg);
+
+msqid	: id obtained by a call to msgget.
+msgsz   : size of msg text in bytes.
+msgp	: message to be sent.
+msgflg  : IPC_NOWAIT
+
+returns : msgsz on success. -1 on error.
+
+errors:
+EACCES : do not have write permission on queue.
+EAGAIN : IPC_NOWAIT specified and resource busy or queue is full.
+EFAULT : msgp not accessible.
+EIDRM  : msg queue was removed.
+EINTR  : process interrupted.
+EINVAL : mtype < 1, msgsz > msgmax, msgsz < 0 or msqid < 0.
+ENOMEM : could not allocate space for header and text.
+
+
+
+
+File: ipc.info  Node: msgrcv, Prev: msgsnd, Up: Messages, Next: msgctl
+
+msgrcv
+------
+
+	int msgrcv (int msqid, struct msgbuf *msgp, int msgsz, long msgtyp,
+			int msgflg);
+
+msqid  : id obtained by a call to msgget.
+msgsz  : maximum size of message to receive.
+msgp   : allocated by user to store the message in.
+msgtyp :
+    0 => get first message on queue.
+  > 0 => get first message of matching type.
+  < 0 => get message with least type  which is <= abs(msgtype).  
+msgflg :
+    IPC_NOWAIT
+    MSG_NOERROR : no error if msg is too large (truncated).
+    MSG_EXCEPT : used with msgtyp > 0 to receive any msg except
+		of specified type.
+
+returns : size of message if found. -1 on error.
+
+errors:
+E2BIG  : msg bigger than msgsz and MSG_NOERROR not specified.
+EACCES : do not have permission for reading the queue.
+EAGAIN : IPC_NOWAIT and queue is busy.
+EFAULT : msgp not accessible.
+EIDRM  : msg queue was removed.
+EINTR  : process was interrupted.
+EINVAL : msgsz > msgmax or msgsz < 0 or msqid < 0.
+ENOMSG : msg of requested type not found and IPC_NOWAIT specified.
+
+
+
+
+File: ipc.info  Node: msgctl, Prev: msgrcv, Up: Messages, Next: msglimits
+
+msgctl
+------
+
+	int msgctl (int msqid, int cmd, struct msqid_ds *buf);
+
+msqid  : id obtained by a call to msgget.
+buf    : allocated by user for reading info.
+cmd    : IPC_STAT, IPC_SET, IPC_RMID (*Note syscalls::).
+
+Note that only the super user may increase the limit on the size of a
+message queue in the case of IPC_SET.
+
+
+
+File: ipc.info  Node: msglimits, Prev: msgctl, Up: Messages, Next: Semaphores
+
+msglimits
+---------
+
+sizeof various structures:
+	msqid_ds 	48   /* 1 per message  queue .. on init */
+	msg 		16   /* 1 for each message in system .. dynamic */
+	msgbuf 		 8   /* allocated by user */
+
+Limits:
+MSGMNI  number of message queue identifiers.
+	msgmni * sizeof (struct msqid_ds) <= PAGE_SIZE
+	kmalloc structures all at once in msg_init
+	Implementation maximum MSGMNI = 4096/48 = 128
+
+MSGMAX  max size of message.
+	header and message space allocated in one call to kmalloc.
+	=> (PAGE_SIZE - sizeof(struct msg)) 
+	Implementation maximum MSGMAX = 4096 - 16 = 4080
+
+MSGMNB  default max size of a message queue ... policy.
+
+
+unused or unimplemented:
+    MSGSSZ  message segment size.
+    MSGTQL  max number of message headers system-wide.
+    MSGPOOL size of msg pool.
+    MSGSEG  max no. of segments.
+    MSGMAP  number of entries in message map....not applicable. 
+
+
+  
+
+File: ipc.info  Node: Semaphores, Prev: Messages, Up: top, Next: semget
+
+Semaphores
+==========
+
+Each semaphore has a value >= 0. An id provides access to an array of
+nsems semaphores. Operations such as read, increment or decrement
+semaphores in a set are performed by the semop call which processes
+nsops operations at a time. Each operation is specified in a struct
+sembuf described below. The operations are applied only if all of them
+succeed.
+
+If you do not have a need for such arrays, you are probably better off
+using the bit, setbit and clrbit bit-operations defined in <sys/sem.h>.
+
+Semaphore operations may also be qualified by an SEM_UNDO flag which
+results in the operation being undone when the process exists. It is
+reccommended that you use this feature? only if you know that other
+processes will not alter the semaphore set during the life of your
+process.
+
+If a decrement cannot go through, a process will be put to sleep on a
+queue waiting for the semval to increase unless it specifies IPC_NOWAIT.
+A read operation can similarly result in a sleep on a queue waiting for
+semval to become 0.
+
+
+* Menu:
+
+* semget::
+* semop::
+* semctl::
+* semlimits:: Limits imposed by this implementation.
+
+
+File: ipc.info  Node: semget, Prev: Semaphores, Up: Semaphores, Next: semop
+
+semget
+------
+
+A semaphore array is allocated by a semget system call.
+
+	semid = semget (key_t key, int nsems, int semflg);
+
+key 	: an integer usually got from ftok(pathname) or IPC_PRIVATE
+nsems   : # of semaphores in array (0 <= nsems<= SEMMSL <= SEMMNS)
+	  0 => dont care can be used when not creating the resource.
+	  If successful you always get access to the entire array anyway. 
+semflg  : 
+  IPC_CREAT used to create a new resource 
+  IPC_EXCL used with IPC_CREAT to ensure failure if the resource exists.
+  rwxrwxrwx  access permissions.
+
+returns : semid on success. -1 on failure. 
+
+An array of nsems semaphores is allocated if there is no resource
+corresponding to the given key. The access permissions specified are
+then copied into the sem_perms struct for the array along with the
+user-id etc. The user must use the IPC_CREAT or IPC_PRIVATE flags.
+
+If a resource already exists, the access permissions are verified, the
+resource is verified as being currently active.
+
+errors:
+EINVAL : nsems not in range. nsems greater than number in array (procure).
+EEXIST : (allocate) IPC_CREAT | IPC_EXCL specified and resource already exists.
+EIDRM  : (procure) The resource was removed.
+ENOMEM : could not allocate space for semaphore array.
+ENOSPC : No arrays available (semmni), too few semaphores available (semmns).
+ENOENT : Resource does not exist and IPC_CREAT not specified.
+EACCES : (procure) do not have permission for specified access.
+
+notes: permissions must still be specified when using IPC_PRIVATE.
+
+
+File: ipc.info  Node: semop, Prev: semget, Up: Semaphores, Next: semctl
+
+semop
+-----
+
+Operations on semaphore arrays are performed by calling semop.
+
+	int semop (int semid, struct sembuf *sops, unsigned nsops);
+
+semid	: id obtained by a call to semget.
+sops	: array of semaphore operations.
+nsops	: number of operations in array (0 < nsops < semopm).
+
+returns : semval for last operation. -1 on failure. 
+
+Operations are described by a structure sembuf:
+	struct sembuf 
+		  ushort  sem_num;        /* semaphore index in array */
+		  short   sem_op;         /* semaphore operation */
+		  short   sem_flg;        /* operation flags */
+
+The value sem_op is to be added (signed) to the current value semval of
+the semaphore with index sem_num (0 .. nsems -1) in the set.
+
+If sem_op is 0 (read operation) the process waits for semval to become 0
+or returns with error EAGAIN if (IPC_NOWAIT | sem_flg) is true and
+semval is non-zero.
+
+Valid values for sem_flg are IPC_NOWAIT and SEM_UNDO.
+
+Descripion : The array sops is first read in and preliminary checks
+performed on the arguments. The operations are parsed to determine if
+any of them needs write permissions or requests SEM_UNDO or IPC_NOWAIT.
+If any operations request IPC_NOWAIT, an error will result if the
+resource (id) is currently locked.
+
+The operations are then tried and the process sleeps if any operation
+that does not specify NOWAIT cannot go through. If a process sleeps it
+repeats these checks on waking up. Finally operations are committed if
+all are successful.
+
+errors:
+E2BIG  : nsops > semopm.
+EACCES : Do not have permission for requested  access.
+EAGAIN : An operation with IPC_NOWAIT specified could not go through
+	 or an operation requested IPC_NOWAIT and the resource was busy.
+EFAULT : The array sops is not accessible.
+EFBIG  : An operation had semnum >= nsems.
+EIDRM  : The resource was removed.
+EINTR  : The process was interrupted.
+EINVAL : nsops is 0 or semid < 0.
+ENOMEM : SEM_UNDO requested. Could not allocate space for undo structure.
+ERANGE : sem_op + semval > semvmx for some operation.
+
+
+
+File: ipc.info  Node: semctl, Prev: semop, Up: Semaphores, Next: semlimits
+
+semctl
+------
+
+	int semctl (int semid, int semnum, int cmd, union semun arg);
+
+semid	: id obtained by a call to semget.
+cmd :  
+GETPID  return pid for the process that executed the last semop.
+GETVAL  return semval.
+GETNCNT return number of processes waiting for semval to increase.
+GETZCNT return number of processes waiting for semval to become 0
+SETVAL  set semval = semun.val.
+GETALL  read all semvals into semun.array. 
+SETALL  set all semval's with values given in semun.array.
+
+The first 4 operate on the semaphore with index semnum in the set.
+The last two operate on all semaphores in the set.
+
+returns : 0 on success or as given above. -1 on failure.
+
+	union semun 
+	    int val;               value for SETVAL. 
+	    struct semid_ds *buf;  buffer for IPC_STAT & IPC_SET.
+	    ushort *array;         array for GETALL & SETALL 
+
+errors:
+EACCES : do not have permission for specified access.
+EFAULT : arg is not accessible.
+EIDRM  : The resource was removed.
+EINVAL : semid < 0 or semnum < 0 or semnum >= nsems.
+EPERM  : IPC_RMID, IPC_SET ... not creator, owner or super-user.
+ERANGE : arg.array[i].semval > semvmx or < 0 for some i.
+
+notes:
+SETVAL, SETALL :Undo entries are cleared for altered semaphores in 
+		all processes.
+IPC_RMID will sleep if the resource is locked.
+
+
+
+File: ipc.info  Node: semlimits, Prev: semctl, Up: Semaphores, Next: Shared Memory
+
+semlimits
+---------
+
+sizeof various structures:
+	semid_ds 	32   /* 1 per semaphore array .. on init */
+	sem 		 8   /* 1 for each semaphore in system .. dynamic */
+	sembuf 		 6   /* allocated by user */
+	sem_undo 	20   /* 1 for each undo request ..dynamic */
+
+
+SEMVMX  32767  semaphore maximum value (ushort).
+
+SEMMNI  number of semaphore identifiers (or arrays) system wide.
+	semmni * sizeof(struct semid_ds) <= PAGE_SIZE
+	implementation maximum SEMMNI = 4096/32 = 128.
+
+SEMMSL  maximum  number  of semaphores per id.
+	one struct sem and 2 wait_queue pointers per semaphore
+	=>	semmsl <= PAGE_SIZE / (sizeof struct sem + 8).
+	implementation maximum SEMMSL = 4096/16 = 256.
+
+SEMMNS  maximum number of semaphores system wide ... policy.
+	setting semmns >= semmsl*semmni makes it irrelevant.
+
+SEMOPM 	Maximum number of operations in one semop call.
+	An array of SEMOPM struct sembuf's is allocated on the
+	stack for each semaphore operation. So keep it small. 
+	semopm *sizeof (struct sem_undo) <= PAGE_SIZE.
+	implementation maximum SEMOPM = 4096/20 = 204.
+
+unused or unimplemented:
+SEMAEM  adjust on exit max value.
+SEMMAP  number of entries in semaphore map ... not applicable. 
+SEMMNU  number of undo structures system-wide.
+SEMUME  maximum number of undo entries per process.
+SEMUSZ  size in bytes of undo structure ... why?
+
+
+
+
+File: ipc.info  Node: Shared Memory, Prev: Semaphores, Up: top, Next: shmget
+
+Shared Memory
+=============
+
+* Menu:
+
+* shmget::
+* shmat::
+* shmdt::
+* shmctl::
+* shmlimits:: Limits imposed by this implementation.
+
+
+File: ipc.info  Node: shmget, Prev: Shared Memory, Up: Shared Memory, Next: shmat
+
+shmget
+------
+
+A shared memory segment is allocated by a shmget system call.
+
+	int shmget(key_t key, int size, int shmflg);
+
+key 	: an integer usually got from ftok(pathname) or IPC_PRIVATE
+size	: size of the segment in bytes (shmmin <= size <= shmmax).
+shmflg	: 
+  IPC_CREAT used to create a new resource 
+  IPC_EXCL used with IPC_CREAT to ensure failure if the resource exists.
+  rwxrwxrwx  access permissions.
+
+returns : shmid on success. -1 on failure. 
+
+A descriptor for a shared memory segment is allocated if there is no
+resource corresponding to the given key. The access permissions
+specified are then copied into the sem_perms struct for the array along
+with the user-id etc. The user must use the IPC_CREAT or IPC_PRIVATE
+flags.
+
+If a resource already exists, the access permissions are verified, the
+resource is verified as being currently active.
+
+The memory for the segment is actually allocated on the first attach.
+Size will be rounded to be a multiple of PAGE_SIZE.
+
+errors:
+EINVAL : size not in range. size greater than size of segment (procure).
+EEXIST : (allocate) IPC_CREAT | IPC_EXCL specified and resource already exists.
+EIDRM  : (procure) The resource was removed.
+ENOSPC : All id's are taken (max of shmmni id's system-wide), or
+	 allocating a segment of 'size' would exceed the system wide
+	 limit on total shared memory shmall.
+ENOENT : Resource does not exist and IPC_CREAT not specified.
+EACCES : (procure) do not have permission for specified access.
+
+notes: permissions must still be specified when using IPC_PRIVATE.
+
+
+
+File: ipc.info  Node: shmat, Prev: shmget, Up: Shared Memory, Next: shmdt
+
+shmat
+-----
+
+	char *virt_addr;
+	virt_addr =  shmat (int shmid, char *shmaddr, int shmflg);
+
+shmid : id got from call to shmget.
+shmaddr : requested attach address.
+	0 is the recommended value. The segment is attached at
+	the top of the data segment (page-aligned) and brk adjusted.
+	If a non-zero value is indicated the value must be page
+	aligned or the user must specify the SHM_RND flag.
+	The user is then responsible for adjusting the brk.
+shmflg :
+	SHM_RDNLY : request read-only attach.
+	SHM_RND : attach address is rounded up to a multiple of SHMLBA.
+
+returns: virtual address of attached segment. -1 on failure.
+
+errors:
+EACCES : Do not have permission for requested acces.
+EINVAL : shmid < 0, shmaddr not aligned, 
+ENOMEM : could not allocate memory for descriptor, handle or segment.
+
+The segment is automatically detached when the process exits.
+
+
+
+File: ipc.info  Node: shmdt, Prev: shmat, Up: Shared Memory, Next: shmctl
+
+shmdt
+-----
+
+	int shmdt (char *shmaddr);
+
+shmaddr : attach address of segment (returned by shmat).
+returns : 0 on success. -1 on failure.
+
+An attached segment is detached and nattch decremented. It is destroyed
+if the segment is marked for destruction and nattch is 0.
+
+errors: 
+EINVAL : no segment attached at shmaddr. 
+
+
+
+File: ipc.info  Node: shmctl, Prev: shmdt, Up: Shared Memory, Next: shmlimits
+
+shmctl
+------
+
+	int shmctl (int shmid, int cmd, struct shmid_ds *buf);
+
+shmid : id got from call to shmget.
+cmd   : IPC_STAT, IPC_SET, IPC_IDRM (*Note syscalls::).
+buf   : used to read (IPC_STAT) or write (IPC_SET) information.
+
+With IPC_RMID, the segment is marked destroyed. It is only destroyed
+on the last detach.
+
+errors:
+EACCES : Do not have permission for requested acces.
+EFAULT : buf is not accessible.
+EIDRM  : identifier destroyed.
+EINVAL : shmid < 0. 
+EPERM  : not creator, owner or super-user (IPC_SET, IPC_RMID).
+
+
+
+File: ipc.info  Node: shmlimits, Prev: shmctl, Up: Shared Memory, Next: Installation
+
+shmlimits
+---------
+
+sizeof various structures:
+	shmid_ds 	44   /* 1 per shared memory segment .. on init */
+	shm_desc 	16   /* 1 for each attach .. dynamic */
+
+Limits:
+SHMMNI  max num of shared segments system wide
+
+SHMMAX  max shared memory segment size (bytes) ... policy.
+	1 Meg seems ok for now.
+
+SHMMIN  min shared memory segment size (bytes)
+	PAGE_SIZE is the minimum size.
+
+SHMALL  max shared mem system wide (in pages) ... policy.
+
+SHMLBA	segment low boundary address multiple
+	Must be page aligned. SHMLBA = PAGE_SIZE.
+
+unused:
+SHMSEG maximum number of shared segments per process. 
+
+
+
+File: ipc.info  Node: Installation, Prev: Shared Memory, Up: top, Next: Notes
+
+Installation
+============
+
+The ipc facility is initialized by running the command `ipcs' with a
+single argument which is either msg, sem or shm. It must be run thrice
+if you want all! This results in allocation of the required data
+structures ... typically a PAGE of memory for each. It can be removed by
+running ipcrm [msg | sem | shm].
+
+The #defined values for various limits in <linux/ipc.h> reflect
+implementation limits. Local preferences should go in ipcs.c Perhaps
+ipcs can be taught to read from a file.
+
+* Menu:
+
+* msglimits::
+* semlimits::
+* shmlimits::
+
+
+
+File: ipc.info  Node: Notes, Prev: Installation, Up: top, Next: top
+
+Miscellaneous Notes
+===================
+
+Semaphore Undo structures are freed only when the process exits.
+
+Shared memory access is entirely page aligned. This means segment sizes
+and attach addresses.
+
+The system calls are mapped into one -- sys_ipc. This should be
+transparent to the user.
+
+The upper 7 bits in the mode field of STRUCT IPC_PERMS are used
+internally. The highest bit IPC_ALLOC indicates if a resource is
+allocated. The next IPC_LOCKED indicates if a resource is busy.  All
+alterations to resource data structures in system calls are made after
+obtaining a lock on this bit.
+
+Fork, exec and exit:
+
+On a fork, the child inherits attached shared memory segments but not
+the semaphore undo information.
+
+In the case of an exec, the attached shared segments are detached.  The
+sem undo information however remains intact.
+
+Upon exit, all attached shared segments are detached and the adjust
+values in the undo structures are added to the relevant semaphores.
+This could result in a process sleeping in exit if the adjustments do
+not go through.
+
+
+

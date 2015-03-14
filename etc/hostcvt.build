@@ -1,0 +1,23 @@
+#!/bin/sh
+# Runs hostcvt to generate the name.local file from hosts and name.boot.
+# If you want to make modifications to the named files, try making them
+# *.in files instead, otherwise running this program will overwrite them.
+# 
+(	
+	DOMAINNAME=`cat domain`
+	HOSTNAME=`cat host`
+	NETWORK=`grep "^[^#]*\bnetwork\b" hosts | cut -d. -f1,2,3`
+	FULLNAME="$HOSTNAME.$DOMAINNAME"
+	IPNUM=`grep "^[^#]*\b$HOSTNAME\b" hosts | cut -d. -f1,2,3`
+	IPNUMBER=`grep "^[^#]*\b$HOSTNAME\b" hosts | cut -f1`
+	IPREV="`echo $IPNUM. | cut -d. -f3`.`echo $IPNUM | cut -d. -f2`.`echo $IPNUM | cut -d. -f1`"
+	sed "/NETWORK/s/NETWORK/$NETWORK/" < netlist.in > netlist;
+	sed "/DOMAIN/s/DOMAIN/$DOMAINNAME/g" < named.boot.in  \
+		| sed "/IPREVERSED/s/IPREVERSED/$IPREV/g"  > named.boot 
+	nextserial soabasefile.in
+	sed "/HOST/s/HOST/$HOSTNAME/" < soabasefile.in | \
+		sed "/DOMAIN/s/DOMAIN/$DOMAINNAME/g" > soabasefile;
+	echo "domain $DOMAINNAME." > resolv.conf
+	echo "nameserver $IPNUMBER" >> resolv.conf
+	hostcvt -h hosts -o named.hosts $DOMAINNAME;
+)

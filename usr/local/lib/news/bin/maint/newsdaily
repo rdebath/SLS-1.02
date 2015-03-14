@@ -1,0 +1,173 @@
+#! /bin/sh
+# newsdaily - daily housekeeping chores
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/maint:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+gripes="/tmp/ngrip$$"
+tmp="/tmp/ndai$$"
+sus="/tmp/suspects$$"
+trap "rm -f $gripes $tmp $sus ; exit 0" 0 1 2 15
+>$gripes
+
+if test $# -gt 0
+then
+	gurus="$*"
+else
+	gurus="$NEWSMASTER"
+fi
+
+cd $NEWSCTL
+
+# keep several generations of errlog for problem tracking
+rm -f errlog.ooo
+mv errlog.oo errlog.ooo
+mv errlog.o errlog.oo
+mv errlog errlog.o && >errlog
+
+# keep one generation of log -- it's big
+rm -f log.o
+mv log log.o && >log
+
+# keep several generations of batchlog for statistics
+if test -f batchlog
+then
+	rm -f batchlog.ooo
+	mv batchlog.oo batchlog.ooo
+	mv batchlog.o batchlog.oo
+	mv batchlog batchlog.o && >batchlog
+fi
+
+# report any errors
+sleep 500			# hope that errlog.o is quiescent after this
+if test -s errlog.o
+then
+	(
+		echo "errlog.o"
+		echo ---------
+		cat errlog.o
+		echo ---------
+		echo
+	) >>$gripes
+fi
+
+# look for input anomalies
+cd $NEWSARTS/in.coming
+find . -type f -mtime +1 -print | sed 's;^\./;;' | egrep -v '^bad/' >$tmp
+if test -s $tmp		# old non-bad files lying about
+then
+	(
+		echo 'old input files:'
+		ls -ldtr `cat $tmp`
+		echo
+	) >>$gripes
+fi
+find bad -type f -name '[0-9]*' -mtime -2 -print >$tmp	# recent bad batches
+if test -s $tmp
+then
+	(
+		echo 'recent bad input batches (perhaps worth investigation):'
+		ls -ldtr `cat $tmp`
+		echo
+	) >>$gripes
+fi
+find bad -type f -name '[0-9]*' -mtime +7 -exec rm -f '{}' ';'
+cd $NEWSCTL
+
+# look for output anomalies
+cd $NEWSARTS/out.going
+find . -type f -name 'togo*' -size +0 -mtime +1 -print >$tmp
+if test -s $tmp
+then
+	(
+		echo 'batching possibly stalled for sites:'
+		sed 's;^\./\([^/]*\)/.*;\1;' $tmp | sort -u
+		echo
+	) >>$gripes
+fi
+cd $NEWSCTL
+no=0
+if test -f batchlog.o
+then
+	no=`egrep 'disk too full' batchlog.o | wc -l`
+fi
+if test " $no" -gt 0
+then
+	(
+		echo "space shortage(s) limited batching $no times"
+		echo
+	) >>$gripes
+fi
+
+# sweep log file, once, for suspect lines
+egrep '`
+ancient
+future
+unparsable
+header
+space in
+Message-ID' log.o >$sus
+
+# look for problem newsgroups on input (can miss cross-posted articles)
+egrep junked $sus | sed 's/.*`\(.*\)'"'"'.*/\1/' | sort |
+	uniq -c | sort -nr | sed 5q >$tmp
+if test -s $tmp
+then
+	(
+		echo 'leading five unknown newsgroups by number of articles:'
+		cat $tmp
+		echo
+	) >>$gripes
+fi
+egrep unapproved $sus | sed 's/.*`\(.*\)'"'"'.*/\1/' | sort |
+	uniq -c | sort -nr | sed 5q >$tmp
+if test -s $tmp
+then
+	(
+		echo 'top five supposedly-moderated groups with unmoderated postings:'
+		cat $tmp
+		echo
+	) >>$gripes
+fi
+egrep 'no subscribed' $sus | sed 's/.*`\(.*\)'"'"'.*/\1/' | sort |
+	uniq -c | sort -nr | sed 5q >$tmp
+if test -s $tmp
+then
+	(
+		echo 'leading five unsubscribed newsgroups:'
+		cat $tmp
+		echo
+	) >>$gripes
+fi
+
+# And other signs of problems.
+egrep 'ancient|too far in the future|unparsable Date' $sus | egrep ' - ' |
+	awk '{print $4}' | sort | uniq -c | sort -nr | sed 5q >$tmp
+if test -s $tmp
+then
+	(
+		echo 'leading five sites sending stale/future/misdated news:'
+		cat $tmp
+		echo
+	) >>$gripes
+fi
+egrep ' (no|empty) .* header|contains non-|Message-ID|space in' $sus |
+	egrep ' - ' | awk '{print $4}' | sort | uniq -c | sort -nr |
+	sed 5q >$tmp
+if test -s $tmp
+then
+	(
+		echo 'leading five sites sending news with bad headers:'
+		cat $tmp
+		echo
+	) >>$gripes
+fi
+
+# and send it
+if test -s $gripes
+then
+	mail $gurus <$gripes
+fi

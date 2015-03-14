@@ -1,0 +1,401 @@
+DIRT Official Patch#1 (Release Alpha.2: Patchlevel 1)
+
+This patch fixes a serious bug in the code generation functions.
+The WI_*_classes[] array in *_layout.h file can be incorrectly
+generated [Timothy H Panton].
+
+In widget_classes.c "List.h" was listed as "list.h" [Oliver Beran].
+
+Imakefile.GNU does not clean up all the object files [Olaf Gerloff].
+
+The -sortByName and -sortByType command line arguments have been added to
+the manual.
+
+Prereq: PATCHLEVEL 0
+*** ./OldDirt/patchlevel.h	Wed Dec 18 14:41:45 1991
+--- ./Dirt/patchlevel.h	Sun Jan 26 15:36:10 1992
+***************
+*** 1,4 ****
+  /* Xukc / Dirt distribution */
+  #define VERSION Alpha
+  #define RELEASE 2
+! #define PATCHLEVEL 0
+--- 1,4 ----
+  /* Xukc / Dirt distribution */
+  #define VERSION Alpha
+  #define RELEASE 2
+! #define PATCHLEVEL 1
+
+Prereq: PATCHLEVEL 0
+*** ./OldDirt/dirt_editor/patchlevel.h	Wed Dec 18 14:40:37 1991
+--- ./Dirt/dirt_editor/patchlevel.h	Sun Jan 26 15:35:21 1992
+***************
+*** 1,4 ****
+  /* Dirt UI Builder */
+  #define RELEASE Alpha
+  #define VERSION 2
+! #define PATCHLEVEL 0
+--- 1,4 ----
+  /* Dirt UI Builder */
+  #define RELEASE Alpha
+  #define VERSION 2
+! #define PATCHLEVEL 1
+ 
+*** ./OldDirt/dirt_editor/DOC/dirt.tex	Wed Dec 18 14:39:49 1991
+--- ./Dirt/dirt_editor/DOC/dirt.tex	Sun Jan 26 15:34:56 1992
+***************
+*** 1,4 ****
+! %% $Xukc: dirt.tex,v 1.6 91/12/17 15:00:18 rlh2 Rel $
+  %%
+  %% Dirt! tutorial manual
+  %%
+--- 1,4 ----
+! %% $Xukc: dirt.tex,v 1.7 92/01/26 14:09:19 rlh2 Rel $
+  %%
+  %% Dirt! tutorial manual
+  %%
+***************
+*** 1529,1534 ****
+--- 1529,1541 ----
+  
+  \item{{\tt -gravityColour} ~~\em colour} \\
+  Set the colour that gravity lines are drawn in.
++ 
++ \item{\tt -sortByType} \\
++ Sort and display editable resources by their type name.
++ 
++ \item{\tt -sortByName} \\
++ Sort and display editable resources by their resource name. 
++ 
+  \end{description}
+  
+  \newpage{}
+ 
+*** ./OldDirt/dirt_editor/dirt_create.c	Wed Dec 18 14:40:20 1991
+--- ./Dirt/dirt_editor/dirt_create.c	Sun Jan 26 15:35:09 1992
+***************
+*** 1,6 ****
+  #ifndef lint
+  static char rcsid[] =
+!    "$Id: dirt_create.c,v 1.19 91/12/17 10:45:42 rlh2 Rel $";
+  #endif /* !lint */
+  
+  /*
+--- 1,6 ----
+  #ifndef lint
+  static char rcsid[] =
+!    "$Id: dirt_create.c,v 1.21 92/01/26 15:28:45 rlh2 Rel $";
+  #endif /* !lint */
+  
+  /*
+***************
+*** 8,14 ****
+   *	Author: Richard Hesketh / rlh2@ukc.ac.uk
+   *	Version: 1.3 (Wc) of July 1990
+   *
+!  * Generated for rlh2 on Sat Jun 29 21:07:29 1991
+   */
+  
+  #include <X11/IntrinsicP.h>
+--- 8,14 ----
+   *	Author: Richard Hesketh / rlh2@ukc.ac.uk
+   *	Version: 1.3 (Wc) of July 1990
+   *
+!  * Generated for rlh2 on Sun Jan 26 15:25:30 1992
+   */
+  
+  #include <X11/IntrinsicP.h>
+***************
+*** 15,22 ****
+--- 15,40 ----
+  #include <X11/ShellP.h>
+  #include <X11/Wc/WcCreate.h>
+  #include <X11/Xukc/Layout.h>
++ 
++ /* fixes for Wcl constructor registration */
++ #define XtCreateApplicationShell WcCreateApplicationShell
++ extern Widget WcCreateApplicationShell();
++ #define XtCreateOverrideShell WcCreateOverrideShell
++ extern Widget WcCreateOverrideShell();
++ #define XtCreateShell WcCreateShell
++ extern Widget WcCreateShell();
++ #define XtCreateTopLevelShell WcCreateTopLevelShell
++ extern Widget WcCreateTopLevelShell();
++ #define XtCreateTransientShell WcCreateTransientShell
++ extern Widget WcCreateTransientShell();
++ #define XtCreateWMShell WcCreateWMShell
++ extern Widget WcCreateWMShell();
++ #define XtCreateVendorShell WcCreateVendorShell
++ extern Widget WcCreateVendorShell();
++ 
+  #include "dirt_layout.h"
+  
++ 
+  create_connections(connections, j)
+  struct w_connections connections[];
+  Cardinal j;
+***************
+*** 148,153 ****
+--- 166,177 ----
+  			WI_dirt_classes[i].class_name,
+  			*(WI_dirt_classes[i].class));
+  
++ 	WcAllowDuplicateConstructorReg(TRUE);
++ 	for (i = 0; i < XtNumber(WI_dirt_constructors); i++)
++ 		WcRegisterConstructor(new_context,
++ 			WI_dirt_constructors[i].constructor_name,
++ 			WI_dirt_constructors[i].constructor);
++ 
+  	WcAllowDuplicateCallbackReg(TRUE);
+  	register_names(new_context, WI_dirt_callback_names,
+  			XtNumber(WI_dirt_callback_names), FALSE);
+***************
+*** 175,181 ****
+  		XrmCombineDatabase(rdb, &sdb, False);
+  #else
+  		XrmMergeDatabases(DisplayOfScreen(screen)->db, &rdb);
+! 		DisplayOfScreen(screen)->db = rdb; 
+  		/* original dpy->db has been destroyed */
+  #endif
+  	}
+--- 199,205 ----
+  		XrmCombineDatabase(rdb, &sdb, False);
+  #else
+  		XrmMergeDatabases(DisplayOfScreen(screen)->db, &rdb);
+! 		DisplayOfScreen(screen)->db = rdb;
+  		/* original dpy->db has been destroyed */
+  #endif
+  	}
+ 
+*** ./OldDirt/dirt_editor/dirt_layout.h	Wed Dec 18 14:40:20 1991
+--- ./Dirt/dirt_editor/dirt_layout.h	Sun Jan 26 15:35:10 1992
+***************
+*** 1,6 ****
+  #ifndef WI_dirt_layout_h
+  #define WI_dirt_layout_h
+! /* $Id: dirt_layout.h,v 1.17 91/12/17 10:45:43 rlh2 Rel $
+   *
+   * X Toolkit program layout header file.
+   * This file contains all the definitions of the static parts
+--- 1,6 ----
+  #ifndef WI_dirt_layout_h
+  #define WI_dirt_layout_h
+! /* $Id: dirt_layout.h,v 1.19 92/01/26 15:28:35 rlh2 Rel $
+   *
+   * X Toolkit program layout header file.
+   * This file contains all the definitions of the static parts
+***************
+*** 12,18 ****
+   *	Author: Richard Hesketh / rlh2@ukc.ac.uk
+   *	Version: 1.3 (Wc) of July 1990
+   *
+!  * Generated for rlh2 on Sat Jun 29 21:07:28 1991
+   */
+  
+  #include <X11/Intrinsic.h>
+--- 12,18 ----
+   *	Author: Richard Hesketh / rlh2@ukc.ac.uk
+   *	Version: 1.3 (Wc) of July 1990
+   *
+!  * Generated for rlh2 on Sun Jan 26 15:25:30 1992
+   */
+  
+  #include <X11/Intrinsic.h>
+***************
+*** 53,59 ****
+  	Positioning pos;
+  };
+  
+! /* WIDGET/OBJECT registration list */
+  
+  struct w_classes {
+  	WidgetClass *class;
+--- 53,59 ----
+  	Positioning pos;
+  };
+  
+! /* WIDGET/OBJECT class registration list */
+  
+  struct w_classes {
+  	WidgetClass *class;
+***************
+*** 60,65 ****
+--- 60,72 ----
+  	String class_name;
+  };
+  
++ /* WIDGET/OBJECT constructor registration list */
++ 
++ struct w_constructors {
++ 	Widget (*constructor)();
++ 	String constructor_name;
++ };
++ 
+  struct w_classes WI_dirt_classes[] = {
+  	{ &simpleWidgetClass, "simpleWidgetClass" },
+  	{ &viewportWidgetClass, "viewportWidgetClass" },
+***************
+*** 87,92 ****
+--- 94,104 ----
+  	{ &ukcMed3MenuWidgetClass, "ukcMed3MenuWidgetClass" },
+  	{ &ukcLabelWidgetClass, "ukcLabelWidgetClass" },
+  	{ &ukcLayoutWidgetClass, "ukcLayoutWidgetClass" },
++ };
++ 
++ struct w_constructors WI_dirt_constructors[] = {
++ 	{ XtCreateTransientShell, "XtCreateTransientShell" },
++ 	{ XtCreateTopLevelShell, "XtCreateTopLevelShell" },
+  };
+  
+  /* WIDGET ID. VARIABLES */
+ 
+
+*** ./OldDirt/dirt_editor/generate_Wc.c	Wed Dec 18 14:40:33 1991
+--- ./Dirt/dirt_editor/generate_Wc.c	Sun Jan 26 15:59:32 1992
+***************
+*** 1,6 ****
+  #ifndef lint
+  static char rcsid[] =
+!    "$Xukc: generate_Wc.c,v 1.15 91/12/17 10:45:54 rlh2 Rel $";
+  #endif /* !lint */
+  
+  /* 
+--- 1,6 ----
+  #ifndef lint
+  static char rcsid[] =
+!    "$Xukc: generate_Wc.c,v 1.19 92/01/26 15:57:33 rlh2 Rel $";
+  #endif /* !lint */
+  
+  /* 
+***************
+*** 36,45 ****
+  #include <X11/Xos.h>
+  #include <X11/IntrinsicP.h>
+  #include <X11/Shell.h>
+  #include <X11/Xukc/memory.h>
+  #include "dirt_structures.h"
+  
+- extern Boolean IsShellClass();
+  extern Boolean IsCompositeClass();
+  extern String GetClassVariableName();
+  extern ObjectPtr GetStartOfList();
+--- 36,45 ----
+  #include <X11/Xos.h>
+  #include <X11/IntrinsicP.h>
+  #include <X11/Shell.h>
++ #include <X11/Vendor.h>
+  #include <X11/Xukc/memory.h>
+  #include "dirt_structures.h"
+  
+  extern Boolean IsCompositeClass();
+  extern String GetClassVariableName();
+  extern ObjectPtr GetStartOfList();
+***************
+*** 184,192 ****
+  	class_list = XukcGetListPointer(list_num, &num_on_list);
+  	for (; num_on_list > 0; num_on_list--) {
+  		WidgetClass wc;
+! 		Cardinal i = (Cardinal)class_list[num_on_list-1]-1;
+  
+! 		wc = GetClass(i);
+  
+  		if (CLASS_CONSTRUCTOR_STRING(i) != NO_CONSTRUCTOR_STRING)
+  			fprintf(fd, "\t{ %s, \"%s\" },\n",
+--- 184,192 ----
+  	class_list = XukcGetListPointer(list_num, &num_on_list);
+  	for (; num_on_list > 0; num_on_list--) {
+  		WidgetClass wc;
+! 		Cardinal i = (Cardinal)class_list[num_on_list-1] - 1;
+  
+! 		wc = GetClass(i + 1);
+  
+  		if (CLASS_CONSTRUCTOR_STRING(i) != NO_CONSTRUCTOR_STRING)
+  			fprintf(fd, "\t{ %s, \"%s\" },\n",
+***************
+*** 213,222 ****
+  	for (; num_on_list > 0; num_on_list--) {
+  		WidgetClass wc;
+  
+! 		wc = GetClass((Cardinal)class_list[num_on_list-1]-1);
+  
+  		/* shell classes etc, are registered by WcRegisterIntrinsic() */
+! 		if (!IsShellClass(wc)
+  		    && !(wc == objectClass) && !(wc == rectObjClass)
+  		    && !(wc == coreWidgetClass) && !(wc == compositeWidgetClass)
+  		    && !(wc == constraintWidgetClass)
+--- 213,228 ----
+  	for (; num_on_list > 0; num_on_list--) {
+  		WidgetClass wc;
+  
+! 		wc = GetClass((Cardinal)class_list[num_on_list-1]);
+  
+  		/* shell classes etc, are registered by WcRegisterIntrinsic() */
+! 		if (!(wc == applicationShellWidgetClass)
+! 		    && !(wc == overrideShellWidgetClass)
+! 		    && !(wc == shellWidgetClass)
+! 		    && !(wc == topLevelShellWidgetClass)
+! 		    && !(wc == transientShellWidgetClass)
+! 		    && !(wc == vendorShellWidgetClass)
+! 		    && !(wc == wmShellWidgetClass)
+  		    && !(wc == objectClass) && !(wc == rectObjClass)
+  		    && !(wc == coreWidgetClass) && !(wc == compositeWidgetClass)
+  		    && !(wc == constraintWidgetClass)
+ 
+*** ./OldDirt/dirt_editor/widget_classes.c	Wed Dec 18 14:40:45 1991
+--- ./Dirt/dirt_editor/widget_classes.c	Sun Jan 26 15:35:27 1992
+***************
+*** 1,6 ****
+  #ifndef lint
+  static char rcsid[] =
+!    "$Xukc: widget_classes.c,v 1.19 91/12/17 10:46:50 rlh2 Rel $";
+  #endif /* !lint */
+  
+  /* 
+--- 1,6 ----
+  #ifndef lint
+  static char rcsid[] =
+!    "$Xukc: widget_classes.c,v 1.20 92/01/21 09:45:15 rlh2 Rel $";
+  #endif /* !lint */
+  
+  /* 
+***************
+*** 444,450 ****
+     (WidgetClass *)&listWidgetClass,
+     NO_OBJECTS, ZERO,
+     NO_CONSTRUCTOR_STRING, NO_CONSTRUCTOR,
+!    XAW_HEADERS, "list.h",
+     "Athena List", "listWidgetClass",
+     "Athena list widget that provides a list of strings and allows then to be picked",
+     NO_EXCEPTIONS, ZERO
+--- 444,450 ----
+     (WidgetClass *)&listWidgetClass,
+     NO_OBJECTS, ZERO,
+     NO_CONSTRUCTOR_STRING, NO_CONSTRUCTOR,
+!    XAW_HEADERS, "List.h",
+     "Athena List", "listWidgetClass",
+     "Athena list widget that provides a list of strings and allows then to be picked",
+     NO_EXCEPTIONS, ZERO
+ 
+*** ./OldDirt/lib/Xukc/Imakefile.GNU	Wed Dec 18 14:41:11 1991
+--- ./Dirt/lib/Xukc/Imakefile.GNU	Sun Jan 26 15:35:46 1992
+***************
+*** 1,4 ****
+! /**/# $Xukc: Imakefile.GNU,v 1.4 91/12/17 11:56:35 rlh2 Rel $
+  /**/# Imakefile for Xukc Library
+  
+  #if defined(ProjectX) && ProjectX > 4
+--- 1,4 ----
+! /**/# $Xukc: Imakefile.GNU,v 1.5 92/01/05 16:29:10 rlh2 Rel $
+  /**/# Imakefile for Xukc Library
+  
+  #if defined(ProjectX) && ProjectX > 4
+***************
+*** 186,188 ****
+--- 186,191 ----
+          $(RM) $@
+          $(CC) -c -I./GNUmalloc $(CFLAGS) $*.c
+          $(MV) malloc.o GNUmalloc
++ 
++ clean::
++ 	$(RM) $(OBJS)
+ 

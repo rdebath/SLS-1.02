@@ -1,0 +1,119 @@
+# Makefile for GNU `time' command.
+# Copyright (C) 1989, 1990 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+#### Start of system configuration section. ####
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+CC = @CC@
+
+# If you don't have a BSD or GNU install program, use cp.
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+
+MAKEINFO = makeinfo
+
+# Things you might add to DEFS:
+# -DSTDC_HEADERS	If you have ANSI C headers and libraries.
+# -DUSG			If you have System V/ANSI C string and
+#			memory functions and headers.
+# -DHAVE_SYS_RESOURCE_H	If you have sys/resource.h (for `struct rusage').
+# -DHAVE_SYS_TIME_H	If you have sys/time.h (for `struct timeval').
+# -DRETSIGTYPE=int	If your signal handlers return int, not void.
+# -DHAVE_STRERROR	If you have strerror function.
+# -DHAVE_VPRINTF	If you have vprintf function.
+# -DHAVE_DOPRNT		If you have _doprnt function (but lack vprintf).
+# -DHAVE_GETPAGESIZE	If you have getpagesize system call.
+# -DHAVE_UNISTD_H	If you have unistd.h.
+
+DEFS = @DEFS@
+LIBS = @LIBS@
+
+CFLAGS = -g
+LDFLAGS = -g
+
+prefix = /usr/local
+exec_prefix = $(prefix)
+
+# Prefix for each installed program, normally empty or `g'.
+binprefix = 
+
+# Where to install time.
+bindir = $(exec_prefix)/bin
+
+# Where to install the info file.
+infodir = $(prefix)/info
+
+#### End of system configuration section. ####
+
+SHELL = /bin/sh
+
+HDRS = getopt.h getpagesize.h rusage.h timeval.h
+SRCS = time.c getopt.c getopt1.c error.c wait3.c
+OBJS = time.o getopt.o getopt1.o error.o @LIBOBJS@
+DISTFILES = COPYING ChangeLog Makefile.in README INSTALL NEWS \
+configure configure.in \
+time.texinfo time.info* texinfo.tex $(HDRS) $(SRCS)
+
+all: time time.info
+
+.c.o:
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(DEFS) -I$(srcdir) $<
+
+time: $(OBJS)
+	$(CC) -o $@ $(LDFLAGS) $(OBJS) $(LIBS)
+
+time.o getopt1.o: getopt.h
+time.o: getpagesize.h
+time.o wait3.o: rusage.h timeval.h
+
+time.info: time.texinfo
+	$(MAKEINFO) $(srcdir)/time.texinfo
+
+install:	time
+	$(INSTALL_PROGRAM) time $(bindir)/$(binprefix)time
+	cd $(srcdir); $(INSTALL_DATA) time.info* $(infodir)
+
+uninstall:
+	rm -f $(bindir)/$(binprefix)time $(infodir)/time.info*
+
+TAGS:	$(SRCS)
+	etags $(SRCS)
+
+clean:
+	rm -f *.o time core
+
+mostlyclean: clean
+
+distclean: clean
+	rm -f Makefile config.status
+
+realclean: distclean
+	rm -f TAGS *.info*
+
+dist: $(DISTFILES)
+	echo time-`sed -e '/version_string/!d' -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q time.c` > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`
+	ln $(DISTFILES) `cat .fname`
+	tar czhf `cat .fname`.tar.Z `cat .fname`
+	rm -rf `cat .fname` .fname
+
+# Prevent GNU make v3 from overflowing arg limit on SysV.
+.NOEXPORT:

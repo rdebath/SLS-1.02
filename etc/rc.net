@@ -1,0 +1,68 @@
+# /etc/rc.net
+# Linux networking startup script.  Should be run by /etc/rc.local at
+# boot time.  Configures the interfaces and starts the deamons.
+# It assumes hostname has been set.
+#
+#
+echo -n "/etc/rc.net: "
+
+HOSTS=/etc/hosts
+CONFIG=/etc/config
+INETD=/etc/inetd
+NAMED=/etc/named
+PORTMAP=/etc/portmap
+NFSD=/etc/nfsd
+MOUNTD=/etc/mountd
+
+HOSTNAME=`hostname`
+
+# This needs more testing and more diagnostics. */
+IPADDR=`grep "^[^#]*\b$HOSTNAME\b" $HOSTS | cut -f1`
+
+echo  -n "$HOSTNAME($IPADDR)"
+
+# Router,  get it from the /etc/hosts file
+ROUTER=`grep "^[^#]*\brouter\b" $HOSTS | cut -f1`
+
+# Net, get it from the /etc/hosts file
+NET=`grep "^[^#]*\bnetwork\b" $HOSTS | cut -f1`
+
+
+$CONFIG loopback $IPADDR
+$CONFIG loopback 127.0.0.1
+if [ "$IPADDR" != "192.0.2.128" -a "$IPADDR" != "" ]; then
+	if [ "$NET" != "" ]; then
+		NETPARM="-n $NET"
+	fi
+	if [ "$ROUTER" != "" ]; then
+		ROUTERPARM="-r $ROUTER"
+	fi
+	$CONFIG $NETPARM $ROUTERPARM eth0 $IPADDR
+fi
+
+if [ -x $PORTMAP ]; then
+	echo -n ", `basename $PORTMAP`"
+	$PORTMAP
+fi
+
+if [ -x $INETD ]; then
+	echo -n ", `basename $INETD`"
+	$INETD
+fi
+
+if [ -x $NAMED ]; then
+	echo -n ", `basename $NAMED`"
+	$NAMED
+fi
+
+if [ -x $NFSD ]; then
+	echo -n ", `basename $NFSD`"
+	$NFSD -f /etc/exports
+fi
+
+if [ -x $MOUNTD ]; then
+	echo -n ", `basename $MOUNTD`"
+	$MOUNTD
+fi
+
+echo ""

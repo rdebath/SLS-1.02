@@ -1,0 +1,115 @@
+OPERATIONS USING SPECTRAL DATA-TYPES
+
+.nf
+	dsig	\fBoctdown\fR   	asig, iocts, isamps[, idisprd]
+	wsig	\fBnoctdft\fR		dsig, iprd, ifrqs, iq[, ihann, idbout, idsines]
+	wsig	\fBspecscal\fR  	wsigin, ifscale, ifthresh
+	wsig	\fBspecaddm\fR  	wsig1, wsig2[, imul2]
+	wsig	\fBspecdiff\fR  	wsigin
+	wsig	\fBspecfilt\fR  	wsigin, ifhtim
+		\fBspecdisp\fR  	wsig, iprd[, iwtflg]
+	ksum	\fBspecsum\fR   	wsig[, interp]
+.fi
+
+These units generate and process non-standard audio data types, such as
+down-sampled time-domain audio signals and their frequency-domain (spectral)
+representations.  The new data types (d-, w-) are self-defining, and the
+contents are not processable by any other Csound units.  The unit generators
+are experimental, and subject to change between releases;  they will also
+be joined by others later.  Their inclusion here is to offer the user some
+initial experience in spectral data processing.
+
+
+INITIALIZATION
+
+\fIidisprd\fR (optional) - if non-zero, display the output every
+\fIidisprd\fR seconds.  The default value is 0 (no display).
+
+\fIihann, idbout, idsines\fR (optional) - if non-zero, then respectively:
+apply a hanning window to the input;  convert the output magnitudes to dB;
+display the windowed sinusoids used in DFT filtering.  The default values
+are 0, 0, 0 (rectangular window, magnitude output, no sinusoid display).
+
+\fIimul2\fR (optional) - if non-zero, scale the \fIwsig2\fR magnitudes
+before adding.  The default value is 0.
+
+\fIiwtflg\fR (optional) - wait flag.  If non-zero, hold each display
+until released by the user.  The default value is 0 (no wait).
+
+\fIinterp\fR (optional) - if non-zero, interpolate the output signal
+\fIksum\fR.  The default value is 0 (repeat the signal value between changes).
+
+PERFORMANCE
+
+\fBoctdown\fR - put signal \fIasig\fR through \fIiocts\fR successive
+applications of octave decimation and downsampling, and  preserve \fIisamps\fR
+down-sampled values in each octave.   Optionally display the composite buffer
+every \fIidisprd\fR seconds.
+
+\fBnoctdft\fR - generate a constant-Q, exponentially-spaced DFT across
+all octaves of the multiply-downsampled input \fIdsig\fR.  Every \fIiprd\fR
+seconds, each octave of \fIdsig\fR is optionally windowed (\fIihann\fR
+non-zero), filtered (using \fIifrqs\fR parallel filters per octave,
+exponentially spaced, and with frequency/bandwidth Q of \fIiq\fR), and
+the output magnitudes optionally converted to dB (\fIidbout\fR non-zero).
+This unit produces a self-defining spectral datablock \fIwsig\fR, whose
+characteristics are readable by any units that receive it as input,
+and for which it becomes the template for output.
+
+\fBspecscal\fR - scale an input spectral datablock with spectral envelopes.
+Function tables \fIifthresh\fR and \fIifscale\fR are initially
+sampled across the (logarithmic) frequency space of the input spectrum;
+then each time a new input spectrum is sensed the sampled values are used
+to scale each of its magnitude channels as follows:
+if \fIifthresh\fR is non-zero, each magnitude is reduced by its
+corresponding table-value (to not less than zero);  then each magnitude is
+rescaled by the corresponding \fIifscale\fR value, and the resulting
+spectrum written to \fIwsig\fR.
+
+\fBspecaddm\fR - do a weighted add of two input spectra.
+For each channel of the two input spectra, the two magnitudes are combined
+and written to the output according to:  magout = mag1in + mag2in * \fIimul2\fR.
+The operation is performed whenever the input \fIwsig1\fR is sensed to be new.
+This unit will (at Initialization) verify the consistency of the two spectra
+(equal size, equal period, equal mag types).
+
+\fBspecdiff\fR - find the positive difference values between consecutive
+spectral frames.  At each new frame of \fIwsigin\fR, each magnitude value
+is compared with its predecessor, and the positive changes written to the
+output spectrum.  This unit is useful as an energy onset detector.
+
+\fBspecfilt\fR - filter each channel of an input spectrum.  At each new
+frame of \fIwsigin\fR, each magnitude value is injected into a 1st-order
+lowpass recursive filter, whose half-time constant has been initially set
+by sampling the ftable \fIifhtim\fR across the (logarithmic) frequency space
+of the input spectrum.  This unit effectively applies a \fIpersistence\fR
+factor to the data occurring in each spectral channel, and is useful for
+simulating the \fIenergy integration\fR that occurs during auditory perception.
+
+\fBspecdisp\fR - display the magnitude values of spectrum \fIwsig\fR
+every \fIiprd\fR seconds (rounded to some integral number of \fIwsig's\fR
+originating \fIiprd\fR).
+
+\fBspecsum\fR - sum the magnitudes across all channels of the spectrum.
+At each new frame of \fIwsig\fR, the magnitudes are summed and released
+as a scalar \fIksum\fR signal.  Between frames, the output is either repeated
+or interpolated at the K-rate.  This unit produces a k-signal summation of
+the magnitudes present in the spectral data, and is thereby a running measure
+of its moment-to-moment overall strength.
+
+
+
+.nf
+Example:
+
+	asig	in				;get external audio
+	dsamp	octdown 	asig, 6, 180, 0		;downsample in 6 octaves
+	wsig1	noctdft  	dsamp,.02,12,33,0,1,1	; & calc 72-point dft (db)
+	wsig2	specdiff	wsig1			;sense onsets
+	wsig3	specfilt	wsig2, 2      		; & absorb slowly
+		specdisp	wsig1, .1    		;display all spectra
+		specdisp	wsig2, .1
+		specdisp	wsig3, .1
+	kstren	specsum 	wsig3, 1      		;sum final mags, and ksmooth
+.fi
+.bp

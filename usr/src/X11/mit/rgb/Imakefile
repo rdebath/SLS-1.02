@@ -1,0 +1,52 @@
+XCOMM $Header: /home/x_cvs/mit/rgb/Imakefile,v 1.7 1992/08/25 08:58:03 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.23 91/09/09 16:09:09 rws Exp $
+        RGB_DB = DefaultRGBDatabase
+   SITE_RGB_DB = -DRGB_DB=\"$(RGB_DB)\"
+      DEPLIBS = 
+      DEFINES = NdbmDefines $(SITE_RGB_DB)
+     INCLUDES = -I$(SERVERSRC)/include
+ INSTALLFLAGS = $(INSTLIBFLAGS)
+        SRCS1 = rgb.c
+        OBJS1 = rgb.o
+        SRCS2 = showrgb.c
+        OBJS2 = showrgb.o
+         SRCS = $(SRCS1) $(SRCS2)
+         OBJS = $(OBJS1) $(OBJS2)
+     PROGRAMS = rgb showrgb
+#if i386Bsd
+    DATAFILES = rgb.db
+      DATADEP = rgb.db
+#else
+    DATAFILES = rgb.pag rgb.dir
+      DATADEP = rgb.dir		/* just want one run of rgb */
+#endif
+#if !(defined(SGIArchitecture) || SystemV4 || i386Bsd)
+       DBMLIB = -ldbm
+#endif
+#if defined(SparcArchitecture) && HasGcc
+           CC = cc
+    CCOPTIONS = /**/
+    EXTRA_LOAD_FLAGS = /**/
+#endif
+#if HasSdbm
+       DBMLIB = -lsdbm
+#endif
+
+all:: $(PROGRAMS) $(DATADEP)
+
+SingleProgramTarget(rgb,$(OBJS1),NullParameter,$(DBMLIB))
+SingleProgramTarget(showrgb,$(OBJS2),NullParameter,$(DBMLIB))
+SpecialObjectRule(rgb.o,$(ICONFIGFILES),$(_NOOP_))
+SpecialObjectRule(showrgb.o,$(ICONFIGFILES),$(_NOOP_))
+InstallMultiple($(DATAFILES) rgb.txt,$(LIBDIR))
+InstallProgramWithFlags(showrgb,$(BINDIR),)
+InstallManPage(showrgb,$(MANDIR))
+
+$(DATADEP):  rgb rgb.txt
+	$(RM) $(DATAFILES)
+	./rgb rgb < rgb.txt
+
+clean::
+	$(RM) $(DATAFILES)
+
+DependTarget()

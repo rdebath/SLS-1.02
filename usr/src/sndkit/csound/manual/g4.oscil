@@ -1,0 +1,86 @@
+.nf
+	kr	\fBoscil\fR	kamp, kcps, ifn[, iphs]
+	kr	\fBoscili\fR	kamp, kcps, ifn[, iphs]
+	ar	\fBoscil\fR	xamp, xcps, ifn[, iphs]
+	ar	\fBoscili\fR	xamp, xcps, ifn[, iphs]
+	ar	\fBfoscil\fR	xamp, kcps, kcar, kmod, kndx, ifn[, iphs]
+	ar	\fBfoscili\fR	xamp, kcps, kcar, kmod, kndx, ifn[, iphs]
+.fi
+
+Table \fIifn\fR is incrementally sampled modulo the table length and the
+value obtained is multiplied by \fIamp\fR.
+
+
+INITIALIZATION
+
+\fIifn\fR - function table number.  Requires a wrap-around guard point.
+
+\fIiphs\fR (optional) - initial phase of sampling, expressed as a fraction of
+a cycle (0 to 1).
+A negative value will cause phase initialization to be skipped.
+The default value is 0.
+
+
+PERFORMANCE
+
+The 
+.B oscil
+units output periodic control (or audio) signals consisting of the  value of 
+.I kamp (xamp)
+times the value returned from control rate
+(audio rate) sampling of a stored function table.  The internal  phase
+is  simultaneously  advanced in accordance with the
+.I cps
+input value.
+While the amplitude and frequency inputs to the K-rate \fBoscil\fRs are
+scalar only, the corresponding inputs to the audio-rate \fBoscil\fRs may
+each be either scalar or vector, thus permitting amplitude and frequency
+modulation at either sub-audio or audio frequencies.
+
+.B foscil
+is a composite unit that effectively banks two \fBoscil\fRs in the
+familiar Chowning FM setup, wherein the audio-rate output of one generator
+is used to modulate the frequency input of another (the "carrier").
+Effective carrier frequency =
+.I kcps*kcar,
+and modulating frequency =
+.I kcps*kmod.
+For integral values of
+.I kcar
+and
+.I kmod,
+the perceived fundamental will be the
+minimum positive value of
+.I
+kcps * (kcar - n*kmod), n = 0,1,2,...
+.R
+The input
+.I kndx
+is the index of modulation (usually time-varying and ranging
+0 to 4 or so) which determines the spread of acoustic energy over the partial
+positions given by n = 0,1,2,..,etc.
+.I ifn
+should point to a stored sine wave.
+
+.B oscili
+and
+.B foscili
+differ from
+.B oscil
+and
+.B foscil
+respectively in that the standard procedure of using a truncated phase
+as a sampling index is here replaced by a process that  interpolates between
+two successive lookups.  Interpolating generators will produce a noticeably
+cleaner output signal, but they may take as much as twice as long to run.
+Adequate accuracy can also be gained without the time cost of interpolation
+by using large stored function tables of 2K, 4K or 8K points if the space is
+available.
+
+.nf
+Example:
+
+	k1	oscil	10, 5, 1			;5 cps vibrato
+	a1	oscil	5000, 440+k1, 1		;around A440 +-10 cps
+.fi
+.bp

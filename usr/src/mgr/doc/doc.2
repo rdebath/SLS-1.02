@@ -1,0 +1,885 @@
+'\"                        Copyright (c) 1988 Bellcore
+'\"                            All Rights Reserved
+'\"       Permission is granted to copy or use this program, EXCEPT that it
+'\"       may not be sold for profit, the copyright notice must be reproduced
+'\"       on copies, and credit should be given to Bellcore where it is due.
+'\"       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+'\"
+'\"	$Header: doc.2,v 4.1 88/06/29 17:04:51 bianchi Exp $
+'\"	$Source: /tmp/mgrsrc/doc/usrman/RCS/doc.2,v $
+.Sh page Macros
+All of the C library interface macros expand into
+.I printf
+expressions that convert their command specification 
+into the \*M stream protocol.
+Compile time and run time options are available that globally alter
+the behavior of these macros to the specific needs of the client program.
+The options are detailed in the
+.I "Using the Library"
+section of this document. 
+The returned value of the macro expressions are not meaningful.
+The macros described here attempt to reflect the actual state of the system,
+and may include some inconsistencies that should be cleaned up in
+future releases of the software.
+Every \*M command
+(a command identifier - argument count combination) that is accepted by \*M has
+a macro describing its function.
+.LP
+.Fh m_addchar
+.Fs m_addchar 3 "Insert a space character"
+Inserts a space character at the current character cursor position.
+The remaining characters on the line, if any, are shifted to the right.
+.Fe
+.Fh m_addchars n
+.Fs m_addchars 3 "Insert some space characters"
+Inserts
+.Fi n
+space characters at the current character cursor position.
+The remaining characters on the line, if any, are shifted to the right.
+.Fe
+.Fh m_addline
+.Fs m_addline 3 "Insert a blank line"
+Inserts a
+blank line at current row. The current row, and any below it,
+are shifted down one line.
+The bottom line of text is scrolled off the window.
+.Fe
+.Fh m_addlines n 
+.Fs m_addlines 3 "Insert some blank lines"
+Inserts
+.Fi n
+blank lines at current row. The current row, and any below it
+are shifted down.
+The bottom 
+.Fi n
+lines of text are scrolled off the window.
+It is much more efficient to call
+.Fr m_addlines n 
+ once, than it is to call
+.Fr m_addline
+.Fi n
+times.
+.Fe
+.Fh m_aligntext
+.Fs m_aligntext 13 "Align character cursor with the graphics point"
+Moves the current character cursor coincident
+with the current graphics point.
+The current graphics point is set with 
+.Fr m_go x  y  
+\&.
+This permits client programs to position characters at arbitrary pixel
+locations on the window.
+.Fe
+.Fh m_arc x  y  x1  y1  x2  y2 
+.Fs m_arc 4 "Draw an arc"
+An arc centered at
+.Fr "" x y
+is drawn counter clockwise from 
+.Fr "" x1 y1
+to
+.Fr "" x2 y2
+using the current drawing function (see
+.Fr m_func
+).
+.Fe
+.Fh m_bell
+.Fs m_bell 1 "Flash the window and ring the bell"
+The window flashes and the bell, if there is one, rings.
+Even if the window is totally obscured, its flashing is made visible
+to the user.
+.Fe
+.Fh m_bcolor color
+.Fs m_bcolor 14 "Set the text background color"
+The background color for text operations is set to
+.Fi color ,
+which is an index into the color lookup table.
+This command is ignored on a monochrome display.
+See also 
+.Fr m_fcolor
+and
+.Fr m_linecolor
+\&.
+.Fe
+.Fh m_bitcopy x_dst  y_dst  wide  high  x_src  y_src 
+.Fs m_bitcopy 5 "Bit-blt a rectangle within the window"
+Copy a rectangle from one place on the window to another
+with the copy function set by
+.Fr  m_func n
+\&. 
+The rectangular area at
+.Fi  x_src , y_src
+of size
+.Fi wide
+by
+.Fi high
+is combined with
+the rectangle at
+.Fi x_dst , y_dst
+according to the last function set by
+.Fr m_func
+\&.
+The resultant rectangle is placed at
+.Fi x_dst , y_dst .
+.Fe
+.Fh m_bitcopyto x_dst  y_dst wide  high  x_src  y_src  to  from 
+.Fs m_bitcopyto 5 "Bit-blt a rectangle between two bitmaps"
+Combine the rectangle at position
+.Fi x_src , y_src
+of size
+.Fi wide
+by
+.Fi high
+of bitmap
+.Fi from
+with the rectangle of the same size at
+.Fi x_dst , y_dst
+of bitmap
+.Fi to .
+The bit-blt function used to combine the two rectangles is set by
+.Fr m_func
+\&.
+.Fi From
+and
+.Fi to
+are scratch-pad bitmap descriptors.
+Scratchpad bitmap 0 (zero) represents the current window contents and may
+be used for the 
+source , destination
+or both.
+If the scratchpad bitmap
+.Fi to
+does not already exist, it is created with a size of 
+.Fi wide + x_src
+by
+.Fi high + y_src .
+.Fe
+.Fh m_bitcreate  n  wide  high 
+.Fs m_bitcreate 5 "Create a scratchpad bitmap"
+Create the scratchpad bitmap
+.Fi n
+of size
+.Fi wide
+by
+.Fi high .
+The contents of the bitmap are undefined.
+The macro
+.Fr m_bitwriteto
+ can be used to initialize the scratchpad bitmap.
+If the bitmap already exists, the old one is first discarded.
+Scratchpad bitmaps may also be created implicitly
+by specifying a non-existent bitmap as the destination of
+.Fr m_bitwriteto 
+,
+.Fr m_bitcopyto 
+,
+.Fr m_bitld 
+, or 
+.Fr m_stringto
+\&.
+.Fe
+.Fh m_bitdestroy n 
+.Fs m_bitdestroy 5 "Destroy a scratchpad bitmap"
+Destroys scratchpad bitmap
+.Fi n
+and frees all the resources 
+associated with it.
+If
+.Fi n
+does not exist, this macro is ignored.
+.Fe
+.Fh m_bitfromfile to  name 
+.Fs m_bitfromfile 5 "Read a bitmap file into a scratchpad bitmap"
+Copy the file
+.Fi name
+on the
+.I \*M-host
+machine into the scratchpad bitmap
+.Fi to .
+The scratchpad bitmap
+.Fi to
+is created if it does not already exist.
+.B \*M
+returns  a single line containing the
+.I width
+and
+.I height
+of the bitmap,
+or a 
+.I blank
+if the file could not be found or loaded.
+If 
+.Fi name
+does not start with
+.B /
+or
+.B ./ ,
+The file
+.Fi name
+is prefixed
+with \*M's home directory and
+.I /icon/ .
+.Fi Name s
+starting with 
+.B ./
+are evaluated relative to the directory current when 
+.B \*M
+was invoked.
+The format of the bitmap file is described in 
+.I dump.h .
+.Fe
+.Fh m_bitget from  size  offset 
+.Fs m_bitget 5 "Upload a bitmap to the client program"
+Upload part of a
+.I scratchpad
+bitmap.
+.Fi Size
+bytes of
+.I scratchpad
+bitmap
+.Fi from ,
+starting
+.Fi offset
+bytes from the beginning of the bitmap
+are sent to the client program from
+.B \*M.
+After this call, the client 
+is expected to read
+.Fi size
+bytes from the input stream.
+The image data is sent in raster scan order, 8 pixels
+to a byte, padded at the right of every line to 16 bits.
+.Fi Size
+should be kept small (about 80 bytes), to avoid potential
+flow control problems, with bitmaps uploaded in
+multiple passes. (See also
+.Fr m_bitsave 
+).
+The data sent by \*M
+for this macro
+requires an eight bit data channel, so its use is discouraged.
+The macro
+.Fr m_bitfromfile
+ should be used instead when possible.
+.Fe
+.Fh m_bitld  wide  high  x  y  size 
+.Fs m_bitld 5 "Download an image to the window"
+Prepare \*M to download a bitmap to the window.
+This macro instructs \*M
+that the next
+.Fi size
+bytes received will be interpreted as
+a bitmap image to be displayed on the window starting
+at location
+.Fr "" x y
+, and of size
+.Fi  wide
+by
+.Fi high .
+Downloading bitmaps requires an eight bit channel between \*M
+and the client program.
+Large bitmaps are best sent in several pieces.
+The macro
+.Fr m_bitfromfile
+should be used instead, where possible, as it only requires a seven bit
+data channel
+and avoids the movement of large amounts of data through the channel.
+If more bytes are specified than required by the size of the bitmap,
+they are discarded.
+If the number specified by
+.Fi size
+is insufficient to fill the entire bitmap, the remainder of the bits
+are set to undetermined values.
+.Fe
+.Fh m_bitldto wide  high  x_dst  y_dst  to  size 
+.Fs m_bitldto 5 "Down load an image to a scratchpad bitmap"
+Prepare to download a bitmap to the scratchpad bitmap
+.Fi to .
+If
+.Fi to
+does not already exist, (see
+.Fr  m_bitcreate
+),
+it is
+created automatically with size
+.Fi wide
+by
+.Fi high .
+This function instructs \*M that the next
+.Fi size
+bytes received will be interpreted as
+a bitmap image to be copied to scratchpad bitmap
+.Fi to
+at location
+.Fi  x_dst , y_dst .
+This function requires an eight bit channel between \*M
+and the client program.
+If more bytes are specified than required by the size of the bitmap,
+they are discarded.
+If the number specified by
+.Fi size
+is insufficient to fill the entire bitmap, the remainder of the bits
+are set to undetermined values.
+.Fe
+.Fh m_bitsave from  name 
+.Fs m_bitsave 5 "Copy a scratchpad bitmap to a file"
+Save a scratchpad bitmap
+.Fi from
+on the file
+.Fi name
+on the
+.I \*M-host
+file system.
+If 
+.Fi name
+does not start with
+.B /
+or
+.B ./ ,
+.Fi name
+is prefixed
+with \*M's home directory and
+.I /icon/ .
+.Fi Name s
+starting with 
+.B ./
+are evaluated relative to the directory current when 
+.B \*M
+was invoked.
+Specifying
+.Fi from
+to be
+.Fi 0
+(zero)
+saves the entire display contents to the file.
+The functions
+.Fr m_windowsave
+ and
+.Fr  m_othersave
+ are used to save contents of entire windows.
+.Fe
+.Fh m_bitwrite x_dst  y_dst  wide  high 
+.Fs m_bitwrite 5 "Set, Clear or Invert a rectangular portion of the window"
+The rectangular region of the window,
+starting at
+.Fi x_dst , y_dst
+of extent
+.Fi wide
+by
+.Fi high ,
+is
+set, cleared or inverted
+as determined by the previous call to 
+.Fr m_func
+\&.
+.Fe
+.Fh m_bitwriteto x_dst  y_dst  wide  high  to 
+.Fs m_bitwriteto 5 "Set, Clear or Invert a rectangular portion of a scratchpad bitmap"
+The rectangular region of
+.I scratchpad
+bitmap 
+.Fi to ,
+starting at
+.Fi x_dst , y_dst
+of extent
+.Fi wide
+by
+.Fi high ,
+is
+set, cleared or inverted
+as determined by the previous call to 
+.Fr m_func
+\&.
+If the destination
+.Fi to
+does not exist, it is created with the dimensions
+.Fi wide
+by
+.Fi high .
+.Fe
+.Fh m_broadcast string 
+.Fs m_broadcast 12 "Broadcast a message to all listeners"
+The message
+.Fi string
+is broadcast to all windows that are
+.I listen ing.
+.I Listen ing
+is turned on by setting the 
+.SM
+.Fi ACCEPT
+.LG
+event for a window.
+(See
+.Fr m_setevent
+).
+Messages can only be sent to windows whose controlling
+terminals have general write permission disabled (i.e. mode 0400)
+as a security measure to prevent malicious foreign processes from sending
+.I shell s
+messages that get interpreted and executed as commands.
+.Fe
+.Fh m_circle x_dst  y_dst  radius 
+.Fs m_circle 4 "Draw a circle"
+A circle of radius
+.Fi radius
+is drawn, centered at
+.Fi x_dst , y_dst .
+The points at the edge of the circle are
+set, cleared or inverted
+depending upon the last call to
+.Fr m_func
+\&.
+Circles are never scaled,
+they always appear as circles on the display, regardless of the window shape.
+The
+.Fi radius
+is scaled based upon the average
+.Fi width
+and
+.Fi height
+of the window.
+Use
+.Fr m_ellipse
+to obtain a scaled circle.
+.Fe
+.Fh m_clear
+.Fs m_clear 3 "Clear the window"
+The current
+.I "text region"
+is cleared, and the character cursor is moved to position
+.Fr "" 0 0
+\&.
+If no
+.I "text region"
+is set,
+.Fr m_clear
+ clears the entire window.
+.Fe
+.Fh m_cleareol
+.Fs m_cleareol 3 "Clear to the end of the line"
+All of the characters on the current line, starting with the 
+current character to the end of the
+.I "text region" ,
+are cleared.
+If no
+.I "text region"
+is set,
+.Fr m_cleareol
+ clears to the edge of the window.
+.Fe
+.Fh m_cleareos
+.Fs m_cleareos 3 "Clear to the end of the window"
+All of the characters in the current
+.I "text region" ,
+from the 
+current character to the end
+of the
+.I "text region" ,
+are cleared.
+If no
+.I "text region"
+is set,
+.Fr m_clear
+ clears to the end of the window.
+.Fe
+.Fh m_clearevent n 
+.Fs m_clearevent 9 "Clear an event"
+Event
+.Fi n
+is cleared.
+The integer
+.Fi n
+is one of:
+.Fi ACCEPT ,
+.Fi ACTIVATE ,
+.Fi BUTTON_1 ,
+.Fi BUTTON_1U ,
+.Fi BUTTON_2 ,
+.Fi BUTTON_2U ,
+.Fi COVERED ,
+.Fi DEACTIVATE ,
+.Fi DESTROY ,
+.Fi MOVE ,
+.Fi NOTIFY ,
+.Fi PASTE ,
+.Fi REDRAW ,
+.Fi RESHAPE ,
+.Fi SNARFED,
+.Fi STACK ,
+or
+.Fi UNCOVERED .
+See
+.Fr m_setevent
+ for a description of the events.
+.Fe
+.Fh m_clearmenu n 
+.Fs m_clearmenu 8 "Clear a menu"
+If menu
+.Fi n
+exists,
+it is cleared.
+.Fe
+.Fh m_clearmode mode 
+.Fs m_clearmode 6 "Reset a window mode"
+Clear one of the following window modes.
+Except where noted, these are the default settings.
+The mode settings are more fully explained in
+.Fr m_setmode
+\&.
+.RS
+.IP \fBM_ABS\fP 0.5i
+.br
+.I Absolute
+window coordinate mode is turned off.
+The window is now in
+.I relative
+window coordinates. 
+All window coordinates range from
+.Fr "" 0 0
+ in the upper left corner to
+.Fr "" 999 999
+ at the lower right.
+.IP \fBM_ACTIVATE\fP 0.5i
+.br
+Bury the window. Unlike the other window modes, 
+.I bury 
+has no state associated with it, just a one time action.
+A window is buried by visually pushing it to the 
+bottom of the display;
+any window intersecting it will appear in front of it.
+.IP \fBM_AUTOEXPOSE\fP 0.5i
+.br
+Do not automatically activate the window the next time it
+receives output.
+.IP \fBM_BACKGROUND\fP 0.5i
+.br
+\*M does not permit the window to update if it is partially or totally obscured.
+Data destined for the window is held until the window is uncovered,
+or
+.SM
+.B M_BACKGROUND
+.LG
+is turned on.
+.IP \fBM_NOINPUT\fP 0.5i
+.br
+Accept keyboard input if the window is active.
+.IP \fBM_NOWRAP\fP 0.5i
+.br
+Wrap the character cursor to the next line when it reaches the right margin
+of the
+.I "text region" .
+.IP \fBM_OVERSTRIKE\fP 0.5i
+.br
+Do not overstrike characters.
+Text is copied to the window as if
+.Fr m_func BIT_SRC
+ is set.
+.IP \fBM_SNARFHARD\fP 0.5i
+.br
+The system
+.I cut
+function fails if any errors are found. 
+This is indicated by flashing the window.
+The contents of the
+.I cut
+buffer are left undisturbed.
+Normally this only happens if some process unknown to \*M scribbles into
+the region being cut.
+.IP \fBM_SNARFLINES\fP 0.5i
+.br
+Sets
+the system
+.I cut
+function to cut individual characters,
+instead of entire lines only.
+.IP \fBM_SNARFTABS\fP 0.5i
+.br
+The system
+.I cut
+function cuts text exactly as it appears on the window.
+All interior white space is converted to 
+.I space s,
+all trailing white space is treated as a
+.I "new line" .
+.IP \fBM_STACK\fP 0.5i
+.br
+Event stacking is turned off.
+Event strings are only returned for the current window context and
+not for any contexts stacked with
+.Fr m_push
+\&.
+.IP \fBM_STANDOUT\fP 0.5i
+.br
+Characters are drawn in black with a white background.
+.IP \fBM_WOB\fP 0.5i
+.br
+The window foreground color is set to
+.I black ,
+and the window background is set color to
+.I white .
+.IP \fBM_DUPKEY\fP 0.5i
+.br
+The keyboard escape character is turned off.
+This mode is turned on by calling
+.Fr m_dupkey
+\&.
+There is no corresponding call to
+.Fr m_setmode
+\&.
+.RE
+.Fe
+.Fh m_deletechar
+.Fs m_deletechar 3 "Delete a character"
+The character at the cursor position is deleted.
+Any characters on the line to the right of the cursor are shifted
+left one character position.
+The last character on the line is set to a
+.I space .
+.Fe
+.Fh m_deletechars n 
+.Fs m_deletechars 3 "Delete characters"
+The next
+.Fi n
+characters are deleted, starting at the character cursor position.
+Any characters on the line to the right of the cursor are shifted
+left 
+.Fi n
+character positions.
+The last 
+.Fi n
+characters on the line are set to 
+.I space .
+.Fe
+.Fh m_deleteline
+.Fs m_deleteline 3 "Delete a line"
+The line at the cursor position is deleted.
+Any lines below the cursor are shifted
+up one line.
+The last line is cleared.
+.Fe
+.Fh m_deletelines n 
+.Fs m_deletelines 3 "Delete lines"
+The next
+.Fi n
+lines starting at the cursor position and toward the bottom 
+of the window are deleted.
+Any lines below the deleted ones are shifted
+up 
+.Fi n
+lines.
+The last 
+.Fi n
+lines are cleared.
+It is more efficient to make one call to
+.Fr m_deletelines
+ than to call
+.Fr m_deleteline
+.Fi n
+times.
+.Fe
+.Fh m_destroywin n 
+.Fs m_destroywin 11 "Destroy an alternate window"
+Destroy alternate window
+.Fi  n ,
+created by calling
+.Fr m_newwin
+\&.
+If output is currently directed to this window,
+it is automatically re-directed to the
+.I main
+window.
+See also
+.Fr m_selectwin
+\&.
+.Fe
+.Fh m_down n 
+.Fs m_down 13 "Move character cursor down by tenths of a character height"
+Move the character cursor down 
+.Fi n
+tenths of a character height.  This may cause the window to scroll.
+See also
+.Fr m_left
+.Fr m_right
+and
+.Fr  m_up
+\&.
+.Fe
+.Fh m_draw x  y 
+.Fs m_draw 4 "Draw a line from the graphics point"
+Draw a line from current
+.I "graphics point"
+to
+.Fr ""  x y
+\&.
+The macro
+.Fr m_go
+ is used to move the
+.I "graphics point" .
+The
+.I "graphics point"
+is left at
+.Fr "" x y
+, the end point of the line.
+.Fe
+.Fh m_dupkey char 
+.Fs m_dupkey 6 "Turn on keyboard escape mechanism"
+Every time the character
+.Fi char
+is typed at the keyboard for this window,
+it is sent to the client program twice.
+This enables clients to reliably distinguish
+keyboard input from that generated by menu selections or events.
+The client begins every
+.I event
+and
+.I menu
+string with a two character code
+whose first character is
+.Fi char
+and whose second character is anything but
+.Fi char
+or
+.Fi space .
+When this mode is set, all replies to \*M queries, as with 
+.Fr m_getinfo
+are prepended by the two character sequence
+.Fi char
+followed by
+.Fi space .
+For multiline requests, such as
+.Fr M_getinfo G_ALL
+only the first line of the reply is affected.
+These two characters are also prepended to all other \*M commands that
+return a character string to the client program, such as 
+.Fr m_newwin
+or
+.Fr m_bitfromfile
+\&.
+.Fe
+.Fh m_ellipse x  y  radius1 radius2 
+.Fs m_ellipse 4 "Draw an ellipse"
+Draw an ellipse centered at
+.Fr "" x y
+\&.
+The values for
+.Fi radius1
+and
+.Fi radius2
+are the major and minor axis radii.
+The ellipse is either
+set, cleared or inverted
+determined by the last call to
+.Fr m_func
+\&.
+The values for
+.Fi radius1
+and
+.Fi radius2
+are scaled based upon the average
+width and height of the window.
+.Fe
+.Fh m_ellipseto to  x  y  radius1 radius2 
+.Fs m_ellipseto 4 "Draw an ellipse on a scratchpad bitmap"
+Draw an ellipse on scratchpad bitmap
+.Fi to
+centered at
+.Fr "" x y
+ where
+.Fi radius1 , radius2
+are the major and minor axis radii.
+The ellipse is either
+set, cleared or inverted
+determined by the last call to
+.Fr m_func
+\&.
+The values for
+.Fi radius1
+and
+.Fi radius2
+are scaled based upon the average
+.Fi width
+and
+.Fi height
+of the window.
+If the offscreen bitmap
+.Fi to
+does not exist, 
+this call is ignored.
+.Fe
+.Fh m_fastdraw x y count data
+.Fs m_fastdraw 4 "Draw a group of fast vectors"
+The next
+.Fi count
+bytes of
+.Fi data
+are sent to \*M are to be interpreted as lines drawn in
+.I "fast draw"
+mode,
+starting at
+.Fr "" x y
+\&.
+.I "Fast draw"
+mode permits the rapid drawing of short vectors
+by encoding an 
+.I x,y
+displacement location in a single byte.
+The 
+.I x
+coordinate is contained in the most significant
+4 bits, the
+.I y
+coordinate in the least significant 4 bits.
+Values for
+.I x
+and
+.I y
+represent displacements from the previous location, and
+range from +7 to -8.
+A 7 is coded as 
+.B 0xff ,
+a -8 as
+.B 0x00 .
+If both 
+.I x
+and
+.I y
+are zero (i.e.
+.B 0x8080 ).
+The next coordinate is taken to be a
+.I move
+instead of a
+.I draw.
+An eight bit channel between \*M and the client program is required for
+.I "fast draw"
+mode.
+See also
+.Fr m_rfastdraw
+\&.
+.Fe
+.Fh m_fcolor color
+.Fs m_fcolor 14 "Set the text foreground color"
+The foreground color for text operations is set to
+.Fi color
+,
+which is an index into the color lookup table.
+This command is ignored on a monochrome display.
+See also 
+.Fr m_bcolor
+and
+.Fr m_linecolor
+\&.
+.Fe
+.Fh m_flush
+.Fs m_flush 1 "Flush any outpout pending for the window"
+Flush the \*M output buffer.
+This is equivalent to the stdio function
+.B fflush()
+and is needed only when the
+.SM
+.Fi M_FLUSH
+.LG
+flag is
+.I not
+specified in the call to 
+.Fr m_setup
+\&.
+.Fe

@@ -1,0 +1,161 @@
+.\" @(#)man/man8/mkdbm.an	1.5 8/2/92 03:32:37
+.TH MKDBM X_MAN8_EXT_X "31 January 1988" "Local"
+.SH NAME
+mkdbm \- build a DBM file suitable for use by smail
+.SH SYNOPSIS
+.B X_UTIL_BIN_DIR_X/mkdbm
+.RB "[ " \-f " ]"
+.RB "[ " \-v " ]"
+.RB "[ " \-n " ]"
+.RB "[ " \-d " ]"
+.RB "[ " \-y " ]"
+.br
+.in +10
+[
+.B \-o
+.I output-name
+]
+.RI "[ " file " ...  ]"
+.in -10
+.SH DESCRIPTION
+.I Mkdbm
+takes lines as input and writes them to a set of files in the format
+produced by the
+.IR dbm (3X)
+function library.  The key is formed from the characters up to, but
+not including, a colon (``:'') or white space character.  The data
+after the colon or white space character forms the value associated
+with the key.  If
+.B \-f
+is given, the key is folded to lower case before being stored in the
+database.
+.PP
+If no input files are specified, the standard input is read.  In
+addition, if a filename of
+.B \-
+is given, the standard input is inserted at that point.
+.PP
+The
+.B \-o
+option sets the name for the DBM database.  If not specified
+explicitly, the name of the database is taken from the first
+.I file
+argument.  If no
+.I file
+arguments are given, or the first file argument is
+.BR \-
+then a database is created in the current directory with the name
+.IR dbm .
+.PP
+The
+.I mkdbm
+program can be used
+to produce DBM files which can then be read by a
+.IR smail (X_MAN8_EXT_X)
+pathalias router or aliasfile director.
+The router or directory should be configured to use the
+.I dbm
+file access protocol.  See
+.IR smail (X_MAN5_EXT_X)
+for more information on routers and directors.
+For some databases,
+.IR mkline (X_MAN8_EXT_X)
+should be used to form single line records with comments and extra
+white-space removed.
+.PP
+The generated database contains a single nul byte at the end of each
+key and value.  Also a single record containing ``@'' as a key and
+value is created for compatibility with the Berkeley
+.IR sendmail (X_MAN8_EXT_X)
+program's alias files.  The ending nul bytes can be suppressed with
+the
+.B \-n
+option, and the extra ``@'' record can be suppressed with the
+.B \-d
+option.  Use of
+.B \-n
+is incompatible with the smail
+.B dbm
+file access method.
+.PP
+When creating the database, temporary DBM files are built in the same
+directory as the eventual output files.  Then, when it is completed,
+any DBM files currently existing under the target name are removed,
+.I mkdbm
+sleeps between one and two seconds, and then the temporary DBM files
+are moved to the target names.  This database creation method is not
+compatible with the locking method used by Berkeley
+.IR sendmail .
+.PP
+If the
+.B \-v
+flags is specified
+.I mkdbm
+writes statistics to the standard output.
+.PP
+The
+.B \-y
+flag is used to create YP-compatible dbm files.  This obviates the
+need for keeping sendmail around to recreate the YP alias database.
+Calling \fImkdbm\fP with the arguments \fB\-ynd\fP generates dbm files
+that are compatible with regular YP databases.  Using just the
+argument \fB\-y\fP generates a database that is compatible with the YP
+mail.alias database.
+.SH EXAMPLE
+As an example of the use of
+.I mkdbm
+consider a file,
+.IR paths ,
+containing the routing information:
+.PP
+.RS
+.nf
+.ta \w'Stargate.COM'u+3n
+\&.COM	sun!%s
+Stargate.COM	ames!cmcl2!uiucdcs!stargate!%s
+ames	ames!%s
+\&.ATT.COM	mtune!%s
+mtune	mtune!%s
+.DT
+.fi
+.RE
+.PP
+Given this file, the command
+.I "mkdbm -f paths"
+will produce a dbm database in the files
+.I paths.pag
+and
+.I paths.dir
+containing the above entries, with downcased keys.
+For example, one entry will contain the key
+.I stargate.com
+with an associated value of
+.IR ames!cmcl2!uiucdcs!stargate!%s .
+.RE
+.SH "SEE ALSO"
+.IR mkaliases (X_MAN8_EXT_X),
+.IR mkline (X_MAN8_EXT_X),
+.IR mksort (X_MAN8_EXT_X),
+.IR smail (X_MAN5_EXT_X),
+.IR smail (X_MAN8_EXT_X),
+.IR pathalias (X_MAN8_EXT_X).
+.SH FILES
+.PD 0
+.TP \w'dbmXXXXXX.pag'u+4n
+dbmXXXXXX.pag
+.TP
+dbmXXXXXX.dir
+.PD
+The temporary files created in the same directory as the eventual
+output files.
+.SH COPYRIGHT
+Copyright(C)1987, 1988 Ronald S. Karr and Landon Curt Noll
+.br
+Copyright(C)1992 Ronald S. Karr
+.br
+See a file COPYING,
+distributed with the source code,
+or type
+.I "smail -bc"
+for distribution rights and restrictions
+associated with this software.

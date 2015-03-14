@@ -1,0 +1,446 @@
+$Header: /home/x_cvs/mit/server/ddx/x386/README.X386-1.2E,v 1.16 1992/07/15 05:43:08 dawes Exp $
+
+                         README for X386 1.2E (1.0)
+                         --------------------------
+
+FEATURES
+--------
+
+  X386 1.2E is an enhanced version of X386 1.2, which was distributed
+with X11R5.  This release consists of many bug fixes, speed
+improvements, and other enhancements.  Here are the highlights of the
+enhancements:
+
+    1) The SpeedUp package from Glenn Lai is an integral part of X386
+       1.2E, selectable at run-time via the Xconfig file.  SpeedUp
+       requires an ET4000 based SVGA, and a virtual screen width of
+       1024.  SpeedUp is selected by default when these requirements
+       are satisfied.
+    2) The fX386 packages from Jim Tsillas are included as the default
+       operating mode if SpeedUp is not selected.  This mode is now
+       equivalent to X386 1.1b (X11R4).
+    3) Support for LOCALCONN, compile-time selectable for server, clients,
+       or both.  This support is for both SVR3.2 and SVR4.  For SVR4.0.4
+       with the 'Advanced Compatibility Package', local connections from
+       SCO XSight/ODT clients are supported.
+    4) Support for the newer ET4000-based SVGAs which have high clocks and
+       reported incorrect clock values with the standard version.  This
+       support is automatic and does not require any Xconfig options.
+    5) Support for serial mice connected for FAS serial ports on SVR4.
+       (Now that a STEAMS based version (SAS) is available, support for
+       FAS will be removed in a future release.)
+    6) A command line option has been added to allow the selection of which
+       VT the server will use, rather than having it try to find one on
+       its own.
+
+Also included are a tutorial on monitor timing by Bob Crosson, and the
+current X386 mode database and a sample xdm configuration by David Wexelblat.
+
+Some of the bug fixes and changes are:
+
+    1) support for gcc2.? and selectable 486/386 optimisation.  The
+       building of SVR4 shared libraries is also supported with gcc-2.?.
+    2) Server now traps and exits cleanly if a SIGSEGV is generated (a core
+       is still generated for debugging).  There is an Xconfig option to
+       disable this trapping.
+    3) VT switching is more robust.  The server will no longer crash nor will
+       the screen get corrupted as a result of starting or exiting clients
+       while switched away.  Also, the screensaver is turned off when
+       switching back so you don't return to a blank screen.  These changes
+       also ensure that xdm shuts down cleanly.
+    4) A bug that prevented changing mouse acceleration has been fixed.
+    5) Mark Snitily's polygon fill fix.
+    6) A cfb bitblt bank switching bug has been fixed.
+    7) The use of xdm with xqueue under SVR4 has been fixed.
+    8) Support for compressed bitmap fonts has been added (Thomas Eberhardt's
+       code from the contrib directory on export.lcs.mit.edu).
+    9) Type1 Font code from MIT contrib tape has been included, and is
+       compile-time selectable.  There are contributed Type1 fonts in the
+       contrib directory on export.lcs.mit.edu.
+   10) The maximum number of server connections is now correctly determined
+       for SVR4 by making use of getrlimit().
+   11) A bug in operation of XForceScreenSaver(ScreenSaverReset) has been
+       fixed.
+   12) The default pointer button mapping has been fixed.
+   13) xterm no longer tries to open /dev/tty[psr]?? for SVR4.  This speeds
+       up the startup time for xterm, as well as keeping it from using the
+       wrong pty's on SVR4.0.4.
+   14) xconsole fixes for /dev/osm (SVR4 and some SVR3.2)
+   15) Altered bsdinst.sh to run 'mcs -d' when stripping binaries, and to do
+       the install with /usr/ucb/install (for SVR4).
+   16) Use of libucb.a eliminated.  The ndbm routines are taken from
+       sdbm (from the MIT contrib tape).
+
+Known Bugs:
+    1) A bug in cfbfillarc.c which shows up when using a virtual width!=1024.
+       This bug can be seen with xeyes or xlogo.  (This will be fixed in
+       2.0.)
+    2) A bug with solid stipple (using Mcopy mode) that shows up when using a
+       virtual width!=1024.  This problem also occurs with opaque stipple.
+    3) There seem to be memory leaks that show up if you use XdmAuth, so you
+       are advised to not set HasXdmAuth.
+    4) There are some problems with some of the 'xset fp' operations (in
+       particular 'xset fp rehash').  These seem to be caused by memory
+       allocation/deallocation problems in the server's font code.
+
+
+BUILDING X386 1.2E
+------------------
+
+0. If you are using gcc-2.0 or gcc-2.1, get gcc-2.2.2.  If you are using
+   gcc-2.1 with SVR4, apply the following patch to 'fixinc.svr4', and rerun
+   it.  This problem is fixed in gcc-2.2.  (gcc-2 is available from
+   prep.ai.mit.edu and other sites archiving GNU source.)
+
+*** ORIG/fixinc.svr4	Fri Apr 17 22:18:06 1992
+--- fixinc.svr4	Fri Apr 17 22:54:26 1992
+***************
+*** 156,162 ****
+    	  s/#system(\([^)]*\))/defined(__\1__)/g
+    	  s/#cpu(\([^)]*\))/defined(__\1__)/g
+  	  /#[a-z]*if.*[	 (]m68k/		s/\([^_]\)m68k/\1__m68k__/g
+- 	  /#[a-z]*if.*[	 (]__i386/	s/__i386/__i386__/g
+  	  /#[a-z]*if.*[	 (]i386/		s/\([^_]\)i386/\1__i386__/g
+  	  /#[a-z]*if.*[	 (]sparc/	s/\([^_]\)sparc/\1__sparc__/g
+  	  /#[a-z]*if.*[	 (]mc68000/	s/\([^_]\)mc68000/\1__mc68000__/g
+--- 156,161 ----
+
+1. You need the following:
+    - about 60-70MB of free disk space is required for building X386 1.2E. An
+      additional 20-30MB is required to install the built binaries,
+    - MIT X11R5 distribution with fixes 01-12 applied.  If you don't want to
+      build PEX, and want to minimise disk usage, you can remove the
+      following directories:
+
+        mit/doc                         mit/hardcopy
+        mit/demos/auto_box              mit/extensions/lib/PEX
+        mit/demos/beach_ball            mit/extensions/server/PEX
+        mit/demos/gpc                   mit/extensions/test/InsPEX
+        mit/fonts/PEX                   mit/lib/CLX
+        mit/server/ddx/dec              mit/server/ddx/ibm
+        mit/server/ddx/macII            mit/server/ddx/mips
+        mit/server/ddx/omron            mit/server/ddx/snf
+        mit/server/ddx/sun              mit/server/ddx/tek
+        util/PEX
+
+      The following large fonts in mit/fonts/bdf/misc can also be removed:
+
+         k14.bdf             hang*.bdf         jiskan*.bdf
+
+    - X386-1.2E-1.diff.Z, sdbm.tar.Z, and optionally Type1.tar.Z
+    - gcc 2.? is *strongly* recommended for building server, libs, clients.
+      In most cases it generates faster code than the standard compiler, and
+      for those with a 486, its -m486 flag can provide an additional 5%
+      improvement.
+    - For SVR4 it is recommended that you increase the UFSNINODE kernel
+      parameter to about 650 before attempting to build the distribution.
+      While doing this, you may also want to change some of the parameters
+      mentioned in the USING AND CONFIGURING section below.
+
+2. Extract sdbm.tar.Z somewhere and build it.  Install libsdbm.a in a
+   directory your ld searches.  (You could use /usr/local/lib, and with SVR4
+   add it to your LD_LIBRARY_PATH.)  Install sdbm.h in /usr/include.
+
+3. For SVR4 put /usr/X386/lib in your LD_RUN_PATH (and export it).
+
+4. Go to the directory containing your 'mit' directory, and apply the 1.2E
+   diffs with:
+
+      patch -p < X386-1.2E-1.diff
+
+   If you patch an unmodified tree there shouldn't be any problems.  Check
+   for any patch rejections and resolve them. If you've modified some files
+   (e.g. x386.cf, site.def) you should rename them, and restore the standard
+   versions before patching. If you don't have backups of the originals,
+   individual files can be easily obtained from the /pub/R5untarred directory
+   on export.lcs.mit.edu.
+
+5. If you want to include the Type1 font code, extract Type1.tar.Z in
+   mit/fonts/lib/font.  (Some contributed fonts can be found in
+   /pub/R5untarred/contrib/fonts/scaled/Type1 and
+   /pub/R5untarred/contrib/fonts/Utopia on export.lcs.mit.edu.)
+
+6. Have a look at config/site.def.  Set the various parameters to suit your
+   configuration.  If it is your first build, you should set BuildFonts,
+   InstallXdmConfig, InstallXinitConfig to YES.  If you have installed
+   Type1.tar.Z set BuildType1 to YES.  If you want to build the large fonts
+   in mit/fonts/bdf/misc set BuildLargeMiscFonts to YES.  If you want to
+   build the 100dpi fonts as well as the 75dpi fonts set Build100Dpi to YES.
+   Make sure both HasNdbm and HasSdbm are set correctly for the [n]dbm
+   library you are using.
+
+7. The server and client connections types to use should be chosen carefully.
+
+   For SVR4, the default for the server is to use UNIXCONN (Unix-domain
+   sockets) and the STREAMS based LOCALCONN for local connections, as well as
+   TCPCONN.  The default for SVR4 clients is UNIXCONN and TCPCONN.  If you
+   want to add LOCALCONN for clients, set ClientLocalConnSysv4 in
+   config/site.def.
+
+   For SVR3.2, the default for both the server and clients is to use the
+   STREAMS based LOCALCONN.  If HasSockets is set, TCPCONN is also used.  For
+   Esix 3.2D (and perhaps others if you don't have TCP/IP installed),
+   HasSockets should not be set.  (The Esix 3.2D implementation of TCP/IP is
+   not compatible with most networking code.)
+
+   - If you need to have the X386 server work with clients compiled with
+     vendor-supplied libraries, or with older versions of X386, you should
+     define the SERVER_LOCALCONN flag (this is done by default for SYSVs).
+
+   - If you need to have clients built with X386 1.2E libraries work with a
+     vendor-supplied server, define CLIENTS_LOCALCONN (this is the default
+     for SVR3.2, and can be set for SVR4 by defining ClientLocalConnSysv4).
+     
+   For SVR4, CLIENTS_LOCALCONN is not advised unless your application truly
+   calls for it.  The UNIX-domain socket normally used is faster than the
+   STREAMS-pipe used by LOCALCONN.
+
+   If you want to change the setting of ConnectionFlags directly, add
+   something like the following to the AfterVendorCF section of
+   config/site.def:
+
+     #undef ConnectionFlags
+     #define ConnectionFlags   YOUR_CHOICE_OF_FLAGS
+
+8. Go the 'mit' directory.  For SVR4, run:
+
+     make World BOOTSTRAPCFLAGS='-DSVR4 -DSYSV386' > World.Log 2>&1 &
+
+   For SVR3, run:
+
+     make World BOOTSTRAPCFLAGS='-DSYSV -DSYSV386 -DVENDOR' > World.Log 2>&1 &
+
+   where VENDOR is one of: ISC, ESIX, ATT, SCO.
+
+   Note for ISC 2.2: A limit in the hash table with ISC's 'make' will cause
+   it to die in the middle of mit/lib/X.  You have the option of picking up
+   the latest GNU make (which may or may not work) or of eliminating the list
+   of dependencies from the Makefile.  (If you proceed with ISC's make, it
+   might be advisable to add 'WORLDOPTS=' to your make World command line so
+   that it won't try and continue after the problems in mit/lib/X.)  To
+   eliminate the dependency list go to the mit/lib/X directory and execute:
+
+     make Makefile
+
+   Then return to the mit directory and execute:
+
+     make >> World.Log 2>&1 &
+
+9. If all goes well, that'll finish successfully in anything from two to
+   eight hours depending on your CPU/RAM/OS/compiler/disks.  You should check
+   World.Log to see if there were any problems.  If there weren't any then
+   you can do a 'make install' and a 'make install.man'.  Make sure you have
+   enough space in /usr/X386 for the install to succeed.  If you want to
+   install on a filesystem other than /usr, make a symbolic link to /usr/X386
+   before installing.
+
+10. If you have problems building on ISC 2.2, you can contact Jim Tsillas at
+   <jtsilla@damon.ccs.northeastern.edu>.
+
+USING AND CONFIGURING X386 1.2E
+-------------------------------
+
+1. Add /usr/X386/bin to your PATH and /usr/X386/man to your MANPATH.  For
+   SVR4, you may also want to add /usr/X386/lib to your LD_LIBRARY_PATH, but
+   this is not required for running clients providing they were built with
+   LD_RUN_PATH set correctly.  If you are going to be building clients it is
+   a good idea to have /usr/X386/lib in LD_RUN_PATH.
+
+2. Check through the /usr/X386/lib/X11/etc/x386install script.  This script
+   was written for ISC SVR3.2.  For SVR4 the only part of this script that's
+   required is the bit that installs the termcap and terminfo entries for
+   xterm, sun-cmd.  For SVR4, you may want to increase some kernel parameters
+   (either by running idtune, or editing /etc/conf/cf.d/stune, and rebuilding
+   the kernel with idbuild):
+
+        [HS]FNOLIM        hard/soft limit for number of open files
+        MAXUP             max number of processes per user
+        ARG_MAX           max length of an arg list
+
+3. Set up an Xconfig file.  The default location for this file is in
+   /usr/X386/lib/X11.  There is a sample file installed in that directory
+   called Xconfig.sample, and this should be used as a starting point.
+
+4. Decide which mouse driver to use.  For SVR4 the best choice depends on
+   which version you are using.  If you have a bus mouse then Xqueue is
+   probably the only option.  For a serial mouse the options are as follows:
+
+        Esix 4.0.3             Xqueue often works.  It is possible to
+                               use the standard asy driver directly,
+                               but the mouse operation is "jerky".
+
+        Microport SVR4 [34].1  Xqueue works fine, and the asy driver
+                               can also be used directly giving smooth
+                               mouse operation.
+
+        Any SVR3.2             Use the asy driver directly
+
+   To use Xqueue, uncomment the Xqueue line in your Xconfig file, and comment
+   out the Keyboard entry and the mouse related lines.  You must have the
+   mouse driver package installed, and must run mouseadmin to set it up for
+   your mouse.  If mouseadmin won't work try doing 'touch /dev/gmse' before
+   running it.  (Note that mouseadmin will need to be rerun after rebuilding
+   a kernel unless you add an appropriate entry to /etc/conf/node.d/gmse.)
+
+   The default Xconfig file is set up for using the asy driver directly.  All
+   that needs to be done is to replace the line:
+
+     Logitech        "/dev/tty00"
+
+   with one that suits your mouse (see the X386 man entry for the available
+   options).
+
+   If you have problems with both Xqueue and your standard asy driver with
+   SVR4, then you should install SAS.  When using SAS, set up Xconfig as you
+   would for the standard driver.  If you are still using FAS with SVR4 the
+   Fas and FasTimeout lines in Xconfig must be uncommented, but note that
+   support for FAS will be removed in a future release.
+
+   SAS is available from rapfast.Unibase.SK.CA, and there is also a copy on
+   ftp.physics.su.oz.au.  Note: rapfast is connected to the net via a SLIP
+   line, so it's probably quicker to get it from somewhere else.  When using
+   SAS for a serial mouse, you will get smoother operation if you change
+   EVENT_TIME from 80 to 30 in sas.h.  A couple of details which aren't
+   spelled out in the SAS README are:
+
+   - An example of the line you should add to /etc/ap/chan.ap is:
+
+      MAJOR    0       255     ldterm ttcompat
+
+     where MAJOR is replaced by the major number used for SAS devices.  To
+     determine what that is, check /etc/conf/cf.d/mdevice after rebuilding
+     the kernel.  The major number is the sixth field in the line starting
+     with 'sas'.  This file must be updated before rebooting with the new
+     kernel.
+
+   - The installation instructions omit the following:
+
+     3a) Disable the asy driver by either running 'kconfig' or editing
+         /etc/conf/sdevice.d/asy.
+     
+     3b) Rebuild the kernel by running /etc/conf/bin/idbuild
+     
+5. Check that the FontPath in your Xconfig is set correctly.  If you have
+   installed Type1 fonts, select the path that includes them.  If you are
+   using 100dpi fonts the default path should be modified accordingly.  Make
+   sure you have a fonts.scaled file in any directory containing Type1 fonts.
+   When you run mkfontdir in that directory, these entries will be added to
+   the fonts.dir file.
+
+6. The server now supports compressed pcf fonts.  If you compress any of
+   these fonts, you must rerun mkfontdir in the directories containing them.
+
+7. Make sure there are appropriate ModeDB entries in your Xconfig file.  For
+   details about this, read through the XConfig.Notes and modeDB.txt files in
+   /usr/X386/lib/X11/etc.
+
+8. The default Xconfig is set up to make use of SpeedUp.  If your SVGA card
+   is not based on the ET4000, or if your virtual width is not 1024, this
+   code will be automatically disabled (with a warning message written on the
+   console).
+
+9. If you want to use xdm with SVR4, extract the files from the shar file in
+   /usr/X386/lib/X11/etc/XdmConf.svr4 into a temporary directory.  The README
+   file tells where the individual files should be installed.  Be sure to
+   read through each file and make any site-specific changes that you need.
+
+   NOTE: Some SVR4 versions (one example is Esix 4.0.3) have a default
+   inittab which runs 'vtgetty' on the console. This does not work well when
+   starting xdm at boot time.  The problem is that when you logout from a
+   vtgetty session it wants to close all the VTs -- including the one xdm is
+   using for the server.  It is recommended that you use 'getty'.  If you
+   change /etc/inittab, remember to also change /etc/conf/cf.d/init.base or
+   you will lose the changes when you next rebuild the kernel.
+
+10. If you want to change the number of VTs available on SVR4, just edit the
+   file /etc/default/workstations and change the number there.  The device
+   nodes will be created/deleted next time you reboot.
+
+
+BUILDING NON-CORE CLIENTS WITH SVR4
+-----------------------------------
+
+1. A lot of clients (even some which have explicit SVR4 support) require
+   -DSYSV when building under SVR4.  This will not be set when using the
+   default x386.cf and site.def.  A quick fix is to add something like the
+   following to the client's Imakefile:
+
+      #if SystemV4
+           DEFINES = -DSYSV OTHER_CLIENT_DEPENDENT_DEFINES
+      #endif
+
+   The best solution is to modify the code so it compiles correctly without
+   -DSYSV.
+
+2. The default compiler options include '-ansi' for gcc, and '-Xc' for cc.
+   A consequence of this is __STDC__ gets #defined to '1'.  There are a
+   number of functions which will not have prototypes declared unless either
+   __STDC__ is not defined, or
+
+   __STDC__ == 0 || defined(_POSIX_SOURCE) || defined(_XOPEN_SOURCE)
+
+   Possible solutions are to change the definition of ANSICCOPTIONS by adding
+   a line to the Imakefile, or to add the required prototypes to the source.
+
+3. A lot of clients make use of BSD functions like bcopy(), etc.  The default
+   configuation files are set up to link with libXbsd.a which contains
+   emulation for bcopy(), bzero(), bcmp(), ffs(), random(), seed().  ffs() is
+   not required (it is already in libnsl.so), and a better way of providing
+   the 'b' functions is to include <X11/Xfuncs.h> in source files that call
+   them.  Xfuncs.h provides macro definitions for these in terms of the SYSV
+   'mem' functions.  If you require more efficient versions of random(),
+   seed() you should supply your own macro definitions.  If you are linking
+   with a vendor supplied library which calls some of these functions, then
+   you should link with libXbsd.a
+
+   If you want to change this default, you can edit your x386.cf file.  If
+   you want to change the behaviour on a per client basis, you can add a line
+   to the clients Imakefile which redefines XBSDLIB.  To eliminate the use of
+   that library use something like:
+
+     XBSDLIB =
+
+   If you find you need some other BSD functions, you could link with
+   libucb.a by using something like:
+
+     XBSDLIB = -lc -L/usr/ucblib -lucb
+
+   WARNING: be *very* careful blindly linking with libucb.a.
+   
+
+SYSTEMS X386-1.2E HAS BEEN TESTED ON
+------------------------------------
+
+Esix 4.0.3A, 4.0.4
+Microport SVR4 [34].1
+Dell SVR4
+UHC SVR4.0 version 2.0
+Consensys SVR4
+ISC SVR4
+Interactive SVR3 2.2, 3.0
+
+CREDITS
+-------
+
+X386 1.2E was put together by:
+
+       David Dawes <dawes@physics.su.oz.au>
+       Glenn Lai <glenn@cs.utexas.edu>
+       Jim Tsillas <jtsilla@damon.ccs.northeastern.edu>
+       David Wexelblat <dwex@mtgzfs3.att.com>
+
+       e-mail sent to <x386@physics.su.oz.au> will reach all of us.
+
+X386 1.2, and moral support from:
+
+       Thomas Roell <roell@sgcs.com>
+       Mark Snitily <mark@sgcs.com>
+
+Other contributors:
+
+       Bob Crosson <crosson@cam.nist.gov>
+       Thomas Eberhardt <thomas@mathematik.uni-Bremen.de>
+
+       and an entire horde of beta-testers around the world!
+
+15 July 1992.

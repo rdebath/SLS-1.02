@@ -1,0 +1,335 @@
+FTP ACCESS CONTROL FOR ANONYMOUS FTP
+
+limit   <class> <n> <times> <message_file>
+
+        Limit <class> to <n> users at times <times>, displaying
+        <message_file> if user is denied access.  Limit check is
+        performed at login time only.  If multiple "limit" commands can
+        apply to the current session, the first applicable one is
+        used.  Failing to define a valid limit, or a limit of -1, is
+        equivalent to unlimited. <times> is in same format as the times
+        in the UUCP L.sys file.
+
+class   <class> <typelist> <addrglob>{ <addrglob>}{ <addrglob>}{ <addrglob>}
+
+        Define <class> of users, with source addresses of the form
+        <addrglob>.  Multiple members of <class> may be defined.  There
+        may be multiple "class" commands listing additional members of
+        the class.  If multiple "class" commands can apply to the
+        current session, the first one listed in the access file is
+        used.  Failing to define a valid class for a host will cause
+        access to be denied.  <typelist> is a comma-separated list of
+        any of the keywords "anonymous", "guest" and "real".  If the
+        "real" keyword is included, the class can match users using FTP
+        to access real accounts, and if the "anonymous" keyword is
+        included the class can match users using anonymous FTP.  The
+        "guest" keyword matches guest access accounts (see "guestgroup"
+        for more information)
+
+        <addrglob> may be a globbed domain name or a globbed numeric
+        address.
+
+deny    <addrglob> <message_file>
+
+        Always deny access to host(s) matching <addrglob>.  <message_file>
+        is displayed.  <addrglob> may be "!nameserved" to deny access to
+        sites without a working nameserver.
+
+loginfails <number>
+
+        After <number> login failures, log a "repeated login failures"
+        message and terminate the FTP connection.  Default value is 5.
+
+log     transfers <typelist> <directions>
+
+        Enables logging of file transfers for either real or anonymous
+        FTP users.  Logging of transfers TO the server (incoming) can
+        be enabled separately from transfers FROM the server
+        (outbound).  <typelist> is a comma-separated list of any of the
+        keywords "anonymous", "guest" and "real".  If the "real"
+        keyword is included, logging will be done for users using FTP
+        to access real accounts, and if the "anonymous" keyword is
+        included logging will done for users using anonymous FTP. The
+        "guest" keyword matches guest access accounts (see "guestgroup"
+        for more information).  <directions> is a comma-separated list
+        of any of the two keywords "inbound" and "outbound", and will
+        respectively cause transfers to be logged for files sent to the
+        server and sent from the server.
+        
+log     commands <typelist>
+
+        Enables logging of individual commands by users.  <typelist> is
+        a comma-separated list of any of the keywords "anonymous",
+        "guest" and "real".  If the "real" keyword is included, logging
+        will be done for users using FTP to access real accounts, and
+        if the "anonymous" keyword is included logging will done for
+        users using anonymous FTP.  The "guest" keyword matches guest
+        access accounts (see "guestgroup" for more information).
+
+readme  <path> {<when>}
+
+        Define a file with <path> such that ftpd will notify user at
+        login time or upon using the change working directory command
+        that the file exists and was modified on such-and-such date.
+        The optional <when> parameter may be "LOGIN" or "CWD=<dir>",
+        and defaults to "LOGIN".  If <when> is "CWD=<dir>", <dir>
+        specifies the new default directory which will trigger the
+        notification.  The message will only be displayed once, to
+        avoid bothering users.  Remember that when README messages
+        are triggered by an anonymous FTP user, the <path> must be
+        relative to the base of the anonymous FTP directory tree.
+
+message <path> {<when>}
+
+        Define a file with <path> such that ftpd will display the
+        contents of the file to the user login time or upon using the
+        change working directory command.  The optional <when>
+        parameter may be "LOGIN" or "CWD=<dir>", and defaults to
+        "LOGIN".  If <when> is "CWD=<dir>", <dir> specifies the new
+        default directory which will trigger the notification.  There
+        can be "magic cookies" in the readme file which cause the ftp
+        server to replace the cookie with a specified text string:
+
+                %T      local time (form Thu Nov 15 17:12:42 1990)
+                %F      free space in partition of CWD (kbytes)
+                %C      current working directory
+                %R      remote host name
+                %L      local host name
+                %U      username given at login time
+                %M      maximum allowed number of users in this class
+                %N      current number of users in this class
+
+        The message will only be displayed once to avoid annoying the
+        user.  Remember that when MESSAGEs are triggered by an
+        anonymous FTP user, the <path> must be relative to the base of
+        the anonymous FTP directory tree.
+
+banner <path>
+
+        Works similarly to the message command, except that the banner
+        is displayed before the user enters the username/password.  The
+        <path> is relative to the real system root, not the base of the
+        anonymous FTP directory.
+
+        WARNING: use of this command can completely prevent non-compliant
+        FTP clients from making use of the FTP server.  Not all clients
+        can handle multi-line responses (which is how the banner is
+        displayed).
+
+private <path>
+
+        After user logs in, the SITE GROUP and SITE GPASS commands may
+        be used to specify an enhanced access group and associated
+        password.  If the group name and password are valid, the user
+        becomes (via setegid()) a member of the group specified in the
+        group access file <path>.  There can be only one "private"
+        command in the configuration file.
+
+        The format of the group access file is:
+
+        access_group_name:encrypted_password:real_group_name
+
+        where access_group_name is an arbitrary (alphanumeric +
+        punctuation) string.  encrypted_password is the password
+        encrypted via crypt(3), exactly like in /etc/passwd.
+        real_group_name is the name of a valid group listed in
+        /etc/group.
+
+        NOTE: For this option to work for anonymous FTP users, the ftp
+        server must keep /etc/group permanently open and the group
+        access file is loaded into memory.  This means that (1) the ftp
+        server now has an additional file descriptor open, and (2) the
+        necessary passwords and access privileges granted to users via
+        SITE GROUP will be static for the duration of an FTP session.
+        If you have an urgent need to change the access groups and/or
+        passwords *NOW*, you just kill all of the running FTP servers.
+
+guestgroup  <groupname> [<groupname> ...]
+
+        If a REAL user is a member of any of <groupname>, the session
+        is set up exactly as with anonymous FTP.  In other words, a
+        chroot() is done, and the user is no longer permitted to issue
+        the USER and PASS commands.  <groupname> is a valid group
+        from /etc/group (or wherever your getgrent() call looks).
+
+        The user's home directory must be properly set up, exactly as
+        anonymous FTP would be.
+
+autogroup <groupname> <class> [<class> ...]
+
+        If an ANONYMOUS user is a member of any of <class>, the ftp
+        server will perform a setegid() to <groupname>.  This allows
+        access to group-and-owner-read-only files and directories to
+        a particular class of anonymous users. <groupname> is a valid
+        group from /etc/group (or wherever your getgrent() call looks).
+
+compress <yes|no> <classglob> [<classglob> ...]
+tar <yes|no> <classglob> [<classglob> ...]
+
+        Enables compress or tar capabilities for any class matching any
+        of <classglob>.
+
+shutdown <path>
+
+        If the file pointed to by <path> exists, the server will check
+        the file regularly to see if the server is going to be shut
+        down.  If a shutdown is planned, the user is notified, new
+        connections are denied after a specified time before shutdown
+        and current connections are dropped at a specified time before
+        shutdown.  <path> points to a file structured as follows:
+
+        <year> <month> <day> <hour> <minute> <deny_offset> <disc_offset>
+        <text>
+
+        <year> any year > 1970
+        <month> 0-11 <---- LOOK!
+        <hour> 0-23
+        <minute> 0-59
+
+        <deny_offset> and <disc_offset> are the offsets in HHMM format
+        before the shutdown time that new connections will be denied and
+        existing connections will be disconnected.
+
+        <text> follows the normal rules for any message (see "message"),
+        with the following additional magic cookies available:
+
+        %s      time system is going to shut down
+        %r      time new connections will be denied
+        %d      time current connections will be dropped
+
+        all times are in the form: ddd MMM DD hh:mm:ss YYYY.  There can
+        be only one "shutdown" command in the configuration file.
+
+FTPD COMMAND-LINE OPTIONS
+
+   -a   Enable use of ftpaccess file (access file MUST exist if used)
+   -A   Disable use of ftpaccess file
+   -L   Turn on command logging (See note. Overridden by ftpaccess, if used)
+   -i   Turn on file reception logging (overridden by ftpaccess, if used)
+   -o   Turn on file transmission logging (overridden by ftpaccess, if used)
+
+NOTE: If the -L flag is used, command logging will be on by default as soon
+      as the ftp server is invoked.  This will cause the server to log all
+      USER commands, which if a user accidentally enters a password for that
+      command instead of the username, will cause passwords to be logged via
+      syslog.
+
+      The -L flag is overridden by the ftpaccess file, if it is used --
+      command logging options in the ftpaccess file take effect
+      IMMEDIATELY upon entry of the USER command (before logging takes
+      place).
+
+GENERAL FTP EXTENSIONS
+
+There are some extensions to the FTP server such that if the user
+specifies a filename (when using a RETRIEVE command) such that:
+
+True Filename      Specified Filename   Action
+------------------ -------------------- ---------------------------------------
+<filename>.Z       <filename>           Decompress file before transmitting
+<filename>         <filename>.Z         Compress <filename> before transmitting
+<filename>         <filename>.tar       Tar <filename> before transmitting
+<filename>         <filename>.tar.Z     Tar and compress <filename> before
+                                           transmitting
+
+Also, the FTP server will attempt to check for valid e-mail addresses and
+chide the user if he doesn't pass the test.  For users whose FTP client
+will hang on "long replies" (i.e. multiline responses), using a dash as
+the first character of the password will disable the server's lreply()
+function.
+
+The FTP server can also log all file transmission and reception,
+keeping the following information for each file transmission that takes
+place.
+
+Mon Dec  3 18:52:41 1990 1 wuarchive.wustl.edu 568881 /files.lst.Z a _ o a chris@wugate.wustl.edu ftp 0 *
+
+%.24s %d %s %d %s %c %s %c %c %s %s %d %s
+  1   2  3  4  5  6  7  8  9  10 11 12 13
+
+  1 current time in the form DDD MMM dd hh:mm:ss YYYY
+  2 transfer time in seconds
+  3 remote host name
+  4 file size in bytes
+  5 name of file
+  6 transfer type (a>scii, b>inary)
+  7 special action flags (concatenated as needed):
+        C   file was compressed
+        U   file was uncompressed
+        T   file was tar'ed
+        _   no action taken
+  8 file was sent to user (o>utgoing) or received from user (i>ncoming)
+  9 accessed anonymously (r>eal, a>nonymous) -- mostly for FTP
+ 10 local username or, if guest, ID string given (anonymous FTP password)
+ 11 service name ('ftp', other)
+ 12 authentication method (bitmask)
+        0   none
+        1   RFC931 Authentication
+ 13 authenticated user id (if available, '*' otherwise)
+
+--- SAMPLE CONFIGURATION FILE ---
+
+# comments begin with a pound (#) sign and continue to the end of the
+# line.  Blank lines are ignored.
+
+# deny  *.wustl.edu                     /archive/etc/msgs/msg.deny
+# deny  0.0.0.0                         /archive/etc/msgs/msg.deny
+
+# !nameserver is a special case, it triggers whenever the ftp server
+# is not able to resolve the remote system name via the nameserver.
+
+deny    !nameserved                     /archive/etc/msgs/msg.no_nameserver
+
+# define a "dead" class in case we want to "shut down" the ftp server for
+# a while (this class, which has a 0-user limit, will print a nice message
+# to all new connections telling them to go away and come back later)
+# class dead    real,anonymous  *
+
+# define a class of local users (sites which are directly connected to
+# our local network or which have a one-hop unloaded network connection.
+# 128.252.* is *.wustl.edu [somewhat more secure].
+class   local   real,anonymous 128.252.* *.mdc.com *.sbc.com 0.0.0.0
+
+# and everybody else...
+class   remote  real,anonymous  *
+
+# define the user limits for various times
+# for remote users, limit to 100 users during off-peak hours and 60 during
+# peak hours (off-peak ::= Saturday, Sunday or 6PM to 6AM weekdays)
+limit   dead    0   Any                 /archive/etc/msgs/msg.dead
+limit   local   20  Any                 /archive/etc/msgs/msg.toomany
+limit   remote  100 SaSu|Any1800-0600   /archive/etc/msgs/msg.toomany
+limit   remote  60  Any                 /archive/etc/msgs/msg.toomany
+
+# remind the users to read the darn README files
+readme  /README*    login
+readme  README*     cwd=*
+
+# let them know about special features of the archives
+message /etc/msgs/mirrors.msg   cwd=/mirrors
+message /etc/msgs/welcome.msg   login
+message .message				cwd=*
+
+# let everyone compress/uncompress files on the fly
+compress        yes             local remote
+# ... and tar things, too.
+tar             yes             local remote
+
+# Passworded anonymous-access accounts are in group ftpguest
+guestgroup	ftpguest
+
+# Make local-use information accessible only to local hosts by putting
+# them in UNIX group localuse.
+autogroup	localuse	local
+
+# Set up the private access group file
+# -rw-------  1 root         1025 May 23 14:37 /etc/ftpgroup
+private /etc/ftpgroup
+
+# log all commands the users execute (USER, PASS, NLST, PORT, *EVERYTHING*)
+# this can run to several (i.e. 5-10) megabytes/day for a heavily used
+# archive site
+log commands anonymous,real,guest
+
+# log all file transfers to and from the archives
+log transfers anonymous,real,guest inbound,outbound

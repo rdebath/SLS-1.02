@@ -1,0 +1,31 @@
+#! /bin/sh
+# rmgroup group - snuff group
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+hdr=/tmp/nc$$
+
+canonhdr >$hdr
+
+# unapproved ctl msg? then quit
+egrep '^Approved:' $hdr >/dev/null || { rm -f $hdr; exit 0; }
+
+# quit if no active entry
+# escape egrep metacharacters.  In theory one could add " ' ` \ to the list.
+egreppat="^(` echo "$1" | sed -e 's/[.+*()|[]/\\\\&/g' -e 's/,/|/g' `) "
+egrep "$egreppat" $NEWSCTL/active >/dev/null ||
+	{ rm -f $hdr; exit 0; }
+
+SENDER="`grep '^Sender:' $hdr | sed 's/^[^:]*: *//'`"
+case "$SENDER" in
+"")	SENDER="`grep '^From:' $hdr | sed 's/^[^:]*: *//'`" ;;
+esac
+
+# tell the local usenet administrator to do it by hand
+echo "rmgroup $1 says $SENDER" | mail $NEWSMASTER
+
+rm -f $hdr

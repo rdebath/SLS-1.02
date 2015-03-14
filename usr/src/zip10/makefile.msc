@@ -1,0 +1,121 @@
+# Makefile for Zip, ZipNote, ZipSplit, and Ship, for
+# Microsoft C 5.1 or 6.0.
+
+# To use, do "make makefile.msc"
+# If you do not have masm or tasm, then add -DNO_ASM to CFLAGS and remove
+# im_lm.obj from OBJI
+
+# Warning: the default used here is the small model, which produces
+# faster code, but imposes some limitation on the number of files
+# that zip can process. Compile with the compact model to remove these
+# limitations.
+
+# ------------- Microsoft C 5.1 or 6.0 -------------
+MODEL=-AS
+#     Change to -AC for compact model
+CFLAGS=-W3 -Ox -nologo $(MODEL)
+SPECFLAGS=-W3 -Oaict -Gs -nologo $(MODEL) -DEXPORT
+UTILFLAGS=-DUTIL $(CFLAGS) -Fo
+CC=cl
+LD=link
+LDFLAGS=/e/st:0x1000
+#     If you use lzexe as recommended, remove /e from LDFLAGS
+AS=masm
+#     For MSC 6.0, use: AS=ml 
+ASFLAGS=-ml -t
+
+# ------------- Common declarations:
+STRIP=rem
+#    If you don't have lzexe, get it. Then define:
+#STRIP=lzexe
+#    This makes a big difference in .exe size (and possibly load time)
+
+# variables
+OBJZ = zip.obj zipfile.obj zipup.obj fileio.obj util.obj tempf.obj shrink.obj\
+ globals.obj
+OBJI = implode.obj im_lmat.obj im_ctree.obj im_bits.obj im_lm.obj
+# remove im_lm.obj in above line if you do not have masm
+
+OBJN = zipnote.obj zipfile_.obj zipup_.obj fileio_.obj globals.obj
+OBJS = zipsplit.obj zipfile_.obj zipup_.obj fileio_.obj globals.obj
+
+zips:	zip.exe zipnote.exe zipsplit.exe ship.exe
+
+zip.obj:	zip.h ziperr.h tailor.h revision.h zip.c
+	$(CC) -c $(CFLAGS) $*.c
+
+zipfile.obj:	zip.h ziperr.h tailor.h zipfile.c
+	$(CC) -c $(SPECFLAGS) $*.c
+
+zipup.obj:	zip.h ziperr.h tailor.h revision.h zipup.c
+	$(CC) -c $(CFLAGS) $*.c
+
+fileio.obj:	zip.h ziperr.h tailor.h fileio.c
+	$(CC) -c $(CFLAGS) $*.c
+
+util.obj:	zip.h ziperr.h tailor.h util.c
+	$(CC) -c $(CFLAGS) $*.c
+
+tempf.obj:	tempf.h tailor.h tempf.c
+	$(CC) -c $(CFLAGS) $*.c
+
+shrink.obj:	zip.h ziperr.h tempf.h tailor.h shrink.c
+	$(CC) -c $(CFLAGS) $*.c
+
+globals.obj:	zip.h ziperr.h tailor.h globals.c
+	$(CC) -c $(CFLAGS) $*.c
+
+zipnote.obj:	zip.h ziperr.h tailor.h revision.h zipnote.c
+	$(CC) -c $(CFLAGS) $*.c
+
+# MSC 5.1 dies on zipsplit with -Ox
+zipsplit.obj:	zipsplit.c zip.h ziperr.h tailor.h revision.h
+	$(CC) -c $(SPECFLAGS) $*.c
+
+implode.obj:	implode.h crypt.h ziperr.h tempf.h tailor.h implode.c
+	$(CC) -c $(CFLAGS) $*.c
+
+im_lmat.obj:	implode.h crypt.h ziperr.h tempf.h tailor.h im_lmat.c
+	$(CC) -c $(CFLAGS) $*.c
+
+im_lm.obj:	im_lm.asm
+	$(AS) $(ASFLAGS) im_lm;
+
+im_ctree.obj:	implode.h crypt.h ziperr.h tempf.h tailor.h im_ctree.c
+	$(CC) -c $(CFLAGS) $*.c
+
+im_bits.obj:	implode.h crypt.h ziperr.h tempf.h tailor.h im_bits.c
+	$(CC) -c $(CFLAGS) $*.c
+
+zipfile_.obj:	zipfile.c zip.h
+	$(CC) -c $(UTILFLAGS)$@ zipfile.c
+
+zipup_.obj:	zipup.c zip.h
+	$(CC) -c $(UTILFLAGS)$@ zipup.c
+
+fileio_.obj:	fileio.c zip.h
+	$(CC) -c $(UTILFLAGS)$@ fileio.c
+
+# we must cut the command line to fit in the MS/DOS 128 byte limit:
+zip.exe: $(OBJZ) $(OBJI)
+	echo $(OBJZ)+ > zip.rsp
+	echo $(OBJI); >> zip.rsp
+	$(LD) $(LDFLAGS) @zip.rsp
+	del zip.rsp
+	$(STRIP) zip.exe
+
+zipnote.exe: $(OBJN)
+	echo $(OBJN); > zipn.rsp
+	$(LD) $(LDFLAGS) @zipn.rsp
+	del zipn.rsp
+	$(STRIP) zipnote.exe
+
+zipsplit.exe: $(OBJS)
+	echo $(OBJS); > zips.rsp
+	$(LD) $(LDFLAGS) @zips.rsp
+	del zips.rsp
+	$(STRIP) zipsplit.exe
+
+ship.exe: ship.c
+	$(CC) $(CFLAGS) ship.c
+	$(STRIP) ship.exe

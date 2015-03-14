@@ -1,0 +1,167 @@
+# Makefile for GNU cpio.
+# Copyright (C) 1988, 1991 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+#### Start of system configuration section. ####
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+# If you use gcc, you should either run the fixincludes script that
+# comes with it or else use gcc with the -traditional option.  Otherwise
+# ioctl calls will be compiled incorrectly on some systems.
+CC = @CC@
+
+# If you don't have a BSD or GNU install program, use cp.
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+
+# Things you might add to DEFS:
+# -DSTDC_HEADERS	If you have ANSI C headers and libraries.
+# -DHAVE_UNISTD_H	If you have unistd.h.
+# -DHAVE_STRING_H	If you don't have ANSI C headers but have string.h.
+# -DHAVE_UTIME_H	If you have utime.h.
+# -DMAJOR_IN_MKDEV	If major, minor, makedev defined in sys/mkdev.h.
+# -DMAJOR_IN_SYSMACROS	If major, minor, makedev defined in sys/sysmacros.h.
+# -DHAVE_FCNTL_H	If not POSIX.1 but you have fcntl.h.
+# -DRETSIGTYPE=int	If your signal handlers return int, not void.
+# -DHAVE_LCHOWN		If you have lchown system call.
+# -DHAVE_STRERROR	If you have strerror function.
+# -DHAVE_VPRINTF	If you have vprintf function.
+# -DHAVE_DOPRNT		If you have _doprnt function (but lack vprintf).
+# -DHAVE_SYS_MTIO_H	If you have sys/mtio.h (magtape ioctls).
+# -DHAVE_SYS_GENTAPE_H	If you have sys/gentape.h (ISC magtape ioctls).
+# -DHAVE_NETDB_H	To use rexec for remote tape operations
+#			instead of forking rsh or remsh.
+# -DNO_REMOTE		If you have neither a remote shell nor rexec.
+
+DEFS = @DEFS@
+LIBS = @LIBS@
+# Set this to rtapelib.o unless you defined NO_REMOTE, in which case
+# make it empty.
+RTAPELIB = @RTAPELIB@
+
+CFLAGS = -g
+LDFLAGS = -g
+
+prefix = /usr/local
+exec_prefix = $(prefix)
+
+# Prefix for each installed program, normally empty or `g'.
+binprefix = 
+# Prefix for each installed man page, normally empty or `g'.
+manprefix = 
+
+# Where to install the cpio and mt executables.
+bindir = $(exec_prefix)/bin
+
+# Where to put the rmt executable.
+libdir = /etc
+
+# Where to put the Unix-style manual pages.
+mandir = $(prefix)/man/man1
+# Extension (not including `.') for the Unix-style manual page filenames.
+manext = 1
+
+#### End of system configuration section. ####
+
+SHELL = /bin/sh
+
+SRCS = copyin.c copyout.c copypass.c dstring.c fnmatch.c global.c \
+main.c tar.c util.c error.c getopt.c getopt1.c filemode.c version.c \
+rtapelib.c dirname.c idcache.c makepath.c xmalloc.c stripslash.c \
+userspec.c xstrdup.c bcopy.c mkdir.c strdup.c
+OBJS = copyin.o copyout.o copypass.o dstring.o fnmatch.o global.o \
+main.o tar.o util.o error.o getopt.o getopt1.o filemode.o version.o \
+$(RTAPELIB) dirname.o idcache.o makepath.o xmalloc.o stripslash.o \
+userspec.o xstrdup.o @LIBOBJS@ @ALLOCA@ 
+# mt source files not shared with cpio.
+MT_SRCS = mt.c argmatch.c
+MT_OBJS = mt.o argmatch.o error.o getopt.o getopt1.o \
+xmalloc.o version.o $(RTAPELIB) @ALLOCA@
+HDRS = cpio.h cpiohdr.h tar.h tarhdr.h dstring.h extern.h filetypes.h \
+system.h fnmatch.h getopt.h rmt.h 
+DISTFILES = $(SRCS) $(HDRS) COPYING COPYING.LIB ChangeLog Makefile.in \
+README NEWS INSTALL cpio.1 mt.1 makefile.pc makefile.os2 cpio.def \
+configure configure.in $(MT_SRCS) rmt.c tcexparg.c alloca.c
+
+all:	@PROGS@
+
+.c.o:
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(DEFS) -I$(srcdir) $<
+
+install: all $(srcdir)/cpio.1 $(srcdir)/mt.1
+	$(INSTALL_PROGRAM) cpio $(bindir)/$(binprefix)cpio
+	test ! -f mt || $(INSTALL_PROGRAM) mt $(bindir)/$(binprefix)mt
+	-test ! -f rmt || $(INSTALL_PROGRAM) rmt $(libdir)/rmt
+	-$(INSTALL_DATA) $(srcdir)/cpio.1 $(mandir)/$(manprefix)cpio.$(manext)
+	-test ! -f mt || $(INSTALL_DATA) $(srcdir)/mt.1 $(mandir)/$(manprefix)mt.$(manext)
+
+uninstall:
+	cd $(bindir); rm -f $(binprefix)cpio $(binprefix)mt
+	-rm -f $(libdir)/rmt
+	cd $(mandir); rm -f $(manprefix)cpio.$(manext) $(manprefix)mt.$(manext)
+
+check:
+	@echo No tests are supplied.
+
+cpio:	$(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+copyin.o: cpio.h cpiohdr.h dstring.h extern.h filetypes.h fnmatch.h rmt.h system.h
+copyout.o: cpio.h cpiohdr.h dstring.h extern.h filetypes.h rmt.h system.h
+copypass.o: cpio.h cpiohdr.h dstring.h extern.h filetypes.h system.h
+dstring.o: dstring.h
+global.o: cpio.h cpiohdr.h dstring.h extern.h system.h
+main.o: cpio.h cpiohdr.h dstring.h extern.h filetypes.h rmt.h
+tar.o: filetypes.h cpio.h cpiohdr.h dstring.h extern.h rmt.h tar.h tarhdr.h system.h
+util.o: extern.h rmt.h system.h
+mt.o: rmt.h
+
+rmt:	rmt.o
+	$(CC) $(LDFLAGS) -o $@ rmt.o $(LIBS)
+
+mt:	$(MT_OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(MT_OBJS) $(LIBS)
+
+TAGS:	$(SRCS)
+	etags $(SRCS)
+
+clean:
+	rm -f cpio rmt mt *.o core
+
+mostlyclean: clean
+
+distclean: clean
+	rm -f Makefile config.status
+
+realclean: distclean
+	rm -f TAGS
+
+dist:
+	echo cpio-`sed -e '/version_string/!d' -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q version.c` > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`
+	-ln $(DISTFILES) `cat .fname`
+	for file in $(DISTFILES); do \
+	  test -r `cat .fname`/$$file || cp -p $$file `cat .fname`; \
+	done
+	tar chZf `cat .fname`.tar.Z `cat .fname`
+	rm -rf `cat .fname` .fname
+
+# Prevent GNU make v3 from overflowing arg limit on SysV.
+.NOEXPORT:

@@ -1,0 +1,108 @@
+/**/# Imakefile file for xkeycaps, Copyright (c) 1991, 1992 Jamie Zawinski.
+
+/*
+ *  To specify a different default keyboard (for when the vendor display
+ *  string isn't recognised) do something like this:
+ *
+ *   KBD_DEFINES = -DDEFAULT_KBD_NAME="\"Sun3\""
+ *
+ *  to make there not be a default (meaning the keyboard must be specified
+ *  if the vendor display string isn't recognised) you can do
+ *
+ *   KBD_DEFINES = -DDEFAULT_KBD_NAME=0
+ *
+ *  If you don't have the file X11/DECkeysym.h (which comes with the MIT
+ *  distribution) then add -DNO_DEC_KEYSYMS to DEFINES.
+ *
+ *  If you get a link error about _XInitKeysymDB being undefined, then add
+ *  -DNO_XInitKeysymDB to DEFINES.  In this case, you might also want to
+ *  add -DKEYSYMDB=/some/file/XKeysymDB to DEFINES, to tell XKeyCaps where
+ *  the vendor-specific keysym database file resides.  Otherwise, you will
+ *  have to set the $XKEYSYMDB environment variable before running this 
+ *  program, or else it won't let you select from the set of vendor keysyms.
+ *
+ *  Folks running R4 or older don't get to select from the set of vendor 
+ *  keysyms anyway.  If anyone comes up with a workaround to this, please
+ *  let me know.
+ *
+ *  If you have XTrap, add the line
+ *
+ *   #define HAVE_XTRAP
+ *
+ *  The XTrap support isn't quite finished yet.
+ */
+
+/* #define HAVE_XTRAP */
+
+/* This nonsense seems to be necessary to get the passwd struct on all HP
+   sysems.  HP can't seem to make up their mind what preprocessor directive
+   they want to use to tell their header files that they are being compiled
+   on an HP.  Don't ask me to explain why these aren't the default...
+ */
+#if defined(HPUX) || defined(hpux) || defined(__hpux) || defined(_HPUX_SOURCE)
+     HP_LOSSAGE = -D_HPUX_SOURCE -DHPUX -Dhpux -D__hpux
+#endif
+
+     XTRAP_SRCS = xtrap.c
+    SYSDEP_SRCS = sunOS.c
+
+#ifdef HAVE_XTRAP
+  XTRAP_DEFINES = -DHAVE_XTRAP
+ XTRAP_INCLUDES = 
+     XTRAP_LIBS = -lXTrap
+     XTRAP_OBJS = xtrap.o
+#endif
+
+#ifdef SunArchitecture
+    SYSDEP_OBJS = sunOS.o
+#endif
+
+       INCLUDES = $(XTRAP_INCLUDES)
+        DEFINES = $(KBD_DEFINES) $(XTRAP_DEFINES) $(HP_LOSSAGE)
+           SRCS = xkeycaps.c KbdWidget.c KeyWidget.c info.c actions.c \
+                  commands.c guess.c $(SYSDEP_SRCS) $(XTRAP_SRCS)
+           OBJS = xkeycaps.o KbdWidget.o KeyWidget.o info.o actions.o \
+                  commands.o guess.o $(SYSDEP_OBJS) $(XTRAP_OBJS)
+LOCAL_LIBRARIES = $(XAWLIB) $(XTOOLLIB) $(XTRAP_LIBS) $(EXTENSIONLIB) \
+                  $(XMULIB) $(XLIB)
+       ALL_KBDS = kbd-sun-type2.h kbd-sun-type3.h kbd-sun-type4.h \
+                  kbd-sun-type5.h kbd-sun-type4ow.h kbd-sun-type5ow.h \
+                  kbd-sun-type5pc.h kbd-sun-type5pcow.h kbd-ncd-n97.h \
+                  kbd-ncd-n101.h kbd-ncd-n102.h kbd-ncd-n102sf.h \
+                  kbd-ncd-n102n.h kbd-ncd-n102fr.h kbd-ncd-n108.h \
+                  kbd-ncd-vt220.h kbd-dec-lk201.h kbd-dec-lk401.h \
+                  kbd-dec-lk421.h kbd-ibm-rs6k.h kbd-hp-hil.h kbd-hp-700rx.h \
+                  kbd-hp-pc.h kbd-atari-tt.h kbd-sco-110.h kbd-sony-nws.h \
+                  kbd-dell.h kbd-sgi-iris.h kbd-labtam.h kbd-tek-101.h \
+                  kbd-tek-101-4.h kbd-tek-vt200.h kbd-explorer.h
+       ALL_HDRS = version.h xkeycaps.h defaults.h all-kbds.h $(ALL_KBDS) \
+                  vroot.h KeyWidget.h KeyWidgetP.h KbdWidget.h KbdWidgetP.h
+       TARFILES = README xkeycaps.man Imakefile $(SRCS) $(ALL_HDRS) \
+                  defining.txt hierarchy.txt
+            TAR = gnutar
+
+ComplexProgramTarget(xkeycaps)
+
+KbdWidget.o: xkeycaps.h KeyWidget.h KeyWidgetP.h KbdWidget.h KbdWidgetP.h \
+             all-kbds.h $(ALL_KBDS)
+KeyWidget.o: xkeycaps.h KeyWidget.h KeyWidgetP.h KbdWidget.h KbdWidgetP.h
+actions.o:   xkeycaps.h KeyWidget.h KeyWidgetP.h KbdWidget.h
+commands.o:  xkeycaps.h KeyWidget.h KeyWidgetP.h KbdWidget.h KbdWidgetP.h
+info.o:      xkeycaps.h KeyWidget.h KeyWidgetP.h KbdWidgetP.h
+xkeycaps.o:  xkeycaps.h KeyWidget.h KbdWidget.h  KbdWidgetP.h defaults.h \
+             version.h
+
+tar:: xkeycaps.tar.Z
+uu::  xkeycaps.tar.Z.uu
+
+xkeycaps.tar.Z: Makefile $(TARFILES)
+	$(MAKE) $(MFLAGS) tar_hack
+
+xkeycaps.tar.Z.uu: Makefile $(TARFILES)
+	$(MAKE) $(MFLAGS) uutar_hack
+
+tar_hack:: 
+	$(TAR) -vchf - $(TARFILES) | compress - > xkeycaps.tar.Z
+
+uutar_hack:: 
+	$(TAR) -vchf - $(TARFILES) | compress - | uuencode xkeycaps.tar.Z > xkeycaps.tar.Z.uu

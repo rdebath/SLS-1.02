@@ -1,0 +1,1074 @@
+#!/bin/sh
+# This is a shell archive (produced by shar 3.49)
+# To extract the files from this archive, save it to a file, remove
+# everything above the "!/bin/sh" line above, and type "sh file_name".
+#
+# $Header: /home/x_cvs/mit/server/ddx/x386/etc/386bsd.patch,v 1.2 1992/09/01 14:00:13 dawes Exp $
+# made 08/16/1992 10:26 UTC by root@gamma
+# Source directory /home/386bsd.patch
+#
+# existing files will NOT be overwritten unless -c is specified
+#
+# This shar contains:
+# length  mode       name
+# ------ ---------- ------------------------------------------
+#   2237 -rw-r--r-- README
+#   3800 -rw-r--r-- com.diff
+#    590 -rw-r--r-- cons.diff
+#   1866 -rw-rw-r-- init.diff
+#   7739 -rw-r--r-- kern_execve.diff
+#   1886 -rw-r--r-- locore.diff
+#    447 -rw-r--r-- machdep.diff
+#   5350 -rw-r--r-- pccons.diff
+#
+# ============= README ==============
+if test -f 'README' -a X"$1" != X"-c"; then
+	echo 'x - skipping README (File already exists)'
+else
+echo 'x - extracting README (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'README' &&
+The patches included here are required when using  XFree86  with 386BSD 0.1.
+X
+The patches are:
+X
+pccons.diff, locore.diff:
+X
+X   Kernel patches to allow access to video memory and keyboard scan codes.
+X   The X386 server will not run without these patches.
+X
+com.diff:
+X
+X   Kernel patch to fix select() problem on com ports.  Without this patch
+X   the X386 server will comsume CPU at all times -- even when it should be
+X   idle.
+X
+machdep.diff:
+X
+X   Patch for a bufpage allocation problem.
+X
+kern_execve.diff
+X
+X   This kernel patch adds #! functionality for shell scripts.  Without this
+X   there may be problems with some scripts used by X386.
+X
+cons.diff
+X
+X   This kernel patch allows writes to /dev/console to be redirected to a
+X   virtual console (set up with TIOCCONS).  This allows xconsole and
+X   'xterm -C' to display console messages.
+X
+init.diff
+X
+X   This patch is for init.  It fixes a number of problems with init.  The
+X   ones relevant to X386 affect the operation of xdm:
+X
+X     - The signal mask is reset for processes started by /etc/rc.  This
+X       allows xdm to receive SIGTERM, and shutdown cleanly.
+X
+X     - When going to single user mode, init now sends a SIGTERM to all
+X       processes, then waits for 10 seconds before sending a SIGKILL.  This
+X       allows xdm to exit cleanly before entering single user mode.
+X
+NOTES:
+X
+- The Makefile in your sys/compile/... directory must be modified to make
+X  use of these patches.  Add -XSERVER to the CFLAGS to get the X server
+X  changes in pccons.c.  Add -DUCONSOLE to the CFLAGS if you want to allow
+X  non-root users to use TIOCCONS.  Alternatively, add `option XSERVER'
+X  (and `option UCONSOLE') to your kernel configuration and re-run config.
+X
+- These patches are unofficial.  You may want to copy the files to be patched
+X  into your sys/compile/... directory and patch them there.  If you are
+X  patching cons.c, copy cons.h as well.  Remember to change the paths for
+X  the patched files in the Makefile.
+X
+- When using X, you may find it useful to increase the number of pty
+X  devices configured in the kernel (the default is 4).  This can be
+X  changed by either editing the pty.h file in your sys/compile/... directory,
+X  or by changing the pty line in your kernel configuration file.
+SHAR_EOF
+chmod 0644 README ||
+echo 'restore of README failed'
+Wc_c="`wc -c < 'README'`"
+test 2237 -eq "$Wc_c" ||
+	echo 'README: original size 2237, current size' "$Wc_c"
+fi
+# ============= com.diff ==============
+if test -f 'com.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping com.diff (File already exists)'
+else
+echo 'x - extracting com.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'com.diff' &&
+X Patch to fix select() problem with com ports
+X
+X File to patch: /usr/src/sys.386bsd/i386/isa/com.c
+X
+X (patch from Christoph Robitschko)
+X
+*** com.c.orig	Sun Aug 16 18:22:58 1992
+--- com.c	Sun Aug 16 18:22:58 1992
+***************
+*** 108,114 ****
+X  extern int kgdb_debug_init;
+X  #endif
+X  
+! #define	UNIT(x)		(minor(x)-1)
+X  
+X  comprobe(dev)
+X  struct isa_device *dev;
+--- 108,114 ----
+X  extern int kgdb_debug_init;
+X  #endif
+X  
+! #define	UNIT(x)		(minor(x))
+X  
+X  comprobe(dev)
+X  struct isa_device *dev;
+***************
+*** 131,137 ****
+X  	u_char		unit;
+X  	int		port = isdp->id_iobase;
+X  
+! 	unit = isdp->id_unit - 1;
+X  	if (unit == comconsole)
+X  		DELAY(1000);
+X  	com_addr[unit] = port;
+--- 131,137 ----
+X  	u_char		unit;
+X  	int		port = isdp->id_iobase;
+X  
+! 	unit = isdp->id_unit;
+X  	if (unit == comconsole)
+X  		DELAY(1000);
+X  	com_addr[unit] = port;
+***************
+*** 149,155 ****
+X  	outb(port+com_ier, 0);
+X  	outb(port+com_mcr, 0 | MCR_IENABLE);
+X  #ifdef KGDB
+! 	if (kgdb_dev == makedev(commajor, unit+1)) {
+X  		if (comconsole == unit)
+X  			kgdb_dev = -1;	/* can't debug over console port */
+X  		else {
+--- 149,155 ----
+X  	outb(port+com_ier, 0);
+X  	outb(port+com_mcr, 0 | MCR_IENABLE);
+X  #ifdef KGDB
+! 	if (kgdb_dev == makedev(commajor, unit)) {
+X  		if (comconsole == unit)
+X  			kgdb_dev = -1;	/* can't debug over console port */
+X  		else {
+***************
+*** 239,245 ****
+X  	outb(com+com_cfcr, inb(com+com_cfcr) & ~CFCR_SBREAK);
+X  #ifdef KGDB
+X  	/* do not disable interrupts if debugging */
+! 	if (kgdb_dev != makedev(commajor, unit+1))
+X  #endif
+X  	outb(com+com_ier, 0);
+X  	if (tp->t_cflag&HUPCL || tp->t_state&TS_WOPEN || 
+--- 239,245 ----
+X  	outb(com+com_cfcr, inb(com+com_cfcr) & ~CFCR_SBREAK);
+X  #ifdef KGDB
+X  	/* do not disable interrupts if debugging */
+! 	if (kgdb_dev != makedev(commajor, unit))
+X  #endif
+X  	outb(com+com_ier, 0);
+X  	if (tp->t_cflag&HUPCL || tp->t_state&TS_WOPEN || 
+***************
+*** 283,289 ****
+X  	register u_char code;
+X  	register struct tty *tp;
+X  
+! 	unit--;
+X  	com = com_addr[unit];
+X  	while (1) {
+X  		code = inb(com+com_iir);
+--- 283,289 ----
+X  	register u_char code;
+X  	register struct tty *tp;
+X  
+! 	unit;
+X  	com = com_addr[unit];
+X  	while (1) {
+X  		code = inb(com+com_iir);
+***************
+*** 300,306 ****
+X  #define	RCVBYTE() \
+X  			code = inb(com+com_data); \
+X  			if ((tp->t_state & TS_ISOPEN) == 0) { \
+! 				if (kgdb_dev == makedev(commajor, unit+1) && \
+X  				    code == FRAME_END) \
+X  					kgdb_connect(0); /* trap into kgdb */ \
+X  			} else \
+--- 300,306 ----
+X  #define	RCVBYTE() \
+X  			code = inb(com+com_data); \
+X  			if ((tp->t_state & TS_ISOPEN) == 0) { \
+! 				if (kgdb_dev == makedev(commajor, unit) && \
+X  				    code == FRAME_END) \
+X  					kgdb_connect(0); /* trap into kgdb */ \
+X  			} else \
+***************
+*** 359,365 ****
+X  #ifdef KGDB
+X  		/* we don't care about parity errors */
+X  		if (((stat & (LSR_BI|LSR_FE|LSR_PE)) == LSR_PE) &&
+! 		    kgdb_dev == makedev(commajor, unit+1) && c == FRAME_END)
+X  			kgdb_connect(0); /* trap into kgdb */
+X  #endif
+X  		return;
+--- 359,365 ----
+X  #ifdef KGDB
+X  		/* we don't care about parity errors */
+X  		if (((stat & (LSR_BI|LSR_FE|LSR_PE)) == LSR_PE) &&
+! 		    kgdb_dev == makedev(commajor, unit) && c == FRAME_END)
+X  			kgdb_connect(0); /* trap into kgdb */
+X  #endif
+X  		return;
+***************
+*** 616,622 ****
+X  	/* make sure hardware exists?  XXX */
+X  
+X  	/* initialize required fields */
+! 	cp->cn_dev = makedev(commajor, unit+1);
+X  	cp->cn_tp = &com_tty[unit];
+X  #ifdef	COMCONSOLE
+X  	cp->cn_pri = CN_REMOTE;		/* Force a serial port console */
+--- 616,622 ----
+X  	/* make sure hardware exists?  XXX */
+X  
+X  	/* initialize required fields */
+! 	cp->cn_dev = makedev(commajor, unit);
+X  	cp->cn_tp = &com_tty[unit];
+X  #ifdef	COMCONSOLE
+X  	cp->cn_pri = CN_REMOTE;		/* Force a serial port console */
+SHAR_EOF
+chmod 0644 com.diff ||
+echo 'restore of com.diff failed'
+Wc_c="`wc -c < 'com.diff'`"
+test 3800 -eq "$Wc_c" ||
+	echo 'com.diff: original size 3800, current size' "$Wc_c"
+fi
+# ============= cons.diff ==============
+if test -f 'cons.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping cons.diff (File already exists)'
+else
+echo 'x - extracting cons.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'cons.diff' &&
+X
+X   Patch to allow writes to /dev/console to be redirected to a virtual console.
+X
+X   File to patch: /usr/src/sys.386bsd/i386/i386/cons.c
+X    
+*** cons.c.orig	Sun Aug 16 18:22:42 1992
+--- cons.c	Sun Aug 16 18:22:41 1992
+***************
+*** 135,141 ****
+X  {
+X  	if (cn_tab == NULL)
+X  		return (0);
+! 	dev = cn_tab->cn_dev;
+X  	return ((*cdevsw[major(dev)].d_write)(dev, uio, flag));
+X  }
+X   
+--- 135,144 ----
+X  {
+X  	if (cn_tab == NULL)
+X  		return (0);
+! 	if (constty)
+! 		dev = constty->t_dev;
+! 	else
+! 		dev = cn_tab->cn_dev;
+X  	return ((*cdevsw[major(dev)].d_write)(dev, uio, flag));
+X  }
+X   
+SHAR_EOF
+chmod 0644 cons.diff ||
+echo 'restore of cons.diff failed'
+Wc_c="`wc -c < 'cons.diff'`"
+test 590 -eq "$Wc_c" ||
+	echo 'cons.diff: original size 590, current size' "$Wc_c"
+fi
+# ============= init.diff ==============
+if test -f 'init.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping init.diff (File already exists)'
+else
+echo 'x - extracting init.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'init.diff' &&
+X
+X    Patch to fix a number of problems with init:
+X      Execute rc when going from single-user to multi-user
+X      Handle SIGTSTP properly
+X      Reset signal mask for child processes
+X      Send SIGTERM to all processes, wait 10 sec before sending SIGKILL when
+X        going to single-user.
+X
+X    File to patch: /usr/src/sbin/init/init.c
+X
+*** init.c.orig	Tue Jul 14 12:30:20 1992
+--- init.c	Sat Aug 15 20:53:36 1992
+***************
+*** 80,86 ****
+X  	signal(SIGHUP, SIG_DFL); signal(SIGINT, SIG_DFL); \
+X  	signal(SIGTERM, SIG_DFL); signal(SIGALRM, SIG_DFL); \
+X  	signal(SIGTSTP, SIG_DFL); signal(SIGCHLD, SIG_DFL); \
+! 	signal(SIGTTIN, SIG_DFL); signal(SIGTTOU, SIG_DFL);
+X  
+X  /* SIGHUP: reread /etc/ttys */
+X  void
+--- 80,87 ----
+X  	signal(SIGHUP, SIG_DFL); signal(SIGINT, SIG_DFL); \
+X  	signal(SIGTERM, SIG_DFL); signal(SIGALRM, SIG_DFL); \
+X  	signal(SIGTSTP, SIG_DFL); signal(SIGCHLD, SIG_DFL); \
+! 	signal(SIGTTIN, SIG_DFL); signal(SIGTTOU, SIG_DFL); \
+! 	sigsetmask(0);
+X  
+X  /* SIGHUP: reread /etc/ttys */
+X  void
+***************
+*** 111,116 ****
+--- 112,121 ----
+X  			free(tt->tt_type);
+X  		}
+X  		ttytabend = ttytab;
++ 		/* give processes time to exit cleanly */
++ 		kill(-1, SIGTERM);
++ 		sleep(10);
++ 		/* Now murder them */
+X  		kill(-1, SIGKILL);
+X  		kill(-1, SIGCONT);
+X  		signal(SIGALRM, salrm);
+***************
+*** 188,193 ****
+--- 193,199 ----
+X  				execl("/bin/sh", "sh", "/etc/rc", Reboot, (char *)0);
+X  				_exit(127);
+X  			}
++ 			Reboot = 0;
+X  			while(wait(&status) != pid);
+X  
+X  			/* if we are about to be rebooted, then wait for it */
+***************
+*** 214,220 ****
+X  			execl("/bin/sh", "-", (char *)0);
+X  			_exit(127);
+X  		}
+! 		while(wait(&status) != pid)
+X  		goto top;
+X  	}
+X  
+--- 220,228 ----
+X  			execl("/bin/sh", "-", (char *)0);
+X  			_exit(127);
+X  		}
+! 		while(wait(&status) != pid);
+! 		while (drain)
+! 			pause();
+X  		goto top;
+X  	}
+X  
+SHAR_EOF
+chmod 0664 init.diff ||
+echo 'restore of init.diff failed'
+Wc_c="`wc -c < 'init.diff'`"
+test 1866 -eq "$Wc_c" ||
+	echo 'init.diff: original size 1866, current size' "$Wc_c"
+fi
+# ============= kern_execve.diff ==============
+if test -f 'kern_execve.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping kern_execve.diff (File already exists)'
+else
+echo 'x - extracting kern_execve.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'kern_execve.diff' &&
+X
+X    Patch to add #! functionality to scripts, and fix some permission problems
+X
+X    File to patch: /usr/src/sys.386bsd/kern/kern_execve.c
+X
+*** kern_execve.c.orig	Sun Aug 16 18:48:18 1992
+--- kern_execve.c	Sun Aug 16 18:48:18 1992
+***************
+*** 93,99 ****
+X  {
+X  	register struct nameidata *ndp;
+X  	struct nameidata nd;
+- 	struct exec hdr;
+X  	char **argbuf, **argbufp, *stringbuf, *stringbufp;
+X  	char **vectp, *ep;
+X  	int needsenv, limitonargs, stringlen, addr, size, len,
+--- 93,98 ----
+***************
+*** 101,115 ****
+X  	struct vattr attr;
+X  	struct vmspace *vs;
+X  	caddr_t newframe;
+X  
+X  	/*
+X  	 * Step 1. Lookup filename to see if we have something to execute.
+X  	 */
+X  	ndp = &nd;
+- 	ndp->ni_nameiop = LOOKUP | LOCKLEAF | FOLLOW | SAVENAME;
+X  	ndp->ni_segflg = UIO_USERSPACE;
+X  	ndp->ni_dirp = uap->fname;
+X  
+X  	/* is it there? */
+X  	if (rv = namei(ndp, p))
+X  		return (rv);
+--- 100,122 ----
+X  	struct vattr attr;
+X  	struct vmspace *vs;
+X  	caddr_t newframe;
++ 	char shellname[MAXINTERP];
++ 	union {
++ 		char	ex_shell[MAXINTERP];	/* #! and interpreter name */
++ 		struct	exec ex_hdr;
++ 	} exdata;
++ 	int indir = 0;
+X  
+X  	/*
+X  	 * Step 1. Lookup filename to see if we have something to execute.
+X  	 */
+X  	ndp = &nd;
+X  	ndp->ni_segflg = UIO_USERSPACE;
+X  	ndp->ni_dirp = uap->fname;
+X  
++ again:
++ 	ndp->ni_nameiop = LOOKUP | LOCKLEAF | FOLLOW | SAVENAME;
++ 
+X  	/* is it there? */
+X  	if (rv = namei(ndp, p))
+X  		return (rv);
+***************
+*** 119,124 ****
+--- 126,136 ----
+X  	if (rv)
+X  		goto exec_fail;
+X  
++         if (ndp->ni_vp->v_mount->mnt_flag & MNT_NOEXEC) {/* no exec on fs ? */
++ 		rv = EACCES;
++ 		goto exec_fail;
++ 	}
++ 
+X  	/* is it executable, and a regular file? */
+X  	if ((attr.va_mode & VEXEC) == 0 || attr.va_type != VREG) {
+X  		rv = EACCES;
+***************
+*** 128,135 ****
+X  	/*
+X  	 * Step 2. Does the file contain a format we can
+X  	 * understand and execute
+X  	 */
+! 	rv = vn_rdwr(UIO_READ, ndp->ni_vp, (caddr_t)&hdr, sizeof(hdr),
+X  		0, UIO_SYSSPACE, IO_NODELOCKED, p->p_ucred, &amt, p);
+X  
+X  	/* big enough to hold a header? */
+--- 140,155 ----
+X  	/*
+X  	 * Step 2. Does the file contain a format we can
+X  	 * understand and execute
++ 	 *
++ 	 * Read in first few bytes of file for segment sizes, magic number:
++ 	 *	ZMAGIC = demand paged RO text
++ 	 * Also an ASCII line beginning with #! is
++ 	 * the file name of a ``shell'' and arguments may be prepended
++ 	 * to the argument list if given here.
+X  	 */
+! 	exdata.ex_shell[0] = '\0';	/* for zero length files */
+! 
+! 	rv = vn_rdwr(UIO_READ, ndp->ni_vp, (caddr_t)&exdata, sizeof(exdata),
+X  		0, UIO_SYSSPACE, IO_NODELOCKED, p->p_ucred, &amt, p);
+X  
+X  	/* big enough to hold a header? */
+***************
+*** 138,167 ****
+X  	
+X  	/* ... that we recognize? */
+X  	rv = ENOEXEC;
+! 	if (hdr.a_magic != ZMAGIC)
+! 		goto exec_fail;
+X  
+X  	/* sanity check  "ain't not such thing as a sanity clause" -groucho */
+X  	rv = ENOMEM;
+! 	if (/*hdr.a_text == 0 || */ hdr.a_text > MAXTSIZ
+! 		|| hdr.a_text % NBPG || hdr.a_text > attr.va_size)
+X  		goto exec_fail;
+X  
+! 	if (hdr.a_data == 0 || hdr.a_data > DFLDSIZ
+! 		|| hdr.a_data > attr.va_size
+! 		|| hdr.a_data + hdr.a_text > attr.va_size)
+X  		goto exec_fail;
+X  
+! 	if (hdr.a_bss > MAXDSIZ)
+X  		goto exec_fail;
+X  	
+! 	if (hdr.a_text + hdr.a_data + hdr.a_bss > MAXTSIZ + MAXDSIZ)
+X  		goto exec_fail;
+X  
+! 	if (hdr.a_data + hdr.a_bss > p->p_rlimit[RLIMIT_DATA].rlim_cur)
+X  		goto exec_fail;
+X  
+! 	if (hdr.a_entry > hdr.a_text + hdr.a_data)
+X  		goto exec_fail;
+X  	
+X  	/*
+--- 158,222 ----
+X  	
+X  	/* ... that we recognize? */
+X  	rv = ENOEXEC;
+! 	if (exdata.ex_hdr.a_magic != ZMAGIC) {
+! 		char *cp, *sp;
+! 
+! 		if (exdata.ex_shell[0] != '#' ||
+! 		    exdata.ex_shell[1] != '!' || indir) {
+! 			rv = ENOEXEC;
+! 			goto exec_fail;
+! 		}
+! 		for (cp = &exdata.ex_shell[2];; ++cp) {
+! 			if (cp >= &exdata.ex_shell[MAXINTERP]) {
+! 				rv = ENOEXEC;
+! 				goto exec_fail;
+! 			}
+! 			if (*cp == '\n') {
+! 				*cp = '\0';
+! 				break;
+! 			}
+! 			if (*cp == '\t')
+! 				*cp = ' ';
+! 		}
+! 		cp = &exdata.ex_shell[2];	/* get shell interpreter name */
+! 		while (*cp == ' ')
+! 			cp++;
+! 
+! 		sp = shellname;
+! 		while (*cp && *cp != ' ')
+! 			*sp++ = *cp++;
+! 		*sp = '\0';
+! 
+! 		indir = 1;		/* indicate this is a script file */
+! 		vput(ndp->ni_vp);
+! 		FREE(ndp->ni_pnbuf, M_NAMEI);
+! 
+! 		ndp->ni_dirp = shellname;	/* find shell interpreter */
+! 		ndp->ni_segflg = UIO_SYSSPACE;
+! 		goto again;
+! 	}
+X  
+X  	/* sanity check  "ain't not such thing as a sanity clause" -groucho */
+X  	rv = ENOMEM;
+! 	if (/*exdata.ex_hdr.a_text == 0 || */ exdata.ex_hdr.a_text > MAXTSIZ
+! 		|| exdata.ex_hdr.a_text % NBPG || exdata.ex_hdr.a_text > attr.va_size)
+X  		goto exec_fail;
+X  
+! 	if (exdata.ex_hdr.a_data == 0 || exdata.ex_hdr.a_data > DFLDSIZ
+! 		|| exdata.ex_hdr.a_data > attr.va_size
+! 		|| exdata.ex_hdr.a_data + exdata.ex_hdr.a_text > attr.va_size)
+X  		goto exec_fail;
+X  
+! 	if (exdata.ex_hdr.a_bss > MAXDSIZ)
+X  		goto exec_fail;
+X  	
+! 	if (exdata.ex_hdr.a_text + exdata.ex_hdr.a_data + exdata.ex_hdr.a_bss > MAXTSIZ + MAXDSIZ)
+X  		goto exec_fail;
+X  
+! 	if (exdata.ex_hdr.a_data + exdata.ex_hdr.a_bss > p->p_rlimit[RLIMIT_DATA].rlim_cur)
+X  		goto exec_fail;
+X  
+! 	if (exdata.ex_hdr.a_entry > exdata.ex_hdr.a_text + exdata.ex_hdr.a_data)
+X  		goto exec_fail;
+X  	
+X  	/*
+***************
+*** 202,207 ****
+--- 257,297 ----
+X  	limitonargs = ARG_MAX;
+X  	cnt = 0;
+X  
++ 	/* first, do (shell name if any then) args */
++ 	if (indir)  {
++ 		ep = shellname;
++ twice:
++ 		if (ep) {
++ 			/* did we outgrow initial argbuf, if so, die */
++ 			if (argbufp >= (char **)stringbuf) {
++ 				rv = E2BIG;
++ 				goto exec_dealloc;
++ 			}
++ 
++ 			if (rv = copyoutstr(ep, stringbufp,
++ 				(u_int)limitonargs, (u_int *)&stringlen)) {
++ 				if (rv == ENAMETOOLONG)
++ 					rv = E2BIG;
++ 				goto exec_dealloc;
++ 			}
++ 			suword(argbufp++, (int)stringbufp);
++ 			cnt++;
++ 			stringbufp += stringlen;
++ 			limitonargs -= stringlen;
++ 		}
++ 
++ 		if (indir) {
++ 			indir = 0;
++ 			/* orginal executable is 1st argument with scripts */
++ 			ep = uap->fname;
++ 			goto twice;
++ 		}
++ 		/* terminate in case no more args to script */
++ 		suword(argbufp, 0);
++ 		if (vectp = uap->argp) vectp++;	/* manually doing the first
++ 						   argument with scripts */
++ 	}
++ 
+X  do_env_as_well:
+X  	if(vectp == 0) goto dont_bother;
+X  
+***************
+*** 290,306 ****
+X  	addr = 0;
+X  
+X  	/* screwball mode -- special case of 413 to save space for floppy */
+! 	if (hdr.a_text == 0) {
+X  		foff = tsize = 0;
+! 		hdr.a_data += hdr.a_text;
+X  	} else {
+! 		tsize = roundup(hdr.a_text, NBPG);
+X  		foff = NBPG;
+X  	}
+X  
+X  	/* treat text and data in terms of integral page size */
+! 	dsize = roundup(hdr.a_data, NBPG);
+! 	bsize = roundup(hdr.a_bss + dsize, NBPG);
+X  	bsize -= dsize;
+X  
+X  	/* map text & data in file, as being "paged in" on demand */
+--- 380,396 ----
+X  	addr = 0;
+X  
+X  	/* screwball mode -- special case of 413 to save space for floppy */
+! 	if (exdata.ex_hdr.a_text == 0) {
+X  		foff = tsize = 0;
+! 		exdata.ex_hdr.a_data += exdata.ex_hdr.a_text;
+X  	} else {
+! 		tsize = roundup(exdata.ex_hdr.a_text, NBPG);
+X  		foff = NBPG;
+X  	}
+X  
+X  	/* treat text and data in terms of integral page size */
+! 	dsize = roundup(exdata.ex_hdr.a_data, NBPG);
+! 	bsize = roundup(exdata.ex_hdr.a_bss + dsize, NBPG);
+X  	bsize -= dsize;
+X  
+X  	/* map text & data in file, as being "paged in" on demand */
+***************
+*** 367,373 ****
+X  
+X  	/* setup initial register state */
+X  	p->p_regs[SP] = (unsigned) (argbuf - 1);
+! 	setregs(p, hdr.a_entry);
+X  
+X  	vput(ndp->ni_vp);
+X  	FREE(ndp->ni_pnbuf, M_NAMEI);
+--- 457,463 ----
+X  
+X  	/* setup initial register state */
+X  	p->p_regs[SP] = (unsigned) (argbuf - 1);
+! 	setregs(p, exdata.ex_hdr.a_entry);
+X  
+X  	vput(ndp->ni_vp);
+X  	FREE(ndp->ni_pnbuf, M_NAMEI);
+SHAR_EOF
+chmod 0644 kern_execve.diff ||
+echo 'restore of kern_execve.diff failed'
+Wc_c="`wc -c < 'kern_execve.diff'`"
+test 7739 -eq "$Wc_c" ||
+	echo 'kern_execve.diff: original size 7739, current size' "$Wc_c"
+fi
+# ============= locore.diff ==============
+if test -f 'locore.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping locore.diff (File already exists)'
+else
+echo 'x - extracting locore.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'locore.diff' &&
+X
+X    Patch to allow mapping of VGA display memory
+X
+X    File to patch: /usr/src/sys.386bsd/i386/i386/locore.s
+X
+*** locore.s.orig	Thu Aug  6 21:46:51 1992
+--- locore.s	Thu Aug  6 21:50:03 1992
+***************
+*** 215,221 ****
+X  /* map I/O memory map */
+X  
+X  	movl	$0x100-0xa0,%ecx	# for this many pte s,
+! 	movl	$(0xa0000|PG_V),%eax	#  having these bits set, (perhaps URW?)
+X  	movl	%ebx,_atdevphys-SYSTEM	#   remember phys addr of ptes
+X  	fillkpt
+X  
+--- 215,221 ----
+X  /* map I/O memory map */
+X  
+X  	movl	$0x100-0xa0,%ecx	# for this many pte s,
+! 	movl	$(0xa0000|PG_V|PG_UW),%eax	#  having these bits set, (perhaps URW?)
+X  	movl	%ebx,_atdevphys-SYSTEM	#   remember phys addr of ptes
+X  	fillkpt
+X  
+***************
+*** 236,242 ****
+X   */
+X  	/* install a pde for temporary double map of bottom of VA */
+X  	lea	(4*NBPG)(%esi),%eax	# physical address of kernel page table
+! 	orl	$ PG_V,%eax		# pde entry is valid
+X  	movl	%eax,(%esi)		# which is where temp maps!
+X  
+X  	/* kernel pde's */
+--- 236,242 ----
+X   */
+X  	/* install a pde for temporary double map of bottom of VA */
+X  	lea	(4*NBPG)(%esi),%eax	# physical address of kernel page table
+! 	orl	$ PG_V|PG_UW,%eax		# pde entry is valid
+X  	movl	%eax,(%esi)		# which is where temp maps!
+X  
+X  	/* kernel pde's */
+***************
+*** 246,252 ****
+X  
+X  	/* install a pde recursively mapping page directory as a page table! */
+X  	movl	%esi,%eax		# phys address of ptd in proc 0
+! 	orl	$ PG_V,%eax		# pde entry is valid
+X  	movl	%eax, PDRPDROFF*4(%esi)	# which is where PTmap maps!
+X  
+X  	/* install a pde to map kernel stack for proc 0 */
+--- 246,252 ----
+X  
+X  	/* install a pde recursively mapping page directory as a page table! */
+X  	movl	%esi,%eax		# phys address of ptd in proc 0
+! 	orl	$ PG_V|PG_UW,%eax	# pde entry is valid
+X  	movl	%eax, PDRPDROFF*4(%esi)	# which is where PTmap maps!
+X  
+X  	/* install a pde to map kernel stack for proc 0 */
+SHAR_EOF
+chmod 0644 locore.diff ||
+echo 'restore of locore.diff failed'
+Wc_c="`wc -c < 'locore.diff'`"
+test 1886 -eq "$Wc_c" ||
+	echo 'locore.diff: original size 1886, current size' "$Wc_c"
+fi
+# ============= machdep.diff ==============
+if test -f 'machdep.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping machdep.diff (File already exists)'
+else
+echo 'x - extracting machdep.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'machdep.diff' &&
+X
+X    Patch for bufpage allocation
+X
+X    File to patch: /usr/src/sys.386bsd/i386/i386/machdep.c
+X
+*** machdep.c.orig	Sun Aug 16 18:23:14 1992
+--- machdep.c	Sun Aug 16 18:23:14 1992
+***************
+*** 167,172 ****
+--- 167,173 ----
+X  			bufpages = physmem / 10 / CLSIZE;
+X  		else
+X  			bufpages = ((2 * 1024 * 1024 + physmem) / 20) / CLSIZE;
++ 	bufpages = min(NKMEMCLUSTERS/2, bufpages);
+X  	if (nbuf == 0) {
+X  		nbuf = bufpages / 2;
+X  		if (nbuf < 16)
+SHAR_EOF
+chmod 0644 machdep.diff ||
+echo 'restore of machdep.diff failed'
+Wc_c="`wc -c < 'machdep.diff'`"
+test 447 -eq "$Wc_c" ||
+	echo 'machdep.diff: original size 447, current size' "$Wc_c"
+fi
+# ============= pccons.diff ==============
+if test -f 'pccons.diff' -a X"$1" != X"-c"; then
+	echo 'x - skipping pccons.diff (File already exists)'
+else
+echo 'x - extracting pccons.diff (Text)'
+sed 's/^X//' << 'SHAR_EOF' > 'pccons.diff' &&
+X
+X    Patch for VGA display mapping, and keyboard scancode generation for X.
+X
+X    File to patch: /usr/src/sys.386bsd/i386/isa/pccons.c
+X
+*** pccons.c.orig	Thu Aug  6 21:47:01 1992
+--- pccons.c	Sat Aug 15 18:15:41 1992
+***************
+*** 59,64 ****
+--- 59,68 ----
+X  #include "i386/isa/kbd.h"
+X  #include "machine/pc/display.h"
+X  
++ #ifdef XSERVER
++ int pc_xmode;
++ #endif /* XSERVER */
++ 
+X  struct	tty pccons;
+X  
+X  struct	pcconsoftc {
+***************
+*** 280,289 ****
+--- 284,302 ----
+X  #endif
+X  	if (!openf)
+X  		return;
++ #ifdef XSERVER
++ 	/* send at least one character, because cntl-space is a null */
++ 	(*linesw[pccons.t_line].l_rint)(*cp++ & 0xff, &pccons);
++ #endif /* XSERVER */
+X  	while (*cp)
+X  		(*linesw[pccons.t_line].l_rint)(*cp++ & 0xff, &pccons);
+X  }
+X  
++ #ifdef XSERVER
++ #define CONSOLE_X_MODE_ON _IO('t',121)
++ #define CONSOLE_X_MODE_OFF _IO('t',122)
++ #endif /* XSERVER */
++ 
+X  pcioctl(dev, cmd, data, flag)
+X  	dev_t dev;
+X  	caddr_t data;
+***************
+*** 291,296 ****
+--- 304,319 ----
+X  	register struct tty *tp = &pccons;
+X  	register error;
+X   
++ #ifdef XSERVER
++ 	if (cmd == CONSOLE_X_MODE_ON) {
++ 		pc_xmode_on ();
++ 		return (0);
++ 	} else if (cmd == CONSOLE_X_MODE_OFF) {
++ 		pc_xmode_off ();
++ 		return (0);
++ 	}
++ #endif /* XSERVER */
++ 
+X  	error = (*linesw[tp->t_line].l_ioctl)(tp, cmd, data, flag);
+X  	if (error >= 0)
+X  		return (error);
+***************
+*** 410,415 ****
+--- 433,443 ----
+X  	register int s;
+X  	register char *cp;
+X  
++ #ifdef XSERVER
++ 	if (pc_xmode)
++ 		return (0);
++ #endif /* XSERVER */
++ 
+X  	s = spltty();		/* block pcrint while we poll */
+X  	cp = sgetc(0);
+X  	splx(s);
+***************
+*** 422,427 ****
+--- 450,460 ----
+X  {
+X  	char *cp;
+X  
++ #ifdef XSERVER
++ 	if (pc_xmode)
++ 		return (0);
++ #endif /* XSERVER */
++ 
+X  	cp = sgetc(0);
+X  	return (*cp&0xff);
+X  }
+***************
+*** 466,471 ****
+--- 499,507 ----
+X  cursor(int a)
+X  { 	int pos = crtat - Crtat;
+X  
++ #ifdef XSERVER
++ 	if (!pc_xmode) {
++ #endif /* XSERVER */
+X  	outb(addr_6845, 14);
+X  	outb(addr_6845+1, pos>> 8);
+X  	outb(addr_6845, 15);
+***************
+*** 478,483 ****
+--- 514,522 ----
+X  #endif	FAT_CURSOR
+X  	if (a == 0)
+X  		timeout(cursor, 0, hz/10);
++ #ifdef XSERVER
++ 	}
++ #endif /* XSERVER */
+X  }
+X  
+X  static u_char shift_down, ctrl_down, alt_down, caps, num, scroll;
+***************
+*** 507,512 ****
+--- 546,556 ----
+X  	int sc = 1;	/* do scroll check */
+X  	char fg_at, bg_at, at;
+X  
++ #ifdef XSERVER
++ 	if (pc_xmode)
++ 		return;
++ #endif /* XSERVER */
++ 
+X  	if (crtat == 0)
+X  	{
+X  		u_short *cp = Crtat + (CGA_BUF-MONO_BUF)/CHR, was;
+***************
+*** 1247,1254 ****
+--- 1291,1308 ----
+X  	 *   First see if there is something in the keyboard port
+X  	 */
+X  loop:
++ #ifdef XSERVER
++ 	if (inb(KBSTATP) & KBS_DIB) {
++ 	    dt = inb(KBDATAP);
++ 	    if (pc_xmode) {
++ 		capchar[0] = dt;
++ 		return (&capchar[0]);
++ 	    }
++ 	}
++ #else
+X  	if (inb(KBSTATP) & KBS_DIB)
+X  		dt = inb(KBDATAP);
++ #endif /* XSERVER */
+X  	else
+X  	{
+X  		if (noblock)
+***************
+*** 1260,1269 ****
+--- 1314,1327 ----
+X  	if (dt == 0xe0)
+X  	{
+X  		extended = 1;
++ #ifdef XSERVER
++ 		goto loop;
++ #else
+X  		if (noblock)
+X  			return 0;
+X  		else
+X  			goto loop;
++ #endif /* XSERVER */
+X  	}
+X  
+X  	/*
+***************
+*** 1340,1346 ****
+--- 1398,1422 ----
+X  				ctrl_down = 1;
+X  				break;
+X  			case ASCII:
++ #ifdef XSERVER
++ 				/* control has highest priority */
++ 				if (ctrl_down)
++ 					capchar[0] = scan_codes[dt].ctrl[0];
++ 				else if (shift_down)
++ 					capchar[0] = scan_codes[dt].shift[0];
++ 				else
++ 					capchar[0] = scan_codes[dt].unshift[0];
++ 
++ 				if (caps && (capchar[0] >= 'a'
++ 					 && capchar[0] <= 'z')) {
++ 					capchar[0] = capchar[0] - ('a' - 'A');
++ 				}
++ 				capchar[0] |= alt_down;
++ 				extended = 0;
++ 				return(&capchar[0]);
++ #else
+X  			case NONE:
++ #endif /* XSERVER */
+X  			case FUNC:
+X  				if (shift_down)
+X  					more_chars = scan_codes[dt].shift;
+***************
+*** 1348,1353 ****
+--- 1424,1430 ----
+X  					more_chars = scan_codes[dt].ctrl;
+X  				else
+X  					more_chars = scan_codes[dt].unshift;
++ #ifndef XSERVER
+X  				/* XXX */
+X  				if (caps && more_chars[1] == 0
+X  					&& (more_chars[0] >= 'a'
+***************
+*** 1355,1360 ****
+--- 1432,1438 ----
+X  					capchar[0] = *more_chars - ('a' - 'A');
+X  					more_chars = capchar;
+X  				}
++ #endif /* not XSERVER */
+X  				extended = 0;
+X  				return(more_chars);
+X  			case KP:
+***************
+*** 1364,1376 ****
+--- 1442,1462 ----
+X  					more_chars = scan_codes[dt].unshift;
+X  				extended = 0;
+X  				return(more_chars);
++ #ifdef XSERVER
++ 			case NONE:
++ 				break;
++ #endif /* XSERVER */
+X  		}
+X  	}
+X  	extended = 0;
++ #ifdef XSERVER
++ 	goto loop;
++ #else
+X  	if (noblock)
+X  		return 0;
+X  	else
+X  		goto loop;
++ #endif /* XSERVER */
+X  }
+X  
+X  pg(p,q,r,s,t,u,v,w,x,y,z) char *p; {
+***************
+*** 1463,1465 ****
+--- 1549,1582 ----
+X  		return -1;
+X  	return i386_btop((0xa0000 + offset));
+X  }
++ 
++ #ifdef XSERVER
++ #include "machine/psl.h"
++ #include "machine/frame.h"
++ 
++ pc_xmode_on ()
++ {
++ 	struct syscframe *fp;
++ 
++ 	if (pc_xmode)
++ 		return;
++ 	pc_xmode = 1;
++ 
++ 	fp = (struct syscframe *)curproc->p_regs;
++ 	fp->sf_eflags |= PSL_IOPL;
++ }
++ 
++ pc_xmode_off ()
++ {
++ 	struct syscframe *fp;
++ 
++ 	if (pc_xmode == 0)
++ 		return;
++ 	pc_xmode = 0;
++ 
++ 	cursor(0);
++ 
++ 	fp = (struct syscframe *)curproc->p_regs;
++ 	fp->sf_eflags &= ~PSL_IOPL;
++ }
++ #endif /* XSERVER */
+SHAR_EOF
+chmod 0644 pccons.diff ||
+echo 'restore of pccons.diff failed'
+Wc_c="`wc -c < 'pccons.diff'`"
+test 5350 -eq "$Wc_c" ||
+	echo 'pccons.diff: original size 5350, current size' "$Wc_c"
+fi
+exit 0

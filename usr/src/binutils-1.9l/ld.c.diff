@@ -1,0 +1,261 @@
+*** ld.c.old	Wed Sep 30 14:32:45 1992
+--- ld.c	Thu Oct  1 22:19:10 1992
+***************
+*** 1082,1087 ****
+--- 1082,1105 ----
+  struct glosym **cmdline_references;
+  int cl_refs_allocated;
+  
++ #ifdef linux
++ /* For Linux. */
++ 
++ int linux_library;
++ 
++ #define LINUX_JUMP_SHARED_LIB		0
++ #define LINUX_CLASSIC_SHARED_LIB	1
++ #define LINUX_STATIC_LIB		2
++ 
++ static char *linux_library_suffix [] = {
++ 	".sa",		/* jump table shared library, default */
++ 	".ca",		/* classic shared library */
++ 	".a",		/* static library */
++ 	NULL
++ };
++ 
++ #endif
++ 
+  #ifndef bcopy
+  void bcopy (), bzero ();
+  #endif
+***************
+*** 1183,1188 ****
+--- 1201,1211 ----
+    multiple_def_count = 0;
+    common_defined_global_count = 0;
+  
++ #ifdef linux
++   /* For Linux. Defaut is jump table shared library. */
++   linux_library = LINUX_JUMP_SHARED_LIB;
++ #endif
++ 
+    /* Keep a list of symbols referenced from the command line */
+  
+    cl_refs_allocated = 10;
+***************
+*** 1257,1262 ****
+--- 1280,1289 ----
+    {"Tdata", 1, 0, 132},
+    {"V", 1, 0, 'V'},
+    {"X", 0, 0, 'X'},
++ #ifdef linux
++   {"static", 0, 0, 200},	/* For Linux. */
++   {"nojump", 0, 0, 201},	/* For Linux. */
++ #endif
+    {0, 0, 0, 0}
+  };
+  
+***************
+*** 1439,1444 ****
+--- 1466,1487 ----
+  	case 'X':
+  	  discard_locals = DISCARD_L;
+  	  break;
++ 
++ #ifdef linux
++   	/* For Linux. -static, static library*/
++ 	case 200:
++ 	  if (linux_library == LINUX_CLASSIC_SHARED_LIB)
++ 	  	fatal ("illegal combination of -static with -nojump", (char *) 0);
++ 	  linux_library = LINUX_STATIC_LIB;
++ 	  break;
++ 
++   	/* For Linux. -nojump, classic shared library*/
++ 	case 201:
++ 	  if (linux_library == LINUX_STATIC_LIB)
++ 		fatal ("illegal combination of -nojump with -static", (char *) 0);
++ 	  linux_library = LINUX_CLASSIC_SHARED_LIB;
++ 	  break;
++ #endif
+  	}
+      }
+  
+***************
+*** 1478,1484 ****
+--- 1521,1531 ----
+  	  break;
+  
+  	case 'l':
++ #ifdef linux
++ 	  p->filename = concat ("lib", optarg, "");
++ #else
+  	  p->filename = concat ("lib", optarg, ".a");
++ #endif
+  	  p->local_sym_name = concat ("-l", optarg, "");
+  	  p->search_dirs_flag = 1;
+  	  p++;
+***************
+*** 1657,1662 ****
+--- 1704,1731 ----
+    input_file = 0;
+  }
+  
++ #ifdef linux
++ /* We assume jump table and classic shared libraries are not
++  * compatible with each other. But they are compatile with
++  * classic library individually.
++  */
++ 
++ static inline int 
++ next_library_suffix (int index)
++ {
++    switch (index) {
++    case LINUX_JUMP_SHARED_LIB:
++    case LINUX_CLASSIC_SHARED_LIB:
++       index = LINUX_STATIC_LIB;
++       break;
++    default:
++       index++;
++    }
++    return index;
++ }
++ 
++ #endif
++ 
+  /* Open the input file specified by 'entry', and return a descriptor.
+     The open file is remembered; if the same file is opened twice in a row,
+     a new open is not actually done.  */
+***************
+*** 1665,1671 ****
+  file_open (entry)
+       register struct file_entry *entry;
+  {
+!   register int desc;
+  
+    if (entry->superfile)
+      return file_open (entry->superfile);
+--- 1734,1740 ----
+  file_open (entry)
+       register struct file_entry *entry;
+  {
+!   register int desc = -1;
+  
+    if (entry->superfile)
+      return file_open (entry->superfile);
+***************
+*** 1677,1682 ****
+--- 1746,1791 ----
+  
+    if (entry->search_dirs_flag && n_search_dirs)
+      {
++ #ifdef linux
++       int i, j;
++       int found = 0;
++       char *suffix, *filename, *string;
++ 
++       for (j = linux_library;
++ 		!found && (suffix = linux_library_suffix [j]);
++ 		j = next_library_suffix (j)) {
++ 
++ 	/* Try each suffix */
++ 	filename = concat (entry->filename, suffix, "");
++ 
++ #if 0
++ fprintf (stderr, "Try filename: %s\n", filename);
++ #endif
++ 
++         for (i = 0; i < n_search_dirs; i++) {
++ 	  string = concat (search_dirs[i], "/", filename);
++ 
++ #if 0
++ fprintf (stderr, "Try pathname: %s\n", string);
++ #endif
++ 
++ 	  desc = open (string, O_RDONLY, 0);
++ 	  if (desc >= 0) {
++ 	      /* memory leek? */
++ 	      free (entry->filename);
++ 
++ 	      entry->filename = string;
++ 	      entry->search_dirs_flag = 0;
++ 	      found = 1;
++ 	      break;
++ 	  }
++ 	  free (string);
++ 	}
++ 
++ 	/* we need to free the `filename'. */
++ 	free (filename);
++       }
++ #else
+        int i;
+  
+        for (i = 0; i < n_search_dirs; i++)
+***************
+*** 1692,1702 ****
+  	    }
+  	  free (string);
+  	}
+      }
+    else
+      desc = open (entry->filename, O_RDONLY, 0);
+  
+!   if (desc > 0)
+      {
+        input_file = entry;
+        input_desc = desc;
+--- 1801,1812 ----
+  	    }
+  	  free (string);
+  	}
++ #endif
+      }
+    else
+      desc = open (entry->filename, O_RDONLY, 0);
+  
+!   if (desc >= 0)
+      {
+        input_file = entry;
+        input_desc = desc;
+***************
+*** 5585,5591 ****
+  #ifndef NeXT
+  	      {
+  		struct nlist xtra_ref;
+! 		xtra_ref.n_type == N_EXT | N_UNDF;
+  		xtra_ref.n_un.n_strx
+  		  = assign_string_table_index (((symbol *) sp->value)->name);
+  #ifdef N_SECT
+--- 5695,5701 ----
+  #ifndef NeXT
+  	      {
+  		struct nlist xtra_ref;
+! 		xtra_ref.n_type = N_EXT | N_UNDF;
+  		xtra_ref.n_un.n_strx
+  		  = assign_string_table_index (((symbol *) sp->value)->name);
+  #ifdef N_SECT
+***************
+*** 6031,6038 ****
+--- 6141,6150 ----
+  perror_name (name)
+       char *name;
+  {
++ #if !defined(linux) || defined(NON_NATIVE)
+    extern int errno, sys_nerr;
+    extern char *sys_errlist[];
++ #endif
+    char *s;
+  
+    if (errno < sys_nerr)
+***************
+*** 6049,6056 ****
+--- 6161,6170 ----
+  perror_file (entry)
+       struct file_entry *entry;
+  {
++ #if !defined(linux) || defined(NON_NATIVE)
+    extern int errno, sys_nerr;
+    extern char *sys_errlist[];
++ #endif
+    char *s;
+  
+    if (errno < sys_nerr)

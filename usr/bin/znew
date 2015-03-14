@@ -1,0 +1,70 @@
+:
+#!/bin/sh
+
+check=0
+opt=
+files=
+
+for arg
+do
+  case "$arg" in
+  -*)     opt="$opt $arg";;
+   *)     files="$files $arg";;
+  esac
+done
+
+if test -z "$files"; then
+  echo 'recompress .Z files into .z (gzip) files'
+  echo usage: `echo $0 | sed 's,^.*/,,` "[-tv]" file.Z...
+  echo "  -t tests the new files before deleting originals"
+  echo "  -v be verbose"
+  exit 1
+fi
+if test -z "$opt"; then
+  opt="-9"
+fi
+case "$opt" in
+  " -t") check=1; opt="";;
+  *t*)   check=1; opt=`echo $opt | sed 's/t//g'`
+esac
+
+for i in $files; do
+  n=`echo $i | sed 's/.Z$//'`
+  if test ! -f $n.Z ; then
+    echo $n.Z not found
+    exit 1
+  fi
+  if test $check -eq 1; then
+    if cp -p $n.Z $n.$$ 2> /dev/null || cp $n.Z $n.$$; then
+      :
+    else
+      echo cannot backup $n.Z
+      exit 1
+    fi
+  fi
+  if uncompress $n.Z; then
+    :
+  else
+    test $check -eq 1 && mv $n.$$ $n.Z
+    echo error while uncompressing $n.Z
+    exit 1
+  fi
+  if gzip $opt $n; then
+    :
+  else
+    test $check -eq 1 && mv $n.$$ $n.Z
+    echo error while recompressing $n
+    exit 1
+  fi
+  if test $check -eq 1; then
+    if gzip -t $n.z ; then
+      rm -f $n.$$
+    else
+      mv $n.$$ $n.Z
+      rm -f $n.z
+      echo error while testing $n.z, $n.Z unchanged
+      exit 1
+    fi
+  fi
+done
+exit 0

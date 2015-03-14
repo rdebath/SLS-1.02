@@ -1,0 +1,183 @@
+#!/bin/sh
+# Configuration script for GNU Smalltalk
+#   Copyright (C) 1990 Free Software Foundation, Inc.
+
+#This file is part of GNU Smalltalk.
+
+#GNU Smalltalk is free software; you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation; either version 1, or (at your option)
+#any later version.
+
+#GNU Smalltalk is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License
+#along with GNU Smalltalk; see the file COPYING.  If not, write to
+#the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+
+#
+# Shell script to create proper links to machine-dependent files in
+# preparation for compiling Smalltalk.
+#
+# Usage: config.mst machine
+#
+# If config.mst succeeds, it leaves its status in config.status.
+# If config.mst fails after disturbing the status quo, 
+# 	config.status is removed.
+#
+
+progname=$0
+testing=	#Make this be a non-null string to enable testing
+
+if [ $testing ]
+then
+    #for Test
+    remove="echo rm"
+    hard_link="echo ln"
+    symbolic_link="echo ln -s"
+    echo testing
+else
+    remove=rm
+    hard_link=ln
+    symbolic_link='ln -s'
+fi
+
+for arg in $*;
+do
+  case $arg in
+   -srcdir=*)
+	srcdir=`echo $arg | sed s/-srcdir=//`
+	;;
+   *)
+	machine=$arg
+	;;
+  esac
+done
+
+# Find the source files, if location was not specified.
+if [ x$srcdir = x ]
+then
+	srcdirdefaulted=1
+	srcdir=.
+fi
+
+if [ x$machine != x ];
+then
+	case $machine in
+	vax)					# for vaxen running bsd
+                ;;
+#	vax-sysv | vaxv)			# for vaxen running system V
+#		cpu_type=vax
+#		configuration_file=xm-vaxv.h
+#		target_machine=tm-vaxv.h
+#		;;
+	atari | atari-tos)
+		machine=atari
+		;;
+	next)
+		;;
+	sun-os4)
+		;;
+	sun-os3)
+		;;
+	hp9k3*)				# HP 9000 series 300 (hp-ux 6.5)
+		machine=hp9000_300
+		;;
+	hp9k8*)				# HP 9000 series 800 (precision arch?)
+					# hp-ux 7.0
+		machine=hp9000_800
+		;;
+	news)
+		;;
+	encore)
+		;;
+	386 | i386 | i386-sysv)
+		shortnames=1
+		machine=i386-sysv
+		;;
+	iris | sgi | iris4d)		# Mostly like a MIPS.
+		machine=iris4d
+		;;
+#	mips)				# Default MIPS environment
+#		;;
+#	mips-sysv)			# SYSV variant of MIPS system.
+#		cpu_type=mips
+#		target_machine=tm-mips-sysv.h
+#	        ;;
+#	mips-bsd43)			# BSD 4.3 variant of MIPS system.
+#		cpu_type=mips
+#		target_machine=tm-mips-bsd.h
+#	        ;;
+	ds3100 | dec-3100 | decstation)	# Decstation or pmax.
+		machine=ds3100
+	        ;;
+### apollo (Domain/OS 10.1 or later)
+	apollo | apollo-3000)
+		machine=apollo
+		;;
+	apollo-88k)
+		;;
+	pyr-bsd | pyramid)
+		machine=pyr-bsd
+		;;
+	sequent)
+		;;
+	tek4310)
+		;;
+	esac
+
+	# if cpu_type is not set, define cpu_type to machine.
+	#
+	configuration_file=${configuration_file-m-$machine.h}
+
+	files="$configuration_file"
+	links="mstconfig.h"
+
+	while [ -n "$files" ]
+	do
+		# set file to car of files, files to cdr of files
+		set $files; file=$1; shift; files=$*
+		set $links; link=$1; shift; links=$*
+
+		if [ ! -r ${srcdir}/config/$file ]
+		then
+			echo "$progname: cannot create a link \`$link'," 1>&2
+			echo "since the file \`config/$file' does not exist." 1>&2
+			exit 1
+		fi
+
+		$remove -f $link
+		rm -f config.status
+		# Make a symlink if possible, otherwise try a hard link
+		$symbolic_link ${srcdir}/config/$file $link 2>/dev/null || $hard_link ${srcdir}/config/$file $link
+
+		if [ ! -r $link ]
+		then
+			echo "$progname: unable to link \`$link' to \`${srcdir}/config/$file'." 1>&2
+			exit 1
+		fi
+		echo "Linked \`$link' to \`${srcdir}/config/$file'."
+	done
+	if [ $shortnames ]	#patch up truncated names
+	then
+		link-usg-names
+	fi
+
+	echo "Links are now set up for use with a $machine." \
+		| tee config.status
+
+	exit 0
+else
+	echo "Usage: $progname machine"
+	echo -n "Where \`machine' is something like "
+	echo "\`vax', \`sun3', \`umax', etc."
+	if [ -r config.status ]
+	then
+		cat config.status
+	fi
+	exit 1
+fi
+

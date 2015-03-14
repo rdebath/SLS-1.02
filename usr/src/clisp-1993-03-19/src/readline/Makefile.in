@@ -1,0 +1,222 @@
+#
+# Makefile.in -- changed by Bruno Haible, 18 March 1993
+#
+# Makefile
+#   Copyright (C) 1990, 1991, 1992 Free Software Foundation
+#
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
+#
+
+#
+# Makefile for readline and history libraries.
+#
+
+srcdir = .
+
+prefix = /usr/local
+
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+libdir = $(exec_prefix)/lib
+
+datadir = $(prefix)/lib
+mandir = $(prefix)/man
+man1dir = $(mandir)/man1
+man2dir = $(mandir)/man2
+man3dir = $(mandir)/man3
+man4dir = $(mandir)/man4
+man5dir = $(mandir)/man5
+man6dir = $(mandir)/man6
+man7dir = $(mandir)/man7
+man8dir = $(mandir)/man8
+man9dir = $(mandir)/man9
+infodir = $(prefix)/info
+includedir = $(prefix)/include
+docdir = $(datadir)/doc
+
+SHELL = /bin/sh
+
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+
+CC = @CC@
+CFLAGS = -O -g
+AR = ar
+AR_FLAGS = qv
+RANLIB = @RANLIB@
+LIBS = @LIBS@
+
+MAKEINFO = makeinfo
+
+# Comment out "-DVI_MODE" if you don't think that anyone will ever desire
+# the vi line editing mode and features.
+READLINE_DEFINES = -DVI_MODE
+
+RM = rm
+CP = cp
+
+CSOURCES = readline.c history.c funmap.c keymaps.c vi_mode.c \
+	   emacs_keymap.c vi_keymap.c
+
+HSOURCES = readline.h chardefs.h history.h keymaps.h
+SOURCES  = $(CSOURCES) $(HSOURCES)
+
+DOCUMENTATION = readline.texi inc-read.texi \
+		history.texi inc-hist.texi
+
+SUPPORT = COPYING Makefile $(DOCUMENTATION) ChangeLog
+
+THINGS_TO_TAR = $(SOURCES) $(SUPPORT)
+
+#### Host, target, and site specific Makefile fragments come in here.
+###
+
+.c.o:
+	$(CC) -c $(CFLAGS) -I. $(READLINE_DEFINES) $<
+
+STAGESTUFF = *.o
+
+all: libreadline.a
+
+check:
+info:
+
+clean-info: force
+	-rm -f *.info*
+
+history.info: $(srcdir)/history.texi
+	$(MAKEINFO) -o history.info $(srcdir)/history.texi
+
+readline.info: $(srcdir)/readline.texi $(srcdir)/inc-read.texi
+	$(MAKEINFO) -o readline.info $(srcdir)/readline.texi
+
+libreadline.a:	readline.o history.o funmap.o keymaps.o tilde.o vi_mode.o @ALLOCA@ xmalloc.o
+	$(RM) -f libreadline.a
+	$(AR) $(AR_FLAGS) libreadline.a readline.o history.o funmap.o keymaps.o tilde.o vi_mode.o @ALLOCA@ xmalloc.o
+	$(RANLIB) libreadline.a
+
+# Specification of include file dependencies:
+I_CONFIG_H    = config.h
+I_SYSDEP_H    = sysdep.h $(I_CONFIG_H)
+I_CHARDEFS_H  = chardefs.h
+I_KEYMAPS_H   = keymaps.h $(I_CHARDEFS_H)
+I_FUNMAP_H    = funmap.h
+I_HISTORY_H   = history.h
+I_READLINE_H  = readline.h $(I_KEYMAPS_H) $(I_FUNMAP_H)
+
+readline.o:	$(I_SYSDEP_H) $(I_READLINE_H) $(I_HISTORY_H)
+history.o:	$(I_SYSDEP_H) $(I_HISTORY_H)
+funmap.o:	$(I_SYSDEP_H) $(I_READLINE_H)
+keymaps.o:	emacs_keymap.c vi_keymap.c $(I_SYSDEP_H) $(I_READLINE_H) $(I_KEYMAPS_H)
+tilde.o:	$(I_SYSDEP_H)
+vi_mode.o:	$(I_SYSDEP_H) $(I_READLINE_H) $(I_HISTORY_H)
+alloca.o:	$(I_CONFIG_H)
+xmalloc.o:	$(I_SYSDEP_H)
+
+tilde.o:	$(srcdir)/../glob/tilde.c
+	$(CC) -c $(CFLAGS) -I. $(READLINE_DEFINES) $(srcdir)/../glob/tilde.c
+
+libtest:	libreadline.a libtest.c
+	$(CC) -o libtest $(CFLAGS) -I. $(READLINE_DEFINES) -L. libtest.c -lreadline -ltermcap
+
+readline: readline.c history.o keymaps.o funmap.o readline.h chardefs.h vi_mode.o @ALLOCA@ xmalloc.o
+	$(CC) $(CFLAGS) $(READLINE_DEFINES) -DTEST -o readline readline.c funmap.o keymaps.o history.o vi_mode.o @ALLOCA@ xmalloc.o -L. -ltermcap
+
+readline.tar:	$(THINGS_TO_TAR)
+	tar -cf readline.tar $(THINGS_TO_TAR)
+
+readline.tar.Z:	readline.tar
+	compress -f readline.tar
+
+readline.tar.z:	readline.tar
+	gzip readline.tar
+
+install:
+		-parent=`echo $(libdir)|sed -e 's@/[^/]*$$@@'`; \
+		if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi
+		-if [ -d $(libdir) ] ; then true ; else mkdir $(libdir) ; fi
+		$(INSTALL_DATA) libreadline.a $(libdir)/libreadline.a
+		$(RANLIB) $(libdir)/libreadline.a
+		-parent=`echo $(includedir)|sed -e 's@/[^/]*$$@@'`; \
+		if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi
+		-if [ -d $(includedir) ] ; then true ; else mkdir $(includedir) ; fi
+		-if [ -d $(includedir)/readline ] ; then true ; else mkdir $(includedir)/readline ; fi
+		$(INSTALL_DATA) $(srcdir)/readline.h $(includedir)/readline/readline.h
+		$(INSTALL_DATA) $(srcdir)/keymaps.h $(includedir)/readline/keymaps.h
+		$(INSTALL_DATA) $(srcdir)/chardefs.h $(includedir)/readline/chardefs.h
+
+install-info: info
+#		-parent=`echo $(infodir)|sed -e 's@/[^/]*$$@@'`; \
+#		if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi
+#		-if [ -d $(infodir) ] ; then true ; else mkdir $(infodir) ; fi
+#		for i in *.info* ; do \
+#			$(INSTALL_DATA) $$i $(infodir)/$$i ; \
+#		done
+
+includes:
+		-parent=`echo $(includedir)|sed -e 's@/[^/]*$$@@'`; \
+		if [ -d $$parent ] ; then true ; else mkdir $$parent ; fi
+		-if [ -d $(includedir) ] ; then true ; else mkdir $(includedir) ; fi
+		-if [ ! -r $(includedir)/readline ]; then\
+		 mkdir $(includedir)/readline;\
+		 chmod a+r $(includedir)/readline;\
+		fi
+		$(INSTALL_FILE) $(srcdir)/readline.h $(includedir)/readline/readline.h
+		$(INSTALL_FILE) $(srcdir)/keymaps.h $(includedir)/readline/keymaps.h
+		$(INSTALL_FILE) $(srcdir)/chardefs.h $(includedir)/readline/chardefs.h
+
+clean:
+		rm -f $(STAGESTUFF) *.a *.log *.cp *.tp *.vr *.fn
+		rm -f *.aux *.pg *.toc
+
+$(DESTDIR)/libreadline.a: libreadline.a
+
+# Copy the object files from a particular stage into a subdirectory.
+stage1: force
+	-mkdir stage1
+	-mv $(STAGESTUFF) stage1
+
+stage2: force
+	-mkdir stage2
+	-mv $(STAGESTUFF) stage2
+
+stage3: force
+	-mkdir stage3
+	-mv $(STAGESTUFF) stage3
+
+against=stage2
+
+comparison: force
+	for i in $(STAGESTUFF) ; do cmp $$i $(against)/$$i ; done
+
+de-stage1: force
+	-(cd stage1 ; mv -f * ..)
+	-rmdir stage1
+
+de-stage2: force
+	-(cd stage2 ; mv -f * ..)
+	-rmdir stage2
+
+de-stage3: force
+	-(cd stage3 ; mv -f * ..)
+	-rmdir stage3
+
+force:
+
+# with the gnu make, this is done automatically.
+
+Makefile: $(srcdir)/Makefile.in $(host_makefile_frag) $(target_makefile_frag)
+	$(SHELL) ./config.status

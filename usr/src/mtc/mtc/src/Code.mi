@@ -1,0 +1,4980 @@
+IMPLEMENTATION MODULE Code;
+
+
+
+
+
+
+
+
+
+
+
+
+
+IMPORT SYSTEM, System, IO, Tree;
+(* line 47 "" *)
+
+FROM Base	IMPORT
+  OptionIsSet	, OpenHeader	, OpenProgram;
+
+FROM IO		IMPORT
+  tFile		, WriteS	, WriteC	, WriteI	,
+  WriteN	, WriteR	, WriteCard	, WriteNl	,
+  WriteClose	;
+
+FROM Layout	IMPORT
+  WriteSpaces	;
+
+FROM Strings	IMPORT
+  tString	, tStringIndex	;
+
+FROM StringMem	IMPORT
+  tStringRef	, GetString	, Length	, WriteString	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	, WriteIdent	;
+
+FROM Tree	IMPORT
+  tTree		, NoTree	,
+  Definition	, Foreign	, Program	, Implementation,
+  Decimal	, Octal		, Hexadecimal	;
+
+FROM Defs	IMPORT
+  tObject	, tObjects	, tType		, tSelectors	,
+  tCObjects	, tStrings	,
+  NoObject	, NoObjects	, NoSelectors	, NoCObjects	,
+  NoStrings	,
+  ProcABS	, ProcCAP	, ProcCHR	, ProcDEC	,
+  ProcEXCL	, ProcFLOAT	, ProcHALT	, ProcHIGH	,
+  ProcINC	, ProcINCL	, ProcMAX	, ProcMIN	,
+  ProcODD	, ProcORD	, ProcSIZE	, ProcTRUNC	,
+  ProcVAL	, ProcADR	, ProcTSIZE	, ProcTRANSFER	,
+  ProcNEWPROCESS, ProcIOTRANSFER, ProcNEW	, ProcDISPOSE	,
+  IdentSYSTEM	,
+  TypeLONGCARD	, TypeBOOLEAN	, TypeWORD	, TypeADDRESS	,
+  TypeIntCard	, TypeSTRING	, TypeStringChar, TypeVOID	,
+  TypeCHAR	, Field1	, TypeDecl1	,
+  ShortInt	, LongInt	, ShortCard	, LongCard	,
+  Real		, LongReal	, Bool		, Char		,
+  Bitset	, Proc		, Word		, Address	,
+  IntCard	, Nil		, StringChar	, String	,
+  StdProcType1	, OpaqueType1	, Array1	, Enumeration1	,
+  Pointer1	, ProcType1	, Record1	, Set1		,
+  Subrange1	,
+  GetSelectors	, GetType	,
+  GetIndexType	, GetElemType	, GetTargetType	, GetResultType	,
+  GetFields	, GetLiteral	,
+  IsExported	, IsOpenArray	, IsVAR		, IsProcedure	,
+  IsOfType	, IsForward	, IsIntType	, IsOpen	;
+
+FROM Values	IMPORT
+  tValue	, ValueToInt	, MinCharVal	, MaxCharVal	,
+  ZeroValue	, MaxShortCardVal;
+
+FROM Types	IMPORT
+  TypeSize	, GetLwb	, GetUpb	, SizeUnsignedChar,
+  MaxLongInt	, Cast		;
+
+FROM AssocTab	IMPORT
+  BeginAssocTab	, PutAssoc	, GetAssoc	, CloseAssocTab	;
+
+FROM GenIdents	IMPORT
+  GenLabel	, GenWith	, GenBound	, GenReturn	,
+  GenOpaque	;
+
+FROM Errors	IMPORT
+  CompilerError	, ErrorMessageP	, Restriction	, Warning	,
+  NoTRANSFER	, NoIOTRANSFER	, NoNEWPROCESS	, StructTypeReq	,
+  OutOfLongRange;
+
+IMPORT Strings, Idents, GenIdents, DynArray, Defs, Values;
+
+CONST
+  pMaxPrec		=  1;	(* C operator precedences	*)
+  pCall			=  1;
+  pSubscript		=  1;
+  pSelect		=  1;
+  pCast			=  2;
+  pDeref		=  3;
+  pAdr			=  3;
+  pNot			=  3;
+  pTimes		=  4;
+  pDivide		=  4;
+  pMod			=  4;
+  pPlus			=  5;
+  pMinus		=  5;
+  pComparison		=  7;
+  pLess			=  7;
+  pLessEqual		=  7;
+  pGreater		=  7;
+  pGreaterEqual		=  7;
+  pEqual		=  8;
+  pNotEqual		=  8;
+  pIntersection		=  9;
+  pSymDiff		= 10;
+  pUnion		= 11;
+  pAnd			= 12;
+  pOr			= 13;
+  pIn			= 14;
+  pDifference		= 14;
+  pIsSubset1		= 14;
+  pIsSubset2		= 14;
+  pAssign		= 14;
+  pPassValue		= 14;
+  pPassAddress		= 14;
+  pMinPrec		= 14;
+
+CONST
+  Auto			= 1;	(* C storage classes		*)
+  Static		= 2;
+
+CONST
+  Full			= TRUE;
+  NonFull		= NOT Full;
+  Before		= TRUE;
+  After			= NOT Before;
+  Strncpy		= TRUE;
+
+VAR
+  f		: tFile;	(* C header/source file(s)	*)
+  Indent	: CARDINAL;	(* level of indentation		*)
+
+		  (* table with precedence of C operators	*)
+  Precedence	: ARRAY [cNoOp .. cPassAddress] OF SHORTCARD;
+
+
+(*------- MODULE LabelStack --------------------------------------------------*)
+
+MODULE LabelStack;
+
+(* Stack for the administration of the labels generated for the	*)
+(* translation of LOOP and EXIT statements.			*)
+
+FROM DynArray	IMPORT
+  MakeArray	, ExtendArray	, ReleaseArray	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+EXPORT QUALIFIED Push, Pop, Top, Begin, Close;
+
+CONST
+  Infinite	= 1048576;
+  InitialSize	= 16;
+
+VAR
+  StackPtr	,
+  StackSize	: LONGINT;
+  LabelStack	: POINTER TO ARRAY [0 .. Infinite] OF tIdent;
+
+PROCEDURE Push	(Ident: tIdent);
+BEGIN
+  IF StackPtr = StackSize THEN
+    ExtendArray (LabelStack, StackSize, SIZE (tIdent));
+  END;
+  LabelStack^ [StackPtr] := Ident;
+  INC (StackPtr);
+END Push;
+
+PROCEDURE Pop	();
+BEGIN
+  DEC (StackPtr);
+END Pop;
+
+PROCEDURE Top	(): tIdent;
+BEGIN
+  IF StackPtr > 0 THEN
+    RETURN LabelStack^ [StackPtr - 1];
+  ELSE
+    RETURN NoIdent;	(* error: EXIT not in LOOP context	*)
+  END;
+END Top;
+
+PROCEDURE Begin;
+BEGIN
+  StackSize	:= InitialSize;
+  StackPtr	:= 0;
+  MakeArray (LabelStack, StackSize, SIZE (tIdent));
+END Begin;
+
+PROCEDURE Close;
+BEGIN
+  ReleaseArray (LabelStack, StackSize, SIZE (tIdent));
+END Close;
+
+END LabelStack;
+
+(*------- END LabelStack -----------------------------------------------------*)
+
+(*------- MODULE WithStack ---------------------------------------------------*)
+
+MODULE WithStack;
+
+(* Stack for the administration of the pointer variables	*)
+(* generated for the translation of WITH statements.		*)
+
+FROM DynArray	IMPORT
+  MakeArray	, ExtendArray	, ReleaseArray	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+FROM Defs	IMPORT
+  tObjects	, NoObject	, Identify2	;
+
+EXPORT QUALIFIED Push, Pop, GetWith, Begin, Close;
+
+CONST
+  Infinite	= 1048576;
+  InitialSize	= 16;
+
+TYPE
+  tStackElem	= RECORD
+		    WithId	: tIdent;
+		    Fields	: tObjects;
+		  END;
+
+VAR
+  StackPtr	,
+  StackSize	: LONGINT;
+  WithStack	: POINTER TO ARRAY [0 .. Infinite] OF tStackElem;
+
+PROCEDURE Push	(pWithId: tIdent; pFields: tObjects);
+BEGIN
+  IF StackPtr = StackSize THEN
+    ExtendArray (WithStack, StackSize, SIZE (tStackElem));
+  END;
+  WITH WithStack^ [StackPtr] DO
+    WithId := pWithId;
+    Fields := pFields;
+  END;
+  INC (StackPtr);
+END Push;
+
+PROCEDURE Pop	();
+BEGIN
+  DEC (StackPtr);
+END Pop;
+
+PROCEDURE GetWith	(FieldId: tIdent): tIdent;
+VAR
+  StackIndex	: LONGINT;
+BEGIN
+  StackIndex := StackPtr - 1;
+  LOOP
+    WITH WithStack^ [StackIndex] DO
+      IF Identify2 (FieldId, Fields) # NoObject THEN RETURN WithId; END;
+    END;
+    DEC (StackIndex);
+  END;
+END GetWith;
+
+PROCEDURE Begin;
+BEGIN
+  StackSize	:= InitialSize;
+  StackPtr	:= 0;
+  MakeArray (WithStack, StackSize, SIZE (tStackElem));
+END Begin;
+
+PROCEDURE Close;
+BEGIN
+  ReleaseArray (WithStack, StackSize, SIZE (tStackElem));
+END Close;
+
+END WithStack;
+
+(*------- END WithStack ------------------------------------------------------*)
+
+(*------- MODULE ParamTable --------------------------------------------------*)
+
+MODULE ParamTable;
+
+(* Module for the administration of the additional parameters used to	*)
+(* translate open array parameters.					*)
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+FROM GenIdents	IMPORT
+  GenParam	;
+
+FROM Defs	IMPORT
+  tObject	,
+  tCObjects	, NoCObjects	,
+  IsVAR		,
+  LookUp	;
+
+EXPORT GenParams, GetParam, ValueOpens, VAROpens;
+
+VAR
+  VAROpens	,
+  ValueOpens	: tCObjects;
+
+PROCEDURE GenParams	(OpenParams: tCObjects);
+BEGIN
+  WHILE OpenParams # NoCObjects DO
+    OpenParams^.CObjects.CObject := GenParam ();
+    OpenParams := OpenParams^.CObjects.Next;
+  END;
+END GenParams;
+
+PROCEDURE GetParam	(M2Object: tObject): tIdent;
+BEGIN
+  IF IsVAR (M2Object) THEN
+    RETURN LookUp (M2Object, VAROpens);
+  ELSE
+    RETURN LookUp (M2Object, ValueOpens);
+  END;
+END GetParam;
+
+BEGIN
+  ValueOpens	:= NoCObjects;
+  VAROpens	:= NoCObjects;
+END ParamTable;
+
+(*------- END ParamTable -----------------------------------------------------*)
+
+(*------- MODULE PointerTable ------------------------------------------------*)
+
+MODULE PointerTable;
+
+(* Module for the administration of the global and local pointer	*)
+(* variables, used to translate the access to local variables of	*)
+(* statically enclosing procedures					*) 
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	;
+
+FROM GenIdents	IMPORT
+  GenGlobalPtr	, GenLocalPtr	;
+
+FROM Defs	IMPORT
+  tObject	,
+  tCObjects	, NoCObjects	,
+  LookUp	;
+
+EXPORT 
+  GenGlobalPtrs	, GenLocalPtrs	, GetGlobalPtr	, GetLocalPtr	,
+  GlobalPtrs	, LocalPtrs	;
+
+VAR
+  GlobalPtrs	,
+  LocalPtrs	: tCObjects;
+
+PROCEDURE GenGlobalPtrs	(GlobalPtrs: tCObjects);
+BEGIN
+  WHILE GlobalPtrs # NoCObjects DO
+    WITH GlobalPtrs^.CObjects DO
+      CObject := GenGlobalPtr (M2Object^.Var1.Ident);
+    END;
+    GlobalPtrs := GlobalPtrs^.CObjects.Next;
+  END;
+END GenGlobalPtrs;
+
+PROCEDURE GenLocalPtrs	(LocalPtrs: tCObjects);
+BEGIN
+  WHILE LocalPtrs # NoCObjects DO
+    LocalPtrs^.CObjects.CObject := GenLocalPtr ();
+    LocalPtrs := LocalPtrs^.CObjects.Next;
+  END;
+END GenLocalPtrs;
+
+PROCEDURE GetGlobalPtr	(M2Object: tObject): tIdent;
+BEGIN
+  RETURN LookUp (M2Object, GlobalPtrs);
+END GetGlobalPtr;
+
+PROCEDURE GetLocalPtr	(M2Object: tObject): tIdent;
+BEGIN
+  RETURN LookUp (M2Object, LocalPtrs);
+END GetLocalPtr;
+
+BEGIN
+  GlobalPtrs	:= NoCObjects;
+  LocalPtrs	:= NoCObjects;
+END PointerTable;
+
+(*------- END PointerTable ---------------------------------------------------*)
+
+PROCEDURE OverOrUnderflow (CtrlType: tType; ToValue, ByValue: tValue): BOOLEAN;
+(* Check if the translation of the Modula-2 FOR-statement		*)
+(*	FOR v := a TO b BY c DO ... END;	(b = const)		*)
+(* into the C for-statement						*)
+(*	for (v = a; v <= b; v += c) { ... }	(v >= b if c < 0)	*)
+(* would result in a over resp. underflow of the control variable v.	*)
+(* 'CtrlType' is the type of v, 'ToValue' is the value of b, and	*)
+(* 'ByValue' is the value of c.						*)
+VAR
+  MinCValue	,
+  MaxCValue	: tValue;
+BEGIN
+  IF ToValue.Kind = Values.NoValue THEN
+    (* error: illegal limit value				*)
+    (* or							*)
+    (* restriction: overflow test not possible, because module	*)
+    (*		    Values could not evaluate b, because b	*)
+    (*		    contains a constant in the range		*)
+    (*		    MAX (INTEGER) + 1 .. MAX (CARDINAL).	*)
+    (*		    Assume there would be an overflow!		*)
+    RETURN TRUE;
+  ELSE
+    IF CtrlType^.Kind = Subrange1 THEN
+      CtrlType := CtrlType^.Subrange1.Type;
+    END;
+
+    CASE CtrlType^.Kind OF
+    | ShortCard		,
+      ShortInt		,
+      LongCard		,
+      LongInt		,
+      Char		:
+	GetLwb (CtrlType, MinCValue);
+	GetUpb (CtrlType, MaxCValue);
+
+    | Bool		,
+      Enumeration1	:
+	IF TypeSize (CtrlType) = SizeUnsignedChar THEN
+	  MinCValue := MinCharVal;
+	  MaxCValue := MaxCharVal;
+	ELSE
+	  MinCValue := ZeroValue;
+	  MaxCValue := MaxShortCardVal;
+	END;
+
+    ELSE
+      (* error: illegal type of control variable	*)
+      RETURN TRUE;
+    END;
+
+    IF ValueToInt (ByValue) >= 0 THEN
+      IF CtrlType = TypeLONGCARD THEN
+	RETURN FALSE;
+	(* restriction: MAX (CARDINAL) is not representable as INTEGER	*)
+	(*		or as tValue. But b (see above) does not	*)
+	(*		contain a constant in the range			*)
+	(*		MAX (INTEGER) + 1..MAX (CARDINAL).		*)
+	(*		Hence assume there would be no overflow!	*)
+      END;
+      RETURN ValueToInt (ToValue) > ValueToInt (MaxCValue) - ValueToInt (ByValue);
+    ELSE
+      RETURN ValueToInt (ToValue) < ValueToInt (MinCValue) - ValueToInt (ByValue);
+    END;
+  END;
+END OverOrUnderflow;
+
+(*======= code generation procedures =========================================*)
+
+(*
+ *	generate code for a string constant
+ *)
+
+PROCEDURE CodeString1	(s: tStringRef);
+(* The characters '"' and '\' are escaped with a backslash '\'.	*)
+(* note: within WriteS (f, ' ... '); opp will transform \\ to \		*)
+VAR i		: tStringIndex;
+    Ch		: CHAR;
+    String	: tString;
+BEGIN
+  GetString (s, String);
+  WriteC (f, '"');
+  FOR i := 1 TO Length (s) DO
+    Ch := Strings.Char (String, i);
+    IF (Ch = '"') OR (Ch = '\') THEN  WriteC (f, 134C);  END; WriteC (f, Ch);
+  END;
+  WriteC (f, '"');
+END CodeString1;
+
+(*
+ *	generate a string constant for a character constant
+ *)
+
+PROCEDURE CodeString3	(Ch: CHAR);
+(* The characters '"' and '\' are escaped with a backslash '\'.	*)
+(* note: within WriteS (f, ' ... '); opp will transform \\ to \		*)
+BEGIN
+  WriteC (f, '"');
+  IF (Ch < ' ') OR (Ch > '~') THEN  WriteC (f, 134C); WriteN (f, ORD (Ch), 1, 8);
+  ELSIF (Ch = '"') OR (Ch = '\') THEN  WriteC (f, 134C);  WriteC (f, Ch);
+  ELSE WriteC (f, Ch);
+  END;
+  WriteC (f, '"');
+END CodeString3;
+
+(*
+ *	generate code for a character constant
+ *)
+
+PROCEDURE CodeChar	(Ch: CHAR);
+(* The characters "'" and '\' are escaped with a backslash '\'.	*)
+(* Non-printable characters are written either as their C	*)
+(* escape sequence (\0, \n, \t, \b, \r, \f) or are represented	*)
+(* by their internal code written as an octal number.		*)
+(* note: within WriteS (f, ' ... '); opp will transform \\ to \		*)
+BEGIN
+  CASE Ch OF
+  | "'"		:  WriteC (f, 47C);  WriteC (f, 134C);  WriteC (f, 47C);  WriteC (f, 47C); 
+  | '\'		:  WriteC (f, 47C);  WriteC (f, 134C);  WriteC (f, 134C);  WriteC (f, 47C); 
+  | ' ' .. '&'	,
+    '(' .. '['	,
+    ']' .. '~'	:  WriteC (f, 47C); WriteC (f, Ch); WriteC (f, 47C); 
+  | 0C		:  WriteC (f, 47C);  WriteC (f, 134C); WriteC (f, '0'); WriteC (f, 47C); 
+  | 10C		:  WriteC (f, 47C);  WriteC (f, 134C); WriteC (f, 'b'); WriteC (f, 47C); 
+  | 11C		:  WriteC (f, 47C);  WriteC (f, 134C); WriteC (f, 't'); WriteC (f, 47C); 
+  | 12C		:  WriteC (f, 47C);  WriteC (f, 134C); WriteC (f, 'n'); WriteC (f, 47C); 
+  | 14C		:  WriteC (f, 47C);  WriteC (f, 134C); WriteC (f, 'f'); WriteC (f, 47C); 
+  | 15C		:  WriteC (f, 47C);  WriteC (f, 134C); WriteC (f, 'r'); WriteC (f, 47C); 
+  ELSE
+    WriteS (f, '((CHAR)'); WriteC (f, 47C);  WriteC (f, 134C); WriteN (f, ORD (Ch), 1, 8); WriteC (f, 47C); WriteC (f, ')');
+  END;
+END CodeChar;
+
+(*
+ *	generate code for a value
+ *)
+
+PROCEDURE CodeValue	(Value: tValue);
+VAR
+  Object: tObject;
+BEGIN
+  CASE Value.Kind OF
+  | Values.Integer	: WriteI (f, Value.IntValue, 1);
+  | Values.Real		: WriteR (f, Value.RealValue, 1, 1, 1);
+  | Values.Boolean	: IF Value.BoolValue THEN WriteS (f, 'TRUE'); ELSE WriteS (f, 'FALSE'); END;
+  | Values.StringChar	,
+    Values.Char		: CodeChar (Value.CharValue);
+  | Values.String	: CodeString1 (Value.StringValue);
+  | Values.Bitset	: WriteS (f, '0X');WriteN (f, LONGCARD (Value.BitsetValue), 1, 16);WriteC (f, 'L');
+  | Values.Enumeration	: Object := Value.EnumValue;
+			  WriteIdent (f, Object^.EnumLiteral1.CIdent);
+  | Values.NilType	: WriteS (f, 'NIL');
+  ELSE
+    (* error: illegal value *)
+  END;
+END CodeValue;
+
+(*
+ *	generate code for a type name
+ *)
+
+PROCEDURE CodeTypeName	(Type: tType);
+VAR
+  Object: tObject;
+BEGIN
+  CASE Type^.Kind OF
+  | Array1	,
+    Enumeration1,
+    Pointer1	,
+    ProcType1	,
+    Record1	,
+    Set1	,
+    Subrange1	,
+    OpaqueType1	:
+      Object := Type^.Constructor.TypeObj;
+      IF Object # NoObject THEN
+	WriteIdent (f, Object^.Object.CIdent);
+	RETURN;
+      END;
+
+  ELSE
+  END;
+
+  IF Type^.Kind = Subrange1 THEN
+    Type := Type^.Subrange1.Type;
+  END;
+
+  CASE Type^.Kind OF
+  | ShortInt	: WriteS (f, 'SHORTINT');
+  | LongInt	: WriteS (f, 'LONGINT');
+  | ShortCard	: WriteS (f, 'SHORTCARD');
+  | LongCard	: WriteS (f, 'LONGCARD');
+  | Real	: WriteS (f, 'REAL');
+  | LongReal	: WriteS (f, 'LONGREAL');
+  | Bool	: WriteS (f, 'BOOLEAN');
+  | Char	: WriteS (f, 'CHAR');
+  | Bitset	: WriteS (f, 'BITSET');
+  | Proc	: WriteS (f, 'PROC');
+  | Word	: WriteS (f, 'WORD');
+  | Address	: WriteS (f, 'ADDRESS');
+  | OpaqueType1	: WriteS (f, 'OPAQUE');
+  | Array1	: WriteS (f, 'struct ');WriteIdent (f, Type^.Array1.StructId);
+  | Enumeration1: IF TypeSize (Type) = SizeUnsignedChar THEN
+		    WriteS (f, 'unsigned char');
+		  ELSE
+		    WriteS (f, 'unsigned short');
+		  END;
+  | Pointer1	: CodeTypeName (Type^.Pointer1.Type);
+  | ProcType1	: CodeTypeName (Type^.ProcType1.Type);
+  | Record1	: WriteS (f, 'struct ');WriteIdent (f, Type^.Record1.StructId);
+  | Set1	: WriteS (f, 'unsigned long');
+  ELSE
+    (* error: illegal type name *)
+  END;
+END CodeTypeName;
+
+(*
+ *	generate code for the part of a declarator before the identifier
+ *)
+
+PROCEDURE CodeDeclarator1	(Type: tType);
+BEGIN
+  IF (Type^.Kind = Pointer1) AND (Type^.Pointer1.TypeObj = NoObject) THEN
+    CodeDeclarator1 (Type^.Pointer1.Type); WriteS (f, ' *');
+  ELSIF (Type^.Kind = ProcType1) AND (Type^.ProcType1.TypeObj = NoObject) THEN
+    WriteS (f, ' (*');
+  END;
+END CodeDeclarator1;
+
+(*
+ *	generate code for the part of a declarator after the identifier
+ *)
+
+PROCEDURE CodeDeclarator2	(Type: tType);
+BEGIN
+  IF (Type^.Kind = Pointer1) AND (Type^.Pointer1.TypeObj = NoObject) THEN
+    CodeDeclarator2 (Type^.Pointer1.Type);
+  ELSIF (Type^.Kind = ProcType1) AND (Type^.ProcType1.TypeObj = NoObject) THEN
+    WriteS (f, ')()');
+  END;
+END CodeDeclarator2;
+
+(*
+ *	generate declarations for the global/local pointer variables,
+ *	which are used to translate the access to local	variables of
+ *	statically enclosing procedures
+ *)
+
+PROCEDURE CodePointers	(StorageClass: SHORTCARD; Pointers: tCObjects);
+VAR
+  Type	: tTree;
+BEGIN
+  WHILE Pointers # NoCObjects DO
+    WITH Pointers^.CObjects DO
+      Type := M2Object^.Var1.TypeTree;
+
+      IF NOT IsOpenArray (M2Object) THEN
+
+WriteSpaces (f, Indent);	IF StorageClass = Static THEN WriteS (f, 'static '); END;
+	CodeType (Type, NonFull);
+	  CodeDecla (Type, Before); WriteS (f, ' *');WriteIdent (f, CObject); CodeDecla (Type, After); WriteC (f, ';'); WriteNl (f);
+
+      ELSE
+
+WriteSpaces (f, Indent);	IF StorageClass = Static THEN WriteS (f, 'static '); END;
+	CodeType (Type^.Array.ElemType, NonFull); WriteS (f, ' *');WriteIdent (f, CObject);WriteC (f, ';'); WriteNl (f);
+
+WriteSpaces (f, Indent);	IF StorageClass = Static THEN WriteS (f, 'static '); END;
+	WriteS (f, 'LONGCARD ');WriteIdent (f, CObject);WriteS (f, '_O;'); WriteNl (f);
+
+      END;
+
+    END;
+    Pointers := Pointers^.CObjects.Next;
+  END;
+END CodePointers;
+
+(*
+ *	generate code to save and reinitialize the global pointer variables,
+ *	which are used to translate the access to local	variables of procedure p
+ *	(called upon each entry of p)
+ *)
+
+PROCEDURE CodePush	(LocalPtrs: tCObjects);
+VAR GlobalPtr	: tIdent;
+BEGIN
+  WHILE LocalPtrs # NoCObjects DO
+    WITH LocalPtrs^.CObjects DO
+      GlobalPtr := GetGlobalPtr (M2Object);
+
+WriteSpaces (f, Indent);     WriteIdent (f, CObject);WriteS (f, ' = ');WriteIdent (f, GlobalPtr);WriteC (f, ';'); WriteNl (f);
+
+      IF IsOpenArray (M2Object) THEN
+
+WriteSpaces (f, Indent);	WriteIdent (f, GlobalPtr);WriteS (f, ' = ');WriteIdent (f, M2Object^.Var1.CIdent);WriteC (f, ';'); WriteNl (f);
+
+WriteSpaces (f, Indent);	WriteIdent (f, CObject);WriteS (f, '_O = ');WriteIdent (f, GlobalPtr);WriteS (f, '_O;'); WriteNl (f);
+WriteSpaces (f, Indent);	WriteIdent (f, GlobalPtr);WriteS (f, '_O = ');WriteIdent (f, GetParam (M2Object));WriteC (f, ';'); WriteNl (f);
+
+      ELSIF IsVAR (M2Object) THEN
+
+WriteSpaces (f, Indent);	WriteIdent (f, GlobalPtr);WriteS (f, ' = ');WriteIdent (f, M2Object^.Var1.CIdent);WriteC (f, ';'); WriteNl (f);
+
+      ELSE
+
+WriteSpaces (f, Indent);	WriteIdent (f, GlobalPtr);WriteS (f, ' = &');WriteIdent (f, M2Object^.Var1.CIdent);WriteC (f, ';'); WriteNl (f);
+
+      END;
+    END;
+    LocalPtrs := LocalPtrs^.CObjects.Next;
+  END;
+END CodePush;
+
+(*
+ *	generate code to restore the global pointer variables, which are
+ *	used to translate the access to local variables of procedure p
+ *	(called upon each exit from p)
+ *)
+
+PROCEDURE CodePop	(LocalPtrs: tCObjects);
+VAR GlobalPtr	: tIdent;
+BEGIN
+  WHILE LocalPtrs # NoCObjects DO
+    WITH LocalPtrs^.CObjects DO
+      GlobalPtr := GetGlobalPtr (M2Object);
+
+WriteSpaces (f, Indent);     WriteIdent (f, GlobalPtr);WriteS (f, ' = ');WriteIdent (f, CObject);WriteC (f, ';'); WriteNl (f);
+
+      IF IsOpenArray (M2Object) THEN
+WriteSpaces (f, Indent);	WriteIdent (f, GlobalPtr);WriteS (f, '_O = ');WriteIdent (f, CObject);WriteS (f, '_O;'); WriteNl (f);
+      END;
+    END;
+    LocalPtrs := LocalPtrs^.CObjects.Next;
+  END;
+END CodePop;
+
+(*
+ *	generate code for a label range
+ *)
+
+PROCEDURE CodeLabelRange (Label1, Label2: tValue);
+VAR
+  IntLabel	: INTEGER;
+  BoolLabel	: BOOLEAN;
+  CharLabel	: CHAR;
+  EnumLiterals	: tObjects;
+  EnumIndex1	,
+  EnumIndex2	: SHORTCARD;
+  Type		: tType;
+BEGIN
+  CASE Label1.Kind OF
+  | Values.Integer	:
+      FOR IntLabel := Label1.IntValue TO Label2.IntValue DO
+WriteSpaces (f, Indent);	WriteS (f, 'case '); WriteI (f, IntLabel, 1); WriteS (f, ':;'); WriteNl (f);
+      END;
+
+  | Values.Boolean	:
+      FOR BoolLabel := Label1.BoolValue TO Label2.BoolValue DO
+	IF BoolLabel THEN
+WriteSpaces (f, Indent);	  WriteS (f, 'case TRUE:'); WriteNl (f);
+	ELSE
+WriteSpaces (f, Indent);	  WriteS (f, 'case FALSE:'); WriteNl (f);
+	END;
+      END;
+
+  | Values.Char		,
+    Values.StringChar	:
+      FOR CharLabel := Label1.CharValue TO Label2.CharValue DO
+WriteSpaces (f, Indent);	WriteS (f, 'case '); CodeChar (CharLabel); WriteS (f, ':;'); WriteNl (f);
+      END;
+
+  | Values.Enumeration	:
+      Type		:= GetType (Label1.EnumValue);
+      EnumLiterals	:= Type^.Enumeration1.Objects;
+      EnumIndex1	:= ValueToInt (Label1);
+      EnumIndex2	:= ValueToInt (Label2);
+
+      WHILE EnumLiterals # NoObjects DO
+	WITH EnumLiterals^.Elmt.Object^.EnumLiteral1 DO
+	  IF (Index >= EnumIndex1) AND
+	     (Index <= EnumIndex2) THEN
+WriteSpaces (f, Indent);	    WriteS (f, 'case '); WriteIdent (f, CIdent); WriteS (f, ':;'); WriteNl (f);
+	  END;
+	END;
+
+	EnumLiterals := EnumLiterals^.Elmt.Next;
+      END;
+
+  ELSE
+  END;
+END CodeLabelRange;
+
+(*
+ *	generate code to allocate memory for open array value parameters
+ *)
+
+PROCEDURE CodeAlloc	(ValueOpens: tCObjects);
+VAR
+  ArrayCnt	: CARDINAL;
+BEGIN
+  IF ValueOpens # NoCObjects THEN
+    ArrayCnt := 0;
+
+WriteSpaces (f, Indent);   WriteS (f, 'ALLOC_OPEN_ARRAYS(');
+
+    LOOP
+      INC (ArrayCnt);
+
+      WITH ValueOpens^.CObjects DO
+        WriteIdent (f, CObject);WriteS (f, ' * ');
+	  WriteS (f, 'sizeof('); CodeTypeName (GetElemType (GetType (M2Object))); WriteC (f, ')');
+      END;
+
+      ValueOpens := ValueOpens^.CObjects.Next;
+      IF ValueOpens = NoObjects THEN
+	EXIT;
+      END;
+
+      WriteS (f, ' + ');
+
+    END;
+
+    WriteS (f, ', ');WriteI (f, ArrayCnt, 1);WriteC (f, ')'); WriteNl (f);
+
+  END;
+END CodeAlloc;
+
+(*
+ *	generate code to copy an open array value parameter
+ *)
+
+PROCEDURE CodeCopy	(ValueOpens: tCObjects);
+BEGIN
+  WHILE ValueOpens # NoCObjects DO
+    WITH ValueOpens^.CObjects DO
+WriteSpaces (f, Indent);     WriteS (f, 'COPY_OPEN_ARRAY(');
+	WriteIdent (f, M2Object^.Var1.CIdent);WriteS (f, ', ');
+	WriteIdent (f, CObject);WriteS (f, ', ');
+	CodeTypeName (GetElemType (GetType (M2Object)));
+      WriteC (f, ')'); WriteNl (f);
+    END;
+    ValueOpens := ValueOpens^.CObjects.Next;
+  END;
+END CodeCopy;
+
+(*
+ *	generate code to release memory for an open array value parameter
+ *)
+
+PROCEDURE CodeFree	(ValueOpens: tCObjects);
+BEGIN
+  IF ValueOpens # NoCObjects THEN
+WriteSpaces (f, Indent);   WriteS (f, 'FREE_OPEN_ARRAYS'); WriteNl (f);
+  END;
+END CodeFree;
+
+(*
+ *	generate declarations for the local array variables, which
+ *	are used to translate the parameter passing of strings,
+ *	if the corresponding formal parameters are no open arrays
+ *)
+
+PROCEDURE CodeStrings	(Strings: tStrings);
+BEGIN
+  WHILE Strings # NoStrings DO
+    WITH Strings^.StringPar DO
+WriteSpaces (f, Indent);     CodeTypeName (FormalType); WriteC (f, ' '); WriteIdent (f, CString); WriteC (f, ';'); WriteNl (f);
+    END;
+    Strings := Strings^.StringPar.Next;
+  END;
+END CodeStrings;
+
+(*
+ *	generate code to initialize the local array variables, which
+ *	are used to translate the parameter passing of strings,
+ *	if the corresponding formal parameters are no open arrays
+ *)
+
+PROCEDURE CodeStrncpy	(Strings: tStrings);
+BEGIN
+  WHILE Strings # NoStrings DO
+    WITH Strings^.StringPar DO
+WriteSpaces (f, Indent);     WriteS (f, '(void)strncpy(');
+		      IF OptionIsSet ('c') THEN WriteS (f, '(char *)'); END;
+		      WriteIdent (f, CString); WriteS (f, '.A, ');
+		      CodeString2 (M2String, Strncpy); WriteS (f, ', ');
+                      WriteS (f, 'sizeof('); WriteIdent (f, CString); WriteS (f, '.A)');
+      WriteS (f, ');'); WriteNl (f);
+    END;
+    Strings := Strings^.StringPar.Next;
+  END;
+END CodeStrncpy;
+
+(*
+ *	generate code for additional record field selectors
+ *)
+
+PROCEDURE CodeSelectors	(Selectors: tSelectors);
+BEGIN
+  IF Selectors # NoSelectors THEN
+    CodeSelectors (Selectors^.Selectors.Next);
+    WriteIdent (f, Selectors^.Selectors.Selector);WriteC (f, '.');
+  END;
+END CodeSelectors;
+
+(*
+ *	generate code for type casts
+ *)
+
+PROCEDURE CodeCast	(Type: tType);
+BEGIN
+  WriteC (f, '('); CodeTypeName (Type); CodeDeclarator1 (Type); CodeDeclarator2 (Type); WriteC (f, ')');
+END CodeCast;
+
+PROCEDURE CodeCastVAR	(Type: tType);
+BEGIN
+  WriteC (f, '('); CodeTypeName (Type); CodeDeclarator1 (Type); WriteS (f, ' *'); CodeDeclarator2 (Type); WriteC (f, ')');
+END CodeCastVAR;
+
+(*
+ *	generate code for standard procedure MIN
+ *)
+
+PROCEDURE CodeMIN	(Type: tType);
+VAR Object: tObject;
+BEGIN
+  CASE Type^.Kind OF
+  | ShortInt	: WriteS (f, 'MIN_SHORTINT');
+  | LongInt	: WriteS (f, 'MIN_LONGINT');
+  | ShortCard	: WriteS (f, 'MIN_SHORTCARD');
+  | LongCard	: WriteS (f, 'MIN_LONGCARD');
+  | Real	: WriteS (f, 'MIN_REAL');
+  | LongReal	: WriteS (f, 'MIN_LONGREAL');
+  | Bool	: WriteS (f, 'MIN_BOOLEAN');
+  | Char	: WriteS (f, 'MIN_CHAR');
+  | Enumeration1: WITH Type^.Enumeration1 DO
+		    Object := GetLiteral (Objects, 0);
+		  END;
+		  WriteIdent (f, Object^.EnumLiteral1.CIdent);
+  | Subrange1	: CodeValue (Type^.Subrange1.Lwb);
+		  IF IsIntType (Type) AND Cast (cPassValue, Type, TypeIntCard) THEN WriteC (f, 'L'); END;
+  ELSE
+  END;
+END CodeMIN;
+
+(*
+ *	generate code for standard procedure MAX
+ *)
+
+PROCEDURE CodeMAX	(Type: tType);
+VAR Object: tObject;
+BEGIN
+  CASE Type^.Kind OF
+  | ShortInt	: WriteS (f, 'MAX_SHORTINT');
+  | LongInt	: WriteS (f, 'MAX_LONGINT');
+  | ShortCard	: WriteS (f, 'MAX_SHORTCARD');
+  | LongCard	: WriteS (f, 'MAX_LONGCARD');
+  | Real	: WriteS (f, 'MAX_REAL');
+  | LongReal	: WriteS (f, 'MAX_LONGREAL');
+  | Bool	: WriteS (f, 'MAX_BOOLEAN');
+  | Char	: WriteS (f, 'MAX_CHAR');
+  | Enumeration1: WITH Type^.Enumeration1 DO
+		    Object := GetLiteral (Objects, MaxValue);
+		  END;
+		  WriteIdent (f, Object^.EnumLiteral1.CIdent);
+  | Subrange1	: CodeValue (Type^.Subrange1.Upb);
+		  IF IsIntType (Type) AND Cast (cPassValue, Type, TypeIntCard) THEN WriteC (f, 'L'); END;
+  ELSE
+  END;
+END CodeMAX;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+PROCEDURE yyAbort (yyFunction: ARRAY OF CHAR);
+ BEGIN
+  IO.WriteS (IO.StdError, 'Error: module Code, routine ');
+  IO.WriteS (IO.StdError, yyFunction);
+  IO.WriteS (IO.StdError, ' failed');
+  IO.WriteNl (IO.StdError);
+  Exit;
+ END yyAbort;
+
+PROCEDURE yyIsEqual (yya, yyb: ARRAY OF SYSTEM.BYTE): BOOLEAN;
+ VAR yyi	: INTEGER;
+ BEGIN
+  FOR yyi := 0 TO INTEGER (HIGH (yya)) DO
+   IF yya [yyi] # yyb [yyi] THEN RETURN FALSE; END;
+  END;
+  RETURN TRUE;
+ END yyIsEqual;
+
+PROCEDURE CodeCompUnits (yyP1: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 4: yyR4: RECORD
+  DefMod: tTree;
+  END;
+ END; END;
+ BEGIN
+  IF (yyP1^.Kind = Tree.ROOT) THEN
+(* line 1047 "" *)
+(* line 1048 "" *)
+      CodeCompUnits (yyP1^.ROOT.CompUnits);
+      RETURN;
+
+  END;
+  IF (yyP1^.Kind = Tree.DefMod) THEN
+  IF (yyP1^.DefMod.Next^.Kind = Tree.CompUnits0) THEN
+(* line 1050 "" *)
+(* line 1051 "" *)
+      
+		f := OpenHeader (yyP1^.DefMod.Ident);
+
+		WriteS (f, '#define DEFINITION_');WriteIdent (f, yyP1^.DefMod.Ident); WriteNl (f);
+		WriteNl (f);
+
+		CodeImports (yyP1^.DefMod.Import);
+		CodeDefs1 (yyP1^.DefMod.Decls);
+
+		WriteS (f, 'extern void BEGIN_');WriteIdent (f, yyP1^.DefMod.Ident);WriteS (f, '();'); WriteNl (f);
+
+		WriteClose (f);
+;
+      RETURN;
+
+  END;
+  IF Tree.IsType (yyP1^.DefMod.Next, Tree.CompUnit) THEN
+(* line 1065 "" *)
+(* line 1066 "" *)
+      
+		(* Associate the name of the definition module with	*)
+		(* a pointer to its attributed structure tree (used to	*)
+		(* access the import statements and the declarations	*)
+		(* within the corresponding implementation module).	*)
+		PutAssoc (yyP1^.DefMod.Ident, yyP1);
+
+		IF OptionIsSet ('i') THEN
+		  f := OpenHeader (yyP1^.DefMod.Ident);
+
+		  WriteS (f, '#define DEFINITION_');WriteIdent (f, yyP1^.DefMod.Ident); WriteNl (f);
+		  WriteNl (f);
+
+		  CodeImports (yyP1^.DefMod.Import);
+		  CodeDefs1 (yyP1^.DefMod.Decls);
+
+		  WriteS (f, 'extern void BEGIN_');WriteIdent (f, yyP1^.DefMod.Ident);WriteS (f, '();'); WriteNl (f);
+
+		  WriteClose (f);
+		END;
+
+		CodeCompUnits (yyP1^.DefMod.Next);
+;
+      RETURN;
+
+  END;
+  END;
+  IF (yyP1^.Kind = Tree.ProgMod) THEN
+  IF (yyP1^.ProgMod.Next^.Kind = Tree.CompUnits0) THEN
+(* line 1090 "" *)
+    WITH yyTempo.yyR4 DO
+   LOOP
+(* line 1091 "" *)
+      IF NOT (yyP1^.ProgMod.Kind = Implementation) THEN EXIT; END;
+(* line 1092 "" *)
+      ;
+(* line 1093 "" *)
+      
+		f := OpenProgram (yyP1^.ProgMod.Ident);
+
+		(* DefMod is a pointer to the attributed	*)
+		(* structure tree of the corresponding		*)
+  		(* definition module.				*)
+		GetAssoc (yyP1^.ProgMod.Ident, DefMod);
+		IF DefMod = NoTree THEN
+		  CompilerError ("Code.CodeCompUnits");
+		END;
+
+		WriteS (f, '#include "SYSTEM_.h"'); WriteNl (f);
+		WriteNl (f);
+
+		CodeImports (yyP1^.ProgMod.Import);
+
+		WriteS (f, '#ifndef DEFINITION_');WriteIdent (f, yyP1^.ProgMod.Ident); WriteNl (f);
+		WriteS (f, '#include "');WriteIdent (f, yyP1^.ProgMod.Ident);WriteS (f, '.h"'); WriteNl (f);
+		WriteS (f, '#endif'); WriteNl (f);
+		WriteNl (f);
+
+		CodeDefs2 (DefMod^.DefMod.Decls);
+		WriteNl (f);
+
+		CodeDecls1 (yyP1^.ProgMod.Decls);
+		WriteNl (f);
+
+		GenGlobalPtrs (yyP1^.ProgMod.GlobalPtrs);
+		GlobalPtrs := yyP1^.ProgMod.GlobalPtrs;
+
+		CodePointers (Static, yyP1^.ProgMod.GlobalPtrs);
+		WriteNl (f);
+		
+		CodeProcs (yyP1^.ProgMod.Decls);
+
+		WriteS (f, 'void BEGIN_');WriteIdent (f, yyP1^.ProgMod.Ident);WriteS (f, '()'); WriteNl (f);
+		WriteC (f, '{'); WriteNl (f);
+		WriteS (f, '  static BOOLEAN has_been_called = FALSE;'); WriteNl (f);
+		WriteNl (f);
+
+INC (Indent, 2);		   CodeStrings (yyP1^.ProgMod.Strings);
+		   IF yyP1^.ProgMod.Strings # NoStrings THEN WriteNl (f); END;
+
+		WriteS (f, '  if (!has_been_called) {'); WriteNl (f);
+		WriteS (f, '    has_been_called = TRUE;'); WriteNl (f);
+		WriteNl (f);
+
+		     (* To ensure the initialization of all (global)	*)
+		     (* modules, the import statements from the		*)
+		     (* definition module have to be considered too	*)
+INC (Indent, 2);		     CodeInits (DefMod^.DefMod.Import);
+		     CodeInits (yyP1^.ProgMod.Import);
+		     CodeStrncpy (yyP1^.ProgMod.Strings);
+		     CodeInits (yyP1^.ProgMod.Decls);
+		WriteNl (f);
+		     CodeStmts (yyP1^.ProgMod.Stmts);
+
+DEC (Indent, 4);		WriteS (f, '  }'); WriteNl (f);
+		WriteC (f, '}'); WriteNl (f);
+
+		WriteClose (f);
+;
+      RETURN;
+   END;
+    END;
+
+(* line 1156 "" *)
+   LOOP
+(* line 1157 "" *)
+      IF NOT (yyP1^.ProgMod.Kind = Program) THEN EXIT; END;
+(* line 1158 "" *)
+      
+		f := OpenProgram (yyP1^.ProgMod.Ident);
+
+		WriteS (f, '#include "SYSTEM_.h"'); WriteNl (f);
+		WriteNl (f);
+
+		CodeImports (yyP1^.ProgMod.Import);
+
+		CodeDecls1 (yyP1^.ProgMod.Decls);
+		WriteNl (f);
+
+		GenGlobalPtrs (yyP1^.ProgMod.GlobalPtrs);
+		GlobalPtrs := yyP1^.ProgMod.GlobalPtrs;
+
+		CodePointers (Static, yyP1^.ProgMod.GlobalPtrs);
+		WriteNl (f);
+		
+		CodeProcs (yyP1^.ProgMod.Decls);
+
+		WriteS (f, 'void BEGIN_MODULE()'); WriteNl (f);
+		WriteC (f, '{'); WriteNl (f);
+INC (Indent, 2);		  CodeStrings (yyP1^.ProgMod.Strings);
+		  IF yyP1^.ProgMod.Strings # NoStrings THEN WriteNl (f); END;
+
+		  CodeInits (yyP1^.ProgMod.Import);
+		  CodeStrncpy (yyP1^.ProgMod.Strings);
+		  CodeInits (yyP1^.ProgMod.Decls);
+		WriteNl (f);
+		  CodeStmts (yyP1^.ProgMod.Stmts);
+DEC (Indent, 2);		WriteC (f, '}'); WriteNl (f);
+
+		WriteClose (f);
+;
+      RETURN;
+   END;
+
+  END;
+  END;
+ END CodeCompUnits;
+
+PROCEDURE CodeImports (yyP2: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (yyP2^.Kind = Tree.From) THEN
+(* line 1198 "" *)
+   LOOP
+(* line 1199 "" *)
+      IF NOT (yyP2^.From.Ident # IdentSYSTEM) THEN EXIT; END;
+(* line 1200 "" *)
+      WriteS (f, '#ifndef DEFINITION_');
+(* line 1200 "" *)
+      WriteIdent (f, yyP2^.From.Ident);
+(* line 1200 "" *)
+      WriteNl (f);
+(* line 1201 "" *)
+      WriteS (f, '#include "');
+(* line 1201 "" *)
+      WriteIdent (f, yyP2^.From.Ident);
+(* line 1201 "" *)
+      WriteS (f, '.h"');
+(* line 1201 "" *)
+      WriteNl (f);
+(* line 1202 "" *)
+      WriteS (f, '#endif');
+(* line 1202 "" *)
+      WriteNl (f);
+(* line 1203 "" *)
+      WriteNl (f);
+(* line 1204 "" *)
+      CodeImports (yyP2^.From.Next);
+      RETURN;
+   END;
+
+(* line 1206 "" *)
+(* line 1207 "" *)
+      CodeImports (yyP2^.From.Next);
+      RETURN;
+
+  END;
+  IF (yyP2^.Kind = Tree.Objects) THEN
+(* line 1209 "" *)
+(* line 1210 "" *)
+      CodeImports (yyP2^.Objects.ImpIds);
+(* line 1211 "" *)
+      CodeImports (yyP2^.Objects.Next);
+      RETURN;
+
+  END;
+  IF (yyP2^.Kind = Tree.ImpIds1) THEN
+(* line 1213 "" *)
+   LOOP
+(* line 1214 "" *)
+      IF NOT (yyP2^.ImpIds1.Ident # IdentSYSTEM) THEN EXIT; END;
+(* line 1215 "" *)
+      WriteS (f, '#ifndef DEFINITION_');
+(* line 1215 "" *)
+      WriteIdent (f, yyP2^.ImpIds1.Ident);
+(* line 1215 "" *)
+      WriteNl (f);
+(* line 1216 "" *)
+      WriteS (f, '#include "');
+(* line 1216 "" *)
+      WriteIdent (f, yyP2^.ImpIds1.Ident);
+(* line 1216 "" *)
+      WriteS (f, '.h"');
+(* line 1216 "" *)
+      WriteNl (f);
+(* line 1217 "" *)
+      WriteS (f, '#endif');
+(* line 1217 "" *)
+      WriteNl (f);
+(* line 1218 "" *)
+      WriteNl (f);
+(* line 1219 "" *)
+      CodeImports (yyP2^.ImpIds1.Next);
+      RETURN;
+   END;
+
+(* line 1221 "" *)
+(* line 1222 "" *)
+      CodeImports (yyP2^.ImpIds1.Next);
+      RETURN;
+
+  END;
+ END CodeImports;
+
+PROCEDURE CodeInits (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.From) THEN
+(* line 1230 "" *)
+   LOOP
+(* line 1231 "" *)
+      IF NOT (t^.From.Ident # IdentSYSTEM) THEN EXIT; END;
+(* line 1232 "" *)
+      WriteSpaces (f, Indent);
+(* line 1232 "" *)
+      WriteS (f, 'BEGIN_');
+(* line 1232 "" *)
+      WriteIdent (f, t^.From.Ident);
+(* line 1232 "" *)
+      WriteS (f, '();');
+(* line 1232 "" *)
+      WriteNl (f);
+(* line 1233 "" *)
+      CodeInits (t^.From.Next);
+      RETURN;
+   END;
+
+(* line 1235 "" *)
+(* line 1236 "" *)
+      CodeInits (t^.From.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Objects) THEN
+(* line 1238 "" *)
+(* line 1239 "" *)
+      CodeInits (t^.Objects.ImpIds);
+(* line 1240 "" *)
+      CodeInits (t^.Objects.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.ImpIds1) THEN
+(* line 1242 "" *)
+   LOOP
+(* line 1243 "" *)
+      IF NOT (t^.ImpIds1.Ident # IdentSYSTEM) THEN EXIT; END;
+(* line 1244 "" *)
+      WriteSpaces (f, Indent);
+(* line 1244 "" *)
+      WriteS (f, 'BEGIN_');
+(* line 1244 "" *)
+      WriteIdent (f, t^.ImpIds1.Ident);
+(* line 1244 "" *)
+      WriteS (f, '();');
+(* line 1244 "" *)
+      WriteNl (f);
+(* line 1245 "" *)
+      CodeInits (t^.ImpIds1.Next);
+      RETURN;
+   END;
+
+(* line 1247 "" *)
+(* line 1248 "" *)
+      CodeInits (t^.ImpIds1.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Module) THEN
+(* line 1250 "" *)
+(* line 1251 "" *)
+      WriteSpaces (f, Indent);
+(* line 1251 "" *)
+      WriteIdent (f, t ^ . Module . CIdent);
+(* line 1251 "" *)
+      WriteS (f, '();');
+(* line 1251 "" *)
+      WriteNl (f);
+(* line 1252 "" *)
+      CodeInits (t^.Module.Decls);
+(* line 1253 "" *)
+      CodeInits (t^.Module.Next);
+      RETURN;
+
+  END;
+  IF Tree.IsType (t, Tree.Decl) THEN
+(* line 1255 "" *)
+(* line 1256 "" *)
+      CodeInits (t^.Decl.Next);
+      RETURN;
+
+  END;
+ END CodeInits;
+
+PROCEDURE CodeDefs1 (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Var) THEN
+(* line 1265 "" *)
+(* line 1266 "" *)
+      CodeEnums (t^.Var.Type);
+(* line 1267 "" *)
+      WriteS (f, 'extern ');
+(* line 1267 "" *)
+      CodeType (t^.Var.Type, Full);
+(* line 1267 "" *)
+      WriteC (f, ' ');
+(* line 1267 "" *)
+      CodeIds (t^.Var.VarIds, t^.Var.Type);
+(* line 1267 "" *)
+      WriteC (f, ';');
+(* line 1267 "" *)
+      WriteNl (f);
+(* line 1268 "" *)
+      CodeDefs1 (t^.Var.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Const) THEN
+  IF (t^.Const.Expr^.Kind = Tree.StringConst) THEN
+(* line 1270 "" *)
+   LOOP
+(* line 1271 "" *)
+      IF NOT (Length (t^.Const.Expr^.StringConst.StringVal) > 1) THEN EXIT; END;
+(* line 1272 "" *)
+      WriteS (f, 'extern CHAR ');
+(* line 1272 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1272 "" *)
+      WriteS (f, '[];');
+(* line 1272 "" *)
+      WriteNl (f);
+(* line 1273 "" *)
+      CodeDefs1 (t^.Const.Next);
+      RETURN;
+   END;
+
+  END;
+(* line 1275 "" *)
+   LOOP
+(* line 1276 "" *)
+      IF NOT (t^.Const.Expr ^ . Expr . IsCConst) THEN EXIT; END;
+(* line 1277 "" *)
+      WriteS (f, '#define ');
+(* line 1277 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1277 "" *)
+      WriteC (f, '	');
+(* line 1277 "" *)
+      CodeExpr (t^.Const.Expr, pMaxPrec);
+(* line 1277 "" *)
+      WriteNl (f);
+(* line 1278 "" *)
+      CodeDefs1 (t^.Const.Next);
+      RETURN;
+   END;
+
+(* line 1280 "" *)
+(* line 1281 "" *)
+      WriteS (f, '#define ');
+(* line 1281 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1281 "" *)
+      WriteC (f, '	');
+(* line 1281 "" *)
+      CodeValue (t ^ . Const . Object ^ . Const1 . Value);
+(* line 1281 "" *)
+      WriteNl (f);
+(* line 1282 "" *)
+      CodeDefs1 (t^.Const.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.TypeDecl) THEN
+(* line 1284 "" *)
+(* line 1285 "" *)
+      CodeEnums (t^.TypeDecl.Type);
+(* line 1286 "" *)
+      WriteS (f, 'typedef ');
+(* line 1286 "" *)
+      CodeType (t^.TypeDecl.Type, Full);
+(* line 1286 "" *)
+      WriteC (f, ' ');
+(* line 1287 "" *)
+      CodeDecla (t^.TypeDecl.Type, Before);
+(* line 1287 "" *)
+      WriteIdent (f, t ^ . TypeDecl . CIdent);
+(* line 1287 "" *)
+      CodeDecla (t^.TypeDecl.Type, After);
+(* line 1287 "" *)
+      WriteC (f, ';');
+(* line 1287 "" *)
+      WriteNl (f);
+(* line 1288 "" *)
+      CodeDefs1 (t^.TypeDecl.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.ProcHead) THEN
+(* line 1290 "" *)
+(* line 1291 "" *)
+      WriteS (f, 'extern ');
+(* line 1291 "" *)
+      CodeType (t^.ProcHead.ResultType, Full);
+(* line 1291 "" *)
+      WriteC (f, ' ');
+(* line 1291 "" *)
+      WriteIdent (f, t ^ . ProcHead . CIdent);
+(* line 1292 "" *)
+      WriteS (f, ' ARGS((');
+(* line 1292 "" *)
+      CodeFormals3 (t^.ProcHead.Formals, NoIdent);
+(* line 1292 "" *)
+      WriteS (f, '));');
+(* line 1292 "" *)
+      WriteNl (f);
+(* line 1293 "" *)
+      CodeDefs1 (t^.ProcHead.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Opaque) THEN
+(* line 1295 "" *)
+(* line 1296 "" *)
+      WriteS (f, 'typedef OPAQUE ');
+(* line 1296 "" *)
+      WriteIdent (f, t ^ . Opaque . CIdent);
+(* line 1296 "" *)
+      WriteC (f, ';');
+(* line 1296 "" *)
+      WriteNl (f);
+(* line 1297 "" *)
+      CodeDefs1 (t^.Opaque.Next);
+      RETURN;
+
+  END;
+ END CodeDefs1;
+
+PROCEDURE CodeDefs2 (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Var) THEN
+(* line 1306 "" *)
+(* line 1307 "" *)
+      CodeType (t^.Var.Type, NonFull);
+(* line 1307 "" *)
+      WriteC (f, ' ');
+(* line 1307 "" *)
+      CodeIds (t^.Var.VarIds, t^.Var.Type);
+(* line 1307 "" *)
+      WriteC (f, ';');
+(* line 1307 "" *)
+      WriteNl (f);
+(* line 1308 "" *)
+      CodeDefs2 (t^.Var.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Const) THEN
+  IF (t^.Const.Expr^.Kind = Tree.StringConst) THEN
+(* line 1310 "" *)
+   LOOP
+(* line 1311 "" *)
+      IF NOT (Length (t^.Const.Expr^.StringConst.StringVal) > 1) THEN EXIT; END;
+(* line 1312 "" *)
+      WriteS (f, 'CHAR ');
+(* line 1312 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1312 "" *)
+      WriteS (f, ' [] = ');
+(* line 1312 "" *)
+      CodeString1 (t^.Const.Expr^.StringConst.StringVal);
+(* line 1312 "" *)
+      WriteC (f, ';');
+(* line 1312 "" *)
+      WriteNl (f);
+(* line 1313 "" *)
+      CodeDefs2 (t^.Const.Next);
+      RETURN;
+   END;
+
+  END;
+  END;
+  IF Tree.IsType (t, Tree.Decl) THEN
+(* line 1315 "" *)
+(* line 1316 "" *)
+      CodeDefs2 (t^.Decl.Next);
+      RETURN;
+
+  END;
+ END CodeDefs2;
+
+PROCEDURE CodeDecls1 (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Var) THEN
+(* line 1329 "" *)
+   LOOP
+(* line 1330 "" *)
+      IF NOT (t ^ . Var . IsGlobal) THEN EXIT; END;
+(* line 1331 "" *)
+      CodeEnums (t^.Var.Type);
+(* line 1332 "" *)
+      WriteS (f, 'static ');
+(* line 1332 "" *)
+      CodeType (t^.Var.Type, Full);
+(* line 1332 "" *)
+      WriteC (f, ' ');
+(* line 1332 "" *)
+      CodeIds (t^.Var.VarIds, t^.Var.Type);
+(* line 1332 "" *)
+      WriteC (f, ';');
+(* line 1332 "" *)
+      WriteNl (f);
+(* line 1333 "" *)
+      CodeDecls1 (t^.Var.Next);
+      RETURN;
+   END;
+
+(* line 1335 "" *)
+   LOOP
+(* line 1336 "" *)
+      IF NOT (NOT t ^ . Var . IsGlobal) THEN EXIT; END;
+(* line 1337 "" *)
+      CodeEnums (t^.Var.Type);
+(* line 1338 "" *)
+      CodeStruct (t^.Var.Type);
+(* line 1339 "" *)
+      CodeDecls1 (t^.Var.Next);
+      RETURN;
+   END;
+
+  END;
+  IF (t^.Kind = Tree.Const) THEN
+  IF (t^.Const.Expr^.Kind = Tree.StringConst) THEN
+(* line 1341 "" *)
+   LOOP
+(* line 1342 "" *)
+      IF NOT (Length (t^.Const.Expr^.StringConst.StringVal) > 1) THEN EXIT; END;
+(* line 1343 "" *)
+      WriteS (f, 'static CHAR ');
+(* line 1343 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1343 "" *)
+      WriteS (f, ' [] = ');
+(* line 1343 "" *)
+      CodeString1 (t^.Const.Expr^.StringConst.StringVal);
+(* line 1343 "" *)
+      WriteC (f, ';');
+(* line 1343 "" *)
+      WriteNl (f);
+(* line 1344 "" *)
+      CodeDecls1 (t^.Const.Next);
+      RETURN;
+   END;
+
+  END;
+(* line 1346 "" *)
+   LOOP
+(* line 1347 "" *)
+      IF NOT (t^.Const.Expr ^ . Expr . IsCConst) THEN EXIT; END;
+(* line 1348 "" *)
+      WriteS (f, '#define ');
+(* line 1348 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1348 "" *)
+      WriteC (f, '	');
+(* line 1348 "" *)
+      CodeExpr (t^.Const.Expr, pMaxPrec);
+(* line 1348 "" *)
+      WriteNl (f);
+(* line 1349 "" *)
+      CodeDecls1 (t^.Const.Next);
+      RETURN;
+   END;
+
+(* line 1351 "" *)
+(* line 1352 "" *)
+      WriteS (f, '#define ');
+(* line 1352 "" *)
+      WriteIdent (f, t ^ . Const . CIdent);
+(* line 1352 "" *)
+      WriteC (f, '	');
+(* line 1352 "" *)
+      CodeValue (t ^ . Const . Object ^ . Const1 . Value);
+(* line 1352 "" *)
+      WriteNl (f);
+(* line 1353 "" *)
+      CodeDecls1 (t^.Const.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.TypeDecl) THEN
+(* line 1355 "" *)
+(* line 1356 "" *)
+      CodeEnums (t^.TypeDecl.Type);
+(* line 1357 "" *)
+      WriteS (f, 'typedef ');
+(* line 1357 "" *)
+      CodeType (t^.TypeDecl.Type, Full);
+(* line 1357 "" *)
+      WriteC (f, ' ');
+(* line 1358 "" *)
+      CodeDecla (t^.TypeDecl.Type, Before);
+(* line 1358 "" *)
+      WriteIdent (f, t ^ . TypeDecl . CIdent);
+(* line 1358 "" *)
+      CodeDecla (t^.TypeDecl.Type, After);
+(* line 1358 "" *)
+      WriteC (f, ';');
+(* line 1358 "" *)
+      WriteNl (f);
+(* line 1359 "" *)
+      CodeDecls1 (t^.TypeDecl.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Proc) THEN
+(* line 1361 "" *)
+   LOOP
+(* line 1362 "" *)
+      IF NOT (NOT IsExported (t ^ . Proc . Object)) THEN EXIT; END;
+(* line 1363 "" *)
+      WriteS (f, 'static ');
+(* line 1363 "" *)
+      CodeType (t^.Proc.ResultType, Full);
+(* line 1363 "" *)
+      WriteC (f, ' ');
+(* line 1363 "" *)
+      WriteIdent (f, t ^ . Proc . CIdent);
+(* line 1364 "" *)
+      WriteS (f, ' ARGS((');
+(* line 1364 "" *)
+      CodeFormals3 (t^.Proc.Formals, NoIdent);
+(* line 1364 "" *)
+      WriteS (f, '));');
+(* line 1364 "" *)
+      WriteNl (f);
+(* line 1365 "" *)
+      CodeDecls1 (t^.Proc.Decls);
+(* line 1366 "" *)
+      CodeDecls1 (t^.Proc.Next);
+      RETURN;
+   END;
+
+(* line 1368 "" *)
+(* line 1369 "" *)
+      CodeDecls1 (t^.Proc.Decls);
+(* line 1370 "" *)
+      CodeDecls1 (t^.Proc.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Module) THEN
+(* line 1372 "" *)
+(* line 1373 "" *)
+      CodeDecls1 (t^.Module.Decls);
+(* line 1374 "" *)
+      CodeDecls1 (t^.Module.Next);
+      RETURN;
+
+  END;
+ END CodeDecls1;
+
+PROCEDURE CodeType (t: Tree.tTree; Full: BOOLEAN);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 1: yyR1: RECORD
+  Lwb: tValue;
+  LwbExpr: tTree;
+  UpbExpr: tTree;
+  END;
+ | 2: yyR2: RECORD
+  Upb: tValue;
+  END;
+ | 3: yyR3: RECORD
+  Lwb: tValue;
+  Upb: tValue;
+  END;
+ END; END;
+ BEGIN
+
+  CASE t^.Kind OF
+  | Tree.Array:
+(* line 1387 "" *)
+    WITH yyTempo.yyR1 DO
+   LOOP
+(* line 1388 "" *)
+      IF NOT (t^.Array.IndexType ^ . SimpleType . Type2 ^ . Kind = Subrange1) THEN EXIT; END;
+(* line 1389 "" *)
+      ;
+(* line 1390 "" *)
+      
+		IF Full THEN
+		  GetLwb (t^.Array.IndexType^.SimpleType.Type2, Lwb);
+		  LwbExpr := t^.Array.IndexType^.SimpleType.Type2^.Subrange1.LwbExpr;
+		  UpbExpr := t^.Array.IndexType^.SimpleType.Type2^.Subrange1.UpbExpr;
+
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Array.Type2^.Array1.StructId);WriteS (f, ' {'); WriteNl (f);
+INC (Indent, 4);WriteSpaces (f, Indent);		      CodeType (t^.Array.ElemType, Full); WriteC (f, ' ');
+		      CodeDecla (t^.Array.ElemType, Before);
+		      WriteS (f, 'A[');
+		       IF UpbExpr^.Expr.IsCConst THEN
+			 IF ValueToInt (Lwb) # 0 THEN
+			   CodeExpr (UpbExpr, pMinus + 1);
+		         ELSE
+			   CodeExpr (UpbExpr, pPlus + 1);
+		         END;
+		       ELSE
+		         CodeValue (t^.Array.IndexType^.SimpleType.Type2^.Subrange1.Upb);
+		       END;
+		       IF ValueToInt (Lwb) # 0 THEN
+		         WriteS (f, ' - ');
+		         IF LwbExpr^.Expr.IsCConst THEN
+		           CodeExpr (LwbExpr, pMinus);
+		         ELSE
+			   CodeValue (Lwb);
+		         END;
+		       END;
+		       WriteS (f, ' + 1');
+		      WriteC (f, ']');
+		      CodeDecla (t^.Array.ElemType, After); WriteC (f, ';'); WriteNl (f);
+DEC (Indent, 4);WriteSpaces (f, Indent);		  WriteC (f, '}');
+		ELSE
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Array.Type2^.Array1.StructId);
+		END;
+;
+      RETURN;
+   END;
+    END;
+
+(* line 1426 "" *)
+    WITH yyTempo.yyR2 DO
+   LOOP
+(* line 1427 "" *)
+      IF NOT (t^.Array.IndexType ^ . SimpleType . Type2 ^ . Kind = Enumeration1) THEN EXIT; END;
+(* line 1428 "" *)
+      ;
+(* line 1429 "" *)
+      
+		IF Full THEN
+		  GetUpb (t^.Array.IndexType^.SimpleType.Type2, Upb);
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Array.Type2^.Array1.StructId);WriteS (f, ' {'); WriteNl (f);
+INC (Indent, 4);WriteSpaces (f, Indent);		      CodeType (t^.Array.ElemType, Full); WriteC (f, ' ');
+		      CodeDecla (t^.Array.ElemType, Before);
+		      WriteS (f, 'A['); CodeValue (Upb); WriteS (f, ' + 1]');
+		      CodeDecla (t^.Array.ElemType, After); WriteC (f, ';'); WriteNl (f);
+DEC (Indent, 4);WriteSpaces (f, Indent);		  WriteC (f, '}');
+		ELSE
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Array.Type2^.Array1.StructId);
+		END;
+;
+      RETURN;
+   END;
+    END;
+
+(* line 1443 "" *)
+    WITH yyTempo.yyR3 DO
+(* line 1444 "" *)
+      ;
+(* line 1445 "" *)
+      
+		IF Full THEN
+		  GetLwb (t^.Array.IndexType^.SimpleType.Type2, Lwb);
+		  GetUpb (t^.Array.IndexType^.SimpleType.Type2, Upb);
+
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Array.Type2^.Array1.StructId);WriteS (f, ' {'); WriteNl (f);
+INC (Indent, 4);WriteSpaces (f, Indent);		      CodeType (t^.Array.ElemType, Full); WriteC (f, ' ');
+		      CodeDecla (t^.Array.ElemType, Before);
+		      WriteS (f, 'A[');WriteI (f, ValueToInt (Upb) - ValueToInt (Lwb) + 1, 1);WriteC (f, ']');
+		      CodeDecla (t^.Array.ElemType, After); WriteC (f, ';'); WriteNl (f);
+DEC (Indent, 4);WriteSpaces (f, Indent);		  WriteC (f, '}');
+		ELSE
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Array.Type2^.Array1.StructId);
+		END;
+;
+      RETURN;
+    END;
+
+  | Tree.Record:
+  IF (t^.Record.Fields^.Kind = Tree.Fields0) THEN
+(* line 1461 "" *)
+(* line 1464 "" *)
+      
+		IF Full THEN
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Record.Type2^.Record1.StructId);WriteS (f, ' {'); WriteNl (f);
+INC (Indent, 4);WriteSpaces (f, Indent);		      WriteS (f, 'char dummy;'); WriteNl (f);
+DEC (Indent, 4);WriteSpaces (f, Indent);		  WriteC (f, '}');
+		ELSE
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Record.Type2^.Record1.StructId);
+		END;
+;
+      RETURN;
+
+  END;
+  IF Tree.IsType (t^.Record.Fields, Tree.Fields1) THEN
+(* line 1474 "" *)
+(* line 1475 "" *)
+      
+		IF Full THEN
+		WriteS (f, 'struct ');WriteIdent (f, t^.Record.Type2^.Record1.StructId);WriteS (f, ' {'); WriteNl (f);
+INC (Indent, 4);		    CodeType (t^.Record.Fields, Full);
+DEC (Indent, 4);WriteSpaces (f, Indent);		WriteC (f, '}');
+		ELSE
+		  WriteS (f, 'struct ');WriteIdent (f, t^.Record.Type2^.Record1.StructId);
+		END;
+;
+      RETURN;
+
+  END;
+  | Tree.SetType:
+(* line 1485 "" *)
+(* line 1486 "" *)
+      WriteS (f, 'unsigned long');
+      RETURN;
+
+  | Tree.Pointer:
+  IF (t^.Pointer.TargetType^.Kind = Tree.TypeId0) THEN
+(* line 1488 "" *)
+   LOOP
+(* line 1489 "" *)
+      IF NOT ((IsForward (t ^ . Pointer . TypePos, t^.Pointer.TargetType ^ . TypeId0 . Object))) THEN EXIT; END;
+(* line 1490 "" *)
+      
+		CASE t^.Pointer.TargetType^.TypeId0.Type2^.Kind OF
+		| Record1	: WriteS (f, 'struct ');WriteIdent (f, t^.Pointer.TargetType^.TypeId0.Type2^.Record1.StructId);
+		| Array1	: WriteS (f, 'struct ');WriteIdent (f, t^.Pointer.TargetType^.TypeId0.Type2^.Array1.StructId);
+		ELSE
+		  WriteIdent (f, t^.Pointer.TargetType^.TypeId0.Object^.Object.CIdent);
+		  ErrorMessageP (StructTypeReq, Restriction, t^.Pointer.TargetType^.TypeId0.Pos);
+		END;
+;
+      RETURN;
+   END;
+
+  END;
+(* line 1500 "" *)
+(* line 1501 "" *)
+      CodeType (t^.Pointer.TargetType, Full);
+      RETURN;
+
+  | Tree.ProcType:
+(* line 1503 "" *)
+(* line 1504 "" *)
+      CodeType (t^.ProcType.ResultType, Full);
+      RETURN;
+
+  | Tree.Enumeration:
+(* line 1506 "" *)
+(* line 1507 "" *)
+      
+		IF TypeSize (t^.Enumeration.Type2) = SizeUnsignedChar THEN
+		  WriteS (f, 'unsigned char');
+		ELSE
+		  WriteS (f, 'unsigned short');
+		END;
+;
+      RETURN;
+
+  | Tree.Subrange:
+  IF (t^.Subrange.BaseType^.Kind = Tree.Void) THEN
+(* line 1515 "" *)
+(* line 1516 "" *)
+      CodeTypeName (t ^ . Subrange . Type2 ^ . Subrange1 . Type);
+      RETURN;
+
+  END;
+  IF Tree.IsType (t^.Subrange.BaseType, Tree.TypeId) THEN
+(* line 1518 "" *)
+(* line 1519 "" *)
+      WriteIdent (f, t^.Subrange.BaseType ^ . TypeId . Object ^ . Object . CIdent);
+      RETURN;
+
+  END;
+  | Tree.Void:
+(* line 1521 "" *)
+(* line 1522 "" *)
+      WriteS (f, 'void');
+      RETURN;
+
+  | Tree.TypeId
+  , Tree.TypeId0
+  , Tree.TypeId1:
+(* line 1524 "" *)
+(* line 1525 "" *)
+      WriteIdent (f, t ^ . TypeId . Object ^ . Object . CIdent);
+      RETURN;
+
+  | Tree.RecordSect:
+(* line 1527 "" *)
+(* line 1528 "" *)
+      WriteSpaces (f, Indent);
+(* line 1528 "" *)
+      CodeType (t^.RecordSect.Type, Full);
+(* line 1528 "" *)
+      WriteC (f, ' ');
+(* line 1528 "" *)
+      CodeIds (t^.RecordSect.FieldIds, t^.RecordSect.Type);
+(* line 1528 "" *)
+      WriteC (f, ';');
+(* line 1528 "" *)
+      WriteNl (f);
+(* line 1529 "" *)
+      CodeType (t^.RecordSect.Next, Full);
+      RETURN;
+
+  | Tree.VariantSect:
+  IF (t^.VariantSect.Variants^.Kind = Tree.Variants0) THEN
+  IF (t^.VariantSect.Else^.Kind = Tree.Fields0) THEN
+(* line 1531 "" *)
+(* line 1534 "" *)
+      CodeType (t^.VariantSect.TagField, Full);
+(* line 1535 "" *)
+      WriteSpaces (f, Indent);
+(* line 1535 "" *)
+      WriteS (f, 'union {');
+(* line 1535 "" *)
+      WriteNl (f);
+(* line 1536 "" *)
+      INC (Indent, 4);
+(* line 1536 "" *)
+      WriteSpaces (f, Indent);
+(* line 1536 "" *)
+      WriteS (f, 'char dummy;');
+(* line 1536 "" *)
+      WriteNl (f);
+(* line 1537 "" *)
+      DEC (Indent, 4);
+(* line 1537 "" *)
+      WriteSpaces (f, Indent);
+(* line 1537 "" *)
+      WriteS (f, '} ');
+(* line 1537 "" *)
+      WriteIdent (f, t ^ . VariantSect . UnionId);
+(* line 1537 "" *)
+      WriteC (f, ';');
+(* line 1537 "" *)
+      WriteNl (f);
+(* line 1538 "" *)
+      CodeType (t^.VariantSect.Next, Full);
+      RETURN;
+
+  END;
+  END;
+  IF (t^.VariantSect.Else^.Kind = Tree.Fields0) THEN
+(* line 1540 "" *)
+(* line 1541 "" *)
+      CodeType (t^.VariantSect.TagField, Full);
+(* line 1542 "" *)
+      WriteSpaces (f, Indent);
+(* line 1542 "" *)
+      WriteS (f, 'union {');
+(* line 1542 "" *)
+      WriteNl (f);
+(* line 1543 "" *)
+      INC (Indent, 4);
+(* line 1543 "" *)
+      CodeType (t^.VariantSect.Variants, Full);
+(* line 1544 "" *)
+      DEC (Indent, 4);
+(* line 1544 "" *)
+      WriteSpaces (f, Indent);
+(* line 1544 "" *)
+      WriteS (f, '} ');
+(* line 1544 "" *)
+      WriteIdent (f, t ^ . VariantSect . UnionId);
+(* line 1544 "" *)
+      WriteC (f, ';');
+(* line 1544 "" *)
+      WriteNl (f);
+(* line 1545 "" *)
+      CodeType (t^.VariantSect.Next, Full);
+      RETURN;
+
+  END;
+(* line 1547 "" *)
+(* line 1548 "" *)
+      CodeType (t^.VariantSect.TagField, Full);
+(* line 1549 "" *)
+      WriteSpaces (f, Indent);
+(* line 1549 "" *)
+      WriteS (f, 'union {');
+(* line 1549 "" *)
+      WriteNl (f);
+(* line 1550 "" *)
+      INC (Indent, 4);
+(* line 1550 "" *)
+      CodeType (t^.VariantSect.Variants, Full);
+(* line 1551 "" *)
+      WriteSpaces (f, Indent);
+(* line 1551 "" *)
+      WriteS (f, 'struct {');
+(* line 1551 "" *)
+      WriteNl (f);
+(* line 1552 "" *)
+      INC (Indent, 4);
+(* line 1552 "" *)
+      CodeType (t^.VariantSect.Else, Full);
+(* line 1553 "" *)
+      DEC (Indent, 4);
+(* line 1553 "" *)
+      WriteSpaces (f, Indent);
+(* line 1553 "" *)
+      WriteS (f, '} ');
+(* line 1553 "" *)
+      WriteIdent (f, t ^ . VariantSect . ElseId);
+(* line 1553 "" *)
+      WriteC (f, ';');
+(* line 1553 "" *)
+      WriteNl (f);
+(* line 1554 "" *)
+      DEC (Indent, 4);
+(* line 1554 "" *)
+      WriteSpaces (f, Indent);
+(* line 1554 "" *)
+      WriteS (f, '} ');
+(* line 1554 "" *)
+      WriteIdent (f, t ^ . VariantSect . UnionId);
+(* line 1554 "" *)
+      WriteC (f, ';');
+(* line 1554 "" *)
+      WriteNl (f);
+(* line 1555 "" *)
+      CodeType (t^.VariantSect.Next, Full);
+      RETURN;
+
+  | Tree.TagField1:
+(* line 1557 "" *)
+(* line 1558 "" *)
+      WriteSpaces (f, Indent);
+(* line 1558 "" *)
+      WriteIdent (f, t^.TagField1.Type ^ . TypeId . Object ^ . Object . CIdent);
+(* line 1558 "" *)
+      WriteC (f, ' ');
+(* line 1558 "" *)
+      WriteIdent (f, t ^ . TagField1 . CIdent);
+(* line 1558 "" *)
+      WriteC (f, ';');
+(* line 1558 "" *)
+      WriteNl (f);
+      RETURN;
+
+  | Tree.Variant:
+  IF (t^.Variant.Variant^.Kind = Tree.Fields0) THEN
+(* line 1560 "" *)
+(* line 1563 "" *)
+      WriteSpaces (f, Indent);
+(* line 1563 "" *)
+      WriteS (f, 'struct {');
+(* line 1563 "" *)
+      WriteNl (f);
+(* line 1564 "" *)
+      INC (Indent, 4);
+(* line 1564 "" *)
+      WriteSpaces (f, Indent);
+(* line 1564 "" *)
+      WriteS (f, 'char dummy;');
+(* line 1564 "" *)
+      WriteNl (f);
+(* line 1565 "" *)
+      DEC (Indent, 4);
+(* line 1565 "" *)
+      WriteSpaces (f, Indent);
+(* line 1565 "" *)
+      WriteS (f, '} ');
+(* line 1565 "" *)
+      WriteIdent (f, t ^ . Variant . StructId);
+(* line 1565 "" *)
+      WriteC (f, ';');
+(* line 1565 "" *)
+      WriteNl (f);
+(* line 1566 "" *)
+      CodeType (t^.Variant.Next, Full);
+      RETURN;
+
+  END;
+  IF Tree.IsType (t^.Variant.Variant, Tree.Fields1) THEN
+(* line 1568 "" *)
+(* line 1569 "" *)
+      WriteSpaces (f, Indent);
+(* line 1569 "" *)
+      WriteS (f, 'struct {');
+(* line 1569 "" *)
+      WriteNl (f);
+(* line 1570 "" *)
+      INC (Indent, 4);
+(* line 1570 "" *)
+      CodeType (t^.Variant.Variant, Full);
+(* line 1571 "" *)
+      DEC (Indent, 4);
+(* line 1571 "" *)
+      WriteSpaces (f, Indent);
+(* line 1571 "" *)
+      WriteS (f, '} ');
+(* line 1571 "" *)
+      WriteIdent (f, t ^ . Variant . StructId);
+(* line 1571 "" *)
+      WriteC (f, ';');
+(* line 1571 "" *)
+      WriteNl (f);
+(* line 1572 "" *)
+      CodeType (t^.Variant.Next, Full);
+      RETURN;
+
+  END;
+  ELSE END;
+
+ END CodeType;
+
+PROCEDURE CodeDecla (yyP3: Tree.tTree; Before: BOOLEAN);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (yyP3^.Kind = Tree.Pointer) THEN
+(* line 1581 "" *)
+(* line 1582 "" *)
+      CodeDecla (yyP3^.Pointer.TargetType, Before);
+(* line 1583 "" *)
+      
+		IF Before THEN WriteC (f, '*'); END;
+;
+      RETURN;
+
+  END;
+  IF (yyP3^.Kind = Tree.ProcType) THEN
+(* line 1587 "" *)
+(* line 1588 "" *)
+      
+		IF Before THEN WriteS (f, '(*'); ELSE WriteS (f, ') ARGS(('); CodeFormals4 (yyP3^.ProcType.FormalTypes); WriteS (f, '))'); END;
+;
+      RETURN;
+
+  END;
+ END CodeDecla;
+
+PROCEDURE CodeStruct (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Array) THEN
+(* line 1599 "" *)
+(* line 1600 "" *)
+      CodeType (t, Full);
+(* line 1600 "" *)
+      WriteC (f, ';');
+(* line 1600 "" *)
+      WriteNl (f);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Record) THEN
+(* line 1602 "" *)
+(* line 1603 "" *)
+      CodeType (t, Full);
+(* line 1603 "" *)
+      WriteC (f, ';');
+(* line 1603 "" *)
+      WriteNl (f);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Pointer) THEN
+(* line 1605 "" *)
+(* line 1606 "" *)
+      CodeStruct (t^.Pointer.TargetType);
+      RETURN;
+
+  END;
+ END CodeStruct;
+
+PROCEDURE CodeEnums (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+
+  CASE t^.Kind OF
+  | Tree.Array:
+(* line 1614 "" *)
+(* line 1615 "" *)
+      CodeEnums (t^.Array.IndexType);
+(* line 1616 "" *)
+      CodeEnums (t^.Array.ElemType);
+      RETURN;
+
+  | Tree.Record:
+(* line 1618 "" *)
+(* line 1619 "" *)
+      CodeEnums (t^.Record.Fields);
+      RETURN;
+
+  | Tree.SetType:
+(* line 1621 "" *)
+(* line 1622 "" *)
+      CodeEnums (t^.SetType.BaseType);
+      RETURN;
+
+  | Tree.Pointer:
+(* line 1624 "" *)
+(* line 1625 "" *)
+      CodeEnums (t^.Pointer.TargetType);
+      RETURN;
+
+  | Tree.Enumeration:
+(* line 1627 "" *)
+(* line 1628 "" *)
+      CodeEnums (t^.Enumeration.EnumIds);
+      RETURN;
+
+  | Tree.RecordSect:
+(* line 1630 "" *)
+(* line 1631 "" *)
+      CodeEnums (t^.RecordSect.Type);
+      RETURN;
+
+  | Tree.VariantSect:
+(* line 1633 "" *)
+(* line 1634 "" *)
+      CodeEnums (t^.VariantSect.Variants);
+(* line 1635 "" *)
+      CodeEnums (t^.VariantSect.Else);
+(* line 1636 "" *)
+      CodeEnums (t^.VariantSect.Next);
+      RETURN;
+
+  | Tree.Variant:
+(* line 1638 "" *)
+(* line 1639 "" *)
+      CodeEnums (t^.Variant.Variant);
+(* line 1640 "" *)
+      CodeEnums (t^.Variant.Next);
+      RETURN;
+
+  | Tree.EnumIds1:
+(* line 1642 "" *)
+(* line 1643 "" *)
+      WriteS (f, '#define ');
+(* line 1643 "" *)
+      WriteIdent (f, t ^ . EnumIds1 . CIdent);
+(* line 1643 "" *)
+      WriteC (f, '	');
+(* line 1644 "" *)
+      WriteI (f, t ^ . EnumIds1 . Object ^ . EnumLiteral1 . Index, 1);
+(* line 1644 "" *)
+      WriteNl (f);
+(* line 1645 "" *)
+      CodeEnums (t^.EnumIds1.Next);
+      RETURN;
+
+  ELSE END;
+
+ END CodeEnums;
+
+PROCEDURE CodeIds (t: Tree.tTree; Type: tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.VarIds1) THEN
+(* line 1655 "" *)
+(* line 1656 "" *)
+      CodeDecla (Type, Before);
+(* line 1656 "" *)
+      WriteIdent (f, t ^ . VarIds1 . CIdent);
+(* line 1656 "" *)
+      CodeDecla (Type, After);
+(* line 1657 "" *)
+      CodeSepa (t^.VarIds1.Next);
+(* line 1658 "" *)
+      CodeIds (t^.VarIds1.Next, Type);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.FieldIds1) THEN
+(* line 1660 "" *)
+(* line 1661 "" *)
+      CodeDecla (Type, Before);
+(* line 1661 "" *)
+      WriteIdent (f, t ^ . FieldIds1 . CIdent);
+(* line 1661 "" *)
+      CodeDecla (Type, After);
+(* line 1662 "" *)
+      CodeSepa (t^.FieldIds1.Next);
+(* line 1663 "" *)
+      CodeIds (t^.FieldIds1.Next, Type);
+      RETURN;
+
+  END;
+ END CodeIds;
+
+PROCEDURE CodeProcs (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 1: yyR1: RECORD
+  NewLine: BOOLEAN;
+  END;
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Proc) THEN
+(* line 1672 "" *)
+    WITH yyTempo.yyR1 DO
+(* line 1673 "" *)
+      ;
+(* line 1674 "" *)
+      
+		CodeProcs (t^.Proc.Decls);
+
+		GenParams (t^.Proc.VAROpens);
+		GenParams (t^.Proc.ValueOpens);
+		GenLocalPtrs (t^.Proc.LocalPtrs);
+
+		VAROpens	:= t^.Proc.VAROpens;
+		ValueOpens	:= t^.Proc.ValueOpens;
+		LocalPtrs	:= t^.Proc.LocalPtrs;
+
+		IF NOT IsExported (t^.Proc.Object) THEN WriteS (f, 'static '); END;
+		CodeType (t^.Proc.ResultType, Full); WriteC (f, ' ');WriteIdent (f, t^.Proc.CIdent);WriteNl (f);
+		WriteS (f, '# ifdef __STDC__'); WriteNl (f);
+		WriteC (f, '('); CodeFormals3 (t^.Proc.Formals, NoIdent); WriteC (f, ')'); WriteNl (f);
+		WriteS (f, '# else'); WriteNl (f);
+		WriteC (f, '('); CodeFormals1 (t^.Proc.Formals); WriteC (f, ')'); WriteNl (f);
+		CodeFormals2 (t^.Proc.Formals, NoIdent);
+		WriteS (f, '# endif'); WriteNl (f);
+		WriteC (f, '{'); WriteNl (f);
+		  NewLine := (t^.Proc.ValueOpens # NoCObjects) OR
+			     (t^.Proc.LocalPtrs  # NoCObjects) OR
+			     (t^.Proc.Strings    # NoStrings );
+INC (Indent, 2);		  CodeDecls2 (t^.Proc.Decls, NewLine);
+		  IF t^.Proc.ValueOpens # NoCObjects THEN
+WriteSpaces (f, Indent);		    WriteS (f, 'OPEN_ARRAY_LOCALS'); WriteNl (f);
+		  END;
+		  CodePointers (Auto, t^.Proc.LocalPtrs);
+		  CodeStrings (t^.Proc.Strings);
+		  IF NewLine THEN WriteNl (f); END;
+
+		  CodeAlloc   (t^.Proc.ValueOpens);
+		  CodeCopy    (t^.Proc.ValueOpens);
+		  CodePush    (t^.Proc.LocalPtrs);
+		  CodeStrncpy (t^.Proc.Strings);
+		  CodeInits   (t^.Proc.Decls);
+
+		  CodeStmts (t^.Proc.Stmts);
+
+		  IF GetResultType (GetType (t^.Proc.Object)) = TypeVOID THEN
+		    CodePop (t^.Proc.LocalPtrs);
+		    CodeFree (t^.Proc.ValueOpens);
+		  ELSE
+		    (* the last statement of a function must	*)
+		    (* be a return statement, hence no code to	*)
+		    (* release open array value parameters or	*)
+		    (* to restore global pointer variables has	*)
+		    (* to be generated here			*)
+		    IF OptionIsSet ('r') THEN
+WriteSpaces (f, Indent);		      WriteS (f, 'ReturnError(__FILE__, __LINE__);'); WriteNl (f);
+		    END;
+		  END;
+
+DEC (Indent, 2);		WriteC (f, '}'); WriteNl (f);
+		WriteNl (f);
+
+		VAROpens	:= NoCObjects;
+		ValueOpens	:= NoCObjects;
+		LocalPtrs	:= NoCObjects;
+;
+(* line 1734 "" *)
+      CodeProcs (t^.Proc.Next);
+      RETURN;
+    END;
+
+  END;
+  IF (t^.Kind = Tree.Module) THEN
+(* line 1736 "" *)
+(* line 1737 "" *)
+      CodeProcs (t^.Module.Decls);
+(* line 1738 "" *)
+      
+		WriteS (f, 'static void ');WriteIdent (f, t^.Module.CIdent);WriteS (f, '()'); WriteNl (f);
+		WriteC (f, '{'); WriteNl (f);
+INC (Indent, 2);		  CodeStrings (t^.Module.Strings);
+		  IF t^.Module.Strings # NoStrings THEN WriteNl (f); END;
+
+		  CodeStrncpy (t^.Module.Strings);
+		  CodeStmts (t^.Module.Stmts);
+DEC (Indent, 2);		WriteC (f, '}'); WriteNl (f);
+		WriteNl (f);
+;
+(* line 1749 "" *)
+      CodeProcs (t^.Module.Next);
+      RETURN;
+
+  END;
+  IF Tree.IsType (t, Tree.Decl) THEN
+(* line 1751 "" *)
+(* line 1752 "" *)
+      CodeProcs (t^.Decl.Next);
+      RETURN;
+
+  END;
+ END CodeProcs;
+
+PROCEDURE CodeFormals1 (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Formals1) THEN
+(* line 1761 "" *)
+(* line 1762 "" *)
+      CodeFormals1 (t^.Formals1.ParIds);
+(* line 1762 "" *)
+      CodeSepa (t^.Formals1.Next);
+(* line 1763 "" *)
+      CodeFormals1 (t^.Formals1.Next);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.ParIds1) THEN
+(* line 1765 "" *)
+   LOOP
+(* line 1766 "" *)
+      IF NOT ((IsOpenArray (t ^ . ParIds1 . Object))) THEN EXIT; END;
+(* line 1767 "" *)
+      WriteIdent (f, t ^ . ParIds1 . CIdent);
+(* line 1767 "" *)
+      WriteS (f, ', ');
+(* line 1768 "" *)
+      WriteIdent (f, GetParam (t ^ . ParIds1 . Object));
+(* line 1769 "" *)
+      CodeSepa (t^.ParIds1.Next);
+(* line 1770 "" *)
+      CodeFormals1 (t^.ParIds1.Next);
+      RETURN;
+   END;
+
+(* line 1772 "" *)
+(* line 1773 "" *)
+      WriteIdent (f, t ^ . ParIds1 . CIdent);
+(* line 1773 "" *)
+      CodeSepa (t^.ParIds1.Next);
+(* line 1774 "" *)
+      CodeFormals1 (t^.ParIds1.Next);
+      RETURN;
+
+  END;
+ END CodeFormals1;
+
+PROCEDURE CodeFormals2 (t: Tree.tTree; ElemTypeId: tIdent);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Formals1) THEN
+  IF Tree.IsType (t^.Formals1.Type, Tree.TypeId) THEN
+(* line 1785 "" *)
+(* line 1786 "" *)
+      WriteIdent (f, t^.Formals1.Type ^ . TypeId . Object ^ . Object . CIdent);
+(* line 1786 "" *)
+      WriteC (f, ' ');
+(* line 1786 "" *)
+      CodeFormals2 (t^.Formals1.ParIds, NoIdent);
+(* line 1786 "" *)
+      WriteC (f, ';');
+(* line 1786 "" *)
+      WriteNl (f);
+(* line 1787 "" *)
+      CodeFormals2 (t^.Formals1.Next, NoIdent);
+      RETURN;
+
+  END;
+  IF (t^.Formals1.Type^.Kind = Tree.Array) THEN
+  IF (t^.Formals1.Type^.Array.IsOpen =  TRUE) THEN
+  IF Tree.IsType (t^.Formals1.Type^.Array.ElemType, Tree.TypeId) THEN
+(* line 1789 "" *)
+(* line 1790 "" *)
+      CodeFormals2 (t^.Formals1.ParIds, t^.Formals1.Type^.Array.ElemType ^ . TypeId . Object ^ . Object . CIdent);
+(* line 1791 "" *)
+      CodeFormals2 (t^.Formals1.Next, NoIdent);
+      RETURN;
+
+  END;
+  END;
+  END;
+  END;
+  IF (t^.Kind = Tree.ParIds1) THEN
+(* line 1793 "" *)
+   LOOP
+(* line 1794 "" *)
+      IF NOT ((IsOpenArray (t ^ . ParIds1 . Object))) THEN EXIT; END;
+(* line 1795 "" *)
+      WriteIdent (f, ElemTypeId);
+(* line 1795 "" *)
+      WriteC (f, ' ');
+(* line 1795 "" *)
+      WriteIdent (f, t ^ . ParIds1 . CIdent);
+(* line 1795 "" *)
+      WriteS (f, '[];');
+(* line 1795 "" *)
+      WriteNl (f);
+(* line 1796 "" *)
+      WriteS (f, 'LONGCARD ');
+(* line 1796 "" *)
+      WriteIdent (f, GetParam (t ^ . ParIds1 . Object));
+(* line 1796 "" *)
+      WriteC (f, ';');
+(* line 1796 "" *)
+      WriteNl (f);
+(* line 1797 "" *)
+      CodeFormals2 (t^.ParIds1.Next, ElemTypeId);
+      RETURN;
+   END;
+
+(* line 1799 "" *)
+(* line 1800 "" *)
+       IF IsVAR (t^.ParIds1.Object) THEN WriteC (f, '*'); END; ;
+(* line 1801 "" *)
+      WriteIdent (f, t ^ . ParIds1 . CIdent);
+(* line 1801 "" *)
+      CodeSepa (t^.ParIds1.Next);
+(* line 1802 "" *)
+      CodeFormals2 (t^.ParIds1.Next, NoIdent);
+      RETURN;
+
+  END;
+ END CodeFormals2;
+
+PROCEDURE CodeFormals3 (t: Tree.tTree; TypeId: tIdent);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Formals1) THEN
+  IF Tree.IsType (t^.Formals1.Type, Tree.TypeId) THEN
+(* line 1813 "" *)
+(* line 1815 "" *)
+      CodeFormals3 (t^.Formals1.ParIds, t^.Formals1.Type ^ . TypeId . Object ^ . Object . CIdent);
+(* line 1816 "" *)
+      CodeSepa (t^.Formals1.Next);
+(* line 1817 "" *)
+      CodeFormals3 (t^.Formals1.Next, NoIdent);
+      RETURN;
+
+  END;
+  IF (t^.Formals1.Type^.Kind = Tree.Array) THEN
+  IF (t^.Formals1.Type^.Array.IsOpen =  TRUE) THEN
+  IF Tree.IsType (t^.Formals1.Type^.Array.ElemType, Tree.TypeId) THEN
+(* line 1813 "" *)
+(* line 1815 "" *)
+      CodeFormals3 (t^.Formals1.ParIds, t^.Formals1.Type^.Array.ElemType ^ . TypeId . Object ^ . Object . CIdent);
+(* line 1816 "" *)
+      CodeSepa (t^.Formals1.Next);
+(* line 1817 "" *)
+      CodeFormals3 (t^.Formals1.Next, NoIdent);
+      RETURN;
+
+  END;
+  END;
+  END;
+  END;
+  IF (t^.Kind = Tree.ParIds1) THEN
+(* line 1819 "" *)
+   LOOP
+(* line 1820 "" *)
+      IF NOT ((IsOpenArray (t ^ . ParIds1 . Object))) THEN EXIT; END;
+(* line 1821 "" *)
+      WriteIdent (f, TypeId);
+(* line 1821 "" *)
+      WriteC (f, ' ');
+(* line 1821 "" *)
+      WriteIdent (f, t ^ . ParIds1 . CIdent);
+(* line 1821 "" *)
+      WriteS (f, '[], ');
+(* line 1822 "" *)
+      WriteS (f, 'LONGCARD ');
+(* line 1822 "" *)
+      WriteIdent (f, GetParam (t ^ . ParIds1 . Object));
+(* line 1822 "" *)
+      CodeSepa (t^.ParIds1.Next);
+(* line 1823 "" *)
+      CodeFormals3 (t^.ParIds1.Next, TypeId);
+      RETURN;
+   END;
+
+(* line 1825 "" *)
+(* line 1826 "" *)
+      WriteIdent (f, TypeId);
+(* line 1826 "" *)
+       IF IsVAR (t^.ParIds1.Object) THEN WriteS (f, ' *'); ELSE WriteC (f, ' '); END; ;
+(* line 1827 "" *)
+      WriteIdent (f, t ^ . ParIds1 . CIdent);
+(* line 1827 "" *)
+      CodeSepa (t^.ParIds1.Next);
+(* line 1828 "" *)
+      CodeFormals3 (t^.ParIds1.Next, TypeId);
+      RETURN;
+
+  END;
+ END CodeFormals3;
+
+PROCEDURE CodeFormals4 (yyP4: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (yyP4^.Kind = Tree.FormalType) THEN
+(* line 1836 "" *)
+(* line 1837 "" *)
+      CodeType (yyP4^.FormalType.Type, Full);
+(* line 1838 "" *)
+       IF yyP4^.FormalType.IsVAR THEN WriteS (f, ' *'); END; ;
+(* line 1839 "" *)
+      CodeSepa (yyP4^.FormalType.Next);
+(* line 1840 "" *)
+      CodeFormals4 (yyP4^.FormalType.Next);
+      RETURN;
+
+  END;
+ END CodeFormals4;
+
+PROCEDURE CodeDecls2 (yyP5: Tree.tTree; VAR NewLine: BOOLEAN);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (yyP5^.Kind = Tree.Var) THEN
+(* line 1851 "" *)
+(* line 1852 "" *)
+      WriteSpaces (f, Indent);
+(* line 1852 "" *)
+      CodeType (yyP5^.Var.Type, NonFull);
+(* line 1852 "" *)
+      WriteC (f, ' ');
+(* line 1852 "" *)
+      CodeIds (yyP5^.Var.VarIds, yyP5^.Var.Type);
+(* line 1852 "" *)
+      WriteC (f, ';');
+(* line 1852 "" *)
+      WriteNl (f);
+(* line 1853 "" *)
+      NewLine := TRUE;
+(* line 1854 "" *)
+       CodeDecls2 (yyP5^.Var.Next, NewLine); ;
+      
+      RETURN;
+
+  END;
+  IF (yyP5^.Kind = Tree.Module) THEN
+(* line 1856 "" *)
+(* line 1857 "" *)
+       CodeDecls2 (yyP5^.Module.Decls, NewLine); ;
+(* line 1858 "" *)
+       CodeDecls2 (yyP5^.Module.Next, NewLine); ;
+      
+      RETURN;
+
+  END;
+  IF Tree.IsType (yyP5, Tree.Decl) THEN
+(* line 1860 "" *)
+(* line 1861 "" *)
+       CodeDecls2 (yyP5^.Decl.Next, NewLine); ;
+      
+      RETURN;
+
+  END;
+ END CodeDecls2;
+
+PROCEDURE CodeExpr (t: Tree.tTree; Prec: SHORTCARD);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 10: yyR10: RECORD
+  String: tString;
+  END;
+ | 30: yyR30: RECORD
+  Lwb: tValue;
+  END;
+ | 31: yyR31: RECORD
+  Lwb: tValue;
+  END;
+ | 32: yyR32: RECORD
+  Lwb: tValue;
+  END;
+ | 33: yyR33: RECORD
+  Lwb: tValue;
+  END;
+ | 34: yyR34: RECORD
+  Object: tObject;
+  END;
+ | 37: yyR37: RECORD
+  Object: tObject;
+  END;
+ END; END;
+ BEGIN
+
+  CASE t^.Kind OF
+  | Tree.Binary:
+(* line 1874 "" *)
+   LOOP
+(* line 1875 "" *)
+      IF NOT (t ^ . Binary . COperator IN {cIn, cDifference, cIsSubset1, cIsSubset2}) THEN EXIT; END;
+(* line 1876 "" *)
+      
+		CASE t^.Binary.COperator OF
+		| cIn		: WriteS (f, 'IN');
+		| cDifference	: WriteS (f, 'SET_DIFF');
+		| cIsSubset1	: WriteS (f, 'SET_IS_SUBSET1');
+		| cIsSubset2	: WriteS (f, 'SET_IS_SUBSET2');
+		END;
+;
+(* line 1884 "" *)
+      WriteC (f, '(');
+(* line 1884 "" *)
+      CodeExpr (t^.Binary.Lop, pPassValue);
+(* line 1884 "" *)
+      WriteS (f, ', ');
+(* line 1884 "" *)
+      CodeExpr (t^.Binary.Rop, pPassValue);
+(* line 1884 "" *)
+      WriteC (f, ')');
+      RETURN;
+   END;
+
+(* line 1886 "" *)
+   LOOP
+(* line 1888 "" *)
+      IF NOT ((t ^ . Binary . COperator IN {cPlus, cMinus}) AND (t^.Binary.Lop ^ . Expr . Type = TypeADDRESS) AND (t^.Binary.Rop ^ . Expr . Type = TypeADDRESS)) THEN EXIT; END;
+(* line 1889 "" *)
+      
+		IF Prec <= Precedence [t^.Binary.COperator] THEN WriteC (f, '('); END;
+		CodeExpr (t^.Binary.Lop, Precedence [t^.Binary.COperator] + 1);
+		IF t^.Binary.COperator = cPlus THEN WriteS (f, ' + '); ELSE WriteS (f, ' - '); END;
+		WriteS (f, '(LONGCARD)'); CodeExpr (t^.Binary.Rop, pCast);
+		IF Prec <= Precedence [t^.Binary.COperator] THEN WriteC (f, ')'); END;
+;
+      RETURN;
+   END;
+
+(* line 1897 "" *)
+   LOOP
+(* line 1899 "" *)
+      IF NOT ((t ^ . Binary . COperator = cMinus) AND NOT (t^.Binary.Lop ^ . Expr . Type = TypeADDRESS) AND (t^.Binary.Rop ^ . Expr . Type = TypeADDRESS)) THEN EXIT; END;
+(* line 1900 "" *)
+      
+		IF Prec < pCast THEN WriteC (f, '('); END;
+		WriteS (f, '(ADDRESS)('); CodeExpr (t^.Binary.Lop, pMinus + 1); WriteS (f, ' - (LONGCARD)'); CodeExpr (t^.Binary.Rop, pCast); WriteC (f, ')');
+		IF Prec < pCast THEN WriteC (f, ')'); END;
+;
+      RETURN;
+   END;
+
+(* line 1906 "" *)
+   LOOP
+(* line 1907 "" *)
+      IF NOT ((t ^ . Binary . COperator IN {cTimes, cDivide}) AND ((t^.Binary.Lop ^ . Expr . Type = TypeADDRESS) OR (t^.Binary.Rop ^ . Expr . Type = TypeADDRESS))) THEN EXIT; END;
+(* line 1909 "" *)
+      
+		IF Prec < pCast THEN WriteC (f, '('); END;
+		WriteS (f, '(ADDRESS)(');
+		IF t^.Binary.Lop^.Expr.Type = TypeADDRESS THEN
+		  WriteS (f, '(LONGCARD)'); CodeExpr (t^.Binary.Lop, pCast);
+		ELSE
+		  CodeExpr (t^.Binary.Lop, Precedence [t^.Binary.COperator] + 1);
+		END;
+		IF t^.Binary.COperator = cTimes THEN WriteS (f, ' * '); ELSE WriteS (f, ' / '); END;
+		IF t^.Binary.Rop^.Expr.Type = TypeADDRESS THEN
+		  WriteS (f, '(LONGCARD)'); CodeExpr (t^.Binary.Rop, pCast);
+		ELSE
+		  CodeExpr (t^.Binary.Rop, Precedence [t^.Binary.COperator]);
+		END;
+		WriteC (f, ')');
+		IF Prec < pCast THEN WriteC (f, ')'); END;
+;
+      RETURN;
+   END;
+
+(* line 1927 "" *)
+(* line 1928 "" *)
+      
+		IF Prec <= Precedence [t^.Binary.COperator] THEN WriteC (f, '('); END;
+		CodeExpr (t^.Binary.Lop, Precedence [t^.Binary.COperator] + 1);
+		(* Precedence [t^.Binary.COperator] + 1 to avoid	*)
+		(* superfluous brackets (all binary operators	*)
+		(* are left associative)			*)
+		CASE t^.Binary.COperator OF
+		| cNotEqual	: WriteS (f, ' != ');
+		| cTimes	: WriteS (f, ' * ');
+		| cPlus		: WriteS (f, ' + ');
+		| cMinus	: WriteS (f, ' - ');
+		| cDivide	: WriteS (f, ' / ');
+		| cLess		: WriteS (f, ' < ');
+		| cLessEqual	: WriteS (f, ' <= ');
+		| cEqual	: WriteS (f, ' == ');
+		| cGreater	: WriteS (f, ' > ');
+		| cGreaterEqual	: WriteS (f, ' >= ');
+		| cAnd		: WriteS (f, ' && ');
+		| cMod		: WriteS (f, ' % ');
+		| cOr		: WriteS (f, ' || ');
+		| cUnion	: WriteS (f, ' | ');
+		| cIntersection	: WriteS (f, ' & ');
+		| cSymDiff	: WriteS (f, ' ^ ');
+		ELSE
+		END;
+		CodeExpr (t^.Binary.Rop, Precedence [t^.Binary.COperator]);
+		IF Prec <= Precedence [t^.Binary.COperator] THEN WriteC (f, ')'); END;
+;
+      RETURN;
+
+  | Tree.Unary:
+  IF (t^.Unary.Mop^.Kind = Tree.IntConst) THEN
+(* line 1957 "" *)
+   LOOP
+(* line 1958 "" *)
+      IF NOT (t ^ . Unary . COperator = cMinus) THEN EXIT; END;
+(* line 1959 "" *)
+      
+		CASE t^.Unary.Mop^.IntConst.Kind OF
+		| Decimal	: WriteC (f, '-');WriteCard (f, t^.Unary.Mop^.IntConst.IntVal, 1);
+		| Octal		: WriteS (f, '-0');WriteN (f, t^.Unary.Mop^.IntConst.IntVal, 1, 8);
+		| Hexadecimal	: WriteS (f, '-0X');WriteN (f, t^.Unary.Mop^.IntConst.IntVal, 1, 16);
+		END;
+;
+      RETURN;
+   END;
+
+  END;
+(* line 1967 "" *)
+(* line 1968 "" *)
+      
+		IF Prec < Precedence [t^.Unary.COperator] THEN WriteC (f, '('); END;
+		CASE t^.Unary.COperator OF
+		| cMinus	: WriteC (f, '-');
+		| cNot		: WriteC (f, '!');
+		ELSE
+		END;
+		CodeExpr (t^.Unary.Mop, Precedence [t^.Unary.COperator]);
+		IF Prec < Precedence [t^.Unary.COperator] THEN WriteC (f, ')'); END;
+;
+      RETURN;
+
+  | Tree.IntConst:
+(* line 1979 "" *)
+(* line 1980 "" *)
+      
+		IF t^.IntConst.IntVal > MaxLongInt THEN
+		  WriteS (f, '(LONGCARD)');
+		  ErrorMessageP (OutOfLongRange, Warning, t^.IntConst.Pos);
+		END;
+		CASE t^.IntConst.Kind OF
+		| Decimal	: WriteCard (f, t^.IntConst.IntVal, 1);
+		| Octal		: WriteC (f, '0');WriteN (f, t^.IntConst.IntVal, 1, 8);
+		| Hexadecimal	: WriteS (f, '0X');WriteN (f, t^.IntConst.IntVal, 1, 16);
+		END;
+;
+      RETURN;
+
+  | Tree.RealConst:
+(* line 1992 "" *)
+(* line 1993 "" *)
+      WriteString (f, t^.RealConst.RealVal);
+      RETURN;
+
+  | Tree.StringConst:
+(* line 1995 "" *)
+    WITH yyTempo.yyR10 DO
+   LOOP
+(* line 1996 "" *)
+      IF NOT (Length (t^.StringConst.StringVal) = 1) THEN EXIT; END;
+(* line 1997 "" *)
+      ;
+(* line 1998 "" *)
+      GetString (t^.StringConst.StringVal, String);
+(* line 1999 "" *)
+      CodeChar (Strings . Char (String, 1));
+      RETURN;
+   END;
+    END;
+
+(* line 2001 "" *)
+(* line 2002 "" *)
+      CodeString1 (t^.StringConst.StringVal);
+      RETURN;
+
+  | Tree.CharConst:
+(* line 2004 "" *)
+(* line 2005 "" *)
+      CodeChar (t^.CharConst.CharVal);
+      RETURN;
+
+  | Tree.FuncCall:
+(* line 2007 "" *)
+   LOOP
+(* line 2008 "" *)
+      IF NOT (t^.FuncCall.Designator ^ . Designator . Type ^ . Kind = StdProcType1) THEN EXIT; END;
+(* line 2009 "" *)
+      CodeStdProc (t^.FuncCall.Actuals, t^.FuncCall.Designator ^ . Designator . Type ^ . StdProcType1 . StdProc, NoObject);
+      RETURN;
+   END;
+
+  IF Tree.IsType (t^.FuncCall.Designator, Tree.Qualid) THEN
+(* line 2011 "" *)
+   LOOP
+(* line 2012 "" *)
+      IF NOT ((IsProcedure (t^.FuncCall.Designator ^ . Qualid . Object))) THEN EXIT; END;
+(* line 2013 "" *)
+      WriteIdent (f, t^.FuncCall.Designator ^ . Qualid . Object ^ . Object . CIdent);
+(* line 2013 "" *)
+      WriteC (f, '(');
+(* line 2013 "" *)
+      CodeActuals (t^.FuncCall.Actuals);
+(* line 2013 "" *)
+      WriteC (f, ')');
+      RETURN;
+   END;
+
+  IF (t^.FuncCall.Actuals^.Kind = Tree.Actual) THEN
+  IF (t^.FuncCall.Actuals^.Actual.Next^.Kind = Tree.Actuals0) THEN
+(* line 2015 "" *)
+   LOOP
+(* line 2016 "" *)
+      IF NOT ((IsOfType (t^.FuncCall.Designator ^ . Qualid . Object))) THEN EXIT; END;
+(* line 2017 "" *)
+      
+		IF Prec < pCast THEN
+		  WriteS (f, '((');WriteIdent (f, t^.FuncCall.Designator^.Qualid.Object^.Object.CIdent);WriteC (f, ')'); CodeExpr (t^.FuncCall.Actuals^.Actual.Expr, pCast); WriteC (f, ')');
+		ELSE
+		  WriteC (f, '(');WriteIdent (f, t^.FuncCall.Designator^.Qualid.Object^.Object.CIdent);WriteC (f, ')'); CodeExpr (t^.FuncCall.Actuals^.Actual.Expr, pCast);
+		END;
+;
+      RETURN;
+   END;
+
+  END;
+  END;
+  END;
+(* line 2025 "" *)
+(* line 2026 "" *)
+      WriteS (f, '(*');
+(* line 2026 "" *)
+      CodeExpr (t^.FuncCall.Designator, pDeref);
+(* line 2026 "" *)
+      WriteC (f, ')');
+(* line 2026 "" *)
+      WriteC (f, '(');
+(* line 2026 "" *)
+      CodeActuals (t^.FuncCall.Actuals);
+(* line 2026 "" *)
+      WriteC (f, ')');
+      RETURN;
+
+  | Tree.Set:
+  IF (t^.Set.Elems^.Kind = Tree.Elems0) THEN
+(* line 2028 "" *)
+(* line 2029 "" *)
+      WriteS (f, '0X0L');
+      RETURN;
+
+  END;
+  IF Tree.IsType (t^.Set.Elems, Tree.Elems1) THEN
+(* line 2031 "" *)
+(* line 2032 "" *)
+      
+		IF Prec <= pUnion THEN
+		  WriteC (f, '('); CodeExpr (t^.Set.Elems, pMinPrec); WriteC (f, ')');
+		ELSE
+		  CodeExpr (t^.Set.Elems, Prec)
+		END;
+;
+      RETURN;
+
+  END;
+  | Tree.BitSet:
+  IF (t^.BitSet.Elems^.Kind = Tree.Elems0) THEN
+(* line 2040 "" *)
+(* line 2041 "" *)
+      WriteS (f, '0X0L');
+      RETURN;
+
+  END;
+  IF Tree.IsType (t^.BitSet.Elems, Tree.Elems1) THEN
+(* line 2043 "" *)
+(* line 2044 "" *)
+      
+		IF Prec <= pUnion THEN
+		  WriteC (f, '('); CodeExpr (t^.BitSet.Elems, pMinPrec); WriteC (f, ')');
+		ELSE
+		  CodeExpr (t^.BitSet.Elems, Prec);
+		END;
+;
+      RETURN;
+
+  END;
+  | Tree.Qualid0:
+(* line 2052 "" *)
+   LOOP
+(* line 2053 "" *)
+      IF NOT (t ^ . Qualid0 . IsGlobalPtr AND IsOpen (t ^ . Qualid0 . Type)) THEN EXIT; END;
+(* line 2054 "" *)
+      WriteIdent (f, GetGlobalPtr (t ^ . Qualid0 . Object));
+      RETURN;
+   END;
+
+(* line 2056 "" *)
+   LOOP
+(* line 2057 "" *)
+      IF NOT (t ^ . Qualid0 . Object ^ . Kind = Field1) THEN EXIT; END;
+(* line 2058 "" *)
+      WriteIdent (f, WithStack . GetWith (t^.Qualid0.Ident));
+(* line 2059 "" *)
+      WriteS (f, '->');
+(* line 2060 "" *)
+      CodeSelectors (t ^ . Qualid0 . Object ^ . Field1 . Selectors);
+(* line 2061 "" *)
+      WriteIdent (f, t ^ . Qualid0 . Object ^ . Field1 . CIdent);
+      RETURN;
+   END;
+
+  | Tree.Qualid1:
+(* line 2063 "" *)
+   LOOP
+(* line 2064 "" *)
+      IF NOT (t^.Qualid1.Qualid ^ . Qualid . IsGlobalPtr) THEN EXIT; END;
+(* line 2065 "" *)
+      WriteIdent (f, GetGlobalPtr (t^.Qualid1.Qualid ^ . Qualid . Object));
+(* line 2066 "" *)
+      WriteS (f, '->');
+(* line 2067 "" *)
+      CodeSelectors (GetSelectors (t ^ . Qualid1 . Object));
+(* line 2068 "" *)
+      WriteIdent (f, t ^ . Qualid1 . Object ^ . Object . CIdent);
+      RETURN;
+   END;
+
+(* line 2070 "" *)
+   LOOP
+(* line 2071 "" *)
+      IF NOT ((IsVAR (t^.Qualid1.Qualid ^ . Qualid . Object))) THEN EXIT; END;
+(* line 2072 "" *)
+      WriteIdent (f, t^.Qualid1.Qualid ^ . Qualid . Object ^ . Var1 . CIdent);
+(* line 2073 "" *)
+      WriteS (f, '->');
+(* line 2074 "" *)
+      CodeSelectors (GetSelectors (t ^ . Qualid1 . Object));
+(* line 2075 "" *)
+      WriteIdent (f, t ^ . Qualid1 . Object ^ . Object . CIdent);
+      RETURN;
+   END;
+
+(* line 2077 "" *)
+   LOOP
+(* line 2078 "" *)
+      IF NOT (t ^ . Qualid1 . Object ^ . Kind = Field1) THEN EXIT; END;
+(* line 2079 "" *)
+      CodeExpr (t^.Qualid1.Qualid, pSelect);
+(* line 2080 "" *)
+      WriteC (f, '.');
+(* line 2081 "" *)
+      CodeSelectors (t ^ . Qualid1 . Object ^ . Field1 . Selectors);
+(* line 2082 "" *)
+      WriteIdent (f, t ^ . Qualid1 . Object ^ . Field1 . CIdent);
+      RETURN;
+   END;
+
+  ELSE END;
+
+  IF Tree.IsType (t, Tree.Qualid) THEN
+(* line 2084 "" *)
+   LOOP
+(* line 2085 "" *)
+      IF NOT (t ^ . Qualid . IsGlobalPtr) THEN EXIT; END;
+(* line 2086 "" *)
+      
+		IF Prec < pDeref THEN
+		  WriteS (f, '(*');WriteIdent (f, GetGlobalPtr (t^.Qualid.Object));WriteC (f, ')');
+		ELSE
+		  WriteC (f, '*');WriteIdent (f, GetGlobalPtr (t^.Qualid.Object));
+		END;
+;
+      RETURN;
+   END;
+
+(* line 2094 "" *)
+   LOOP
+(* line 2095 "" *)
+      IF NOT (IsVAR (t ^ . Qualid . Object) AND NOT IsOpen (t ^ . Qualid . Type)) THEN EXIT; END;
+(* line 2096 "" *)
+      
+		IF Prec < pDeref THEN
+		  WriteS (f, '(*');WriteIdent (f, t^.Qualid.Object^.Var1.CIdent);WriteC (f, ')');
+		ELSE
+		  WriteC (f, '*');WriteIdent (f, t^.Qualid.Object^.Var1.CIdent);
+		END;
+;
+      RETURN;
+   END;
+
+(* line 2104 "" *)
+(* line 2105 "" *)
+      WriteIdent (f, t ^ . Qualid . Object ^ . Object . CIdent);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Subscript) THEN
+  IF (t^.Subscript.Designator^.Kind = Tree.Qualid0) THEN
+(* line 2107 "" *)
+   LOOP
+(* line 2108 "" *)
+      IF NOT ((IsOpenArray (t^.Subscript.Designator ^ . Qualid0 . Object))) THEN EXIT; END;
+(* line 2109 "" *)
+      CodeExpr (t^.Subscript.Designator, pSubscript);
+(* line 2109 "" *)
+      WriteC (f, '[');
+(* line 2109 "" *)
+      CodeExpr (t^.Subscript.Index, pMinPrec);
+(* line 2109 "" *)
+      WriteC (f, ']');
+      RETURN;
+   END;
+
+  END;
+  IF (t^.Subscript.Designator^.Kind = Tree.Deref) THEN
+(* line 2111 "" *)
+    WITH yyTempo.yyR30 DO
+   LOOP
+(* line 2112 "" *)
+      IF NOT (NOT (t^.Subscript.Designator^.Deref.Designator ^ . Designator . Type ^ . Kind = OpaqueType1)) THEN EXIT; END;
+(* line 2113 "" *)
+      ;
+(* line 2114 "" *)
+      
+		GetLwb (GetIndexType (t^.Subscript.Designator^.Deref.Type), Lwb);
+		CodeExpr (t^.Subscript.Designator^.Deref.Designator, pSelect);
+		WriteS (f, '->A[');
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (t^.Subscript.Index, pMinus + 1); WriteS (f, ' - '); CodeValue (Lwb);
+		ELSE
+		  CodeExpr (t^.Subscript.Index, pMinPrec);
+		END;
+		WriteC (f, ']');
+;
+      RETURN;
+   END;
+    END;
+
+  END;
+  IF Tree.IsType (t^.Subscript.Designator, Tree.Qualid) THEN
+(* line 2126 "" *)
+    WITH yyTempo.yyR31 DO
+   LOOP
+(* line 2127 "" *)
+      IF NOT (t^.Subscript.Designator ^ . Qualid . IsGlobalPtr AND NOT IsOpen (t^.Subscript.Designator ^ . Qualid . Type)) THEN EXIT; END;
+(* line 2128 "" *)
+      ;
+(* line 2129 "" *)
+      
+		GetLwb (GetIndexType (t^.Subscript.Designator^.Qualid.Type), Lwb);
+		WriteIdent (f, GetGlobalPtr (t^.Subscript.Designator^.Qualid.Object));
+		WriteS (f, '->A[');
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (t^.Subscript.Index, pMinus + 1); WriteS (f, ' - '); CodeValue (Lwb);
+		ELSE
+		  CodeExpr (t^.Subscript.Index, pMinPrec);
+		END;
+		WriteC (f, ']');
+;
+      RETURN;
+   END;
+    END;
+
+(* line 2141 "" *)
+    WITH yyTempo.yyR32 DO
+   LOOP
+(* line 2142 "" *)
+      IF NOT (IsVAR (t^.Subscript.Designator ^ . Qualid . Object) AND NOT IsOpen (t^.Subscript.Designator ^ . Qualid . Type)) THEN EXIT; END;
+(* line 2143 "" *)
+      ;
+(* line 2144 "" *)
+      
+		GetLwb (GetIndexType (t^.Subscript.Designator^.Qualid.Type), Lwb);
+		WriteIdent (f, t^.Subscript.Designator^.Qualid.Object^.Var1.CIdent);
+		WriteS (f, '->A[');
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (t^.Subscript.Index, pMinus + 1); WriteS (f, ' - '); CodeValue (Lwb);
+		ELSE
+		  CodeExpr (t^.Subscript.Index, pMinPrec);
+		END;
+		WriteC (f, ']');
+;
+      RETURN;
+   END;
+    END;
+
+  END;
+(* line 2156 "" *)
+    WITH yyTempo.yyR33 DO
+(* line 2157 "" *)
+      ;
+(* line 2158 "" *)
+      
+		GetLwb (GetIndexType (t^.Subscript.Designator^.Designator.Type), Lwb);
+		CodeExpr (t^.Subscript.Designator, pSelect);
+		WriteS (f, '.A[');
+		IF ValueToInt (Lwb) # 0 THEN
+		  CodeExpr (t^.Subscript.Index, pMinus + 1); WriteS (f, ' - '); CodeValue (Lwb);
+		ELSE
+		  CodeExpr (t^.Subscript.Index, pMinPrec);
+		END;
+		WriteC (f, ']');
+;
+      RETURN;
+    END;
+
+  END;
+  IF (t^.Kind = Tree.Select) THEN
+  IF (t^.Select.Designator^.Kind = Tree.Deref) THEN
+(* line 2170 "" *)
+    WITH yyTempo.yyR34 DO
+   LOOP
+(* line 2171 "" *)
+      IF NOT (t^.Select.Designator^.Deref.Designator ^ . Designator . Type ^ . Kind = OpaqueType1) THEN EXIT; END;
+(* line 2172 "" *)
+      ;
+(* line 2172 "" *)
+       Object := t^.Select.Designator^.Deref.Designator^.Designator.Type^.Constructor.TypeObj; ;
+(* line 2173 "" *)
+      WriteS (f, '((');
+(* line 2173 "" *)
+      WriteIdent (f, GenOpaque (Object ^ . Object . CIdent));
+(* line 2173 "" *)
+      WriteC (f, ')');
+(* line 2174 "" *)
+      CodeExpr (t^.Select.Designator^.Deref.Designator, pCast);
+(* line 2175 "" *)
+      WriteS (f, ')->');
+(* line 2176 "" *)
+      CodeSelectors (GetSelectors (t ^ . Select . Object));
+(* line 2177 "" *)
+      WriteIdent (f, t ^ . Select . Object ^ . Object . CIdent);
+      RETURN;
+   END;
+    END;
+
+(* line 2179 "" *)
+(* line 2180 "" *)
+      CodeExpr (t^.Select.Designator^.Deref.Designator, pSelect);
+(* line 2181 "" *)
+      WriteS (f, '->');
+(* line 2182 "" *)
+      CodeSelectors (GetSelectors (t ^ . Select . Object));
+(* line 2183 "" *)
+      WriteIdent (f, t ^ . Select . Object ^ . Object . CIdent);
+      RETURN;
+
+  END;
+(* line 2185 "" *)
+(* line 2186 "" *)
+      CodeExpr (t^.Select.Designator, pSelect);
+(* line 2187 "" *)
+      WriteC (f, '.');
+(* line 2188 "" *)
+      CodeSelectors (GetSelectors (t ^ . Select . Object));
+(* line 2189 "" *)
+      WriteIdent (f, t ^ . Select . Object ^ . Object . CIdent);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Deref) THEN
+(* line 2191 "" *)
+    WITH yyTempo.yyR37 DO
+   LOOP
+(* line 2192 "" *)
+      IF NOT (t^.Deref.Designator ^ . Designator . Type ^ . Kind = OpaqueType1) THEN EXIT; END;
+(* line 2193 "" *)
+      ;
+(* line 2194 "" *)
+      
+		Object := t^.Deref.Designator^.Designator.Type^.Constructor.TypeObj;
+
+		IF Prec < pDeref THEN
+		  WriteS (f, '(*('); WriteIdent (f, GenOpaque (Object^.Object.CIdent)); WriteC (f, ')');
+		    CodeExpr (t^.Deref.Designator, pCast);
+		  WriteC (f, ')');
+		ELSE
+		  WriteS (f, '*('); WriteIdent (f, GenOpaque (Object^.Object.CIdent)); WriteC (f, ')');
+		    CodeExpr (t^.Deref.Designator, pCast);
+		END;
+;
+      RETURN;
+   END;
+    END;
+
+(* line 2207 "" *)
+(* line 2208 "" *)
+      
+		IF Prec < pDeref THEN
+		  WriteS (f, '(*'); CodeExpr (t^.Deref.Designator, pDeref); WriteC (f, ')');
+		ELSE
+		  WriteC (f, '*'); CodeExpr (t^.Deref.Designator, pDeref);
+		END;
+;
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.Elem) THEN
+(* line 2216 "" *)
+(* line 2217 "" *)
+      WriteS (f, 'SET_ELEM(');
+(* line 2217 "" *)
+      CodeExpr (t^.Elem.Elem, pPassValue);
+(* line 2217 "" *)
+      WriteC (f, ')');
+(* line 2217 "" *)
+      CodeSepa (t^.Elem.Next);
+(* line 2218 "" *)
+      CodeExpr (t^.Elem.Next, pUnion);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.ElemRange) THEN
+(* line 2220 "" *)
+   LOOP
+(* line 2221 "" *)
+      IF NOT (t^.ElemRange.Lwb ^ . Expr . IsCConst AND t^.ElemRange.Upb ^ . Expr . IsCConst) THEN EXIT; END;
+(* line 2222 "" *)
+      WriteS (f, 'SET_cRNG(');
+(* line 2222 "" *)
+      CodeExpr (t^.ElemRange.Lwb, pPassValue);
+(* line 2222 "" *)
+      WriteS (f, ', ');
+(* line 2222 "" *)
+      CodeExpr (t^.ElemRange.Upb, pPassValue);
+(* line 2222 "" *)
+      WriteC (f, ')');
+(* line 2223 "" *)
+      CodeSepa (t^.ElemRange.Next);
+(* line 2224 "" *)
+      CodeExpr (t^.ElemRange.Next, pUnion);
+      RETURN;
+   END;
+
+(* line 2226 "" *)
+(* line 2227 "" *)
+      WriteS (f, 'SET_RANGE(');
+(* line 2227 "" *)
+      CodeExpr (t^.ElemRange.Lwb, pPassValue);
+(* line 2227 "" *)
+      WriteS (f, ', ');
+(* line 2227 "" *)
+      CodeExpr (t^.ElemRange.Upb, pPassValue);
+(* line 2227 "" *)
+      WriteC (f, ')');
+(* line 2228 "" *)
+      CodeSepa (t^.ElemRange.Next);
+(* line 2229 "" *)
+      CodeExpr (t^.ElemRange.Next, pUnion);
+      RETURN;
+
+  END;
+ END CodeExpr;
+
+PROCEDURE CodeAdr (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Deref) THEN
+(* line 2238 "" *)
+(* line 2239 "" *)
+      CodeExpr (t^.Deref.Designator, pMinPrec);
+      RETURN;
+
+  END;
+  IF Tree.IsType (t, Tree.Qualid) THEN
+(* line 2241 "" *)
+   LOOP
+(* line 2242 "" *)
+      IF NOT (t ^ . Qualid . IsGlobalPtr) THEN EXIT; END;
+(* line 2243 "" *)
+      WriteIdent (f, GetGlobalPtr (t ^ . Qualid . Object));
+      RETURN;
+   END;
+
+  END;
+  IF (t^.Kind = Tree.Qualid0) THEN
+(* line 2245 "" *)
+   LOOP
+(* line 2246 "" *)
+      IF NOT ((IsVAR (t ^ . Qualid0 . Object))) THEN EXIT; END;
+(* line 2247 "" *)
+      WriteIdent (f, t ^ . Qualid0 . Object ^ . Var1 . CIdent);
+      RETURN;
+   END;
+
+  END;
+(* line 2249 "" *)
+(* line 2250 "" *)
+      WriteC (f, '&');
+(* line 2250 "" *)
+      CodeExpr (t, pAdr);
+      RETURN;
+
+ END CodeAdr;
+
+PROCEDURE CodeString2 (t: Tree.tTree; Strncpy: BOOLEAN);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.StringConst) THEN
+(* line 2261 "" *)
+(* line 2262 "" *)
+      		IF OptionIsSet ('c') AND NOT Strncpy THEN WriteS (f, '(STRING)'); END; ;
+(* line 2263 "" *)
+      CodeString1 (t^.StringConst.StringVal);
+      RETURN;
+
+  END;
+  IF (t^.Kind = Tree.CharConst) THEN
+(* line 2265 "" *)
+(* line 2266 "" *)
+      		IF OptionIsSet ('c') AND NOT Strncpy THEN WriteS (f, '(STRING)'); END; ;
+(* line 2267 "" *)
+      CodeString3 (t^.CharConst.CharVal);
+      RETURN;
+
+  END;
+  IF Tree.IsType (t, Tree.Qualid) THEN
+(* line 2269 "" *)
+   LOOP
+(* line 2270 "" *)
+      IF NOT (t ^ . Qualid . Type = TypeSTRING) THEN EXIT; END;
+(* line 2271 "" *)
+      		IF OptionIsSet ('c') AND Strncpy THEN WriteS (f, '(char *)'); END; ;
+(* line 2272 "" *)
+      WriteIdent (f, t ^ . Qualid . Object ^ . Object . CIdent);
+      RETURN;
+   END;
+
+(* line 2274 "" *)
+   LOOP
+(* line 2275 "" *)
+      IF NOT (t ^ . Qualid . Type = TypeStringChar) THEN EXIT; END;
+(* line 2276 "" *)
+      		IF OptionIsSet ('c') AND NOT Strncpy THEN WriteS (f, '(STRING)'); END; ;
+(* line 2277 "" *)
+      CodeString3 (t ^ . Qualid . Object ^ . Const1 . Value . CharValue);
+      RETURN;
+   END;
+
+(* line 2279 "" *)
+   LOOP
+(* line 2280 "" *)
+      IF NOT (t ^ . Qualid . Type = TypeCHAR) THEN EXIT; END;
+(* line 2281 "" *)
+      		IF OptionIsSet ('c') AND NOT Strncpy THEN WriteS (f, '(STRING)'); END; ;
+(* line 2282 "" *)
+      CodeString3 (t ^ . Qualid . Object ^ . Const1 . Value . CharValue);
+      RETURN;
+   END;
+
+  END;
+ END CodeString2;
+
+PROCEDURE CodeStmts (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 4: yyR4: RECORD
+  StdProc: SHORTCARD;
+  END;
+ | 15: yyR15: RECORD
+  BoundId1: tIdent;
+  BoundId2: tIdent;
+  ByValue: LONGINT;
+  END;
+ | 16: yyR16: RECORD
+  WithId: tIdent;
+  Object: tObject;
+  END;
+ | 17: yyR17: RECORD
+  WithId: tIdent;
+  END;
+ | 20: yyR20: RECORD
+  ReturnId: tIdent;
+  END;
+ END; END;
+ BEGIN
+
+  CASE t^.Kind OF
+  | Tree.Assign:
+(* line 2290 "" *)
+   LOOP
+(* line 2291 "" *)
+      IF NOT ((t^.Assign.Designator ^ . Designator . Type ^ . Kind = Array1) AND ((t^.Assign.Expr ^ . Expr . Type = TypeStringChar) OR (t^.Assign.Expr ^ . Expr . Type = TypeSTRING))) THEN EXIT; END;
+(* line 2293 "" *)
+      WriteSpaces (f, Indent);
+(* line 2293 "" *)
+      WriteS (f, '(void)strncpy(');
+(* line 2294 "" *)
+      
+		  IF OptionIsSet ('c') THEN WriteS (f, '(char *)'); END;
+;
+(* line 2297 "" *)
+      CodeExpr (t^.Assign.Designator, pSelect);
+(* line 2297 "" *)
+      WriteS (f, '.A, ');
+(* line 2298 "" *)
+      CodeString2 (t^.Assign.Expr, Strncpy);
+(* line 2298 "" *)
+      WriteS (f, ', ');
+(* line 2299 "" *)
+      WriteS (f, 'sizeof(');
+(* line 2299 "" *)
+      CodeExpr (t^.Assign.Designator, pSelect);
+(* line 2299 "" *)
+      WriteS (f, '.A));');
+(* line 2299 "" *)
+      WriteNl (f);
+(* line 2300 "" *)
+      CodeStmts (t^.Assign.Next);
+      RETURN;
+   END;
+
+(* line 2302 "" *)
+   LOOP
+(* line 2303 "" *)
+      IF NOT ((Cast (cAssign, t^.Assign.Designator ^ . Designator . Type, t^.Assign.Expr ^ . Expr . Type))) THEN EXIT; END;
+(* line 2304 "" *)
+      WriteSpaces (f, Indent);
+(* line 2304 "" *)
+      CodeExpr (t^.Assign.Designator, pAssign);
+(* line 2304 "" *)
+      WriteS (f, ' = ');
+(* line 2305 "" *)
+      CodeCast (t^.Assign.Designator ^ . Designator . Type);
+(* line 2305 "" *)
+      CodeExpr (t^.Assign.Expr, pCast);
+(* line 2305 "" *)
+      WriteC (f, ';');
+(* line 2305 "" *)
+      WriteNl (f);
+(* line 2306 "" *)
+      CodeStmts (t^.Assign.Next);
+      RETURN;
+   END;
+
+(* line 2308 "" *)
+(* line 2309 "" *)
+      WriteSpaces (f, Indent);
+(* line 2309 "" *)
+      CodeExpr (t^.Assign.Designator, pAssign);
+(* line 2309 "" *)
+      WriteS (f, ' = ');
+(* line 2309 "" *)
+      CodeExpr (t^.Assign.Expr, pAssign);
+(* line 2309 "" *)
+      WriteC (f, ';');
+(* line 2309 "" *)
+      WriteNl (f);
+(* line 2310 "" *)
+      CodeStmts (t^.Assign.Next);
+      RETURN;
+
+  | Tree.Call:
+(* line 2312 "" *)
+    WITH yyTempo.yyR4 DO
+   LOOP
+(* line 2313 "" *)
+      IF NOT (t^.Call.Designator ^ . Designator . Type ^ . Kind = StdProcType1) THEN EXIT; END;
+(* line 2314 "" *)
+      ;
+(* line 2315 "" *)
+      
+		StdProc := t^.Call.Designator^.Designator.Type^.StdProcType1.StdProc;
+		CASE StdProc OF
+		| ProcTRANSFER	:
+		    ErrorMessageP (NoTRANSFER, Restriction, t^.Call.Designator^.Designator.Pos);
+		| ProcIOTRANSFER:
+		    ErrorMessageP (NoIOTRANSFER, Restriction, t^.Call.Designator^.Designator.Pos);
+		| ProcNEWPROCESS:
+		    ErrorMessageP (NoNEWPROCESS, Restriction, t^.Call.Designator^.Designator.Pos);
+		| ProcNEW	,
+		  ProcDISPOSE	:
+WriteSpaces (f, Indent);		    CodeStdProc (t^.Call.Actuals, StdProc, t^.Call.AllocOrDealloc); WriteC (f, ';'); WriteNl (f);
+		ELSE
+WriteSpaces (f, Indent);		  CodeStdProc (t^.Call.Actuals, StdProc, NoObject); WriteC (f, ';'); WriteNl (f);
+		END;
+;
+(* line 2331 "" *)
+      CodeStmts (t^.Call.Next);
+      RETURN;
+   END;
+    END;
+
+  IF Tree.IsType (t^.Call.Designator, Tree.Qualid) THEN
+(* line 2333 "" *)
+   LOOP
+(* line 2334 "" *)
+      IF NOT ((IsProcedure (t^.Call.Designator ^ . Qualid . Object))) THEN EXIT; END;
+(* line 2335 "" *)
+      WriteSpaces (f, Indent);
+(* line 2335 "" *)
+      WriteIdent (f, t^.Call.Designator ^ . Qualid . Object ^ . Object . CIdent);
+(* line 2335 "" *)
+      WriteC (f, '(');
+(* line 2335 "" *)
+      CodeActuals (t^.Call.Actuals);
+(* line 2335 "" *)
+      WriteS (f, ');');
+(* line 2335 "" *)
+      WriteNl (f);
+(* line 2336 "" *)
+      CodeStmts (t^.Call.Next);
+      RETURN;
+   END;
+
+  END;
+(* line 2338 "" *)
+(* line 2339 "" *)
+      WriteSpaces (f, Indent);
+(* line 2339 "" *)
+      WriteS (f, '(*');
+(* line 2339 "" *)
+      CodeExpr (t^.Call.Designator, pDeref);
+(* line 2339 "" *)
+      WriteC (f, ')');
+(* line 2339 "" *)
+      WriteC (f, '(');
+(* line 2339 "" *)
+      CodeActuals (t^.Call.Actuals);
+(* line 2339 "" *)
+      WriteS (f, ');');
+(* line 2339 "" *)
+      WriteNl (f);
+(* line 2340 "" *)
+      CodeStmts (t^.Call.Next);
+      RETURN;
+
+  | Tree.If:
+  IF (t^.If.Else^.Kind = Tree.Stmts0) THEN
+(* line 2342 "" *)
+(* line 2343 "" *)
+      WriteSpaces (f, Indent);
+(* line 2343 "" *)
+      WriteS (f, 'if (');
+(* line 2343 "" *)
+      CodeExpr (t^.If.Cond, pMinPrec);
+(* line 2343 "" *)
+      WriteS (f, ') {');
+(* line 2343 "" *)
+      WriteNl (f);
+(* line 2344 "" *)
+      INC (Indent, 2);
+(* line 2344 "" *)
+      CodeStmts (t^.If.Then);
+(* line 2345 "" *)
+      DEC (Indent, 2);
+(* line 2345 "" *)
+      CodeStmts (t^.If.Elsifs);
+(* line 2346 "" *)
+      WriteSpaces (f, Indent);
+(* line 2346 "" *)
+      WriteC (f, '}');
+(* line 2346 "" *)
+      WriteNl (f);
+(* line 2347 "" *)
+      CodeStmts (t^.If.Next);
+      RETURN;
+
+  END;
+(* line 2349 "" *)
+(* line 2350 "" *)
+      WriteSpaces (f, Indent);
+(* line 2350 "" *)
+      WriteS (f, 'if (');
+(* line 2350 "" *)
+      CodeExpr (t^.If.Cond, pMinPrec);
+(* line 2350 "" *)
+      WriteS (f, ') {');
+(* line 2350 "" *)
+      WriteNl (f);
+(* line 2351 "" *)
+      INC (Indent, 2);
+(* line 2351 "" *)
+      CodeStmts (t^.If.Then);
+(* line 2352 "" *)
+      DEC (Indent, 2);
+(* line 2352 "" *)
+      CodeStmts (t^.If.Elsifs);
+(* line 2353 "" *)
+      WriteSpaces (f, Indent);
+(* line 2353 "" *)
+      WriteS (f, '} else {');
+(* line 2353 "" *)
+      WriteNl (f);
+(* line 2354 "" *)
+      INC (Indent, 2);
+(* line 2354 "" *)
+      CodeStmts (t^.If.Else);
+(* line 2355 "" *)
+      DEC (Indent, 2);
+(* line 2355 "" *)
+      WriteSpaces (f, Indent);
+(* line 2355 "" *)
+      WriteC (f, '}');
+(* line 2355 "" *)
+      WriteNl (f);
+(* line 2356 "" *)
+      CodeStmts (t^.If.Next);
+      RETURN;
+
+  | Tree.Case:
+  IF (t^.Case.Default =  TRUE) THEN
+(* line 2358 "" *)
+(* line 2359 "" *)
+      WriteSpaces (f, Indent);
+(* line 2359 "" *)
+      WriteS (f, 'switch (');
+(* line 2359 "" *)
+      CodeExpr (t^.Case.Expr, pMinPrec);
+(* line 2359 "" *)
+      WriteS (f, ') {');
+(* line 2359 "" *)
+      WriteNl (f);
+(* line 2360 "" *)
+      CodeStmts (t^.Case.Cases);
+(* line 2361 "" *)
+      WriteSpaces (f, Indent);
+(* line 2361 "" *)
+      WriteS (f, 'default :');
+(* line 2361 "" *)
+      WriteNl (f);
+(* line 2362 "" *)
+      INC (Indent, 2);
+(* line 2362 "" *)
+      CodeStmts (t^.Case.Else);
+(* line 2363 "" *)
+      WriteSpaces (f, Indent);
+(* line 2363 "" *)
+      WriteS (f, 'break;');
+(* line 2363 "" *)
+      WriteNl (f);
+(* line 2364 "" *)
+      DEC (Indent, 2);
+(* line 2364 "" *)
+      WriteSpaces (f, Indent);
+(* line 2364 "" *)
+      WriteC (f, '}');
+(* line 2364 "" *)
+      WriteNl (f);
+(* line 2365 "" *)
+      CodeStmts (t^.Case.Next);
+      RETURN;
+
+  END;
+(* line 2367 "" *)
+(* line 2368 "" *)
+      WriteSpaces (f, Indent);
+(* line 2368 "" *)
+      WriteS (f, 'switch (');
+(* line 2368 "" *)
+      CodeExpr (t^.Case.Expr, pMinPrec);
+(* line 2368 "" *)
+      WriteS (f, ') {');
+(* line 2368 "" *)
+      WriteNl (f);
+(* line 2369 "" *)
+      CodeStmts (t^.Case.Cases);
+(* line 2370 "" *)
+      
+		IF OptionIsSet ('r') THEN
+WriteSpaces (f, Indent);		WriteS (f, 'default :'); WriteNl (f);
+WriteSpaces (f, Indent);		WriteS (f, '  CaseError(__FILE__, __LINE__);'); WriteNl (f);
+WriteSpaces (f, Indent);		WriteS (f, '  break;'); WriteNl (f);
+		END;
+;
+(* line 2377 "" *)
+      WriteSpaces (f, Indent);
+(* line 2377 "" *)
+      WriteC (f, '}');
+(* line 2377 "" *)
+      WriteNl (f);
+(* line 2378 "" *)
+      CodeStmts (t^.Case.Next);
+      RETURN;
+
+  | Tree.While:
+(* line 2380 "" *)
+(* line 2381 "" *)
+      WriteSpaces (f, Indent);
+(* line 2381 "" *)
+      WriteS (f, 'while (');
+(* line 2381 "" *)
+      CodeExpr (t^.While.Cond, pMinPrec);
+(* line 2381 "" *)
+      WriteS (f, ') {');
+(* line 2381 "" *)
+      WriteNl (f);
+(* line 2382 "" *)
+      INC (Indent, 2);
+(* line 2382 "" *)
+      CodeStmts (t^.While.Stmts);
+(* line 2383 "" *)
+      DEC (Indent, 2);
+(* line 2383 "" *)
+      WriteSpaces (f, Indent);
+(* line 2383 "" *)
+      WriteC (f, '}');
+(* line 2383 "" *)
+      WriteNl (f);
+(* line 2384 "" *)
+      CodeStmts (t^.While.Next);
+      RETURN;
+
+  | Tree.Repeat:
+(* line 2386 "" *)
+(* line 2387 "" *)
+      WriteSpaces (f, Indent);
+(* line 2387 "" *)
+      WriteS (f, 'do {');
+(* line 2387 "" *)
+      WriteNl (f);
+(* line 2388 "" *)
+      INC (Indent, 2);
+(* line 2388 "" *)
+      CodeStmts (t^.Repeat.Stmts);
+(* line 2389 "" *)
+      DEC (Indent, 2);
+(* line 2389 "" *)
+      WriteSpaces (f, Indent);
+(* line 2389 "" *)
+      WriteS (f, '} while (!');
+(* line 2389 "" *)
+      CodeExpr (t^.Repeat.Cond, pNot);
+(* line 2389 "" *)
+      WriteS (f, ');');
+(* line 2389 "" *)
+      WriteNl (f);
+(* line 2390 "" *)
+      CodeStmts (t^.Repeat.Next);
+      RETURN;
+
+  | Tree.Loop:
+(* line 2392 "" *)
+(* line 2393 "" *)
+      LabelStack . Push (GenLabel ());
+(* line 2394 "" *)
+      WriteSpaces (f, Indent);
+(* line 2394 "" *)
+      WriteS (f, 'for (;;) {');
+(* line 2394 "" *)
+      WriteNl (f);
+(* line 2395 "" *)
+      INC (Indent, 2);
+(* line 2395 "" *)
+      CodeStmts (t^.Loop.Stmts);
+(* line 2396 "" *)
+      DEC (Indent, 2);
+(* line 2396 "" *)
+      WriteSpaces (f, Indent);
+(* line 2396 "" *)
+      WriteS (f, '} ');
+(* line 2396 "" *)
+      WriteIdent (f, LabelStack . Top ());
+(* line 2396 "" *)
+      WriteS (f, ':;');
+(* line 2396 "" *)
+      WriteNl (f);
+(* line 2397 "" *)
+      LabelStack . Pop ();
+(* line 2398 "" *)
+      CodeStmts (t^.Loop.Next);
+      RETURN;
+
+  | Tree.For:
+(* line 2400 "" *)
+   LOOP
+(* line 2401 "" *)
+      IF NOT (t^.For.To ^ . Expr . IsCConst AND NOT OverOrUnderflow (t^.For.Qualid ^ . Qualid . Type, t ^ . For . ToVal, t ^ . For . ByVal)) THEN EXIT; END;
+(* line 2402 "" *)
+      WriteSpaces (f, Indent);
+(* line 2402 "" *)
+      WriteS (f, 'for (');
+(* line 2403 "" *)
+      CodeExpr (t^.For.Qualid, pAssign);
+(* line 2403 "" *)
+      WriteS (f, ' = ');
+(* line 2403 "" *)
+      CodeExpr (t^.For.From, pAssign);
+(* line 2403 "" *)
+      WriteS (f, '; ');
+(* line 2404 "" *)
+      CodeExpr (t^.For.Qualid, pComparison);
+(* line 2405 "" *)
+      
+		IF ValueToInt (t^.For.ByVal) >= 0 THEN WriteS (f, ' <= '); ELSE WriteS (f, ' >= '); END;
+;
+(* line 2408 "" *)
+      CodeExpr (t^.For.To, pComparison);
+(* line 2408 "" *)
+      WriteS (f, '; ');
+(* line 2409 "" *)
+      CodeExpr (t^.For.Qualid, pAssign);
+(* line 2409 "" *)
+      WriteS (f, ' += ');
+(* line 2409 "" *)
+      CodeExpr (t^.For.By, pAssign);
+(* line 2410 "" *)
+      WriteS (f, ') {');
+(* line 2410 "" *)
+      WriteNl (f);
+(* line 2411 "" *)
+      INC (Indent, 2);
+(* line 2411 "" *)
+      CodeStmts (t^.For.Stmts);
+(* line 2412 "" *)
+      DEC (Indent, 2);
+(* line 2412 "" *)
+      WriteSpaces (f, Indent);
+(* line 2412 "" *)
+      WriteC (f, '}');
+(* line 2412 "" *)
+      WriteNl (f);
+(* line 2413 "" *)
+      CodeStmts (t^.For.Next);
+      RETURN;
+   END;
+
+(* line 2415 "" *)
+    WITH yyTempo.yyR15 DO
+(* line 2416 "" *)
+      ;
+(* line 2417 "" *)
+      
+		BoundId1 := GenBound ();
+		BoundId2 := GenBound ();
+		ByValue	 := ValueToInt (t^.For.ByVal);
+
+WriteSpaces (f, Indent);		WriteC (f, '{'); WriteNl (f);
+INC (Indent, 2);WriteSpaces (f, Indent);		  CodeTypeName (t^.For.Qualid^.Qualid.Type); WriteC (f, ' ');
+		    WriteIdent (f, BoundId1); WriteS (f, ' = '); CodeExpr (t^.For.From, pAssign); WriteS (f, ', ');
+		    WriteIdent (f, BoundId2); WriteS (f, ' = '); CodeExpr (t^.For.To, pAssign); WriteC (f, ';'); WriteNl (f);
+		WriteNl (f);
+WriteSpaces (f, Indent);		  WriteS (f, 'if ('); WriteIdent (f, BoundId1);
+		IF ByValue >= 0 THEN WriteS (f, ' <= '); ELSE WriteS (f, ' >= '); END;
+		         WriteIdent (f, BoundId2);
+		  WriteC (f, ')'); WriteNl (f);
+INC (Indent, 2);WriteSpaces (f, Indent);		    WriteS (f, 'for (');
+		        CodeExpr (t^.For.Qualid, pAssign);
+			  WriteS (f, ' = '); WriteIdent (f, BoundId1);
+		IF ByValue >= 2 THEN
+			WriteS (f, ', '); WriteIdent (f, BoundId2);WriteS (f, ' = ');
+			  WriteS (f, 'FOR_LIMIT_UP(');
+			    WriteIdent (f, BoundId2); WriteS (f, ', ');
+			    CodeExpr (t^.For.By, pPassValue); WriteS (f, ', ');
+			    CodeMIN (t^.For.Qualid^.Qualid.Type);
+			  WriteC (f, ')');
+		ELSIF ByValue <= -2 THEN
+			WriteS (f, ', '); WriteIdent (f, BoundId2);WriteS (f, ' = ');
+			  WriteS (f, 'FOR_LIMIT_DOWN(');
+			    WriteIdent (f, BoundId2); WriteS (f, ', ');
+			    CodeExpr (t^.For.By, pPassValue); WriteS (f, ', ');
+			    CodeMAX (t^.For.Qualid^.Qualid.Type);
+			  WriteC (f, ')');
+		END;
+			  WriteS (f, ';; ');
+			CodeExpr (t^.For.Qualid, pAssign);
+			  WriteS (f, ' += '); CodeExpr (t^.For.By, pAssign);
+		        WriteS (f, ') {'); WriteNl (f);
+INC (Indent, 2);		    CodeStmts (t^.For.Stmts);
+WriteSpaces (f, Indent);		    WriteS (f, 'if ('); CodeExpr (t^.For.Qualid, pComparison);
+		IF ByValue >= 0 THEN WriteS (f, ' >= '); ELSE WriteS (f, ' <= '); END;
+			   WriteIdent (f, BoundId2);
+		    WriteS (f, ') break;'); WriteNl (f);
+DEC (Indent, 2);WriteSpaces (f, Indent);		  WriteC (f, '}'); WriteNl (f);
+DEC (Indent, 4);WriteSpaces (f, Indent);		WriteC (f, '}'); WriteNl (f);
+;
+(* line 2461 "" *)
+      CodeStmts (t^.For.Next);
+      RETURN;
+    END;
+
+  | Tree.With:
+  IF (t^.With.Designator^.Kind = Tree.Deref) THEN
+(* line 2463 "" *)
+    WITH yyTempo.yyR16 DO
+   LOOP
+(* line 2464 "" *)
+      IF NOT (t^.With.Designator^.Deref.Designator ^ . Designator . Type ^ . Kind = OpaqueType1) THEN EXIT; END;
+(* line 2465 "" *)
+      ;
+(* line 2466 "" *)
+      
+		WithId := GenWith ();
+		Object := t^.With.Designator^.Deref.Designator^.Designator.Type^.Constructor.TypeObj;
+;
+(* line 2470 "" *)
+      WriteSpaces (f, Indent);
+(* line 2470 "" *)
+      WriteC (f, '{');
+(* line 2470 "" *)
+      WriteNl (f);
+(* line 2471 "" *)
+      INC (Indent, 2);
+(* line 2471 "" *)
+      WriteSpaces (f, Indent);
+(* line 2471 "" *)
+      WriteS (f, 'register ');
+(* line 2471 "" *)
+      CodeTypeName (t^.With.Designator ^ . Deref . Type);
+(* line 2472 "" *)
+      WriteS (f, ' *');
+(* line 2472 "" *)
+      WriteIdent (f, WithId);
+(* line 2472 "" *)
+      WriteS (f, ' = ');
+(* line 2473 "" *)
+      WriteC (f, '(');
+(* line 2473 "" *)
+      WriteIdent (f, GenOpaque (Object ^ . Object . CIdent));
+(* line 2473 "" *)
+      WriteC (f, ')');
+(* line 2474 "" *)
+      CodeExpr (t^.With.Designator^.Deref.Designator, pCast);
+(* line 2474 "" *)
+      WriteC (f, ';');
+(* line 2474 "" *)
+      WriteNl (f);
+(* line 2475 "" *)
+      WriteNl (f);
+(* line 2476 "" *)
+      WithStack . Push (WithId, GetFields (t^.With.Designator ^ . Deref . Type));
+(* line 2477 "" *)
+      CodeStmts (t^.With.Stmts);
+(* line 2478 "" *)
+      WithStack . Pop ();
+(* line 2479 "" *)
+      DEC (Indent, 2);
+(* line 2479 "" *)
+      WriteSpaces (f, Indent);
+(* line 2479 "" *)
+      WriteC (f, '}');
+(* line 2479 "" *)
+      WriteNl (f);
+(* line 2480 "" *)
+      CodeStmts (t^.With.Next);
+      RETURN;
+   END;
+    END;
+
+  END;
+(* line 2482 "" *)
+    WITH yyTempo.yyR17 DO
+(* line 2483 "" *)
+      ;
+(* line 2484 "" *)
+      
+		WithId := GenWith ();
+;
+(* line 2487 "" *)
+      WriteSpaces (f, Indent);
+(* line 2487 "" *)
+      WriteC (f, '{');
+(* line 2487 "" *)
+      WriteNl (f);
+(* line 2488 "" *)
+      INC (Indent, 2);
+(* line 2488 "" *)
+      WriteSpaces (f, Indent);
+(* line 2488 "" *)
+      WriteS (f, 'register ');
+(* line 2488 "" *)
+      CodeTypeName (t^.With.Designator ^ . Designator . Type);
+(* line 2489 "" *)
+      WriteS (f, ' *');
+(* line 2489 "" *)
+      WriteIdent (f, WithId);
+(* line 2489 "" *)
+      WriteS (f, ' = ');
+(* line 2489 "" *)
+      CodeAdr (t^.With.Designator);
+(* line 2489 "" *)
+      WriteC (f, ';');
+(* line 2489 "" *)
+      WriteNl (f);
+(* line 2490 "" *)
+      WriteNl (f);
+(* line 2491 "" *)
+      WithStack . Push (WithId, GetFields (t^.With.Designator ^ . Designator . Type));
+(* line 2492 "" *)
+      CodeStmts (t^.With.Stmts);
+(* line 2493 "" *)
+      WithStack . Pop ();
+(* line 2494 "" *)
+      DEC (Indent, 2);
+(* line 2494 "" *)
+      WriteSpaces (f, Indent);
+(* line 2494 "" *)
+      WriteC (f, '}');
+(* line 2494 "" *)
+      WriteNl (f);
+(* line 2495 "" *)
+      CodeStmts (t^.With.Next);
+      RETURN;
+    END;
+
+  | Tree.Exit:
+(* line 2497 "" *)
+(* line 2498 "" *)
+      WriteSpaces (f, Indent);
+(* line 2498 "" *)
+      WriteS (f, 'goto ');
+(* line 2498 "" *)
+      WriteIdent (f, LabelStack . Top ());
+(* line 2498 "" *)
+      WriteC (f, ';');
+(* line 2498 "" *)
+      WriteNl (f);
+(* line 2499 "" *)
+      CodeStmts (t^.Exit.Next);
+      RETURN;
+
+  | Tree.Return1:
+(* line 2501 "" *)
+(* line 2502 "" *)
+      CodePop (LocalPtrs);
+(* line 2503 "" *)
+      CodeFree (ValueOpens);
+(* line 2504 "" *)
+      WriteSpaces (f, Indent);
+(* line 2504 "" *)
+      WriteS (f, 'return;');
+(* line 2504 "" *)
+      WriteNl (f);
+(* line 2505 "" *)
+      CodeStmts (t^.Return1.Next);
+      RETURN;
+
+  | Tree.Return2:
+(* line 2507 "" *)
+    WITH yyTempo.yyR20 DO
+(* line 2508 "" *)
+      ;
+(* line 2509 "" *)
+      
+		IF ((ValueOpens # NoCObjects) OR (LocalPtrs # NoCObjects)) AND
+		     t^.Return2.OpenAccessOrCall THEN
+		  ReturnId := GenReturn ();
+WriteSpaces (f, Indent);		  WriteC (f, '{'); WriteNl (f);
+INC (Indent, 2);WriteSpaces (f, Indent);		    CodeTypeName (t^.Return2.ResultType); WriteC (f, ' ');WriteIdent (f, ReturnId);WriteS (f, ' = ');
+		  IF Cast (cAssign, t^.Return2.ResultType, t^.Return2.Result^.Expr.Type) THEN
+		    CodeCast (t^.Return2.ResultType); CodeExpr (t^.Return2.Result, pCast); WriteC (f, ';'); WriteNl (f);
+		  ELSE
+		    CodeExpr (t^.Return2.Result, pMinPrec); WriteC (f, ';'); WriteNl (f);
+		  END;
+		  WriteNl (f);
+		    CodePop  (LocalPtrs);
+		    CodeFree (ValueOpens);
+WriteSpaces (f, Indent);		    WriteS (f, 'return ');WriteIdent (f, ReturnId);WriteC (f, ';'); WriteNl (f);
+DEC (Indent, 2);WriteSpaces (f, Indent);		  WriteC (f, '}'); WriteNl (f);
+		ELSE
+		  CodePop  (LocalPtrs);
+		  CodeFree (ValueOpens);
+WriteSpaces (f, Indent);		  WriteS (f, 'return ');
+		  IF Cast (cAssign, t^.Return2.ResultType, t^.Return2.Result^.Expr.Type) THEN
+		    CodeCast (t^.Return2.ResultType); CodeExpr (t^.Return2.Result, pCast);
+		  ELSE
+		    CodeExpr (t^.Return2.Result, pMinPrec);
+		  END;
+		  WriteC (f, ';'); WriteNl (f);
+		END;
+;
+(* line 2537 "" *)
+      CodeStmts (t^.Return2.Next);
+      RETURN;
+    END;
+
+  | Tree.Elsifs1:
+(* line 2539 "" *)
+(* line 2540 "" *)
+      WriteSpaces (f, Indent);
+(* line 2540 "" *)
+      WriteS (f, '} else if (');
+(* line 2540 "" *)
+      CodeExpr (t^.Elsifs1.Cond, pMinPrec);
+(* line 2540 "" *)
+      WriteS (f, ') {');
+(* line 2540 "" *)
+      WriteNl (f);
+(* line 2541 "" *)
+      INC (Indent, 2);
+(* line 2541 "" *)
+      CodeStmts (t^.Elsifs1.Stmts);
+(* line 2542 "" *)
+      DEC (Indent, 2);
+(* line 2543 "" *)
+      CodeStmts (t^.Elsifs1.Next);
+      RETURN;
+
+  | Tree.Cases1:
+(* line 2545 "" *)
+(* line 2546 "" *)
+      CodeStmts (t^.Cases1.Labels);
+(* line 2547 "" *)
+      INC (Indent, 2);
+(* line 2547 "" *)
+      CodeStmts (t^.Cases1.Stmts);
+(* line 2548 "" *)
+      WriteSpaces (f, Indent);
+(* line 2548 "" *)
+      WriteS (f, 'break;');
+(* line 2548 "" *)
+      WriteNl (f);
+(* line 2549 "" *)
+      DEC (Indent, 2);
+(* line 2550 "" *)
+      CodeStmts (t^.Cases1.Next);
+      RETURN;
+
+  | Tree.Label:
+(* line 2552 "" *)
+   LOOP
+(* line 2553 "" *)
+      IF NOT (t^.Label.Label ^ . Expr . IsCConst) THEN EXIT; END;
+(* line 2554 "" *)
+      WriteSpaces (f, Indent);
+(* line 2554 "" *)
+      WriteS (f, 'case ');
+(* line 2554 "" *)
+      CodeExpr (t^.Label.Label, pMinPrec);
+(* line 2554 "" *)
+      WriteS (f, ':;');
+(* line 2554 "" *)
+      WriteNl (f);
+(* line 2555 "" *)
+      CodeStmts (t^.Label.Next);
+      RETURN;
+   END;
+
+(* line 2557 "" *)
+(* line 2558 "" *)
+      WriteSpaces (f, Indent);
+(* line 2558 "" *)
+      WriteS (f, 'case ');
+(* line 2558 "" *)
+      CodeValue (t ^ . Label . LabelVal);
+(* line 2558 "" *)
+      WriteS (f, ':;');
+(* line 2558 "" *)
+      WriteNl (f);
+(* line 2559 "" *)
+      CodeStmts (t^.Label.Next);
+      RETURN;
+
+  | Tree.LabelRange:
+(* line 2561 "" *)
+(* line 2562 "" *)
+      CodeLabelRange (t ^ . LabelRange . LwbVal, t ^ . LabelRange . UpbVal);
+(* line 2563 "" *)
+      CodeStmts (t^.LabelRange.Next);
+      RETURN;
+
+  ELSE END;
+
+ END CodeStmts;
+
+PROCEDURE CodeStdProc (yyP6: Tree.tTree; StdProc: SHORTCARD; AllocOrDealloc: tObject);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 3: yyR3: RECORD
+  Upb: tValue;
+  Object: tObject;
+  Type: tType;
+  END;
+ END; END;
+ BEGIN
+  IF (yyP6^.Kind = Tree.Actuals0) THEN
+(* line 2576 "" *)
+(* line 2577 "" *)
+      
+		IF StdProc = ProcHALT THEN WriteS (f, 'exit(1)'); END;
+;
+      RETURN;
+
+  END;
+  IF (yyP6^.Kind = Tree.Actual) THEN
+  IF (yyP6^.Actual.Expr^.Kind = Tree.Qualid0) THEN
+  IF (yyP6^.Actual.Next^.Kind = Tree.Actuals0) THEN
+(* line 2581 "" *)
+   LOOP
+(* line 2582 "" *)
+      IF NOT ((IsOpenArray (yyP6^.Actual.Expr ^ . Qualid0 . Object))) THEN EXIT; END;
+(* line 2583 "" *)
+      
+		IF StdProc = ProcHIGH THEN
+
+		  IF yyP6^.Actual.Expr^.Qualid0.IsGlobalPtr THEN
+		    WriteC (f, '(');WriteIdent (f, GetGlobalPtr (yyP6^.Actual.Expr^.Qualid0.Object));WriteS (f, '_O - 1)');
+		  ELSE
+		    WriteC (f, '(');WriteIdent (f, GetParam (yyP6^.Actual.Expr^.Qualid0.Object));WriteS (f, ' - 1)');
+		  END;
+
+		ELSIF StdProc = ProcADR THEN
+
+		    WriteS (f, 'ADR1('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteC (f, ')');
+
+		ELSIF StdProc = ProcSIZE THEN
+
+		  WriteS (f, '(sizeof('); CodeTypeName (yyP6^.Actual.Expr^.Qualid0.Type^.Array1.ElemType); WriteS (f, ') * ');
+		  IF yyP6^.Actual.Expr^.Qualid0.IsGlobalPtr THEN
+		    WriteIdent (f, GetGlobalPtr (yyP6^.Actual.Expr^.Qualid0.Object));WriteS (f, '_O');
+		  ELSE
+		    WriteIdent (f, GetParam (yyP6^.Actual.Expr^.Qualid0.Object));
+		  END;
+		  WriteC (f, ')');
+
+		END;
+;
+      RETURN;
+   END;
+
+  END;
+  END;
+  IF (yyP6^.Actual.Next^.Kind = Tree.Actuals0) THEN
+(* line 2609 "" *)
+    WITH yyTempo.yyR3 DO
+(* line 2610 "" *)
+      ;
+(* line 2611 "" *)
+      
+		IF StdProc = ProcHIGH THEN
+
+		    Type := GetIndexType (yyP6^.Actual.Expr^.Expr.Type);
+		    GetUpb (Type, Upb);
+		    CodeValue (Upb);
+		    IF IsIntType (Type) AND Cast (cPassValue, Type, TypeIntCard) THEN
+		      WriteC (f, 'L');
+		    END;
+
+		ELSIF StdProc = ProcMIN THEN
+
+		  CodeMIN (yyP6^.Actual.Expr^.Expr.Type);
+
+		ELSIF StdProc = ProcMAX THEN
+
+		  CodeMAX (yyP6^.Actual.Expr^.Expr.Type);
+
+		ELSIF StdProc = ProcADR THEN
+
+		  WriteS (f, 'ADR('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteC (f, ')');
+
+		ELSIF (StdProc = ProcSIZE) OR (StdProc = ProcTSIZE) THEN
+
+		  WriteS (f, 'sizeof('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteC (f, ')');
+
+		ELSIF StdProc = ProcABS THEN
+
+		  IF yyP6^.Actual.Expr^.Expr.IsCConst THEN
+		    WriteS (f, 'ABS');
+		  ELSE
+		    Type := yyP6^.Actual.Expr^.Expr.Type;
+		    IF Type^.Kind = Subrange1 THEN
+		      Type := Type^.Subrange1.Type;
+		    END;
+
+		    CASE Type^.Kind OF
+		    | ShortInt	: WriteS (f, 'ABSSI');
+		    | LongInt	: WriteS (f, 'ABSLI');
+		    | IntCard	: WriteS (f, 'ABS');
+		    | ShortCard	: WriteS (f, 'ABSSC');
+		    | LongCard	: WriteS (f, 'ABSLC');
+		    | Real	: WriteS (f, 'ABSR');
+		    | LongReal	: WriteS (f, 'ABSLR');
+		    ELSE
+		    END;
+		  END;
+
+		  WriteC (f, '('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteC (f, ')');
+
+		ELSIF (StdProc = ProcNEW) OR (StdProc = ProcDISPOSE) THEN
+
+		  WriteIdent (f, AllocOrDealloc^.Object.CIdent); WriteC (f, '(');
+		    IF Cast (cPassAddress, TypeADDRESS, yyP6^.Actual.Expr^.Expr.Type) THEN
+		      WriteS (f, '(ADDRESS *)');
+		    END;
+		    CodeAdr (yyP6^.Actual.Expr); WriteS (f, ', ');
+
+		    IF OptionIsSet ('c') THEN WriteS (f, '(LONGCARD)'); END;
+		    WriteS (f, 'sizeof('); CodeTypeName (GetTargetType (yyP6^.Actual.Expr^.Expr.Type)); WriteC (f, ')');
+		  WriteC (f, ')');
+		  	
+		ELSE
+
+		  CASE StdProc OF
+		  | ProcCAP	: WriteS (f, 'CAP');
+		  | ProcCHR	: WriteS (f, 'CHR');
+		  | ProcDEC	: WriteS (f, 'DEC');
+		  | ProcFLOAT	: WriteS (f, 'FLOAT');
+		  | ProcINC	: WriteS (f, 'INC');
+		  | ProcODD	: WriteS (f, 'ODD');
+		  | ProcORD	: WriteS (f, 'ORD');
+		  | ProcTRUNC	: WriteS (f, 'TRUNC');
+		  ELSE
+		  END;
+		  WriteC (f, '('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteC (f, ')');
+
+		END;
+;
+      RETURN;
+    END;
+
+  END;
+  IF (yyP6^.Actual.Next^.Kind = Tree.Actual) THEN
+  IF (yyP6^.Actual.Next^.Actual.Next^.Kind = Tree.Actuals0) THEN
+(* line 2691 "" *)
+(* line 2692 "" *)
+      
+		IF (StdProc = ProcDEC) OR (StdProc = ProcINC) THEN
+
+		  CASE StdProc OF
+		  | ProcDEC	: WriteS (f, 'DEC1');
+		  | ProcINC	: WriteS (f, 'INC1');
+		  END;
+		  WriteC (f, '('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteS (f, ', ');
+		  IF yyP6^.Actual.Next^.Actual.Expr^.Expr.Type = TypeADDRESS THEN
+		    WriteS (f, '(LONGCARD)'); CodeExpr (yyP6^.Actual.Next^.Actual.Expr, pCast);
+		  ELSE
+		    CodeExpr (yyP6^.Actual.Next^.Actual.Expr, pPassValue);
+		  END;
+		  WriteC (f, ')');
+
+		ELSE
+
+		  CASE StdProc OF
+		  | ProcEXCL	: WriteS (f, 'EXCL');
+		  | ProcINCL	: WriteS (f, 'INCL');
+		  | ProcVAL	: WriteS (f, 'VAL');
+		  ELSE
+		  END;
+		  WriteC (f, '('); CodeExpr (yyP6^.Actual.Expr, pPassValue); WriteS (f, ', ');
+		      CodeExpr (yyP6^.Actual.Next^.Actual.Expr, pPassValue); WriteC (f, ')');
+
+		END;
+;
+      RETURN;
+
+  END;
+  END;
+  END;
+ END CodeStdProc;
+
+PROCEDURE CodeActuals (t: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ | 3: yyR3: RECORD
+  length: CARDINAL;
+  END;
+ | 5: yyR5: RECORD
+  length: CARDINAL;
+  END;
+ | 9: yyR9: RECORD
+  Upb: tValue;
+  Lwb: tValue;
+  IndexType: tType;
+  END;
+ END; END;
+ BEGIN
+  IF (t^.Kind = Tree.Actual) THEN
+(* line 2731 "" *)
+   LOOP
+(* line 2733 "" *)
+      IF NOT (((t^.Actual.Expr ^ . Expr . Type = TypeSTRING) OR (t^.Actual.Expr ^ . Expr . Type = TypeStringChar)) AND (t ^ . Actual . Formal ^ . Kind = Array1) AND NOT IsOpen (t ^ . Actual . Formal)) THEN EXIT; END;
+(* line 2734 "" *)
+      WriteIdent (f, t ^ . Actual . String);
+(* line 2734 "" *)
+      CodeSepa (t^.Actual.Next);
+(* line 2735 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  IF (t^.Actual.Expr^.Kind = Tree.Qualid0) THEN
+(* line 2737 "" *)
+   LOOP
+(* line 2738 "" *)
+      IF NOT (IsOpen (t ^ . Actual . Formal) AND IsOpenArray (t^.Actual.Expr ^ . Qualid0 . Object)) THEN EXIT; END;
+(* line 2739 "" *)
+      
+		CodeExpr (t^.Actual.Expr, pPassValue); WriteS (f, ', ');
+		IF t^.Actual.Expr^.Qualid0.IsGlobalPtr THEN
+		  WriteIdent (f, GetGlobalPtr (t^.Actual.Expr^.Qualid0.Object));WriteS (f, '_O');
+		ELSE
+		  WriteIdent (f, GetParam (t^.Actual.Expr^.Qualid0.Object));
+		END;
+		IF t^.Actual.Formal^.Array1.ElemType = TypeWORD THEN
+		  WriteS (f, ' * sizeof('); CodeTypeName (t^.Actual.Expr^.Qualid0.Type^.Array1.ElemType); WriteC (f, ')');
+		END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2751 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  END;
+  IF (t^.Actual.Expr^.Kind = Tree.StringConst) THEN
+(* line 2753 "" *)
+    WITH yyTempo.yyR3 DO
+   LOOP
+(* line 2754 "" *)
+      IF NOT ((IsOpen (t ^ . Actual . Formal))) THEN EXIT; END;
+(* line 2755 "" *)
+      CodeString2 (t^.Actual.Expr, NOT Strncpy);
+(* line 2755 "" *)
+      WriteS (f, ', ');
+(* line 2756 "" *)
+      ;
+(* line 2757 "" *)
+      length := Length (t^.Actual.Expr^.StringConst.StringVal);
+(* line 2758 "" *)
+       IF length = 0 THEN length := 1; END; ;
+(* line 2759 "" *)
+      WriteI (f, length, 1);
+(* line 2759 "" *)
+      WriteC (f, 'L');
+(* line 2760 "" *)
+      CodeSepa (t^.Actual.Next);
+(* line 2761 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+    END;
+
+  END;
+  IF (t^.Actual.Expr^.Kind = Tree.CharConst) THEN
+(* line 2763 "" *)
+   LOOP
+(* line 2764 "" *)
+      IF NOT ((IsOpen (t ^ . Actual . Formal))) THEN EXIT; END;
+(* line 2765 "" *)
+      CodeString2 (t^.Actual.Expr, NOT Strncpy);
+(* line 2765 "" *)
+      WriteS (f, ', 1L');
+(* line 2766 "" *)
+      CodeSepa (t^.Actual.Next);
+(* line 2767 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  END;
+  IF Tree.IsType (t^.Actual.Expr, Tree.Qualid) THEN
+(* line 2769 "" *)
+    WITH yyTempo.yyR5 DO
+   LOOP
+(* line 2770 "" *)
+      IF NOT (IsOpen (t ^ . Actual . Formal) AND (t^.Actual.Expr ^ . Qualid . Type = TypeSTRING)) THEN EXIT; END;
+(* line 2771 "" *)
+      CodeString2 (t^.Actual.Expr, NOT Strncpy);
+(* line 2771 "" *)
+      WriteS (f, ', ');
+(* line 2772 "" *)
+      ;
+(* line 2773 "" *)
+      length := Length (t^.Actual.Expr ^ . Qualid . Object ^ . Const1 . Value . StringValue);
+(* line 2774 "" *)
+       IF length = 0 THEN length := 1; END; ;
+(* line 2775 "" *)
+      WriteI (f, length, 1);
+(* line 2775 "" *)
+      WriteC (f, 'L');
+(* line 2776 "" *)
+      CodeSepa (t^.Actual.Next);
+(* line 2777 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+    END;
+
+(* line 2779 "" *)
+   LOOP
+(* line 2780 "" *)
+      IF NOT (IsOpen (t ^ . Actual . Formal) AND (t^.Actual.Expr ^ . Qualid . Type = TypeStringChar)) THEN EXIT; END;
+(* line 2781 "" *)
+      CodeString2 (t^.Actual.Expr, NOT Strncpy);
+(* line 2781 "" *)
+      WriteS (f, ', 1L');
+(* line 2782 "" *)
+      CodeSepa (t^.Actual.Next);
+(* line 2783 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+(* line 2785 "" *)
+   LOOP
+(* line 2786 "" *)
+      IF NOT (IsOpen (t ^ . Actual . Formal) AND (t^.Actual.Expr ^ . Qualid . Type = TypeCHAR)) THEN EXIT; END;
+(* line 2787 "" *)
+      CodeString2 (t^.Actual.Expr, NOT Strncpy);
+(* line 2787 "" *)
+      WriteS (f, ', 1L');
+(* line 2788 "" *)
+      CodeSepa (t^.Actual.Next);
+(* line 2789 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  END;
+(* line 2791 "" *)
+   LOOP
+(* line 2792 "" *)
+      IF NOT (IsOpen (t ^ . Actual . Formal) AND (t ^ . Actual . Formal ^ . Array1 . ElemType = TypeWORD)) THEN EXIT; END;
+(* line 2793 "" *)
+      
+		IF OptionIsSet ('c') THEN WriteS (f, '(WORD *)'); END;
+		CodeAdr (t^.Actual.Expr); WriteS (f, ', ');
+		IF OptionIsSet ('c') THEN WriteS (f, '(LONGCARD)'); END;
+		WriteS (f, 'sizeof('); CodeExpr (t^.Actual.Expr, pPassValue); WriteC (f, ')');
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2800 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+(* line 2802 "" *)
+    WITH yyTempo.yyR9 DO
+   LOOP
+(* line 2803 "" *)
+      IF NOT (IsOpen (t ^ . Actual . Formal) AND (t^.Actual.Expr ^ . Designator . Type ^ . Kind = Array1)) THEN EXIT; END;
+(* line 2804 "" *)
+      ;
+(* line 2805 "" *)
+      
+		IndexType := t^.Actual.Expr^.Designator.Type^.Array1.IndexType;
+		GetLwb (IndexType, Lwb);
+		GetUpb (IndexType, Upb);
+		CodeExpr (t^.Actual.Expr, pSelect); WriteS (f, '.A, ');
+		WriteI (f, ValueToInt (Upb) - ValueToInt (Lwb) + 1, 1);WriteC (f, 'L'); CodeSepa (t^.Actual.Next);
+;
+(* line 2812 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+    END;
+
+(* line 2814 "" *)
+   LOOP
+(* line 2815 "" *)
+      IF NOT (t ^ . Actual . IsVAR) THEN EXIT; END;
+(* line 2816 "" *)
+      
+		IF Cast (cPassAddress, t^.Actual.Formal, t^.Actual.Expr^.Expr.Type) THEN
+		  CodeCastVAR (t^.Actual.Formal); CodeAdr (t^.Actual.Expr);
+		ELSE
+		  CodeAdr (t^.Actual.Expr);
+		END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2824 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  IF (t^.Actual.Expr^.Kind = Tree.IntConst) THEN
+(* line 2826 "" *)
+(* line 2827 "" *)
+      
+		CodeExpr (t^.Actual.Expr, pPassValue);
+		IF Cast (cPassValue, t^.Actual.Formal, TypeIntCard) THEN WriteC (f, 'L'); END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2832 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+
+  END;
+  IF (t^.Actual.Expr^.Kind = Tree.Unary) THEN
+  IF (t^.Actual.Expr^.Unary.Mop^.Kind = Tree.IntConst) THEN
+(* line 2834 "" *)
+   LOOP
+(* line 2835 "" *)
+      IF NOT (t^.Actual.Expr ^ . Unary . COperator = cMinus) THEN EXIT; END;
+(* line 2836 "" *)
+      
+		CodeExpr (t^.Actual.Expr, pPassValue);
+		IF Cast (cPassValue, t^.Actual.Formal, TypeIntCard) THEN WriteC (f, 'L'); END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2841 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  END;
+(* line 2855 "" *)
+   LOOP
+(* line 2856 "" *)
+      IF NOT (t^.Actual.Expr ^ . Unary . Type = TypeBOOLEAN) THEN EXIT; END;
+(* line 2857 "" *)
+      
+		IF OptionIsSet ('c') THEN
+		  WriteS (f, '(BOOLEAN)'); CodeExpr (t^.Actual.Expr, pCast);
+		ELSE
+		  CodeExpr (t^.Actual.Expr, pPassValue);
+		END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2865 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  END;
+  IF (t^.Actual.Expr^.Kind = Tree.Binary) THEN
+(* line 2843 "" *)
+   LOOP
+(* line 2844 "" *)
+      IF NOT (t^.Actual.Expr ^ . Binary . Type = TypeBOOLEAN) THEN EXIT; END;
+(* line 2845 "" *)
+      
+		IF OptionIsSet ('c') THEN
+		  WriteS (f, '(BOOLEAN)'); CodeExpr (t^.Actual.Expr, pCast);
+		ELSE
+		  CodeExpr (t^.Actual.Expr, pPassValue);
+		END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2853 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+   END;
+
+  END;
+(* line 2867 "" *)
+(* line 2868 "" *)
+      
+		IF Cast (cPassValue, t^.Actual.Formal, t^.Actual.Expr^.Expr.Type) THEN
+		  CodeCast (t^.Actual.Formal); CodeExpr (t^.Actual.Expr, pCast);
+		ELSE
+		  CodeExpr (t^.Actual.Expr, pPassValue);
+		END;
+		CodeSepa (t^.Actual.Next);
+;
+(* line 2876 "" *)
+      CodeActuals (t^.Actual.Next);
+      RETURN;
+
+  END;
+ END CodeActuals;
+
+PROCEDURE CodeSepa (yyP7: Tree.tTree);
+ VAR yyTempo: RECORD CASE : INTEGER OF
+ END; END;
+ BEGIN
+
+  CASE yyP7^.Kind OF
+  | Tree.VarIds1:
+(* line 2884 "" *)
+(* line 2889 "" *)
+      WriteS (f, ', ');
+      RETURN;
+
+  | Tree.ParIds1:
+(* line 2884 "" *)
+(* line 2889 "" *)
+      WriteS (f, ', ');
+      RETURN;
+
+  | Tree.FieldIds1:
+(* line 2884 "" *)
+(* line 2889 "" *)
+      WriteS (f, ', ');
+      RETURN;
+
+  | Tree.Formals1:
+(* line 2884 "" *)
+(* line 2889 "" *)
+      WriteS (f, ', ');
+      RETURN;
+
+  | Tree.FormalType:
+(* line 2884 "" *)
+(* line 2889 "" *)
+      WriteS (f, ', ');
+      RETURN;
+
+  | Tree.Actual:
+(* line 2884 "" *)
+(* line 2889 "" *)
+      WriteS (f, ', ');
+      RETURN;
+
+  | Tree.Elems1
+  , Tree.Elem
+  , Tree.ElemRange:
+(* line 2890 "" *)
+(* line 2890 "" *)
+      WriteS (f, ' | ');
+      RETURN;
+
+  ELSE END;
+
+ END CodeSepa;
+
+PROCEDURE BeginCode;
+ BEGIN
+(* line 1001 "" *)
+
+  Indent := 0;
+
+  Precedence [cNoOp		] := pMinPrec;
+  Precedence [cNotEqual		] := pNotEqual;
+  Precedence [cTimes		] := pTimes;
+  Precedence [cPlus		] := pPlus;
+  Precedence [cMinus		] := pMinus;
+  Precedence [cDivide		] := pDivide;
+  Precedence [cLess		] := pLess;
+  Precedence [cLessEqual	] := pLessEqual;
+  Precedence [cEqual		] := pEqual;
+  Precedence [cGreater		] := pGreater;
+  Precedence [cGreaterEqual	] := pGreaterEqual;
+  Precedence [cAnd		] := pAnd;
+  Precedence [cIn		] := pIn;
+  Precedence [cMod		] := pMod;
+  Precedence [cNot		] := pNot;
+  Precedence [cOr		] := pOr;
+  Precedence [cUnion		] := pUnion;
+  Precedence [cDifference	] := pDifference;
+  Precedence [cIntersection	] := pIntersection;
+  Precedence [cSymDiff		] := pSymDiff;
+  Precedence [cIsSubset1	] := pIsSubset1;
+  Precedence [cIsSubset2	] := pIsSubset2;
+  Precedence [cAssign		] := pAssign;
+  Precedence [cPassValue	] := pPassValue;
+  Precedence [cPassAddress	] := pPassAddress;
+
+  BeginAssocTab;
+  LabelStack.Begin;
+  WithStack.Begin;
+
+ END BeginCode;
+
+PROCEDURE CloseCode;
+ BEGIN
+(* line 1035 "" *)
+
+  CloseAssocTab;
+  LabelStack.Close;
+  WithStack.Close;
+
+ END CloseCode;
+
+PROCEDURE yyExit;
+ BEGIN
+  IO.CloseIO; System.Exit (1);
+ END yyExit;
+
+BEGIN
+ yyf	:= IO.StdOutput;
+ Exit	:= yyExit;
+ BeginCode;
+END Code.

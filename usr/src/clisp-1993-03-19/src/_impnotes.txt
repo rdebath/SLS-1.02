@@ -1,0 +1,1784 @@
+                Implementation Notes for CLISP
+                ==============================
+                Last modified: 9 March 1993.
+
+This implementation is mostly compatible to the standard reference
+
+       Guy L. Steele Jr.: Common Lisp - The Language (1st ed.).
+       Digital Press 1984.
+       (CLtL1 for short)
+
+
+These notes document the differences of the CLISP implementation of Common
+Lisp to the standard CLtL1, and some implementation details.
+
+
+                      CHAPTER 1: Introduction
+                      -----------------------
+
+No notes.
+
+
+                       CHAPTER 2: Data Types
+                       ---------------------
+
+All the data types are implemented: numbers, characters, symbols, lists,
+arrays, hash tables, readtables, packages, pathnames, streams, random
+states, structures and functions.
+
+2.1.3.
+------
+
+There are four floating point types: short-float, single-float, double-float
+and long-float:
+                  sign    mantissa   exponent
+   short-float    1 bit   16+1 bits   8 bits
+   single-float   1 bit   23+1 bits   8 bits   CLISP uses IEEE format
+   double-float   1 bit   52+1 bits  11 bits   CLISP uses IEEE format
+   long-float     1 bit   >=64 bits  32 bits
+
+The single and double float formats are those of the IEEE standard (1981),
+except that CLISP does not support features like +0, -0, +inf, -inf, gradual
+underflow, NaN, etc. (Common Lisp does not make use of these features.)
+
+Long floats have variable mantissa length, which is a multiple of 16 (or 32,
+depending on the word size of the processor). The default length used when
+long floats are read is given by the place (LONG-FLOAT-DIGITS). It can be
+set by (SETF (LONG-FLOAT-DIGITS) nnn), where nnn is a positive integer.
+
+2.1.4.
+------
+
+Complex numbers can have a real part and an imaginary part of different
+types. For example, (SQRT -9.0) evaluates to the number #C(0 3.0), which has
+a real part of exactly 0, not only 0.0 (which would mean "approximately 0").
+The type specifier for this is (COMPLEX INTEGER SINGLE-FLOAT), and
+
+           (COMPLEX type-of-real-part type-of-imaginary-part)
+
+in general.
+The type specifier (COMPLEX type) is equivalent to (COMPLEX type type).
+
+2.2.1.
+------
+
+The characters are ordered according to the ASCII encoding.
+
+#ifdef ATARI_CHS
+More precisely, CLISP uses the Atari character set:
+             $0 $1 $2 $3 $4 $5 $6 $7 $8 $9 $A $B $C $D $E $F
+         $00 **             ** ** ** ** ** ** ** ** **      
+         $10                               ** **            
+         $20     !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
+         $30  0  1  2  3  4  5  6  7  8  9  :  ;  <  =  >  ?
+         $40  @  A  B  C  D  E  F  G  H  I  J  K  L  M  N  O
+         $50  P  Q  R  S  T  U  V  W  X  Y  Z  [  \  ]  ^  _
+         $60  `  a  b  c  d  e  f  g  h  i  j  k  l  m  n  o
+         $70  p  q  r  s  t  u  v  w  x  y  z  {  |  }  ~  
+         $80  Ç  ü  é  â  ä  à  å  ç  ê  ë  è  ï  î  ì  Ä  Å
+         $90  É  æ  Æ  ô  ö  ò  û  ù  ÿ  Ö  Ü  ¢  £  ¥  ß   
+         $A0  á  í  ó  ú  ñ  Ñ  ª  º  ¿     ¬  ½  ¼  ¡  «  »
+         $B0  ã  õ  Ø  ø        À  Ã  Õ  ¨  ´  +  ¶  ©  ®   
+         $C0                                                
+         $D0                                         §      
+         $E0                    µ                           
+         $F0     ±              ÷     °              ²  ³  ¯
+Here ** are control characters, not graphic characters. (The characters left
+blank here cannot be represented in this character set).
+
+#endif
+#ifdef IBMPC_CHS
+More precisely, CLISP uses the IBM PC character set (code page 437):
+             $0 $1 $2 $3 $4 $5 $6 $7 $8 $9 $A $B $C $D $E $F
+         $00 **                   ** ** ** ** ** ** **  ¶  §
+         $10                               ** **            
+         $20     !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
+         $30  0  1  2  3  4  5  6  7  8  9  :  ;  <  =  >  ?
+         $40  @  A  B  C  D  E  F  G  H  I  J  K  L  M  N  O
+         $50  P  Q  R  S  T  U  V  W  X  Y  Z  [  \  ]  ^  _
+         $60  `  a  b  c  d  e  f  g  h  i  j  k  l  m  n  o
+         $70  p  q  r  s  t  u  v  w  x  y  z  {  |  }  ~  
+         $80  Ç  ü  é  â  ä  à  å  ç  ê  ë  è  ï  î  ì  Ä  Å
+         $90  É  æ  Æ  ô  ö  ò  û  ù  ÿ  Ö  Ü  ¢  £  ¥      
+         $A0  á  í  ó  ú  ñ  Ñ  ª  º  ¿     ¬  ½  ¼  ¡  «  »
+         $B0                                                
+         $C0                                                
+         $D0                                                
+         $E0     ß              µ                           
+         $F0     ±              ÷     °     ·        ²      
+Here ** are control characters, not graphic characters. (The characters left
+blank here cannot be represented in this character set).
+
+#endif
+#ifdef ISOLATIN_CHS
+More precisely, CLISP uses the ISO Latin-1 (ISO 8859-1) character set:
+             $0 $1 $2 $3 $4 $5 $6 $7 $8 $9 $A $B $C $D $E $F
+         $00 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
+         $10 ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
+         $20     !  "  #  $  %  &  '  (  )  *  +  ,  -  .  /
+         $30  0  1  2  3  4  5  6  7  8  9  :  ;  <  =  >  ?
+         $40  @  A  B  C  D  E  F  G  H  I  J  K  L  M  N  O
+         $50  P  Q  R  S  T  U  V  W  X  Y  Z  [  \  ]  ^  _
+         $60  `  a  b  c  d  e  f  g  h  i  j  k  l  m  n  o
+         $70  p  q  r  s  t  u  v  w  x  y  z  {  |  }  ~   
+         $80                                                
+         $90                                                
+         $A0     ¡  ¢  £  ¤  ¥  ¦  §  ¨  ©  ª  «  ¬  ­  ®  ¯
+         $B0  °  ±  ²  ³  ´  µ  ¶  ·  ¸  ¹  º  »  ¼  ½  ¾  ¿
+         $C0  À  Á  Â  Ã  Ä  Å  Æ  Ç  È  É  Ê  Ë  Ì  Í  Î  Ï
+         $D0  Ð  Ñ  Ò  Ó  Ô  Õ  Ö  ×  Ø  Ù  Ú  Û  Ü  Ý  Þ  ß
+         $E0  à  á  â  ã  ä  å  æ  ç  è  é  ê  ë  ì  í  î  ï
+         $F0  ð  ñ  ò  ó  ô  õ  ö  ÷  ø  ù  ú  û  ü  ý  þ  ÿ
+Here ** are control characters, not graphic characters. (The characters left
+blank here cannot be represented in this character set).
+
+#endif
+The following are standard characters:
+  #\Space               $20
+  #\Newline             $0A
+The following are semi-standard characters:
+  #\Backspace           $08
+  #\Tab                 $09
+  #\Linefeed            $0A
+  #\Page                $0C
+  #\Return              $0D
+#if defined(ATARI_CHARNAMES) || defined(MSDOS_CHARNAMES) || defined(AMIGA_CHARNAMES)
+  #\Rubout              $08
+#endif
+#ifdef UNIX_CHARNAMES
+  #\Rubout              $7F
+#endif
+
+2.2.2.
+------
+
+#\Newline is the delimiter between lines.
+
+#if defined(ATARI) || defined(MSDOS) || defined(VMS)
+When writing to a file, #\Newline is converted to CR/LF. (This is the usual
+convention on ATARI, DOS and VMS.) For example, #\Return #\Newline is written
+as CR/CR/LF.
+#endif
+When reading from a file, CR/LF is converted to #\Newline, and CR not
+followed by LF is read as #\Return.
+
+2.2.3.
+------
+
+There are the following additional characters with names:
+  #\Null                $00
+  #\Bell                $07
+  #\Escape              $1B
+
+2.2.4.
+------
+
+The code of a character is >=0, <256. CHAR-CODE-LIMIT = 256.
+
+There are fonts 0 to 15, and CHAR-FONT-LIMIT = 16. But the system itself
+uses only font 0.
+
+The following bits attributes are implemented: :CONTROL, :META, :SUPER,
+:HYPER. Therefore CHAR-BITS-LIMIT = 16.
+#ifdef KEYBOARD
+The system itself uses these bits only to mention special keys and
+Control/Alternate/Shift key status on return from
+(READ-CHAR *KEYBOARD-INPUT*).
+#endif
+
+2.5.
+----
+
+The maximum rank (number of dimensions) of an array is 65535 on 16-bit
+processors, 4294967295 on 32-bit processors.
+
+2.13.
+-----
+
+All the functions built by FUNCTION, COMPILE and the like are atoms. There
+are built-in functions written in C, compiled functions (both of type
+COMPILED-FUNCTION) and interpreted functions (of type FUNCTION).
+The possible function names (CLtL1 p. 59) are symbols and lambda expressions.
+
+2.14.
+-----
+
+This is the list of objects whose external representation can not be
+meaningfully read in:
+  * all structures lacking a keyword constructor.
+  * all arrays except strings, if *PRINT-ARRAY* = NIL.
+  * #<SYSTEM-FUNCTION name>     built-in function written in C
+  * #<SPECIAL-FORM name>        special form handler
+  * #<COMPILED-CLOSURE name>    compiled function, if *PRINT-CLOSURE* = NIL
+  * #<CLOSURE name ...>         interpreted function
+  * #<FRAME-POINTER #x...>      pointer to a stack frame
+  * #<DISABLED POINTER>         frame pointer which has become invalid on
+                                exit from the corresponding BLOCK or TAGBODY
+  * #<...-STREAM ...>           stream
+  * #<PACKAGE name>             package
+  * #<HASH-TABLE #x...>         hash table, if *PRINT-ARRAY* = NIL
+  * #<READTABLE #x...>          readtable
+  * #<UNBOUND>                  "value" of a symbol without value, "value"
+                                of an unsupplied optional or keyword argument
+  * #<SPECIAL REFERENCE>        environment marker for variables declared
+                                SPECIAL
+  * #<DOT>                      internal READ result for "."
+  * #<END OF FILE>              internal READ result, when the end of file
+                                is reached
+  * #<READ-LABEL ...>           intermediate READ result for #n#
+  * #<ADDRESS #x...>            machine address, should not occur
+  * #<SYSTEM-POINTER #x...>     should not occur
+
+2.15.
+-----
+
+The type NUMBER is the disjoint union of the types REAL and COMPLEX. (CLtL
+wording: "exhaustive partition")
+The type REAL is the disjoint union of the types RATIONAL and FLOAT.
+The type RATIONAL is the disjoint union of the types INTEGER and RATIO.
+The type INTEGER is the disjoint union of the types FIXNUM and BIGNUM.
+The type FLOAT is the disjoint union of the types SHORT-FLOAT, SINGLE-FLOAT,
+DOUBLE-FLOAT and LONG-FLOAT.
+
+
+                     CHAPTER 3: Scope and Extent
+                     ---------------------------
+
+is implemented as described.
+
+
+                      CHAPTER 4: Type Specifiers
+                      --------------------------
+
+4.5.
+----
+
+The general form of the COMPLEX type specifier is
+(COMPLEX type-of-real-part type-of-imaginary-part).
+The type specifier (COMPLEX type) is equivalent to (COMPLEX type type).
+
+4.6.
+----
+
+The REAL type specifier (REAL low high) denotes the real numbers between low
+and high.
+
+4.7.
+----
+
+DEFTYPE lambda lists are subject to destructuring (nested lambda lists are
+allowed, as in DEFMACRO) and may contain a &WHOLE marker, but no
+&ENVIRONMENT marker.
+
+4.9.
+----
+
+The possible results of TYPE-OF are:
+ CONS
+ SYMBOL NULL
+ FIXNUM BIGNUM RATIO SHORT-FLOAT SINGLE-FLOAT DOUBLE-FLOAT LONG-FLOAT COMPLEX
+ CHARACTER
+ (ARRAY element-type dimensions), (SIMPLE-ARRAY element-type dimensions)
+ (VECTOR T size), (SIMPLE-VECTOR size)
+ (STRING size), (SIMPLE-STRING size)
+ (BIT-VECTOR size), (SIMPLE-BIT-VECTOR size)
+ FUNCTION COMPILED-FUNCTION
+ STREAM PACKAGE HASH-TABLE READTABLE PATHNAME RANDOM-STATE
+ BYTE LOAD-TIME-EVAL READ-LABEL FRAME-POINTER SYSTEM-INTERNAL
+ ADDRESS (should not occur)
+ any other symbol (structure types)
+
+
+                       CHAPTER 5: program Structure
+                       ----------------------------
+
+5.1.3.
+------
+
+In addition to the 24 special forms listed on p. 57, the macros
+PSETQ, PROG1, PROG2, WHEN, UNLESS, COND, MULTIPLE-VALUE-LIST,
+MULTIPLE-VALUE-BIND, MULTIPLE-VALUE-SETQ, AND, OR
+are implemented as special forms.
+
+Constants may not be bound dynamically or lexically.
+
+5.2.2.
+------
+
+LAMBDA-LIST-KEYWORDS =
+    (&OPTIONAL &REST &KEY &ALLOW-OTHER-KEYS &AUX &BODY &WHOLE &ENVIRONMENT)
+
+LAMBDA-PARAMETERS-LIMIT is 65536 on 16-bit processors, 4294967296 on 32-bit
+processors.
+
+5.3.
+----
+
+DEFUN and DEFMACRO are allowed in non-toplevel positions.
+As an example, consider the definition of GENSYM:
+(let ((gensym-prefix "G")
+      (gensym-count 1))
+  (defun gensym (&optional (x nil s))
+    (when s
+      (cond ((stringp x) (setq gensym-prefix x))
+            ((integerp x)
+             (if (minusp x)
+               (error "~S: index ~S is negative" 'gensym x)
+               (setq gensym-count x)
+            ))
+            (t (error "~S: argument ~S of wrong type" 'gensym x))
+    ) )
+    (prog1
+      (make-symbol
+        (concatenate 'string
+          gensym-prefix
+          (write-to-string gensym-count :base 10 :radix nil)
+      ) )
+      (incf gensym-count)
+) )
+
+5.3.2.
+------
+
+(PROCLAIM '(SPECIAL var)) declarations may not be undone. The same holds
+for DEFVAR, DEFPARAMETER and DEFCONSTANT declarations.
+
+It is an error if a DEFCONSTANT variable is bound at the moment the
+DEFCONSTANT is executed, but DEFCONSTANT does not check this.
+
+Constants may not be bound dynamically or lexically.
+
+
+                      CHAPTER 6: Predicates
+                      ---------------------
+
+6.2.2.
+------
+
+REALP returns T is its argument is a real number, NIL otherwise.
+
+COMPILED-FUNCTION-P returns T on built-in functions written in C, compiled
+functions and special form handlers. Therefore COMPILED-FUNCTION is not a
+subtype of FUNCTION.
+
+6.3.
+----
+
+EQ compares characters and fixnums as EQL does. No unnecessary copies are
+made of characters and numbers. Nevertheless, one should use EQL.
+
+(let ((x y)) (eq x x)) always returns T, regardless of y.
+
+6.4.
+----
+
+AND and OR are implemented as special forms and, as such, rather efficient.
+
+
+                      CHAPTER 7: Control Structure
+                      ----------------------------
+
+7.1.1.
+------
+
+(FUNCTION symbol) returns the local function definition established by FLET
+or LABELS, if it exists, otherwise the global function definition.
+
+(SPECIAL-FORM-P symbol) returns NIL or T. If it returns T, then
+(SYMBOL-FUNCTION symbol) returns the (useless) special form handler.
+
+7.1.2.
+------
+
+PSETQ is implemented as a special form and, as such, rather efficient.
+
+7.2.
+----
+
+(SETF (SYMBOL-FUNCTION symbol) object) requires object to be either a
+function, a SYMBOL-FUNCTION return value or a lambda expression. A lambda
+expression is thereby immediately converted to a function.
+
+SETF also accepts places yielding multiple values.
+
+Additional places:
+
+* FUNCALL:
+  (SETF (FUNCALL #'symbol ...) object) and
+  (SETF (FUNCALL 'symbol ...) object)
+  are equivalent to (SETF (symbol ...) object).
+
+* GET-DISPATCH-MACRO-CHARACTER:
+  (SETF (GET-DISPATCH-MACRO-CHARACTER ...) ...)
+  performs a SET-DISPATCH-MACRO-CHARACTER.
+
+* LONG-FLOAT-DIGITS:
+  (SETF (LONG-FLOAT-DIGITS) digits) sets the default mantissa length of long
+  floats to digits bits.
+
+* VALUES:
+  (SETF (VALUES place1 ... placek) form)
+  is approximately equivalent to
+     (MULTIPLE-VALUE-BIND (dummy1 ... dummyk) form
+       (SETF place1 dummy1 ... placek dummyk)
+       (VALUES dummy1 ... dummyk)
+     )
+  Example:
+    (SETF (VALUES A B) (VALUES B A)) interchanges the values of A and B.
+
+* VALUES-LIST:
+  (SETF (VALUES-LIST list) form)  is equivalent to
+  (VALUES-LIST (SETF list (MULTIPLE-VALUE-LIST form)))
+
+&KEY markers in DEFSETF lambda lists are supported, but the corresponding
+keywords must appear literally in the program text.
+
+(GET-SETF-METHOD form &optional env) and
+(GET-SETF-METHOD-MULTIPLE-VALUE form &optional env)
+receives as optional argument the environment necessary for macro expansions.
+In DEFINE-SETF-METHOD lambda lists, one can specify &ENVIRONMENT and a
+variable, which will be bound to the environment. This environment should be
+passed to all calls of GET-SETF-METHOD and GET-SETF-METHOD-MULTIPLE-VALUE.
+If this is done, even local macros will be interpreted as places correctly.
+
+7.3.
+----
+
+CALL-ARGUMENTS-LIMIT is 65536 on 16-bit processors, 4294967296 on 32-bit
+processors.
+
+7.4.
+----
+
+PROG1 and PROG2 are implemented as special forms and, as such, rather
+efficient.
+
+7.5.
+----
+
+If using the optional package MACROS3:
+  The macros LETF and LETF* are like LET and LET*, resp., except that they
+  can bind places, even places with multiple values.
+  Example:
+  (LETF (((VALUES A B) form)) ...)
+    is equivalent to
+    (MULTIPLE-VALUE-BIND (A B) form ...)
+  (LETF (((FIRST L) 7)) ...)
+    is approximately equivalent to
+    (LET* ((#:G1 L) (#:G2 (FIRST #:G1)))
+      (UNWIND-PROTECT (PROGN (SETF (FIRST #:G1) 7) ...)
+                      (SETF (FIRST #:G1) #:G2)
+    ) )
+
+7.6.
+----
+
+WHEN, UNLESS, COND are implemented as special forms and, as such, rather
+efficient.
+
+7.8.4.
+------
+
+The function MAPCAP is like MAPCAN, except that it concatenates the
+resulting lists with APPEND instead of NCONC:
+  (MAPCAP fun x1 ... xn) == (apply #'append (mapcar fun x1 ... xn))
+(Actually a bit more efficient that this would be.)
+
+The function MAPLAP is like MAPCON, except that it concatenates the
+resulting lists with APPEND instead of NCONC:
+  (MAPLAP fun x1 ... xn) = (apply #'append (maplist fun x1 ... xn))
+(Actually a bit more efficient that this would be.)
+
+7.9.1.
+------
+
+MULTIPLE-VALUES-LIMIT = 128
+
+MULTIPLE-VALUE-LIST, MULTIPLE-VALUE-BIND, MULTIPLE-VALUE-SETQ are
+implemented as special forms and, as such, rather efficient.
+
+If using the optional package MACROS3:
+  The macro NTH-VALUE:
+  (NTH-VALUE n form) returns the (n+1)st value (n>=0) of form.
+
+
+                        CHAPTER 8: Macros
+                        -----------------
+
+No notes.
+
+
+                     CHAPTER 9: Declarations
+                     -----------------------
+
+9.2.
+----
+
+The declarations (TYPE type var ...), (FTYPE type fun ...),
+(FUNCTION name arglist result-type), (OPTIMIZE (quality value) ...)
+are ignored by the interpreter and the compiler.
+
+Additional declarations:
+
+* The declaration (COMPILE) has the effect that the current form is compiled
+  prior to execution.
+  Examples:
+  (LOCALLY (DECLARE (COMPILE)) form)
+  executes a compiled version of form.
+  (let ((x 0))
+    (flet ((inc () (declare (compile)) (incf x))
+           (dec () (decf x)))
+      (values #'inc #'dec)
+  ) )
+  returns two functions. The first is compiled and increments x, the second
+  is interpreted (slower) and decrements the same x.
+
+9.3.
+----
+
+The type assertion (THE value-type form) enforces a type check in
+interpreted code. No type check is done in compiled code.
+
+If using the optional package MACROS3:
+(ETHE value-type form) enforces a type check in both interpreted and
+compiled code.
+
+
+                         CHAPTER 10: Symbols
+                         -------------------
+
+No notes.
+
+
+                         CHAPTER 11: Packages
+                         --------------------
+
+11.6.
+-----
+
+The package SYSTEM has the nicknames "SYS" and, additionally, "COMPILER".
+
+11.8.
+-----
+
+The function REQUIRE receives as optional argument either a pathname or a
+list of pathnames: files to be loaded if the required module is not already
+in memory.
+
+
+                           CHAPTER 12: Numbers
+                           -------------------
+
+The single and double float formats are those of the IEEE standard (1981),
+except that CLISP does not support features like +0, -0, +inf, -inf, gradual
+underflow, NaN, etc. (Common Lisp does not make use of these features.)
+
+The default number of mantissa bits in long floats is given by the place
+(LONG-FLOAT-DIGITS).
+Example: (SETF (LONG-FLOAT-DIGITS) 3322) sets the default precision of long
+floats to 1000 decimal digits.
+
+12.1.
+-----
+
+Complex numbers can have a real part and an imaginary part of different
+types. If the imaginary part is EQL to 0, the number is automatically
+converted to a real number. (Cf. CLtL1 p. 195)
+This has the advantage that  (let ((x (sqrt -9.0))) (* x x))
+- instead of evaluting to #C(-9.0 0.0), with x = #C(0.0 3.0) -
+evaluates to #C(-9.0 0) = -9.0, with x = #C(0 3.0).
+
+Coercions on operations involving different types:
+The result of an arithmetic operation whose arguments are of different float
+types is rounded to the float format of the shortest (least precise) of the
+arguments.
+    rational -> long float -> double float -> single float -> short float
+(in contrast to CLtL1 p. 195!)
+Rationale:
+  See it mathematically. Add intervals:
+  {1.0 +/- 1e-8} + {1.0 +/- 1e-16} = {2.0 +/- 1e-8}
+  So, if we add 1.0s0 and 1.0d0, we should get 2.0s0.
+Shortly:
+  Do not suggest accuracy of a result by giving it a precision that is
+  greater than its accuracy.
+Example:
+  (- (+ 1.7 pi) pi)  should not return  1.700000726342836417234L0,
+  it should return 1.7f0 (or 1.700001f0 if there were rounding errors).
+Experience:
+  If in a computation using thousands of short floats, a long float (like pi)
+  happens to be used, the long precision should not propagate throughout all
+  the intermediate values. Otherwise, the long result would look precise,
+  but its accuracy is only that of a short float; furthermore much
+  computation time would be lost by calculating with long floats when only
+  short floats would be needed.
+
+When rational numbers are to be converted to floats (due to FLOAT, COERCE,
+SQRT or a transcendental function), the result type is given by the variable
+*DEFAULT-FLOAT-FORMAT*.
+
+12.4.
+-----
+
+(LCM), called without arguments, returns 1, which is the neutral element of
+composition with LCM.
+
+(! n) returns the factorial of n, n a nonnegative integer.
+
+(EXQUO x y) returns the quotient x/y of two integers x,y, and checks that it
+is an integer. (This is more efficient than /.)
+
+12.5.1.
+-------
+
+(EXPT base exponent) is not very precise if exponent has large absolute
+value.
+
+(LOG number base) signals an error if base = 1.
+
+12.5.2.
+-------
+
+The value of PI is a long float with the precision given by
+(LONG-FLOAT-DIGITS). When this precision is changed, the value of PI is
+automatically recomputed. Therefore PI is a variable, not a constant.
+
+12.6.
+-----
+
+FLOAT-RADIX always returns 2.
+
+(FLOAT-DIGITS number digits) coerces `number' (a real number) to a floating
+point number with at least `digits' mantissa digits. The following holds:
+   (>= (FLOAT-DIGITS (FLOAT-DIGITS number digits)) digits)
+
+12.7.
+-----
+
+BOOLE-CLR   =  0
+BOOLE-SET   = 15
+BOOLE-1     = 10
+BOOLE-2     = 12
+BOOLE-C1    =  5
+BOOLE-C2    =  3
+BOOLE-AND   =  8
+BOOLE-IOR   = 14
+BOOLE-XOR   =  6
+BOOLE-EQV   =  9
+BOOLE-NAND  =  7
+BOOLE-NOR   =  1
+BOOLE-ANDC1 =  4
+BOOLE-ANDC2 =  2
+BOOLE-ORC1  = 13
+BOOLE-ORC2  = 11
+
+12.10.
+------
+
+MOST-POSITIVE-FIXNUM = 2^24-1 = 16777215
+MOST-NEGATIVE-FIXNUM = -2^24 = -16777216
+
+Together with PI, the other long float constants MOST-POSITIVE-LONG-FLOAT,
+LEAST-POSITIVE-LONG-FLOAT, LEAST-NEGATIVE-LONG-FLOAT,
+MOST-NEGATIVE-LONG-FLOAT, LONG-FLOAT-EPSILON, LONG-FLOAT-NEGATIVE-EPSILON
+are recomputed whenever (LONG-FLOAT-DIGITS) is changed. They are variables,
+not constants.
+
+
+                         CHAPTER 13: Characters
+                         ----------------------
+
+See first above: 2.2.
+
+13.1.
+-----
+
+CHAR-CODE-LIMIT = 256
+CHAR-FONT-LIMIT = 16
+CHAR-BITS-LIMIT = 16
+
+13.2.
+-----
+
+String-chars are those characters with font = 0 and bits = 0.
+
+The graphic characters have been described above.
+
+The standard characters are #\Newline and those graphic characters with a
+code between 32 and 126 (inclusive).
+
+The alphabetic characters are these string-chars:
+             ABCDEFGHIJKLMNOPQRSTUVWXYZ
+             abcdefghijklmnopqrstuvwxyz
+and the international alphabetic characters from the character set:
+             ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜßáíóúñÑªºãõØøÀÃÕ etc.
+
+The functions CHAR-EQUAL, CHAR-NOT-EQUAL, CHAR-LESSP, CHAR-GREATERP,
+CHAR-NOT-GREATERP, CHAR-NOT-LESSP ignore bits and font attributes of their
+arguments.
+
+13.4.
+-----
+
+The string chars that are not graphic chars and the space character have
+names:
+#ifdef ATARI_CHARNAMES
+  (code-char #x00) = #\Null
+  (code-char #x05) = #\Code5
+  (code-char #x06) = #\Code6
+  (code-char #x07) = #\Bell
+  (code-char #x08) = #\Backspace = #\Rubout
+  (code-char #x09) = #\Tab
+  (code-char #x0A) = #\Newline = #\Linefeed
+  (code-char #x0B) = #\Code11
+  (code-char #x0C) = #\Page
+  (code-char #x0D) = #\Return
+  (code-char #x1A) = #\Code26
+  (code-char #x1B) = #\Escape
+  (code-char #x20) = #\Space
+#endif
+#ifdef AMIGA_CHARNAMES
+  (code-char #x00) = #\Null
+  (code-char #x01) = #\Code1
+  (code-char #x02) = #\Code2
+  (code-char #x03) = #\Code3
+  (code-char #x04) = #\Code4
+  (code-char #x05) = #\Code5
+  (code-char #x06) = #\Code6
+  (code-char #x07) = #\Bell = #\Bel
+  (code-char #x08) = #\Backspace = #\Bs = #\Rubout
+  (code-char #x09) = #\Tab = #\Ht
+  (code-char #x0A) = #\Newline = #\Linefeed = #\Lf
+  (code-char #x0B) = #\Vt
+  (code-char #x0C) = #\Page = #\Ff
+  (code-char #x0D) = #\Return = #\Cr
+  (code-char #x0E) = #\So
+  (code-char #x0F) = #\Si
+  (code-char #x10) = #\Code16
+  (code-char #x11) = #\Code17
+  (code-char #x12) = #\Code18
+  (code-char #x13) = #\Code19
+  (code-char #x14) = #\Code20
+  (code-char #x15) = #\Code21
+  (code-char #x16) = #\Code22
+  (code-char #x17) = #\Code23
+  (code-char #x18) = #\Code24
+  (code-char #x19) = #\Code25
+  (code-char #x1A) = #\Code26
+  (code-char #x1B) = #\Escape = #\Esc
+  (code-char #x1C) = #\Code28
+  (code-char #x1D) = #\Code29
+  (code-char #x1E) = #\Code30
+  (code-char #x1F) = #\Code31
+  (code-char #x20) = #\Space
+  (code-char #x9B) = #\Csi
+#endif
+#ifdef MSDOS_CHARNAMES
+  (code-char #x00) = #\Null
+  (code-char #x07) = #\Bell
+  (code-char #x08) = #\Backspace = #\Rubout
+  (code-char #x09) = #\Tab
+  (code-char #x0A) = #\Newline = #\Linefeed
+  (code-char #x0B) = #\Code11
+  (code-char #x0C) = #\Page
+  (code-char #x0D) = #\Return
+  (code-char #x1A) = #\Code26
+  (code-char #x1B) = #\Escape
+  (code-char #x20) = #\Space
+#endif
+#ifdef UNIX_CHARNAMES
+  (code-char #x00) = #\Null = #\Nul
+  (code-char #x01) = #\Soh
+  (code-char #x02) = #\Stx
+  (code-char #x03) = #\Etx
+  (code-char #x04) = #\Eot
+  (code-char #x05) = #\Enq
+  (code-char #x06) = #\Ack
+  (code-char #x07) = #\Bell = #\Bel
+  (code-char #x08) = #\Backspace = #\Bs
+  (code-char #x09) = #\Tab = #\Ht
+  (code-char #x0A) = #\Newline = #\Nl = #\Linefeed
+  (code-char #x0B) = #\Vt
+  (code-char #x0C) = #\Page = #\Np
+  (code-char #x0D) = #\Return = #\Cr
+  (code-char #x0E) = #\So
+  (code-char #x0F) = #\Si
+  (code-char #x10) = #\Dle
+  (code-char #x11) = #\Dc1
+  (code-char #x12) = #\Dc2
+  (code-char #x13) = #\Dc3
+  (code-char #x14) = #\Dc4
+  (code-char #x15) = #\Nak
+  (code-char #x16) = #\Syn
+  (code-char #x17) = #\Etb
+  (code-char #x18) = #\Can
+  (code-char #x19) = #\Em
+  (code-char #x1A) = #\Sub
+  (code-char #x1B) = #\Escape = #\Esc
+  (code-char #x1C) = #\Fs
+  (code-char #x1D) = #\Gs
+  (code-char #x1E) = #\Rs
+  (code-char #x1F) = #\Us
+  (code-char #x20) = #\Space = #\Sp
+  (code-char #x7F) = #\Rubout = #\Delete = #\Del
+#endif
+
+13.5.
+-----
+
+CHAR-CONTROL-BIT = 1
+CHAR-META-BIT    = 2
+CHAR-SUPER-BIT   = 4
+CHAR-HYPER-BIT   = 8
+
+
+                         CHAPTER 14: Sequences
+                         ---------------------
+
+14.1.
+-----
+
+The result of NREVERSE is always EQ to the argument. NREVERSE on a vector
+swaps pairs of elements. NREVERSE on a list swaps the first and the last
+element and reverses the list chaining between them.
+
+14.2.
+-----
+
+For iteration through a sequence, a macro DOSEQ, analogous to DOLIST, may be
+used instead of MAP :
+  (doseq (var seqform [resultform]) {declaration}* {tag|statement}* )
+
+14.3.
+-----
+
+REMOVE, REMOVE-IF, REMOVE-IF-NOT, REMOVE-DUPLICATES return their argument
+unchanged, if no element has to be removed.
+
+DELETE, DELETE-IF, DELETE-IF-NOT, DELETE-DUPLICATES destructively modify
+their argument: If the argument is a list, the CDR parts are modified. If
+the argument is a vector with fill pointer, the fill pointer is lowered and
+the remaining elements are compacted below the new fill pointer.
+
+14.5.
+-----
+
+SORT and STABLE-SORT have two additional keywords :START and :END :
+  (SORT sequence predicate &key :key :start :end)
+  (STABLE-SORT sequence predicate &key :key :start :end)
+
+SORT and STABLE-SORT are identical. They implement the mergesort algorithm.
+
+
+                         CHAPTER 15: Lists
+                         -----------------
+
+15.4.
+-----
+
+SUBLIS and NSUBLIS apply the :KEY argument to the nodes of the cons tree and
+not to the keys of the alist.
+
+
+                      CHAPTER 16: Hash Tables
+                      -----------------------
+
+16.1.
+-----
+
+MAKE-HASH-TABLE has an additional keyword :INITIAL-CONTENTS :
+  (MAKE-HASH-TABLE &key :test :initial-contents :size :rehash-size
+                        :rehash-threshold)
+The :INITIAL-CONTENTS argument is an alist that is used to initialize the
+new hash table.
+The :REHASH-THRESHOLD argument is ignored.
+
+For iteration through a hash table, a macro DOHASH, analogous to DOLIST, can
+be used instead of MAPHASH :
+  (dohash (key-var value-var hash-table-form [resultform])
+    {declaration}* {tag|statement}*
+  )
+
+
+                     CHAPTER 17: Arrays
+                     ------------------
+
+17.1.
+-----
+
+ARRAY-RANK-LIMIT is 65536 on 16-bit processors, 4294967296 on 32-bit
+processors.
+
+ARRAY-DIMENSION-LIMIT  = 2^24 = 16777216
+ARRAY-TOTAL-SIZE-LIMIT = 2^24 = 16777216
+
+17.6.
+-----
+
+An array to which another array is displaced should not be shrunk (using
+ADJUST-ARRAY) in such a way that the other array points into void space.
+This is not checked at the time ADJUST-ARRAY is called!
+
+
+                       CHAPTER 18: Strings
+                       -------------------
+
+18.2.
+-----
+
+String comparison is based on the function CHAR<=. Therefore diphtongs do
+not obey the usual national rules. Example: "o" < "oe" < "z" < "ö".
+
+
+                        CHAPTER 19: Structures
+                        ----------------------
+
+19.5.
+-----
+
+The :PRINT-FUNCTION option should contain a lambda expression
+  (lambda (structure stream depth) (declare (ignore depth)) ...)
+This lambda expression names a function whose task is to output the external
+representation of structure onto the stream. This may be done by outputting
+text onto the stream using WRITE-CHAR, WRITE-STRING, WRITE, PRIN1, PRINC,
+PRINT, PPRINT, FORMAT and the like. The following rules must be obeyed:
+* The value of *PRINT-ESCAPE* must be respected.
+* The value of *PRINT-PRETTY* should not and cannot be respected, since the
+  pretty-print mechanism is not accessible from outside.
+* The value of *PRINT-CIRCLE* need not to be respected. This is managed by
+  the system. (But the print-circle mechanism handles only those objects that
+  are (direct or indirect) components of structure.)
+* The value of *PRINT-LEVEL* is respected by
+  WRITE, PRIN1, PRINC, PRINT, PPRINT, FORMAT ~A, FORMAT ~S, FORMAT ~W and
+  FORMAT ~D,~B,~O,~X,~R,~F,~E,~G,~$ with not-numerical arguments.
+  Therefore the print-level mechanism works automatically if only these
+  functions are used for outputting objects and if they are not called on
+  objects with nesting level > 1. (The print-level mechanism does not
+  recognize how many parentheses you have output. It only counts how many
+  times it was called recursively.)
+* The value of *PRINT-LENGTH* must be respected, especially if you are
+  outputting an arbitrary number of components.
+* You need not bother about the values of *PRINT-BASE*, *PRINT-RADIX*,
+  *PRINT-CASE*, *PRINT-GENSYM*, *PRINT-ARRAY*, *PRINT-CLOSURE*.
+
+
+                       CHAPTER 20: The Evaluator
+                       -------------------------
+
+As in Scheme, the Macro (THE-ENVIRONMENT) returns the current lexical
+environment. This works only in interpreted code and is not compilable!
+
+(EVAL-ENV form [env]) evaluates a form in a given lexical environment, just
+if the form had been part of the program text that environment came from.
+
+
+                         CHAPTER 21: Streams
+                         -------------------
+
+21.1.
+-----
+
+#ifdef KEYBOARD
+*TERMINAL-IO* is not the only stream that communicates directly with the
+user: During execution of the body of a (WITH-KEYBOARD . body) form,
+*KEYBOARD-INPUT* is the stream that reads the keystrokes from the keyboard.
+It returns every keystroke in detail, as character with the following bits:
+#if defined(ATARI) || defined(MSDOS)
+  HYPER        if a non-standard key. These are:
+#ifdef ATARI
+                 function keys, cursor keypad, numeric keypad, Delete key.
+#endif
+#ifdef MSDOS
+                 function keys, cursor keypads, numeric keypad.
+#endif
+#endif
+  CHAR-CODE    the Ascii code for standard keys,
+               for non-standard keys:
+#ifdef ATARI
+                 F1 -> #\F1, ..., F9 -> #\F9, F10 -> #\F10,
+                 Help -> #\Help, Undo -> #\Undo,
+                 Insert -> #\Insert, Delete -> #\Delete,
+                 ClrHome -> #\Home,
+                 Arrow keys -> #\Up, #\Down, #\Left, #\Right.
+#endif
+#ifdef MSDOS
+                 F1 -> #\F1, ..., F10 -> #\F10, F11 -> #\F11, F12 -> #\F12,
+                 Insert -> #\Insert, Delete -> #\Delete,
+                 Home -> #\Home, End -> #\End, PgUp -> #\PgUp, PgDn -> #\PgDn,
+                 Arrow keys -> #\Up, #\Down, #\Left, #\Right.
+#endif
+#ifdef UNIX
+                 F1 -> #\F1, ..., F10 -> #\F10, F11 -> #\F11, F12 -> #\F12,
+                 Insert -> #\Insert, Delete -> #\Delete, Center -> #\Center,
+                 Home -> #\Home, End -> #\End, PgUp -> #\PgUp, PgDn -> #\PgDn,
+                 Arrow keys -> #\Up, #\Down, #\Left, #\Right.
+#endif
+#if defined(ATARI) || defined(MSDOS)
+  SUPER        if pressed together with Shift key(s) and if the keystroke
+               would have been an other without Shift.
+#endif
+  CONTROL      if pressed together with the Control key.
+#if defined(ATARI) || defined(MSDOS)
+  META         if pressed together with the Alternate key.
+#endif
+This keyboard input is not echoed on the screen.
+During execution of a (WITH-KEYBOARD . body) form, no input from *TERMINAL-IO*
+or any synonymous stream should be requested.
+#ifdef ATARI
+The stream *KEYBOARD-INPUT* is used by *TERMINAL-IO*.
+#endif
+#endif
+#ifdef PRINTER_ATARI
+
+The stream *PRINTER-OUTPUT* outputs characters to the printer. When the
+printer is not ready, it is waited for, upto a delay of *PRINTER-TIMEOUT*
+times 0.005 sec. (which defaults to 5 sec.).
+Use WITH-OUTPUT-TO-PRINTER preferrably, for portability.
+#endif
+
+21.2.
+-----
+
+The macro WITH-OUTPUT-TO-PRINTER
+       (with-output-to-printer (var) {declaration}* {form}*)
+binds the variable var to an output stream that sends its output to the
+printer.
+#ifdef PIPES
+
+(MAKE-PIPE-INPUT-STREAM command) returns an input stream that will supply the
+output from the execution of the given operating system command.
+See also (SHELL command).
+
+(MAKE-PIPE-OUTPUT-STREAM command) returns an output stream that will pass its
+output as input to the execution of the given operating system command.
+See also (SHELL command).
+#endif
+
+21.3.
+-----
+
+CLOSE ignores its :ABORT argument.
+
+
+                     CHAPTER 22: Input/Output
+                     ------------------------
+
+22.1.2.
+-------
+
+A "reserved token", i.e. a token that has potential number syntax but cannot
+be interpreted as a number, is interpreted as symbol when being read. (CLtL1
+p. 341)
+
+When a token with package markers is read, then (CLtL1 p. 343/344) no
+checking is done whether the package part and the symbol-name part do not
+have number syntax. (What's the purpose of this check?) So we consider
+tokens like USER:: or :1 or LISP::4711 or 21:3 as symbols.
+
+22.1.3.
+-------
+
+The backquote read macro also works when nested. Example:
+ (eval ``(,#'(lambda () ',a) ,#'(lambda () ',b)))
+ = (eval `(list #'(lambda () ',a) #'(lambda () ',b)))
+ = (eval (list 'list (list 'function (list 'lambda nil (list 'quote a)))
+                     (list 'function (list 'lambda nil (list 'quote b)))
+   )     )
+
+22.1.4.
+-------
+
+#\ allows inputting characters of arbitrary code: #\Code231 yields the
+character (code-char 231.).
+
+Additional read dispatch macros:
+* #Y is used to read compiled functions.
+* #" is used to read pathnames:
+     #"test.lsp" is the value of (pathname "test.lsp")
+#if defined(ATARI) || defined(MSDOS)
+     As in all strings, backslashes must be written twice here:
+     #"A:\\programs\\test.lsp"
+#endif
+
+22.1.5.
+-------
+
+Is it impossible to get the read macro function of a dispatch macro
+character like #\# using GET-MACRO-CHARACTER.
+
+22.1.6.
+-------
+
+In absence of SYS::WRITE-FLOAT, floating point numbers are output in radix 2.
+
+Pathnames are written according to the syntax #"namestring" if
+*PRINT-ESCAPE* /= NIL. If *PRINT-ESCAPE* = NIL, only the namestring is
+printed.
+
+*PRINT-CASE* controls the output not only of symbols, but also of characters
+and some #<...> objects.
+
+*PRINT-PRETTY* is initially = NIL.
+
+*PRINT-ARRAY* is initially = T.
+
+An additional variable *PRINT-CLOSURES* controls whether compiled and
+interpreted functions (closures) are output in detailed form. If
+*PRINT-CLOSURE* /= NIL, compiled closures are output in #Y syntax the reader
+understands. *PRINT-CLOSURE* is initially = NIL.
+
+22.3.1.
+-------
+
+The functions WRITE and WRITE-TO-STRING have an additional keyword :CLOSURE
+that can be used to bind *PRINT-CLOSURE*.
+
+22.3.3.
+-------
+
+The FORMAT option ~W is analogous to ~A and ~S, but avoids binding of
+*PRINT-ESCAPE*. (FORMAT stream "~W" object) is equivalent to
+(WRITE object :stream stream).
+
+FORMAT ~R and FORMAT ~:R can output only integers in the range |n| < 10^66.
+The output is in English, according to the American conventions, and these
+conventions are identical to the British conventions only in the range
+|n| < 10^9.
+
+FORMAT ~:@C does not output the character itself, only the instruction how
+to type the character.
+
+FORMAT ~T can determine the current column of any stream.
+
+
+                    CHAPTER 23: File System Interface
+                    ---------------------------------
+
+23.1.
+-----
+
+For most operations, pathnames denoting files and pathnames denoting
+directories can not be used interchangeably.
+#if defined(PATHNAME_UNIX) || defined(PATHNAME_AMIGAOS)
+For example, #"FOO/BAR" denotes the file BAR in the directory FOO, while
+#"FOO/BAR/" denotes the subdirectory BAR of the directory FOO.
+#endif
+This is especially important for the functions DIRECTORY, DIR, CD, MAKE-DIR,
+DELETE-DIR.
+
+The minimum filename syntax that may be used portably is:
+  "xxx"       for a file with name xxx,
+  "xxx.yy"    for a file with name xxx and type yy,
+  ".yy"       for a pathname with type yy and no name specified.
+Hereby xxx denote 1 to 8 characters, and yy denote 1 to 3 characters, each of
+which being either alphanumerical or the underscore #\_.
+Other properties of pathname syntax vary between operating systems.
+
+23.1.1.
+-------
+
+#ifdef PATHNAME_ATARI
+Pathname components:
+HOST          always NIL
+DEVICE        NIL or :WILD or "A"|...|"Z"
+DIRECTORY     (disknumber startpoint . subdirs) where
+               disknumber = NIL or the serial number of the diskette,
+               startpoint = :RELATIVE | :ABSOLUTE
+               subdirs = () | (subdir . subdirs)
+               subdir = :CURRENT (means ".") or
+               subdir = :PARENT (means "..") or
+               subdir = :WILD (means "...", all subdirectories) or
+               subdir = (name . type)
+                name = :WILD or a simple string with 8 characters maximum
+                type = :WILD or a simple string with 3 characters maximum
+NAME          NIL or :WILD or a simple string with 8 characters maximum
+TYPE          NIL or :WILD or a simple string with 3 characters maximum
+VERSION       always NIL (may also be specified as :WILD or :NEWEST)
+
+When a pathname is to be fully specified (no wildcards), that means that
+no :WILD is allowed, and NAME = NIL may not be allowed either.
+
+External notation:  A123456:\sub1.typ\sub2.typ\name.typ
+using defaults:             \sub1.typ\sub2.typ\name.typ
+or                                             name.typ
+or                        *:\sub1.typ\*.*\name.*
+or similar.
+#endif
+#ifdef PATHNAME_MSDOS
+Pathname components:
+HOST          always NIL
+DEVICE        NIL or :WILD or "A"|...|"Z"
+DIRECTORY     (startpoint . subdirs) where
+               startpoint = :RELATIVE | :ABSOLUTE
+               subdirs = () | (subdir . subdirs)
+               subdir = :CURRENT (means ".") or
+               subdir = :PARENT (means "..") or
+               subdir = :WILD (means "...", all subdirectories) or
+               subdir = (name . type)
+                name = :WILD or a simple string with 8 characters maximum
+                type = :WILD or a simple string with 3 characters maximum
+NAME          NIL or :WILD or a simple string with 8 characters maximum
+TYPE          NIL or :WILD or a simple string with 3 characters maximum
+VERSION       always NIL (may also be specified as :WILD or :NEWEST)
+
+When a pathname is to be fully specified (no wildcards), that means that
+no :WILD is allowed, and NAME = NIL may not be allowed either.
+
+External notation:        A:\sub1.typ\sub2.typ\name.typ
+using defaults:             \sub1.typ\sub2.typ\name.typ
+or                                             name.typ
+or                        *:\sub1.typ\*.*\name.*
+or similar.
+Instead of '\' one may use '/', as usual for DOS calls.
+#endif
+#ifdef PATHNAME_AMIGAOS
+Pathname components:
+HOST          always NIL
+DEVICE        NIL or a simple string
+DIRECTORY     (startpoint . subdirs) where
+               startpoint = :RELATIVE | :ABSOLUTE
+               subdirs = () | (subdir . subdirs)
+               subdir = :WILD (means "**" or "...", all subdirectories) or
+               subdir = :PARENT (means "/" instead of "subdir/") or
+               subdir = simple string, may contain wildcard characters ? and *
+NAME          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+TYPE          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+VERSION       always NIL (may also be specified as :WILD or :NEWEST)
+
+Constraint: startpoint = :RELATIVE only if device = NIL. If the device is
+specified, the pathname must be absolute!
+
+A filename from AMIGAOS is split into name and type according to the
+following rule:
+  if there is no '.' in the filename, then the name is everything, type = NIL;
+  if there is a '.', then name is the part before and type the part after
+     the last dot.
+
+Case is ignored in the strings on comparison. No case conversions are
+performed.
+
+When a pathname is to be fully specified (no wildcards), that means that
+no :WILD is allowed, no wildcard characters are allowed in the strings, and
+NAME = NIL may not be allowed either.
+
+External notation:      dev:sub1.typ/sub2.typ/name.typ
+using defaults:             sub1.typ/sub2.typ/name.typ
+or                                            name.typ
+or                          sub1.typ/**/sub3.typ/x*.lsp
+or similar.
+
+Formal specification of the external notation:
+  ch ::= any character except ':','/' and '*','?'
+  name ::= {ch}+
+  device ::= [ <empty> | ':' | name ':' ]
+             ; empty = current device, relative to current directory
+             ; ':'   = current device, absolute (relative to root for disks)
+             ; name ':' = specified device, absolute (relative to root for disks)
+  subdir ::= [ <empty> | name ]                ; empty means parent directory
+  pathname ::= device { subdir '/' }* name
+
+Examples:
+String       Device    Directory                our pathname
+------       ------    ---------                --------------
+'c:foo'      'C',     device->foo               "c" (:ABSOLUTE "foo")
+'c:foo/'     'C',     device->foo               "c" (:ABSOLUTE "foo")
+'c:foo/bar'  'C',     device->foo->bar          "c" (:ABSOLUTE "foo" "bar")
+'c:/foo'     'C',     device->up->foo           "c" (:ABSOLUTE :PARENT "foo")
+'c:'         'C',     device                    "c" (:ABSOLUTE)
+':foo'       current, device->root->foo         NIL (:ABSOLUTE "foo")
+'foo'        current, device->foo               NIL (:RELATIVE "foo")
+'/foo'       current, device->up->foo           NIL (:RELATIVE :PARENT "foo")
+'//foo/bar'  current, device->up->up->foo->bar  NIL (:RELATIVE :PARENT :PARENT "foo" "bar")
+''           current, device                    NIL (:RELATIVE)
+
+Appending a '/' to a path string that is non-empty and does not end with ':'
+or '/' does not change its meaning. This '/' must be appended before another
+non-empty component can be appended.
+But appending a '/' to a path string that is empty or ends with ':' or '/'
+means going up to the parent directory!
+We interpret any path string that is empty or ends with ':' or '/' as
+pathname of a directory (with name = NIL and type = NIL).
+#endif
+#ifdef PATHNAME_UNIX
+Pathname components:
+HOST          always NIL
+DEVICE        always NIL
+DIRECTORY     (startpoint . subdirs) where
+               startpoint = :RELATIVE | :ABSOLUTE
+               subdirs = () | (subdir . subdirs)
+               subdir = :WILD (means "**" or "...", all subdirectories) or
+               subdir = simple string, may contain wildcard characters ? and *
+NAME          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+TYPE          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+VERSION       always NIL (may also be specified as :WILD or :NEWEST)
+
+A UNIX filename is split into name and type according to the following rule:
+  if there is no '.' in the filename, then the name is everything, type = NIL;
+  if there is a '.', then name is the part before and type the part after
+     the last dot.
+
+When a pathname is to be fully specified (no wildcards), that means that
+no :WILD is allowed, no wildcard characters are allowed in the strings, and
+NAME = NIL may not be allowed either.
+
+External notation:   server:sub1.typ/sub2.typ/name.typ
+using defaults:             sub1.typ/sub2.typ/name.typ
+or                                            name.typ
+or                          sub1.typ/**/sub3.typ/x*.lsp
+or similar.
+#endif
+#ifdef PATHNAME_OS2
+Pathname components:
+HOST          always NIL
+DEVICE        NIL or :WILD or "A"|...|"Z"
+DIRECTORY     (startpoint . subdirs) where
+               startpoint = :RELATIVE | :ABSOLUTE
+               subdirs = () | (subdir . subdirs)
+               subdir = :WILD (means "**" or "...", all subdirectories) or
+               subdir = simple string, may contain wildcard characters ? and *
+NAME          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+TYPE          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+VERSION       always NIL (may also be specified as :WILD or :NEWEST)
+
+An OS/2 filename is split into name and type according to the following rule:
+  if there is no '.' in the filename, then the name is everything, type = NIL;
+  if there is a '.', then name is the part before and type the part after
+     the last dot.
+
+When a pathname is to be fully specified (no wildcards), that means that
+no :WILD is allowed, no wildcard characters are allowed in the strings, and
+NAME = NIL may not be allowed either.
+
+External notation:       A:\sub1.typ\sub2.typ\name.typ
+using defaults:            \sub1.typ\sub2.typ\name.typ
+or                                            name.typ
+or                       *:\sub1.typ\**\sub3.typ\x*.lsp
+or similar.
+Instead of '\' one may use '/', as usual for DOS calls.
+#endif
+#ifdef PATHNAME_VMS
+Pathname components:
+HOST          NIL or simple string
+DEVICE        NIL or simple string
+DIRECTORY     (startpoint . subdirs) where
+               startpoint = :RELATIVE | :ABSOLUTE
+               subdirs = () | (subdir . subdirs)
+               subdir = :PARENT (means "-") or
+               subdir = :WILD (means "**", all subdirectories) or
+               subdir = simple string, may contain wildcard characters ? and *
+NAME          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+TYPE          NIL or
+              simple string, may contain wildcard characters ? and *
+              (may also be specified as :WILD)
+VERSION       NIL or :WILD or :NEWEST or a positive fixnum
+
+When a pathname is to be fully specified (no wildcards), that means that
+no :WILD is allowed, no wildcard characters are allowed in the strings, and
+NAME = NIL may not be allowed either.
+
+External notation:   server::device:[sub1.sub2]name.typ;3
+or                   server::device:<sub1.sub2>name.typ.3
+using defaults:              device:[sub1.sub2]name.typ
+or                                  [sub1.sub2]name.typ
+or                                             name.typ
+or                                  [sub1.**.sub3]x*.lsp
+or similar.
+#endif
+#if defined(PATHNAME_NOEXT) || defined(PATHNAME_VMS)
+
+The wildcard characters: '*' matches any sequence of characters,
+#ifdef PATHNAME_VMS
+'?' and '%' match any one character.
+#else
+'?' matches any one character.
+#endif
+#endif
+#ifdef PATHNAME_NOEXT
+
+Due to the name/type splitting rule, there are pathnames that can't result
+from PARSE-NAMESTRING. To get a pathname whose type contains a dot or whose
+name contains a dot and whose type is NIL, MAKE-PATHNAME must be used.
+Example: (MAKE-PATHNAME :NAME ".profile").
+#endif
+
+23.1.2.
+-------
+
+External notation of pathnames (cf. PARSE-NAMESTRING and NAMESTRING),
+of course without spaces, [,],{,}:
+#ifdef PATHNAME_ATARI
+ [ [drivespec]         a letter '*'|'A'|...|'Z'|'a'|...|'z'
+   [Seriennummer]      an integer >=0, <2^24 in decimal notation
+   :
+ ]
+ { name [. type] \ }   each one a subdirectory
+ [ name [. type] ]     filename with type (extension)
+
+Name and type may be character sequences of any length (consisting of
+alphanumeric characters and '-', '_'). They are shortened to 8 resp. 3
+characters and converted to upper case. A single '*' is allowed for :WILD.
+#endif
+#ifdef PATHNAME_MSDOS
+ [ [drivespec]         a letter '*'|'A'|...|'Z'|'a'|...|'z'
+   :
+ ]
+ { name [. type] \ }   each one a subdirectory, '\' may be replaced by '/'
+ [ name [. type] ]     filename with type (extension)
+
+Name and type may be character sequences of any length (consisting of
+alphanumeric characters and '-', '_'). They are shortened to 8 resp. 3
+characters and converted to upper case. A single '*' is allowed for :WILD.
+#endif
+#ifdef PATHNAME_AMIGAOS
+see above.
+#endif
+#ifdef PATHNAME_UNIX
+ [ / ]                 / denotes absolute pathnames
+ { name / }            each one a subdirectory
+ [ name [. type] ]     filename with type (extension)
+
+Name and type may be character sequences of any length (consisting of
+printing ASCII characters, except '/').
+#endif
+#ifdef PATHNAME_OS2
+ [ [drivespec]         a letter '*'|'A'|...|'Z'|'a'|...|'z'
+   :
+ ]
+ { name [. type] \ }   each one a subdirectory, '\' may be replaced by '/'
+ [ name [. type] ]     filename with type (extension)
+
+Name and type may be character sequences of any length (consisting of
+printing ASCII characters, except '/', '\', ':').
+#endif
+#ifdef PATHNAME_ATARI
+
+NAMESTRING has an optional flag argument: (NAMESTRING pathname T) returns an
+external notation suitable for GEMDOS.
+#endif
+#if !defined(USER_HOMEDIR)
+
+The function USER-HOMEDIR-PATHNAME is not implemented.
+#endif
+
+23.2.
+-----
+
+#ifdef HANDLES
+The file streams returned by OPEN are buffered for regular files and
+unbuffered for special files.
+#else
+The file streams returned by OPEN are always buffered.
+#endif
+
+23.3.
+-----
+
+FILE-AUTHOR always returns NIL.
+#if defined(ATARI) || defined(MSDOS)
+
+FILE-POSITION works on any file stream. When a Newline is output to resp.
+input from a file stream, its file position is increased by 2 since Newline
+is encoded as CR/LF in the file.
+#endif
+
+23.4.
+-----
+
+LOAD has two additional keywords :ECHO and :COMPILING.
+(LOAD filename &key :verbose :print :echo :if-does-not-exist :compiling)
+:VERBOSE T   causes LOAD to emit a short message that a file is being loaded.
+             The default is *LOAD-VERBOSE*, which is initially = T.
+:PRINT T     causes LOAD to print the value of each form.
+             The default is *LOAD-PRINT*, which is initially = NIL.
+:ECHO T      causes the input from the file to be echoed to *STANDARD-OUTPUT*
+             (normally to the screen). Should there be an error in the file,
+             you can see at one glance where it is.
+             The default is *LOAD-ECHO*, which is initially = NIL.
+:COMPILING T causes each form read to be compiled on the fly. The compiled
+             code is executed at once and - in contrast to COMPILE-FILE -
+             not written to a file.
+
+The variable *LOAD-PATHS* contains a list of directories where program files
+are searched - additionally to the specified or current directory - by LOAD,
+REQUIRE, COMPILE-FILE.
+
+23.5.
+-----
+
+(DIRECTORY [pathname [:full]]) can run in two modes:
+* If pathname contains no name or type component, a list of all matching
+  directories is produced.
+* Otherwise a list of all matching files is returned. If the :FULL argument
+  is /= NIL, this contains additional information: for each matching file
+  you get a list of at least four elements
+  (file-pathname file-truename file-write-date-as-decoded-time file-length).
+
+(DIR [pathname]) is like DIRECTORY, but displays the pathnames instead of
+returning them. (DIR) shows the contents of the current directory.
+
+#if defined(PATHNAME_UNIX) || defined(PATHNAME_AMIGAOS)
+(CD [pathname]) manages the current directory.
+#else
+(CD [pathname]) manages the current device and the current directory.
+#endif
+(CD pathname) sets it, (CD) returns it.
+#ifdef PATHNAME_ATARI
+Note that this current directory is handled inside Lisp. When you call
+programs, they will not know about this current directory. We don't modify
+GEMDOS' current directory.
+#endif
+
+(MAKE-DIR directory-pathname) creates a new subdirectory.
+
+(DELETE-DIR directory-pathname) removes an (empty) subdirectory.
+#ifdef ATARI
+
+(EXECUTE programfile [args [space]])  executes an external program. Its name
+is programfile. args is the string of arguments (also called "command tail")
+and defaults to "". space is the amount of memory (in bytes) that is to be
+placed at the program's disposal. The default for space is the bare minimum
+the program may need, but this guess is often too low.
+#endif
+#if defined(UNIX) || defined(MSDOS)
+
+(EXECUTE programfile arg1 arg2 ...)  executes an external program. Its name
+is programfile. It is given the strings arg1, arg2, ... as arguments.
+#endif
+#ifdef AMIGAOS
+
+(EXECUTE command)  executes a given command using the operating system's shell.
+#endif
+#ifdef HAVE_SHELL
+
+(SHELL [command])  calls the operating system's shell.
+(SHELL) calls the shell for interactive use. (SHELL command) calls the shell
+only for execution of the one given command.
+#endif
+
+
+                        CHAPTER 24: Errors
+                        ------------------
+
+24.1.
+-----
+
+When an error occurred, you are in a break loop. You can evaluate forms as
+usual. The HELP command (or help key if there is one) lists the available
+debugging commands.
+
+
+                  CHAPTER 25: Miscellaneous Features
+                  ----------------------------------
+
+25.1.
+-----
+
+The compiler can be called not only by the functions COMPILE, COMPILE-FILE
+and DISASSEMBLE, also by the declaration (COMPILE).
+
+(COMPILE-FILE input-file [:output-file] [:listing] [:verbose] [:warnings])
+compiles a file to bytecode.
+    input-file                should be a pathname/string/symbol.
+The :output-file argument     should be NIL or T or a pathname/string/symbol
+                              or an output-stream. The default is T.
+The :listing argument         should be NIL or T or a pathname/string/symbol
+                              or an output-stream. The default is NIL.
+The :warnings argument        specifies whether warnings should also appear
+                              on the screen.
+The :verbose argument         specifies whether error messages should also
+                              appear on the screen.
+
+25.2.
+-----
+
+No on-line documentation is available for the system functions (yet).
+
+25.3.
+-----
+
+(TRACE fun ...) makes the functions fun, ... traced. Syntax of fun:
+Either a symbol:
+       symbol
+or a list of a symbol and some keywords and arguments (which must come in
+pairs!):
+       (symbol
+         [:suppress-if form]   ; no trace output as long as form is true
+         [:step-if form]       ; invokes the stepper as soon as form is true
+         [:pre form]           ; evaluates form before calling the function
+         [:post form]          ; evaluates form after return from the function
+         [:pre-break-if form]  ; goes into the break loop before calling the
+                               ; function if form is true
+         [:post-break-if form] ; goes into the break loop after return from
+                               ; the function if form is true
+         [:pre-print form]     ; prints the values of form before calling the
+                               ; function
+         [:post-print form]    ; prints the values of form after return from
+                               ; the function
+         [:print form]         ; prints the values of form both before
+                               ; calling and after return from the function
+       )
+In all these forms you can access
+  the function itself               as *TRACE-FUNCTION*,
+  the arguments to the function     as *TRACE-ARGS*,
+  the function/macro call as form   as *TRACE-FORM*,
+and after return from the function
+  the list of return values from the function call  as *TRACE-VALUES*,
+and you can leave the function call with specified values by using RETURN.
+
+TRACE and UNTRACE are also applicable to macros, but not to locally defined
+functions and macros.
+
+The function INSPECT is not implemented.
+
+The function ED calls the external editor specified by the variable *EDITOR*
+(see config.lsp).
+#if defined(ATARI) || defined(MSDOS) || defined(UNIX)
+If using the optional package EDITOR:
+  ED behaves like this only if the variable *USE-ED* is NIL.
+  Otherwise ED uses an Emacs-like screen editor with multiple windows.
+#endif
+
+25.4.1.
+-------
+
+#ifndef TIME_UNIX
+The variable *DEFAULT-TIME-ZONE* contains the default time zone used by
+ENCODE-UNIVERSAL-TIME and DECODE-UNIVERSAL-TIME. It is initially set to -1
+(which means 1 hour east of Greenwich, i.e. Mid European Time).
+
+#endif
+The timezone in a decoded time must not necessarily be an integer, but (as
+float or rational number) it should be a multiple of 1/4.
+
+#ifdef TIME_ATARI
+INTERNAL-TIME-UNITS-PER-SECOND = 200.
+#endif
+#ifdef TIME_MSDOS
+INTERNAL-TIME-UNITS-PER-SECOND = 100.
+#endif
+#ifdef TIME_AMIGAOS
+INTERNAL-TIME-UNITS-PER-SECOND = 50.
+#endif
+#ifdef TIME_UNIX
+INTERNAL-TIME-UNITS-PER-SECOND = 1000000.
+#endif
+
+25.4.2.
+-------
+
+#if defined(UNIX) && !defined(UNIX_LINUX)
+The functions SHORT-SITE-NAME, LONG-SITE-NAME should be defined in a site-
+specific CONFIG.LSP file.
+#else
+The functions MACHINE-TYPE, MACHINE-VERSION, MACHINE-INSTANCE and
+SHORT-SITE-NAME, LONG-SITE-NAME should be defined by every user in his
+site-specific CONFIG.LSP file.
+#endif
+
+The variable *FEATURES* initially contains the symbols
+   CLISP            ; this implementation
+   COMMON-LISP
+   CLTL1
+   INTERPRETER
+   COMPILER
+   ATARI            ; if hardware = Atari ST/TT and operating system = TOS
+   AMIGA            ; if hardware = Amiga       and operating system = AmigaDOS
+   DOS              ; if hardware = PC (clone)  and operating system = DOS
+   OS/2             ; if hardware = PC (clone)  and operating system = OS/2
+   PC386            ; if hardware = PC (clone) with a 386/486
+   VMS              ; if hardware = VAX         and operating system = VMS
+   UNIX             ; if                            operating system = Unix
+                    ;                               (yes, in this case the
+                    ;                               hardware is irrelevant!)
+   language         ; same as the value of *LANGUAGE*
+
+The constant *LANGUAGE* is a string containing the language in which the
+system communicates with the user. A symbol of the same name is contained in
+*FEATURES*. Possible values are (yet): ENGLISH, DEUTSCH, FRANCAIS.
+
+#if defined(AMIGAOS)
+
+                CHAPTER 99: Platform specific Extensions
+                ----------------------------------------
+
+#if 0
+99.1. The Editor
+----------------
+
+#endif
+#ifdef AMIGAOS
+99.2. ARexx
+-----------
+
+CLISP comes with a small yet extensible and powerful ARexx interface.
+
+(REXX-DO-COMMAND "return address()" :STRING T :RESULT T) tells you the
+name of the CLISP ARexx port. The default extension for CLISP ARexx
+scripts is "cl".
+
+(REXX-DO-COMMAND command &KEY :string :result :token :io)
+  -> (RC &OPTIONAL RESULT), or NIL on failure
+
+(REXX-RUN-COMMAND command &KEY :string :token)
+  -> T, or NIL on failure
+
+(REXX-SEND-COMMAND command &KEY :string :result :token :io :async)
+  -> arexx-msg-handle, or NIL on failure
+
+(REXX-WAIT-SENT-COMMAND arexx-msg-handle)
+  -> (RC &OPTIONAL RESULT), or NIL on failure
+
+(REXX-LOOP)
+  -> no return
+
+Command may be a string denoting a command with optional arguments or a
+vector of strings thus denoting an ARexx function call. The first
+element in the vector is the function name, the others are the up to 15
+arguments.
+
+ARexx server mode: Like Ispell, Csh and SKsh, you can run it in server
+mode by calling (REXX-LOOP). You can then only exit with the ARexx
+exit-loop.cl script.
+
+Restrictions: Currently CLISP is not able to wait for input from
+several sources, e.g. both a console and ARexx, at the same time.
+
+#endif
+#ifdef AMIGAOS
+99.9. Other
+-----------
+
+To have *DEBUG-IO* and *ERROR-OUTPUT* point to separate console windows
+(thus keeping your standard console window clean from error messages)
+you can use
+  (SETQ *ERROR-OUTPUT*
+    (SETQ *DEBUG-IO*
+      (OPEN "CON:0/0/500/300/CLISP-Debugger/AUTO/CLOSE" :DIRECTION :IO)
+  ) )
+at startup.
+
+#endif
+#endif
+
+Authors:
+--------
+
+        Bruno Haible                    Michael Stoll
+        Augartenstraße 40               Gallierweg 39
+    D - W 7500 Karlsruhe 1          D - W 5300 Bonn 1
+        Germany                         Germany
+
+Email:  haible@ma2s2.mathematik.uni-karlsruhe.de

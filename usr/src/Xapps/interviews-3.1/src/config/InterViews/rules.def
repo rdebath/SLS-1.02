@@ -1,0 +1,666 @@
+/*
+ * Print the name you should assign to CPU.
+ */
+#ifndef MakeCPU
+#define MakeCPU()							@@\
+CPU:									@@\
+	@$(SHELL) $(SCRIPTSRC)/cpu.sh $(CONFIGSRC)/InterViews/arch.def
+#endif
+
+/*
+ * Make everything in the normal object code subdirectories.
+ */
+#ifndef MakeNormalWorld
+#define MakeNormalWorld(flags)						@@\
+World::									@@\
+	@echo ""							@@\
+	@echo "Building InterViews 3.1 on `date`"			@@\
+	@echo ""							@@\
+	$(MAKE) Makefile XCONFIGDIR=$(XCONFIGDIR)			@@\
+	@echo ""							@@\
+	$(MAKE) Makefiles						@@\
+	@echo ""							@@\
+	$(MAKE) depend							@@\
+	@echo ""							@@\
+	$(MAKE) flags all						@@\
+	@echo ""							@@\
+	@echo "InterViews build completed on `date`"			@@\
+	@echo ""
+#endif
+
+/*
+ * Make everything in special object code subdirectories.
+ */
+#ifndef MakeSpecialWorld
+#define MakeSpecialWorld(special,flags)					@@\
+Concat(World,special)::							@@\
+	@echo ""							@@\
+	@echo "Building InterViews 3.1 on `date`"			@@\
+	@echo ""							@@\
+	$(MAKE) Makefile XCONFIGDIR=$(XCONFIGDIR)			@@\
+	@echo ""							@@\
+	$(MAKE) Concat(Makefiles,special)				@@\
+	@echo ""							@@\
+	$(MAKE) Concat(depend,special)					@@\
+	@echo ""							@@\
+	$(MAKE) flags Concat(all,special)				@@\
+	@echo ""							@@\
+	@echo "InterViews build completed on `date`"			@@\
+	@echo ""
+#endif
+
+#ifndef MakeWorld
+#if HasSunOSSharedLibraries
+#define MakeWorld(flags)						@@\
+MakeNormalWorld(flags)							@@\
+MakeSpecialWorld(.debug,flags)						@@\
+MakeSpecialWorld(.noshared,flags)
+#else
+#define MakeWorld(flags)						@@\
+MakeNormalWorld(flags)							@@\
+MakeSpecialWorld(.debug,flags)
+#endif
+#endif
+
+/*
+ * Make the Makefile in the current directory.
+ */
+#ifndef MakefileTarget
+#define MakefileTarget()						@@\
+Makefile::								@@\
+	-@if [ -f Makefile ]; then \					@@\
+		$(RM) Makefile.bak; \					@@\
+		$(MV) Makefile Makefile.bak; \				@@\
+	else exit 0; fi							@@\
+	$(IMAKE) $(IMAKEFLAGS) -DTOPDIR=$(TOP) -DCURDIR=$(CURRENT_DIR)
+#endif
+
+/*
+ * Make the Makefiles in the list of subdirectories.
+ */
+#ifndef MakefilesSubdirs
+#define MakefilesSubdirs(dirs)						@@\
+Makefiles::								@@\
+	-@for i in dirs; \						@@\
+	do \								@@\
+		if [ -d $$i ]; then ( \					@@\
+			echo "Making Makefiles" \			@@\
+			"for $(ARCH) in $(CURRENT_DIR)/$$i"; \		@@\
+			if [ -f $$i/Makefile ]; then \			@@\
+				$(RM) $$i/Makefile.bak; \		@@\
+				$(MV) $$i/Makefile $$i/Makefile.bak; \	@@\
+			fi; \						@@\
+			$(IMAKE) $(IMAKEFLAGS) \			@@\
+			-DTOPDIR=../$(TOP) -DCURDIR=$(CURRENT_DIR)/$$i \@@\
+			-f $$i/Imakefile -s $$i/Makefile; \		@@\
+			cd $$i; \					@@\
+			$(MAKE) $(PASSARCH) Makefiles; \		@@\
+		) else continue; fi; \					@@\
+	done
+#endif
+
+/*
+ * Make the Makefile in the appropriate object code subdirectory.
+ */
+#ifndef MakefileObjectCodeDir
+#define MakefileObjectCodeDir(dir)					@@\
+Makefiles::								@@\
+	@echo "Making Makefiles" \					@@\
+	"for $(ARCH) in $(CURRENT_DIR)/dir"				@@\
+	-@if [ ! -d dir ]; then \					@@\
+		mkdir dir; \						@@\
+		chmod g+w dir; \					@@\
+	fi; \								@@\
+	if [ -f dir/Makefile ]; then \					@@\
+		$(RM) dir/Makefile.bak; \				@@\
+		$(MV) dir/Makefile dir/Makefile.bak; \			@@\
+	fi; \								@@\
+	$(IMAKE) $(IMAKEFLAGS) \					@@\
+	-DTOPDIR=../$(TOP) -DCURDIR=$(CURRENT_DIR)/dir \		@@\
+	-DInObjectCodeDir -s dir/Makefile
+#endif
+
+/*
+ * Make the given target in the list of subdirectories.
+ */
+#ifndef IntoSubdirs
+#define IntoSubdirs(name,dirs,verb)					@@\
+name::									@@\
+	-@for i in dirs; \						@@\
+	do \								@@\
+		if [ -d $$i ]; then ( \					@@\
+			echo verb \					@@\
+			"for $(ARCH) in $(CURRENT_DIR)/$$i"; \		@@\
+			cd $$i; \					@@\
+			$(MAKE) $(PASSARCH) name; \			@@\
+		) else continue; fi; \					@@\
+	done
+#endif
+
+#ifndef DependSubdirs
+#define DependSubdirs(dirs)						@@\
+IntoSubdirs(depend,dirs,"depending")
+#endif
+
+#ifndef MakeSubdirs
+#define MakeSubdirs(dirs)						@@\
+IntoSubdirs(all,dirs,"making all")
+#endif
+
+#ifndef InstallSubdirs
+#define InstallSubdirs(dirs)						@@\
+IntoSubdirs(install,dirs,"installing")
+#endif
+
+#ifndef CleanSubdirs
+#define CleanSubdirs(dirs)						@@\
+IntoSubdirs(clean,dirs,"cleaning")
+#endif
+
+#ifndef FormatSubdirs
+#define FormatSubdirs(dirs)						@@\
+IntoSubdirs(format,dirs,"formatting")
+#endif
+
+#ifndef PrintSubdirs
+#define PrintSubdirs(dirs)						@@\
+IntoSubdirs(print,dirs,"printing")
+#endif
+
+/*
+ * Make the above targets in specialized versions of the appropriate
+ * object code subdirectories.
+ */
+#ifndef SpecialTargets
+#define SpecialTargets(special,imakeflags)				@@\
+Makefiles.special:							@@\
+	@$(MAKE) ARCH="$(ARCH).special" \				@@\
+	SPECIAL_IMAKEFLAGS="$(SPECIAL_IMAKEFLAGS) imakeflags" \		@@\
+	Makefiles							@@\
+depend.special:								@@\
+	@$(MAKE) ARCH="$(ARCH).special" \				@@\
+	SPECIAL_IMAKEFLAGS="$(SPECIAL_IMAKEFLAGS) imakeflags" \		@@\
+	depend								@@\
+all.special:								@@\
+	@$(MAKE) ARCH="$(ARCH).special" \				@@\
+	SPECIAL_IMAKEFLAGS="$(SPECIAL_IMAKEFLAGS) imakeflags" \		@@\
+	all								@@\
+install.special:							@@\
+	@$(MAKE) ARCH="$(ARCH).special" \				@@\
+	SPECIAL_IMAKEFLAGS="$(SPECIAL_IMAKEFLAGS) imakeflags" \		@@\
+	install								@@\
+clean.special:								@@\
+	@$(MAKE) ARCH="$(ARCH).special" \				@@\
+	SPECIAL_IMAKEFLAGS="$(SPECIAL_IMAKEFLAGS) imakeflags" \		@@\
+	clean
+#endif
+
+/*
+ * Shorthand for making all targets in a list of subdirectories.
+ */
+#ifndef MakeInSubdirs
+#if HasSunOSSharedLibraries
+#define MakeInSubdirs(dirs)						@@\
+MakefilesSubdirs(dirs)							@@\
+DependSubdirs(dirs)							@@\
+MakeSubdirs(dirs)							@@\
+InstallSubdirs(dirs)							@@\
+CleanSubdirs(dirs)							@@\
+SpecialTargets(debug,-DUseDebug)					@@\
+SpecialTargets(noshared,-DUseNonShared)
+#else
+#define MakeInSubdirs(dirs)						@@\
+MakefilesSubdirs(dirs)							@@\
+DependSubdirs(dirs)							@@\
+MakeSubdirs(dirs)							@@\
+InstallSubdirs(dirs)							@@\
+CleanSubdirs(dirs)							@@\
+SpecialTargets(debug,-DUseDebug)
+#endif
+#endif
+
+/*
+ * Shorthand for making all targets in the appropriate object code
+ * subdirectory.
+ */
+#ifndef MakeInObjectCodeDir
+#if HasSunOSSharedLibraries
+#define MakeInObjectCodeDir()						@@\
+MakefileObjectCodeDir($(ARCH))						@@\
+DependSubdirs($(ARCH))							@@\
+MakeSubdirs($(ARCH))							@@\
+InstallSubdirs($(ARCH))							@@\
+CleanSubdirs($(ARCH))							@@\
+SpecialTargets(debug,-DUseDebug)					@@\
+SpecialTargets(noshared,-DUseNonShared)
+#else
+#define MakeInObjectCodeDir()						@@\
+MakefileObjectCodeDir($(ARCH))						@@\
+DependSubdirs($(ARCH))							@@\
+MakeSubdirs($(ARCH))							@@\
+InstallSubdirs($(ARCH))							@@\
+CleanSubdirs($(ARCH))							@@\
+SpecialTargets(debug,-DUseDebug)
+#endif
+#endif
+
+/*
+ * Make the given dependencies during make all.
+ */
+#ifndef AllTarget
+#define AllTarget(deps)							@@\
+all:: deps
+#endif
+
+/*
+ * Add automatically generated dependencies to the Makefile.
+ */
+#ifndef DependTarget
+#define DependTarget()							@@\
+depend::								@@\
+	$(DEPEND) -s "# DO NOT DELETE" -- $(DEPEND_CCFLAGS) -- $(SRCS)
+#endif
+
+/*
+ * Remove garbage files.  The #* cannot go in the definition of RM_CMD
+ * because System V will treat the pound sign as a comment.
+ */
+#ifndef CleanTarget
+#define CleanTarget()							@@\
+clean::									@@\
+	@$(RM_CMD) "#"*
+#endif
+
+/*
+ * Set up $(CCDEPLIBS) and $(CCLDLIBS) for a program using libIV.
+ */
+#ifndef Use_libInterViews
+#define Use_libInterViews() 						@@\
+         DEPLIBIV = Dep_libIV						@@\
+       DEPLIBXEXT = Dep_libXext						@@\
+        DEPLIBX11 = Dep_libX11						@@\
+          DEPLIBM = Dep_libm						@@\
+									@@\
+       LIBDIRPATH = LibDirPath						@@\
+          LDLIBIV = Ld_libIV						@@\
+      XLIBDIRPATH = XLibDirPath						@@\
+        LDLIBXEXT = Ld_libXext						@@\
+         LDLIBX11 = Ld_libX11						@@\
+           LDLIBM = Ld_libm						@@\
+    ABSLIBDIRPATH = AbsLibDirPath
+#endif
+
+/*
+ * Set up $(CCDEPLIBS) and $(CCLDLIBS) for a program using libUnidraw.
+ */
+#ifndef Use_libUnidraw
+#define Use_libUnidraw() 						@@\
+    DEPLIBUNIDRAW = Dep_libUnidraw					@@\
+         DEPLIBIV = Dep_libIV						@@\
+       DEPLIBXEXT = Dep_libXext						@@\
+        DEPLIBX11 = Dep_libX11						@@\
+          DEPLIBM = Dep_libm						@@\
+									@@\
+       LIBDIRPATH = LibDirPath						@@\
+     LDLIBUNIDRAW = Ld_libUnidraw					@@\
+          LDLIBIV = Ld_libIV						@@\
+      XLIBDIRPATH = XLibDirPath						@@\
+        LDLIBXEXT = Ld_libXext						@@\
+         LDLIBX11 = Ld_libX11						@@\
+           LDLIBM = Ld_libm						@@\
+    ABSLIBDIRPATH = AbsLibDirPath
+#endif
+
+/*
+ * Set up $(CCDEPLIBS) and $(CCLDLIBS) for a program using libgraphic.
+ */
+#ifndef Use_libgraphic
+#define Use_libgraphic() 						@@\
+    DEPLIBGRAPHIC = Dep_libgraphic					@@\
+         DEPLIBIV = Dep_libIV						@@\
+       DEPLIBXEXT = Dep_libXext						@@\
+        DEPLIBX11 = Dep_libX11						@@\
+          DEPLIBM = Dep_libm						@@\
+									@@\
+       LIBDIRPATH = LibDirPath						@@\
+     LDLIBGRAPHIC = Ld_libgraphic					@@\
+          LDLIBIV = Ld_libIV						@@\
+      XLIBDIRPATH = XLibDirPath						@@\
+        LDLIBXEXT = Ld_libXext						@@\
+         LDLIBX11 = Ld_libX11						@@\
+           LDLIBM = Ld_libm						@@\
+    ABSLIBDIRPATH = AbsLibDirPath
+#endif
+
+/*
+ * Set up all make variables for a program using 2.6 compatibility.
+ */
+#ifndef Use_2_6
+#define Use_2_6()							@@\
+ BACKWARD_CCDEFINES = BackwardCompatibilityCCDefines			@@\
+BACKWARD_CCINCLUDES = BackwardCompatibilityCCIncludes
+#endif
+
+/*
+ * Make an object file.  $(AOUT) is either a.out or a library and the
+ * dependency allows Imakefiles to avoid having to define OBJS.
+ */
+#ifndef MakeObjectRule
+#define MakeObjectRule(dst,src,flags)					@@\
+$(AOUT): dst.o								@@\
+dst.o: src.$(CCSUFFIX)							@@\
+	@$(RM) dst.o dst..c						@@\
+	$(CCDRIVER) flags $(CCFLAGS) -c src.$(CCSUFFIX)
+#endif
+
+#ifndef MakeObjectRule2
+#define MakeObjectRule2(dst,src,flags1,flags2)				@@\
+$(AOUT): dst.o								@@\
+dst.o: src.$(CCSUFFIX)							@@\
+	@$(RM) dst.o dst..c						@@\
+	$(CCDRIVER) flags1 $(CCFLAGS) flags2 -c src.$(CCSUFFIX)
+#endif
+
+/*
+ * Shorthands for making an object file.
+ */
+#ifndef MakeObjectFromSrcFlags
+#define MakeObjectFromSrcFlags(file,flags)				@@\
+MakeObjectRule(file,$(SRC)/file,flags)
+#endif
+
+#ifndef MakeObjectFromSrcFlags2
+#define MakeObjectFromSrcFlags2(file,flags1,flags2)			@@\
+MakeObjectRule2(file,$(SRC)/file,flags1,flags2)
+#endif
+
+#ifndef MakeObjectFromSrc
+#define MakeObjectFromSrc(file)						@@\
+MakeObjectFromSrcFlags(file,NullParameter)
+#endif
+
+#ifndef MakeObjectFromSrc2_6
+#define MakeObjectFromSrc2_6(file)					@@\
+MakeObjectFromSrcFlags(file,\
+BackwardCompatibilityCCDefines BackwardCompatibilityCCIncludes)
+#endif
+
+/*
+ * Convert an archive to a random library.
+ */
+#ifndef RanLibrary
+#if HasRanlibCmd
+#define RanLibrary(args) $(RANLIB) args
+#else
+#define RanLibrary(args) /**/
+#endif
+#endif
+
+/*
+ * Make a shared library.
+ */
+#ifndef NormalSunOSSharedLibraryTarget
+#if OSMajorVersion < 5
+#define NormalSunOSSharedLibraryTarget(libname,rev,depobjs,ldobjs)	@@\
+AOUT = Concat(lib,libname.so.rev)					@@\
+SHARED_CCFLAGS = SharedCCFlags						@@\
+									@@\
+AllTarget(Concat(lib,libname.so.rev))					@@\
+									@@\
+Concat(lib,libname.so.rev): depobjs					@@\
+	@echo "building $@"						@@\
+	$(RM) $@~							@@\
+	$(LD) -o $@~ -assert pure-text ldobjs				@@\
+	$(RM) $@							@@\
+	$(MV) $@~ $@							@@\
+									@@\
+clean::									@@\
+	$(RM) Concat(lib,libname.so.rev)
+#else
+#define NormalSunOSSharedLibraryTarget(libname,rev,depobjs,ldobjs)	@@\
+AOUT = Concat(lib,libname.so.rev)					@@\
+SHARED_CCFLAGS = SharedCCFlags						@@\
+									@@\
+AllTarget(Concat(lib,libname.so.rev))					@@\
+									@@\
+Concat(lib,libname.so.rev): depobjs					@@\
+	@echo "building $@"						@@\
+	$(RM) $@~							@@\
+	$(LD) -o $@~ -ztext -G ldobjs					@@\
+	$(RM) $@							@@\
+	$(MV) $@~ $@							@@\
+	$(RM) Concat(lib,libname.so)					@@\
+	$(LN) -s $@ Concat(lib,libname.so)				@@\
+									@@\
+clean::									@@\
+	$(RM) Concat(lib,libname.so.rev)
+#endif
+#endif
+
+/*
+ * Make a non-shared library archive.
+ */
+#ifndef NormalNonSharedLibraryTarget
+#define NormalNonSharedLibraryTarget(libname,depobjs,ldobjs)		@@\
+AOUT = Concat(lib,libname.a)						@@\
+									@@\
+AllTarget(Concat(lib,libname.a))					@@\
+									@@\
+Concat(lib,libname.a): depobjs						@@\
+	@echo "building $@"						@@\
+	$(RM) $@							@@\
+	$(AR) $@ ldobjs							@@\
+	RanLibrary($@)
+#endif
+
+/*
+ * Make either a shared library or a non-shared library.
+ */
+#ifndef NormalLibraryTarget
+#if HasSunOSSharedLibraries
+#define NormalLibraryTarget(libname,rev,depobjs,ldobjs)			@@\
+NormalSunOSSharedLibraryTarget(libname,rev,depobjs,ldobjs)
+#else
+#define NormalLibraryTarget(libname,rev,depobjs,ldobjs)			@@\
+NormalNonSharedLibraryTarget(libname,depobjs,ldobjs)
+#endif
+#endif
+
+/*
+ * Shorthand for building and installing a library.
+ */
+#ifndef MakeLibrary
+#define MakeLibrary(name,rev)						@@\
+NormalLibraryTarget(name,rev,NullParameter,$(OBJS))			@@\
+InstallLibrary(name,rev,$(LIBDIR))					@@\
+DependTarget()
+#endif
+
+/*
+ * Removing an executable before relinking it wastes time if the user's using
+ * an incremental linker smart enough to write only the modified sections.
+ */
+#ifndef RemoveIfUnwritable
+#define RemoveIfUnwritable(program) \
+-@if [ ! -w program ]; then $(RM) program; else exit 0; fi
+#endif
+
+/*
+ * Build a program.
+ */
+#ifndef BuildProgram
+#define BuildProgram(program,depobjs,ldobjs,deplibs,ldlibs)		@@\
+program: depobjs deplibs						@@\
+	RemoveIfUnwritable($@)						@@\
+	$(CCDRIVER) $(CCLDFLAGS) -o $@ ldobjs ldlibs
+#endif
+
+/*
+ * Shorthand for building and installing a complex program.
+ */
+#ifndef ComplexProgramTarget
+#define ComplexProgramTarget(program)					@@\
+PROGRAM	= program							@@\
+									@@\
+AllTarget($(AOUT))							@@\
+BuildProgram($(AOUT),NullParameter,$(OBJS),$(CCDEPLIBS),$(CCLDLIBS))	@@\
+InstallProgram($(AOUT),$(BINDIR),$(PROGRAM))				@@\
+DependTarget()
+#endif
+
+/*
+ * Shorthand for building and installing a simple program.
+ */
+#ifndef SimpleProgramTarget
+#define SimpleProgramTarget(program)					@@\
+SRCS	= $(SRC)/program.$(CCSUFFIX)					@@\
+OBJS	= program.o							@@\
+									@@\
+ComplexProgramTarget(program)						@@\
+MakeObjectFromSrc(program)
+#endif
+
+/*
+ * Format or print troff sources.
+ */
+#ifndef TroffSources
+#define TroffSources(formatted)						@@\
+print:									@@\
+	$(TROFF) $(TROFFFLAGS) $(TROFFSRCS)				@@\
+									@@\
+format: formatted							@@\
+									@@\
+formatted: $(TROFFSRCS)							@@\
+	$(RM) formatted							@@\
+	$(TROFF) -t $(TROFFFLAGS) $(TROFFSRCS) > formatted		@@\
+									@@\
+clean::									@@\
+	$(RM) formatted
+#endif
+
+/*
+ * Translate XCOMM into pound sign with sed, rather than passing -DXCOMM=XCOMM
+ * to cpp, because that trick does not work on all ANSI C preprocessors.
+ * Also delete line numbers from the cpp output (-P is not portable, I guess).
+ */
+#ifndef CppSedMagic
+#define CppSedMagic sed -e '/^#  *[0-9][0-9]*  *.*$$/d' \
+		     -e '/^XCOMM$$/s//#/' \
+		     -e '/^XCOMM[^a-zA-Z0-9_]/s/^XCOMM/#/'
+#endif /* CppSedMagic */
+
+/*
+ * Generate a script using cpp.
+ */
+#ifndef CppScriptTarget
+#if ExecableScripts		/* can use #! instead of colon */
+#define CppScriptTarget(dst,src,defs,deplist)				@@\
+dst::  src deplist							@@\
+	$(RM) $@							@@\
+	$(CPP) defs <src | CppSedMagic >$@				@@\
+	chmod a+x $@
+#else
+#define CppScriptTarget(dst,src,defs,deplist)				@@\
+dst::  src deplist							@@\
+	$(RM) $@							@@\
+	echo \: >$@							@@\
+	sed '1d' src | $(CPP) defs | CppSedMagic >>$@			@@\
+	chmod a+x $@
+#endif
+#endif
+
+/*
+ * Create directories if necessary at a step in the build (now
+ * superseded by MakeDir in each of the individual install rules).
+ */
+#ifndef MakeDirectories
+#define MakeDirectories(step,dirs)					@@\
+step::									@@\
+	$(MKDIRHIER) dirs
+#endif
+
+/*
+ * Create a directory if necessary.
+ */
+#ifndef MakeDir
+#define MakeDir(dir) -@if [ -d dir ]; then exit 0; \			@@\
+		else (set -x; $(MKDIRHIER) dir); fi
+#endif
+
+/*
+ * Install a library.
+ */
+#ifndef InstallSunOSSharedLibrary
+#define InstallSunOSSharedLibrary(libname,rev,dest)			@@\
+install:: Concat(lib,libname.so.rev)					@@\
+	MakeDir(dest)							@@\
+	$(INSTALL) -c $(INSTLIBFLAGS) Concat(lib,libname.so.rev) dest
+#endif
+
+#ifndef InstallNonSharedLibrary
+#define InstallNonSharedLibrary(libname,dest)				@@\
+install:: Concat(lib,libname.a)						@@\
+	MakeDir(dest)							@@\
+	$(INSTALL) -c $(INSTLIBFLAGS) Concat(lib,libname.a) dest	@@\
+	RanLibrary($(RANLIBINSTFLAGS) Concat(dest/lib,libname.a))
+#endif
+
+#ifndef InstallLibrary
+#if HasSunOSSharedLibraries
+#define InstallLibrary(libname,rev,dest)				@@\
+InstallSunOSSharedLibrary(libname,rev,dest)
+#else
+#define InstallLibrary(libname,rev,dest)				@@\
+InstallNonSharedLibrary(libname,dest)
+#endif
+#endif
+
+/*
+ * Install a program with renaming of the installed program.
+ */
+#ifndef InstallProgramWithFlags
+#if RemoveAfterInstall
+#define InstallProgramWithFlags(program,destdir,destname,flags)		@@\
+install:: program							@@\
+	MakeDir(destdir)						@@\
+	$(INSTALL) -c $(INSTPGMFLAGS) flags program destdir/destname	@@\
+	$(RM) program
+#else
+#define InstallProgramWithFlags(program,destdir,destname,flags)		@@\
+install:: program							@@\
+	MakeDir(destdir)						@@\
+	$(INSTALL) -c $(INSTPGMFLAGS) flags program destdir/destname
+#endif
+#endif
+
+#ifndef InstallProgram
+#define InstallProgram(program,destdir,destname)			@@\
+InstallProgramWithFlags(program,destdir,destname,$(INSTBINFLAGS))
+#endif
+
+/*
+ * Install a script (which cannot be stripped like a program).
+ */
+#ifndef InstallScript
+#define InstallScript(script,dest)					@@\
+install:: script							@@\
+	MakeDir(dest)							@@\
+	$(INSTALL) -c $(INSTBINFLAGS) script dest
+#endif
+
+/*
+ * Install multiple files.
+ */
+#ifndef InstallMultipleFlags
+#define InstallMultipleFlags(list,dest,flags)				@@\
+install:: list								@@\
+	MakeDir(dest)							@@\
+	@for i in list; do \						@@\
+		(set -x; $(INSTALL) -c flags $$i dest); \		@@\
+	done
+#endif
+
+#ifndef InstallMultiple
+#define InstallMultiple(list,dest)					@@\
+InstallMultipleFlags(list,dest,$(INSTALLFLAGS))
+#endif

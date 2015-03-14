@@ -1,0 +1,1616 @@
+# Konstruktion des Makefiles fürs Compilieren von CLISP
+# Bruno Haible 2.9.1991, 14.7.1992, 13.9.1992, 12.10.1992, 27.11.1992
+
+# Examples:
+#   makemake > makefile
+#   makemake debug > makefile
+#   makemake i386 gcc > make.gcc/makefile
+#   makemake i486 gcc > make.gcc/makefile
+#   makemake sun386 gcc > make.gcc/makefile
+#   makemake sun4 gcc > make.gcc/makefile
+#   makemake sun4 oldcc > make.cc/makefile
+#   makemake atari gcc > make.atari/makefile
+#   makemake cross atari gcc > make.atari/makefile
+#   makemake amiga gcc > make.amiga/makefile
+#   makemake dos gcc > make.dos/makefile
+#   makemake os2 gcc > make.os2/makefile
+
+srcdir='.'
+CP='cp -p'
+LN_S='ln -s'
+GOOD_SH='/bin/sh'
+
+# HSYS, HSYSOS = host system
+# HOS  = host operating system
+# TSYS = target system
+# TOS  = target operating system
+# CC, CFLAGS, CPP = compiler on host, for host
+# XCC, XCFLAGS, XCPP = cross-compiler on host, for target
+
+case $# in
+  0 | 1)
+     # Assume we are on Unix, and target=host (not cross-compiling).
+     CROSS=false
+     HSYS=`(arch 2>/dev/null || uname -m 2>/dev/null) | tr A-Z a-z` # system name in lowercase
+     HSYSOS=`(arch 2>/dev/null || uname 2>/dev/null) | tr A-Z a-z` # OS name in lowercase
+     if [ "$HSYS" = 386bsd ] ; then
+       HSYS='i386'
+     fi
+     HOS='unix'
+     TSYS="$HSYS"
+     TOS="$HOS"
+     COMPILER=??
+     # These variables are set by configure:
+     srcdir='@srcdir@'                   # either '.' or '../src'
+     CP='@CP@'                           # either 'cp -p' or 'cp'
+     LN_S='@LN_S@'                       # either 'ln -s' or 'ln'
+     GOOD_SH='@GOOD_SH@'                 # either '/bin/sh' or '/bin/ksh'
+     CC="@CC@"                           # either 'gcc -O' or 'cc'
+     CPP="@CPP@"                         # either $CC' -E' or '/lib/cpp'
+     CC_GCC='@CC_GCC@'                   # either true or false
+     CC_ANSI='@CC_ANSI@'                 # either true or false
+     CC_NEED_CCPAUX='@CC_NEED_CCPAUX@'   # either true or false
+     CC_NEED_DEELIF='@CC_NEED_DEELIF@'   # either true or false
+     CC_NEED_DEERROR='@CC_NEED_DEERROR@' # either true or false
+     CC_NEED_DEEMA='@CC_NEED_DEEMA@'     # either true or false
+     CC_NEED_MERGESTRINGS='@CC_NEED_MERGESTRINGS@'   # either true or false
+     AS_UNDERSCORE='@AS_UNDERSCORE@'     # either true or false
+     RANLIB='@RANLIB@'                   # either 'ranlib' or '\#'
+     INSTALL='@INSTALL@'                 # either 'install -c' or 'cp'
+     INSTALL_PROGRAM='@INSTALL_PROGRAM@' # either 'install -c' or 'cp'
+     INSTALL_DATA='@INSTALL_DATA@'       # either 'install -c -m 644' or 'cp'
+     LIBS='@LIBS@'                       # list of system libraries
+     ;;
+  *) if [ "$1" = cross ] ; then
+       CROSS=true
+       shift
+       srcdir='../src'
+     else
+       CROSS=false
+     fi
+     TSYS=$1
+     COMPILER=$2
+     # TSYS should be master or sun3 or sun4 or sun386 or i386 or i486 or mips or vax or atari or amiga or dos or os2.
+     # COMPILER should be gcc or ansi or cc or oldcc
+     if [ $TSYS = atari -o $TSYS = amiga -o $TSYS = dos -o $TSYS = os2 ] ; then
+       TOS=$TSYS
+     else
+       if [ $TSYS = vax ] ; then
+         TOS='vms'
+       else
+         TOS='unix'
+       fi
+     fi
+     if [ $CROSS = true ] ; then
+       HOS='unix'
+       HSYS=irrelevant
+       HSYSOS=irrelevant
+     else
+       HOS="$TOS"
+       HSYS="$TSYS"
+       HSYSOS="$HSYS"
+     fi
+     if [ $COMPILER = gcc ] ; then
+       CC=gcc
+       CC_GCC=true
+     else
+       CC=cc
+       CC_GCC=false
+     fi
+     CFLAGS='-O'
+     CPP="${CC} -E"
+     if [ $COMPILER = gcc -o $COMPILER = ansi ] ; then
+       CC_ANSI=true
+       CC_NEED_CCPAUX=false
+       CC_NEED_DEELIF=false
+       CC_NEED_DEERROR=false
+       CC_NEED_MERGESTRINGS=false
+     else
+       CC_ANSI=false
+       if [ $COMPILER = oldcc ] ; then
+         CC_NEED_CCPAUX=true
+         CC_NEED_DEELIF=true
+         CC_NEED_DEERROR=true
+       else
+         CC_NEED_CCPAUX=false
+         CC_NEED_DEELIF=false
+         CC_NEED_DEERROR=false
+       fi
+       CC_NEED_MERGESTRINGS=true
+     fi
+     if [ $COMPILER = gcc ] ; then
+       # guess that if cross-compiling using gcc, then as preprends underscore
+       AS_UNDERSCORE=true
+     else
+       AS_UNDERSCORE=false
+     fi
+     CC_NEED_DEEMA=false
+     LIBS=''
+     shift 2
+     ;;
+esac
+
+if [ $CROSS = true ] ; then
+  # We can cross-compile only with GCC 2
+  XCC="gcc-${TSYS}"
+  XCPP="${XCC} -E"
+  XCC_GCC=true
+  XCC_ANSI=true
+  XCC_NEED_CCPAUX=false
+  XCC_NEED_DEELIF=false
+  XCC_NEED_DEERROR=false
+  XCC_NEED_DEEMA=false
+  XCC_NEED_MERGESTRINGS=false
+else
+  TSYS="$HSYS"
+  TOS="$HOS"
+  XCC="${CC}"
+  XCPP="${CPP}"
+  XCC_GCC="${CC_GCC}"
+  XCC_ANSI="${CC_ANSI}"
+  XCC_NEED_CCPAUX="${CC_NEED_CCPAUX}"
+  XCC_NEED_DEELIF="${CC_NEED_DEELIF}"
+  XCC_NEED_DEERROR="${CC_NEED_DEERROR}"
+  XCC_NEED_DEEMA="${CC_NEED_DEEMA}"
+  XCC_NEED_MERGESTRINGS="${CC_NEED_MERGESTRINGS}"
+fi
+
+# DEBUGGING should be debug or nothing
+DEBUGGING=$1
+
+if [ $srcdir = . ] ; then
+  SRCDIR=''
+else
+  SRCDIR="${srcdir}/"
+fi
+
+TESTDIR=stage
+TESTSDIR=suite
+
+# Main host OS dependencies:
+
+# HEXE = extension for executable files on host
+if [ $HOS = dos -o $HOS = os2 ] ; then
+  HEXE='.exe'
+else
+if [ $HOS = atari ] ; then
+  HEXE='.prg'
+else
+  HEXE=''
+fi
+fi
+
+# HERE = prefix to ensure that executables are looked up in current directory
+if [ $HOS = unix ] ; then
+  HERE='./'
+else
+  HERE=''
+fi
+
+# PREFIX = prefix for installation directories
+# (This should not end in a backslash. Add a space to avoid this.)
+if [ $HOS = unix ] ; then
+  PREFIX='/usr/local'
+else
+  PREFIX=''
+fi
+
+# PARENT = piece of path for parent directory
+# NEXT = piece of path for next subdirectory
+if [ $HOS = amiga ] ; then
+  PARENT='/'
+else
+  PARENT='../'
+fi
+NEXT='/'
+if [ $HOS = atari -o $HOS = dos -o $HOS = os2 ] ; then
+  # Replace '/' by '\':
+  PARENT_=`echo $PARENT | sed -e 's,/,\\\\,g'`
+  NEXT_=`echo $NEXT | sed -e 's,/,\\\\,g'`
+else
+  PARENT_=$PARENT
+  NEXT_=$NEXT
+fi
+# Replace '\' by '\\':
+PARENT_2=`echo $PARENT_ | sed -e 's,\\\\,\\\\\\\\,g'`
+
+# RM = command for deleting files
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari ] ; then
+  RM='del'
+else
+  RM='rm -f'
+fi
+
+# CP = command for copying files
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari ] ; then
+  CP='copy'
+else
+  CP='cp -p'
+fi
+
+# LN_S = command for copying read-only files
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari ] ; then
+  LN_S='copy'
+# else see above
+fi
+
+# MV = command for renaming files
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari ] ; then
+  MV='ren'
+else
+  MV='mv'
+fi
+
+# CAT = command for typing files to stdout
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari ] ; then
+  CAT='type'
+else
+  CAT='cat'
+fi
+
+# RANLIB = command for finishing libraries
+if [ -z "$RANLIB" ] ; then
+  RANLIB='ranlib'
+fi
+
+# INSTALL = command for installing binaries/data
+if [ -z "$INSTALL" ] ; then
+  INSTALL=$CP
+  INSTALL_PROGRAM='$(INSTALL)'
+  INSTALL_DATA='$(INSTALL)'
+fi
+
+# On small systems it's a waste of space to build lisparit0.d.
+# We may also have file naming problems on 8+3 character filesystems.
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari -o $HSYS = amiga ] ; then
+  LISPARIT='lisparit'
+else
+  LISPARIT='lisparit0'
+fi
+
+# Main target OS dependencies:
+
+OS_INCLUDES=''
+if [ $TSYS = master -o $TOS = unix ] ; then
+  OS_INCLUDES=$OS_INCLUDES' unix'
+  LIBS=$LIBS' -ltermcap'
+fi
+if [ $TSYS = master -o $TOS = atari ] ; then
+  OS_INCLUDES=$OS_INCLUDES' atari'
+fi
+if [ $TSYS = master -o $TOS = amiga ] ; then
+  OS_INCLUDES=$OS_INCLUDES' amiga'
+fi
+if [ $TSYS = master -o $TOS = dos -o $TOS = os2 ] ; then
+  OS_INCLUDES=$OS_INCLUDES' msdos'
+  LIBS=$LIBS' -ltermcap'
+  if [ $TSYS = master -o $TOS = os2 ] ; then
+    LIBS=$LIBS' -lvideo'
+  fi
+fi
+if [ $TSYS = master -o $TOS = vms ] ; then
+  OS_INCLUDES=$OS_INCLUDES' vms'
+fi
+
+if [ $CROSS = true ] ; then
+  if [ $TOS = atari ] ; then
+    # CHSCONVERT='$(HOME)/cc/convert-to-atari'
+    # CHSCONVERT='/usr/local/utils/cv-to-atari'
+    CHSCONVERT='./cv_lt_at'
+  fi
+  if [ $TOS = dos -o $TOS = os2 ] ; then
+    # CHSCONVERT='$(HOME)/cc/convert-to-ibmpc'
+    # CHSCONVERT='/usr/local/utils/cv-to-ibmpc'
+    # CHSCONVERT='recode latin1:ibmpc | crlf-to-nl'
+    CHSCONVERT='./cv_lt_pc'
+  fi
+fi
+
+# TEXE = extension for executable files on target
+# LEXE = extension for executable file LISP on target
+if [ $TOS = dos -o $TOS = os2 ] ; then
+  TEXE='.exe'
+  LEXE='.exe'
+else
+if [ $TOS = atari ] ; then
+  TEXE='.prg'
+  LEXE='.prg'
+else
+  TEXE=''
+  LEXE='.run'
+fi
+fi
+
+# Main compiler dependencies:
+
+if [ $XCC_GCC = true ] ; then
+
+  XCFLAGS='-W -Wswitch -Wcomment -Wpointer-arith '
+  if [ $XCC_ANSI = true ] ; then
+    XCFLAGS=$XCFLAGS'-Wimplicit -Wreturn-type '
+  fi
+  if [ $HOS = dos -o $HOS = os2 ] ; then
+    # DOS has a very limited command line length
+    XCFLAGS=''
+  fi
+  if [ "$DEBUGGING" != debug ] ; then
+    # Frame-Pointer brauchen wir nicht. Da, wo wir ihn brauchen (in eval.d:
+    # interpret_bytecode_()), erzwingen wir ihn durch Benutzung von alloca().
+    XCFLAGS=$XCFLAGS'-fomit-frame-pointer '
+  fi
+  if [ $TSYS = atari -o $TSYS = amiga ] ; then
+    # Register A4 enthält den Stack.
+    # Die GCC-Strength-Reduction ist auf dem 68000 nicht problemlos.
+    XCFLAGS=$XCFLAGS'-ffixed-a4 -fno-strength-reduce '
+  fi
+  if [ $TSYS = sun386 -o $TSYS = i386 -o $TSYS = i486 -o $TSYS = dos -o $TSYS = os2 ] ; then
+    # gcc <= 2.3.2 may crash when compiling lisparit with -O2
+    # gcc 2.3.3 may produce incorrect code when compiling spvw(SPVW_PURE) with -O -fomit-frame-pointer
+    if [ $CROSS = false ] ; then
+      XCC_GCC_VERSION=`$XCC -v 2>&1 | tail -1 | sed -e 's/.*version //g'`
+      case "$XCC_GCC_VERSION" in
+        2.3.[3-9]* | 2.[4-9]* )
+          # XCFLAGS=$XCFLAGS'-O2 -fno-omit-frame-pointer' ;;
+          # Let's try it nevertheless!
+          XCFLAGS=$XCFLAGS'-O6' ;;
+        * )
+          XCFLAGS=$XCFLAGS'-O' ;;
+      esac
+    else
+      XCFLAGS=$XCFLAGS'-O'
+    fi
+  else
+    XCFLAGS=$XCFLAGS'-O2'
+  fi
+  if [ $TSYS = sun4 ] ; then
+    XCLFLAGS='-static'
+  else
+    XCLFLAGS=''
+  fi
+
+else
+
+  if [ "$HSYSOS" = hp-ux -o $TSYS = sun4 ] ; then
+    # HP's HPPA compilers crash when optimizing.
+    # SUN's cc is buggy when optimizing spvw.d, even with only -O1.
+    XCFLAGS=''
+  else
+    XCFLAGS='-O'
+  fi
+  XCLFLAGS=''
+  # if [ "$COMPILER" = oldcc ] ; then
+  # XCPP='gcc -E -P -U__STDC__ -U__GNUC__'
+  # TRADDECLFLAGS=' -DFOR_ANSI_PREPROCESSOR -DCUT_U_AND_L'
+  # else
+  if [ $XCC_ANSI = false ] ; then
+    TRADDECLFLAGS=' -DCUT_U_AND_L'
+  fi
+  # fi
+  case $TSYS in mips | ip* | IP*)
+    # IRIX 4 "cc -ansi" sometimes barfs when a string constant contains one
+    # or more quotes('). They must be written as \047.
+    TRADDECLFLAGS="${TRADDECLFLAGS} -DQUOTE_QUOTES"
+    ANSIDECLFLAGS="${ANSIDECLFLAGS} -DQUOTE_QUOTES"
+    TXT2CFLAGS="${TXT2CFLAGS} -DQUOTE_QUOTES"
+  esac
+  if [ $TSYS = sun4 ] ; then
+    XCFLAGS=$XCFLAGS' -dalign -fsingle'
+    XCLFLAGS=$XCLFLAGS' -Bstatic'
+  fi
+
+fi
+
+if [ "$DEBUGGING" = debug ] ; then
+  if [ $TSYS = sun4 -a $XCC_GCC = true ] ; then
+    XCFLAGS=$XCFLAGS' -gstabs'
+  else
+    XCFLAGS=$XCFLAGS' -g'
+  fi
+fi
+
+if [ $TSYS = os2 ] ; then
+  XCFLAGS=$XCFLAGS' -DOS2'
+fi
+
+if [ $TSYS = sun4 -a $CROSS = false ] ; then
+  ARCH_K=`arch -k` # kernel architecture, see arch(1)
+  if [ "$ARCH_K" = sun4 -o "$ARCH_K" = sun4c ] ; then
+    # sun4 and sun4c support only 29 bit addresses,
+    # sun4m supports 32 bit addresses.
+    XCFLAGS=$XCFLAGS' -DSUN4_29'
+  fi
+#  # Distinguish good SunOS 4 from the SunOS 5 garbage:
+#  UNAME_S=`uname -s | tr A-Z a-z`
+#  UNAME_R=`uname -r | tr A-Z a-z`
+#  if [ "$UNAME_S" = sunos ] ; then
+#    case "$UNAME_R" in 4*)
+#      XCFLAGS=$XCFLAGS' -DUNIX_SUNOS4' ;;
+#    esac
+#  fi
+fi
+
+# Other dependencies:
+
+TERMINAL='generic'
+READLINELIB=''
+if [ $TOS = unix -o $TOS = dos -o $TOS = os2 ] ; then
+  TERMINAL='readline'
+  READLINELIB='libreadline.a'
+  LIBS='-lreadline '$LIBS
+  READLINEDIR='readline'
+  READLINELIB=$READLINEDIR'/'$READLINELIB
+  XCLFLAGS=$XCLFLAGS' -L'$READLINEDIR
+fi
+
+MODULES='         spvw spvwtabf spvwtabs spvwtabo'
+MODULES=$MODULES' eval control'
+MODULES=$MODULES' pathname stream'
+if [ $TSYS = master -o $TOS = unix ] ; then
+  MODULES=$MODULES' socket'
+fi
+MODULES=$MODULES' io'
+MODULES=$MODULES' array hashtabl list package record sequence'
+MODULES=$MODULES' charstrg debug misc predtype symbol '$LISPARIT
+if [ $TSYS = master -o $TSYS = amiga ] ; then
+  MODULES=$MODULES' rexx'
+fi
+if [ $TSYS = master -o $TSYS = atari ] ; then
+  MODULES=$MODULES' alglobal'
+fi
+if [ $TSYS = master -o $TSYS = sun4 ] ; then
+  MODULES=$MODULES' dbxtypes'
+fi
+if [ $TSYS = master -o $TOS = vms ] ; then
+  MODULES=$MODULES' vmsaux'
+fi
+
+EVERY_INCLUDES='lispbibl fsubr subr pseudofun constsym constobj '$OS_INCLUDES
+
+EVERY_INCLUDES_C=''
+for f in $EVERY_INCLUDES ; do
+  EVERY_INCLUDES_C=$EVERY_INCLUDES_C' '$f'.c'
+done
+if [ $TOS = unix ] ; then
+  LISPBIBL_INCLUDES=' machine.h unixconf.h'
+else
+  LISPBIBL_INCLUDES=''
+fi
+EVERY_INCLUDES_C=$EVERY_INCLUDES_C''$LISPBIBL_INCLUDES
+
+OTHER_INCLUDES=' avl sort'
+if [ $TSYS = master -o $TSYS = amiga ] ; then
+  OTHER_INCLUDES=$OTHER_INCLUDES' amiga2'
+fi
+
+LISPARIT_SUBFILES=' aridecl arilev0 arilev1 intelem intlog intplus intcomp intbyte intmal intdiv intgcd int2adic intsqrt intprint intread rational'
+LISPARIT_SUBFILES=$LISPARIT_SUBFILES' sfloat ffloat dfloat lfloat flo_konv flo_rest realelem realrand realtran compelem comptran'
+if [ $LISPARIT = lisparit ] ; then
+  LISPARIT_INCLUDES=$LISPARIT_SUBFILES
+else
+  LISPARIT_INCLUDES=''
+  OTHER_INCLUDES=$OTHER_INCLUDES' aridecl arilev0'
+fi
+LISPARIT_INCLUDES=$LISPARIT_INCLUDES' arilev1c arilev1e arilev1i'
+
+DFILES="$MODULES $EVERY_INCLUDES $OTHER_INCLUDES $LISPARIT_INCLUDES"
+
+ARI_ASMD=''
+ARI_ASMC=''
+ARI_ASMS=''
+if [ $TSYS = sun3 -o $TSYS = atari -o $TSYS = amiga ] ; then
+  ARI_ASMD=$ARI_ASMD' ari68000.mot ari68000.mit ari68000.atari ari68020.mot ari68020.mit'
+  if [ $TSYS = sun3 ] ; then
+    ARI_ASMS=$ARI_ASMS' ari68020'
+  else
+    ARI_ASMS=$ARI_ASMS' ari68000'
+  fi
+  ARI_ASMC=$ARI_ASMS
+fi
+if [ $TSYS = sun4 ] ; then
+  ARI_ASMD=$ARI_ASMD' arisparc'
+  ARI_ASMS=$ARI_ASMS' arisparc'
+fi
+case $TSYS in mips | ip* | IP*)
+  ARI_ASMD=$ARI_ASMD' arimips'
+  ARI_ASMS=$ARI_ASMS' arimips'
+esac
+if [ $TSYS = sun386 -o $TSYS = i386 -o $TSYS = i486 -o $TSYS = dos -o $TSYS = os2 ] ; then
+  ARI_ASMD=$ARI_ASMD' ari80386'
+  ARI_ASMS=$ARI_ASMS' ari80386'
+fi
+case $TSYS in 9000/7* | 9000/8*)
+  # HP 9000 Series 700, 800
+  ARI_ASMD=$ARI_ASMD' arihppa'
+  ARI_ASMS=$ARI_ASMS' arihppa'
+esac
+
+SP_ASMD=''
+SP_ASMS=''
+if [ $XCC_GCC = false ] ; then
+  if [ $TSYS = sun3 -o $TSYS = atari -o $TSYS = amiga ] ; then
+    SP_ASMD=$SP_ASMD' sp68000.mot sp68000.mit'
+    SP_ASMS=$SP_ASMS' sp68000'
+  fi
+  # durch cc_sparc.il überflüssig:
+  # if [ $TSYS = sun4 ] ; then
+  #   SP_ASMD=$SP_ASMD' spsparc'
+  #   SP_ASMS=$SP_ASMS' spsparc'
+  # fi
+  case $TSYS in mips | ip*)
+    SP_ASMD=$SP_ASMD' spmips'
+    SP_ASMS=$SP_ASMS' spmips'
+  esac
+  if [ $TSYS = sun386 -o $TSYS = i386 -o $TSYS = i486 -o $TSYS = dos -o $TSYS = os2 ] ; then
+    SP_ASMD=$SP_ASMD' sp80386'
+    SP_ASMS=$SP_ASMS' sp80386'
+  fi
+fi
+
+COMMENTS=''
+
+CODE='      init defseq backquot defmacro macros1 macros2 defs1 places floatpri type defstruc'
+CODE=$CODE' format user1 user2 trace macros3 config compiler rexx editor'
+
+OBSOLETE=''
+
+# Output the makefile:
+
+# echotab line
+# outputs a line, preceding it with a tab. cat is needed to output tabs.
+echotab () {
+cat <<!!
+	$1
+!!
+}
+
+echo "# Makefile for the CLISP binaries"
+echo "# DO NOT EDIT! GENERATED AUTOMATICALLY!"
+echo
+echo '# -------------- Start of configurable section --------------------'
+echo
+echo '# Directories used by "make install":'
+echo "prefix = ${PREFIX}"
+echo "exec_prefix = \$(prefix)"
+echo "bindir = \$(exec_prefix)${NEXT_}bin"
+echo "mandir = \$(exec_prefix)${NEXT_}man"
+echo "libdir = \$(exec_prefix)${NEXT_}lib"
+echo "lisplibdir = \$(libdir)${NEXT_}lisp"
+echo
+echo '# Programs used by "make":'
+if [ $CROSS = true ] ; then
+  echo "CC = ${CC}"
+  echo "CFLAGS = ${CFLAGS}"
+  echo "CPP = ${CPP}"
+  echo "XCC = ${XCC}"
+  echo "XCFLAGS = ${XCFLAGS}"
+  echo "XCPP = ${XCPP}"
+  echo "XLIBS = ${LIBS}"
+  XCC="\$(XCC)"
+  XCFLAGS="\$(XCFLAGS)"
+  XCPP="\$(XCPP)"
+  LIBS="\$(XLIBS)"
+else
+  echo "CC = ${XCC}"
+  echo "CFLAGS = ${XCFLAGS}"
+  echo "CPP = ${XCPP}"
+  echo "LIBS = ${LIBS}"
+  XCC="\$(CC)"
+  XCFLAGS="\$(CFLAGS)"
+  XCPP="\$(CPP)"
+  LIBS="\$(LIBS)"
+fi
+# if [ $TSYS = sun4 -a "$CC" = cc ] ; then
+#   echo "INLINE = /usr/lib/inline"
+# fi
+if [ $HSYS = dos -o $HSYS = os2 ] ; then
+  echo "LD = ld"
+fi
+if [ -n "$CHSCONVERT" ] ; then
+  echo "CHARSETCONVERT = ${CHSCONVERT}"
+  CHSCONVERT_FILTER=" | \$(CHARSETCONVERT)"
+else
+  CHSCONVERT_FILTER=''
+fi
+echo
+echo "RM = ${RM}"
+echo "CP = ${CP}"
+echo "LN = ${LN_S}"
+echo "MV = ${MV}"
+echo "CAT = ${CAT}"
+echo "RANLIB = ${RANLIB}"
+echo
+echo '# Programs used by "make install":'
+echo "INSTALL = ${INSTALL}"
+echo "INSTALL_PROGRAM = ${INSTALL_PROGRAM}"
+echo "INSTALL_DATA = ${INSTALL_DATA}"
+echo
+echo '# Programs used by "make distrib":'
+echo
+# Auxiliary routines for linking lisp.a:
+if [ $HOS = unix -a $XCC_GCC = true ] ; then
+  # We need the full libgcc.a in general. But we don't know its location.
+  MAIN_O=''
+  LIBGCC='/usr/somewhere/libgcc.a'
+  if [ $TSYS = atari -o $TSYS = sun4 ] ; then
+    # All arithmetic is done inline, only __main must be resolved.
+    MAIN_O=' main.o'
+    LIBGCC=''
+  else
+    if [ $CROSS = false ] ; then
+      if [ "$HSYSOS" = linux ] ; then
+        # gcc2 is cc on Linux. Don't need main.o or libgcc.a
+        MAIN_O=''
+        LIBGCC=''
+      fi
+    fi
+  fi
+else
+  MAIN_O=''
+  LIBGCC=''
+fi
+if test -n "$LIBGCC"; then
+  echo "LIBGCC = ${LIBGCC}"
+fi
+if [ "$HSYSOS" = linux -o "$HSYSOS" = 386bsd ] ; then
+  ROFF_MAN="groff -Tascii -mandoc"
+  ROFF_DVI="groff -Tdvi -mandoc"
+else
+  if [ $HSYS = sun4 ] ; then
+    ROFF_MAN="nroff -a -man"
+  else
+    ROFF_MAN="nroff -man"
+  fi
+fi
+echo '# formatter for manual page'
+echo "ROFF_MAN = ${ROFF_MAN}"' # try "groff -Tascii -mandoc" or "nroff -man"'
+echo "ROFF_DVI = ${ROFF_DVI}"' # try "groff -Tdvi -mandoc"'
+echo
+echo '# -------------- End of configurable section --------------------'
+echo
+echo "COMMENT5 = ${HERE}comment5"
+
+if [ $CC_ANSI = false ] ; then
+  if [ $CC_NEED_DEERROR = true ] ; then
+    CC_NEED_CCPAUX=true
+  fi
+fi
+if [ $XCC_ANSI = false ] ; then
+  if [ $XCC_NEED_DEERROR = true ] ; then
+    XCC_NEED_CCPAUX=true
+    if [ $TSYS = sun4 -a "$CC" = cc ] ; then
+      # The Sun4 SunOS4.1 cc claims to support #elif. In fact, not in all cases.
+      XCC_NEED_DEELIF=true
+    fi
+  fi
+fi
+
+if [ $CC_NEED_CCPAUX = true -o $XCC_NEED_CCPAUX = true ] ; then
+  NEED_CCPAUX=true
+else
+  NEED_CCPAUX=false
+fi
+NEED_ANSIDECL=false
+NEED_TRADDECL=false
+if [ $XCC_ANSI = true ] ; then
+  NEED_ANSIDECL=true
+  XDECL_FILTER="| \$(ANSIDECL)"
+else
+  NEED_TRADDECL=true
+  XDECL_FILTER="\$(TRADDECL)"
+fi
+if [ $XCC_NEED_DEELIF = true -o $XCC_NEED_MERGESTRINGS = true ] ; then
+  if [ $CC_ANSI = true ] ; then
+    NEED_ANSIDECL=true
+  else
+    NEED_TRADDECL=true
+  fi
+fi
+
+if [ $NEED_ANSIDECL = true ] ; then
+  echo "ANSIDECL = ${HERE}ansidecl"
+fi
+if [ $CC_NEED_CCPAUX = true ] ; then
+  CCPAUX='ccpaux'$HEXE
+  CCPAUX_FILTER=' | '$HERE'ccpaux'
+else
+  CCPAUX=''
+  CCPAUX_FILTER=''
+fi
+if [ $XCC_NEED_CCPAUX = true ] ; then
+  XCCPAUX='ccpaux'$HEXE
+  XCCPAUX_FILTER=' | '$HERE'ccpaux'
+else
+  XCCPAUX=''
+  XCCPAUX_FILTER=''
+fi
+if [ $CC_NEED_DEELIF = true ] ; then
+  DEELIF='deelif'$HEXE
+  DEELIF_FILTER=' | '$HERE'deelif'
+else
+  DEELIF=''
+  DEELIF_FILTER=''
+fi
+if [ $XCC_NEED_DEELIF = true ] ; then
+  XDEELIF='deelif'$HEXE
+  XDEELIF_FILTER=' | '$HERE'deelif'
+else
+  XDEELIF=''
+  XDEELIF_FILTER=''
+fi
+if [ $XCC_NEED_DEERROR = true ] ; then
+  DEERROR='deerror'$HEXE
+  DEERROR_FILTER=' | '$HERE'deerror'
+else
+  DEERROR=''
+  DEERROR_FILTER=''
+fi
+if [ $NEED_TRADDECL = true ] ; then
+  TRADDECL_FILTER=' | '$HERE'traddecl'
+  if [ $XCC_ANSI = false ] ; then
+    echo "TRADDECL = ${XCCPAUX_FILTER}${XDEELIF_FILTER}${DEERROR_FILTER}${TRADDECL_FILTER}"
+  fi
+fi
+if [ $XCC_NEED_DEEMA = true ] ; then
+  echo "DEEMA = sed -e 's/,)/,_EMA_)/g'"
+  XDECL_FILTER="${XDECL_FILTER} | \$(DEEMA)"
+fi
+if [ $XCC_NEED_MERGESTRINGS = true ] ; then
+  echo "MERGESTRINGS = ${HERE}mergestrings"
+fi
+
+echo "TXT2C = ${HERE}txt2c"
+if [ $CROSS = true ] ; then
+  TXT2CFLAGS="${TXT2CFLAGS} -DCROSS"
+  TXT_INCLUDES=' clisp.h'
+else
+  TXT2CFLAGS="${TXT2CFLAGS}"
+  TXT_INCLUDES=$EVERY_INCLUDES_C
+fi
+
+if [ $HSYS = sun4 ] ; then
+  echo "TEMPDIR = /usr1/tmp"
+fi
+
+echo
+
+
+line="DFILES ="
+for f in $DFILES noreadline main $ARI_ASMD $SP_ASMD ; do
+  echo $line" \\"
+  line="${f}.d"
+done
+echo $line
+echo
+ 
+
+line="CFILES ="
+for f in $DFILES noreadline main $ARI_ASMD $ARI_ASMC $SP_ASMD ; do
+  echo $line" \\"
+  line="${f}.c"
+done
+echo $line
+echo
+ 
+
+line="OBJECTS ="
+for f in $MODULES $ARI_ASMS $SP_ASMS ; do
+  echo $line" \\"
+  line="${f}.o"
+done
+echo $line
+echo
+ 
+
+line="LSPFILES ="
+for f in $CODE ; do
+  echo $line" \\"
+  line="${f}.lsp"
+done
+echo $line
+echo
+
+
+line="FASFILES ="
+for f in $CODE ; do
+  echo $line" \\"
+  line="${f}.fas"
+done
+echo $line
+echo
+
+line="TESTLSPFILES ="
+for f in $CODE ; do
+  echo $line" \\"
+  line="${TESTDIR}/${f}.lsp"
+done
+echo $line
+echo
+
+line="TESTFASFILES ="
+for f in $CODE ; do
+  echo $line" \\"
+  line="${TESTDIR}/${f}.fas"
+done
+echo $line
+echo
+
+echo
+
+echo "all : init allc allo lisp${LEXE} interpreted.mem compiled.mem manual"
+echo
+
+echo
+
+if [ $TOS = unix -o $TOS = dos -o $TOS = os2 ] ; then
+  OS_ERRORS='errors.c'
+else
+  OS_ERRORS=''
+fi
+
+UTILDIR="${PARENT}utils/"
+if [ $HOS = dos -o $HOS = os2 -o $HOS = atari ] ; then
+  # Replace '/' by '\':
+  UTILDIR_=`echo $UTILDIR | sed -e 's,/,\\\\,g'`
+else
+  UTILDIR_=$UTILDIR
+fi
+
+UTILS=''
+if [ $NEED_CCPAUX = true ] ; then
+  UTILS=$UTILS' ccpaux'
+fi
+UTILS=$UTILS' comment5'
+if [ $XCC_NEED_DEELIF = true ] ; then
+  UTILS=$UTILS' deelif'
+fi
+if [ $XCC_NEED_DEERROR = true ] ; then
+  UTILS=$UTILS' deerror'
+fi
+if [ $XCC_ANSI = true ] ; then
+  UTILS=$UTILS' ansidecl'
+fi
+if [ $XCC_ANSI = false ] ; then
+  UTILS=$UTILS' traddecl'
+fi
+if [ $XCC_NEED_MERGESTRINGS = true ] ; then
+  UTILS=$UTILS' mergestrings'
+fi
+UTILS=$UTILS' txt2c'
+if [ "$CHSCONVERT" = "./cv_lt_at" ] ; then
+  UTILS=$UTILS' cv_lt_at'
+fi
+if [ "$CHSCONVERT" = "./cv_lt_pc" ] ; then
+  UTILS=$UTILS' cv_lt_pc'
+fi
+
+line="init :"
+if [ $CROSS = true ] ; then
+  line=$line" unixconf.h"
+fi
+for util in $UTILS ; do
+  line=$line" ${util}${HEXE}"
+done
+line=$line" \$(DFILES) ${OS_ERRORS}"
+if [ $TSYS = sun4 -a "$CC" = cc ] ; then
+  line=$line" cc_sparc.il"
+fi
+echo $line
+echo
+if [ $CROSS = true ] ; then
+  echo "unixconf.h :"
+  echotab "if [ ! -f unixconf.h ] ; then touch unixconf.h ; fi"
+  echo
+fi
+for util in $UTILS ; do
+  if [ $util = ccpaux -o $util = deerror ] ; then
+    echo "${util}${HEXE} : ${UTILDIR_}${util}.c"
+    echotab "\$(CC) \$(CFLAGS) ${UTILDIR}${util}.c -o ${util}${HEXE}"
+    echo
+  fi
+  if [ $util = cv_lt_at ] ; then
+    # Only used when $CROSS = true
+    echo "${util}${HEXE} : ../atari/${util}.c"
+    echotab "\$(CC) \$(CFLAGS) ../atari/${util}.c -o ${util}${HEXE}"
+    echo
+  fi
+  if [ $util = cv_lt_pc ] ; then
+    # Only used when $CROSS = true
+    echo "${util}${HEXE} : ../dos/${util}.c"
+    echotab "\$(CC) \$(CFLAGS) ../dos/${util}.c -o ${util}${HEXE}"
+    echo
+  fi
+  if [ $util = txt2c ] ; then
+    echo "${util}${HEXE} : ${UTILDIR_}${util}.c"
+    echotab "\$(CC) \$(CFLAGS)${TXT2CFLAGS} ${UTILDIR}${util}.c -o ${util}${HEXE}"
+    echo
+  fi
+  if [ $util = comment5 ] ; then
+    if [ $CC_NEED_CCPAUX = true ] ; then
+      echo "${util}${HEXE} : ${UTILDIR_}${util}.c ${CCPAUX}"
+      echotab "${HERE}ccpaux${HEXE} < ${UTILDIR_}${util}.c > ${util}.c"
+      echotab "\$(CC) \$(CFLAGS) ${util}.c -o ${util}${HEXE}"
+      echotab "\$(RM) ${util}.c"
+      echo
+      OBSOLETE=$OBSOLETE" ${util}.c"
+    else
+      echo "${util}${HEXE} : ${UTILDIR_}${util}.c"
+      echotab "\$(CC) \$(CFLAGS) ${UTILDIR}${util}.c -o ${util}${HEXE}"
+      echo
+    fi
+  fi
+  if [ $util = ansidecl -o $util = traddecl ] ; then
+    if [ $util = traddecl ] ; then
+      flags="${TRADDECLFLAGS}"
+    fi
+    if [ $util = ansidecl ] ; then
+      flags="${ANSIDECLFLAGS}"
+    fi
+    echo "${util}${HEXE} : ${UTILDIR_}${util}.d comment5${HEXE}"
+    echotab "\$(LN) ${UTILDIR_}${util}.d ${util}.d"
+    echotab "\$(COMMENT5) ${util}.d ${util}.c"
+    echotab "\$(RM) ${util}.d"
+    echotab "\$(CC) \$(CFLAGS)${flags} ${util}.c -o ${util}${HEXE}"
+    echotab "\$(RM) ${util}.c"
+    echo
+    OBSOLETE=$OBSOLETE" ${util}.c"
+  fi
+  if [ $util = deelif -o $util = mergestrings ] ; then
+    if [ $CC_ANSI = true ] ; then
+      echo "${util}${HEXE} : ${UTILDIR_}${util}.d comment5${HEXE} ansidecl${HEXE}"
+      echotab "\$(COMMENT5) ${UTILDIR_}${util}.d | \$(ANSIDECL) > ${util}.c"
+      echotab "\$(CC) \$(CFLAGS) ${util}.c -o ${util}${HEXE}"
+      echotab "\$(RM) ${util}.c"
+      echo
+    else
+      echo "${util}${HEXE} : ${UTILDIR_}${util}.d comment5${HEXE} ${CCPAUX} traddecl${HEXE}"
+      echotab "\$(COMMENT5) ${UTILDIR_}${util}.d${CCPAUX_FILTER}${TRADDECL_FILTER} > ${util}.c"
+      echotab "\$(CC) \$(CFLAGS) ${util}.c -o ${util}${HEXE}"
+      echotab "\$(RM) ${util}.c"
+      echo
+    fi
+    OBSOLETE=$OBSOLETE" ${util}.c"
+  fi
+done
+
+if [ $CROSS = false ] ; then
+  if [ $TOS = unix -o $TOS = dos -o $TOS = os2 ] ; then
+    if [ $XCC_ANSI = false ] ; then
+      echo "generrors${HEXE} : ${UTILDIR_}generrors.c ${CCPAUX} ${DEELIF} ${DEERROR} traddecl${HEXE}"
+      echotab "${CAT} ${UTILDIR_}generrors.c \$(TRADDECL) > generrors.c"
+      echotab "${XCC} ${XCFLAGS} generrors.c -o generrors${HEXE}"
+      echotab "\$(RM) generrors.c"
+      echo
+    else
+      echo "generrors${HEXE} : ${UTILDIR_}generrors.c"
+      if [ $XCC_NEED_CCPAUX = true ] ; then
+        echotab "${HERE}ccpaux${HEXE} < ${UTILDIR_}generrors.c > generrors.c"
+      else
+        echotab "\$(LN) ${UTILDIR_}generrors.c generrors.c"
+      fi
+      echotab "${XCC} ${XCFLAGS} generrors.c -o generrors${HEXE}"
+      echotab "\$(RM) generrors.c"
+      echo
+    fi
+    OBSOLETE=$OBSOLETE" generrors.c"
+    echo "errors.c : generrors${HEXE}"
+    echotab "${HERE}generrors > errors.c"
+    echo
+  fi
+fi
+
+echo
+
+if [ $LISPARIT = lisparit0 ] ; then
+  line="${SRCDIR}${LISPARIT}.d :"
+  for f in lisparit $LISPARIT_SUBFILES ; do
+    line=$line" ${SRCDIR}${f}.d"
+  done
+  echo $line
+  echotab "\$(RM) ${SRCDIR}${LISPARIT}.d ${SRCDIR}${LISPARIT}.tmp"
+  echotab "head -19 ${SRCDIR}lisparit.d > ${SRCDIR}${LISPARIT}.tmp"
+  for f in $LISPARIT_SUBFILES ; do
+    echotab "\$(CAT) ${SRCDIR}${f}.d >> ${SRCDIR}${LISPARIT}.tmp"
+  done
+  echotab "tail +53 ${SRCDIR}lisparit.d >> ${SRCDIR}${LISPARIT}.tmp"
+  echotab "\$(MV) ${SRCDIR}${LISPARIT}.tmp ${SRCDIR}${LISPARIT}.d"
+  echo
+fi
+OBSOLETE=$OBSOLETE" ${SRCDIR}${LISPARIT}.tmp"
+
+if [ -n "${SRCDIR}" ] ; then
+  if [ $HOS = unix ] ; then
+    for f in $DFILES noreadline main $ARI_ASMD $SP_ASMD ; do
+      echo "${f}.d : ${SRCDIR}${f}.d"
+      echotab "-\$(LN) ${SRCDIR}${f}.d ${f}.d"
+      echo
+    done
+    if [ $TSYS = sun4 -a "$CC" = cc ] ; then
+      echo "cc_sparc.il : ${SRCDIR}cc_sparc.il"
+      echotab "-\$(LN) ${SRCDIR}cc_sparc.il cc_sparc.il"
+      echo
+    fi
+    echo
+  fi
+fi
+
+echo "allc : init \$(CFILES)"
+echo
+
+for f in $DFILES noreadline main ; do
+  echo "${f}.c : ${f}.d"
+  echotab "\$(COMMENT5) ${f}.d${CHSCONVERT_FILTER} ${XDECL_FILTER} > ${f}.c"
+  echo
+done
+
+for f in $ARI_ASMD $SP_ASMD ; do
+  echo "${f}.c : ${f}.d"
+  echotab "\$(COMMENT5) ${f}.d${XCCPAUX_FILTER}${XDEELIF_FILTER} > ${f}.c"
+  echo
+done
+
+for f in $ARI_ASMS $SP_ASMS ; do
+  case $f in
+    *68*) g="${f}.mit"
+          if [ $TSYS = atari -a "${f}" = ari68000 ] ; then
+            echo "# Change \"${f}.mit\" to \"${f}.atari\" when using \"gcc-atari -mshort\""
+          fi
+          echo "${f}.c : ${g}.c"
+          echotab "\$(LN) ${g}.c ${f}.c"
+          echo
+          ;;
+  esac
+done
+
+if [ $AS_UNDERSCORE = true ] ; then
+  ASMFLAGS=' -DUNDERSCORE'
+else
+  ASMFLAGS=''
+fi
+if [ $XCC_ANSI = true -a $XCC_GCC = false ] ; then
+  # Remove the line number information etc. and convert "% ecx" back to "%ecx":
+  ASM_FILTER=" | grep -v '^#' | sed 's,% ,%,g'"
+else
+  if [ $AS_UNDERSCORE = false ] ; then
+    # These are the less modern assemblers or SYSV assemblers.
+    # Remove the line number information etc.
+    ASM_FILTER=" | grep -v '^#'"
+  else
+    ASM_FILTER=''
+  fi
+fi
+for f in $ARI_ASMS $SP_ASMS ; do
+  # The preprocessor barfs on arihppa: "unterminated character constant".
+  # We ignore this:
+  case $f in
+    *hppa) g='-' ;;
+    *)     g='' ;;
+  esac
+  echo "${f}.s : ${f}.c"
+  echotab "${g}${XCPP}${ASMFLAGS} ${f}.c${ASM_FILTER} > ${f}.s"
+  echo
+done
+
+line="allo : allc"
+for f in $MODULES ; do
+  line=$line" ${f}.o"
+done
+echo $line
+echo
+
+line="alls : allc"
+for f in $MODULES ; do
+  line=$line" ${f}.s"
+done
+echo $line
+echo
+
+for f in $MODULES noreadline main ; do
+  depends=$EVERY_INCLUDES
+  if [ $f = spvw ] ; then
+    depends=$depends' avl sort'
+  fi
+  if [ $f = array -o $f = hashtabl -o $f = io -o $f = misc -o $f = package ] ; then
+    depends=$depends' arilev0'
+  fi
+  if [ $f = hashtabl ] ; then
+    depends=$depends' aridecl'
+  fi
+  if [ $f = $LISPARIT ] ; then
+    depends=$depends''$LISPARIT_INCLUDES
+  fi
+  if [ $f = amrexx ] ; then
+    depends=$depends' amiga2'
+  fi
+  dependsc=''
+  for g in $depends ; do
+    dependsc=$dependsc' '$g'.c'
+  done
+  if [ $f = misc ] ; then
+    dependsc=$dependsc' '$OS_ERRORS
+  fi
+  dependsc=$dependsc''$LISPBIBL_INCLUDES
+  flags=$XCFLAGS
+  if [ $f = stream -o $f = noreadline ] ; then
+    if [ $TERMINAL = readline ] ; then
+      flags=$flags' -I'$READLINEDIR
+    fi
+  fi
+  if [ $TSYS = sun4 -a "$CC" = cc ] ; then
+    flags2=$flags' cc_sparc.il'
+    dependsc2=' cc_sparc.il'
+  else
+    flags2=$flags
+    dependsc2=''
+  fi
+  if [ $XCC_NEED_MERGESTRINGS = true ] ; then
+    echo "${f}.i : ${f}.c${dependsc}"
+    echotab "(echo \"# 1 ${f}.i\" ; ${XCPP} ${flags} -USINGLE_PASS_COMPILER ${f}.c | \$(MERGESTRINGS)) > ${f}.i"
+    echo
+    # if [ $TSYS = sun4 -a "$CC" = cc ] ; then
+    # # Die .s-Files nach dem Optimieren nochmal durch inline jagen
+    # echo "${f}.s : ${f}.i${dependsc2} il_sparc.il"
+    # echotab "${XCC} ${flags2} -S ${f}.i"
+    # echotab "\$(MV) ${f}.s ${f}.tmp"
+    # echotab "\$(INLINE) -i il_sparc.il < ${f}.tmp > ${f}.s"
+    # echotab "\$(RM) ${f}.tmp"
+    # echo
+    # echo "${f}.o : ${f}.s"
+    # echotab "${XCC} -c ${f}.s"
+    # echo
+    # OBSOLETE=$OBSOLETE" ${f}.tmp"
+    # else
+    echo "${f}.s : ${f}.i${dependsc2}"
+    echotab "${XCC} ${flags2} -S ${f}.i"
+    echo
+    echo "${f}.o : ${f}.i${dependsc2}"
+    echotab "${XCC} ${flags2} -c ${f}.i"
+    echo
+    # fi
+  else
+    echo "${f}.i : ${f}.c${dependsc}"
+    echotab "${XCPP} ${flags} -USINGLE_PASS_COMPILER ${f}.c > ${f}.i"
+    echo
+    echo "${f}.s : ${f}.c${dependsc}${dependsc2}"
+    echotab "${XCC} ${flags2} -S ${f}.c"
+    echo
+    echo "${f}.o : ${f}.c${dependsc}${dependsc2}"
+    echotab "${XCC} ${flags2} -c ${f}.c"
+    echo
+  fi
+done
+
+for f in $ARI_ASMS $SP_ASMS ; do
+  echo "${f}.o : ${f}.s"
+  echotab "${XCC} ${XCFLAGS} -c ${f}.s"
+  echo
+done
+
+if [ $HOS = unix ] ; then
+  echo "lisp.o : \$(OBJECTS)"
+  echotab "ld -r -o lisp.o \$(OBJECTS)"
+  echotab "chmod a-x lisp.o"
+  echo
+  echo "lisp.a : lisp.o${MAIN_O}"
+  if test -z "$LIBGCC"; then
+    echotab "ar rcv lisp.a lisp.o${MAIN_O}"
+  else
+    echotab "mkdir libgcc"
+    echotab "cd libgcc ; ar xv \$(LIBGCC)"
+    echotab "ar rcv lisp.a lisp.o libgcc/*.o"
+    echotab "\$(RM) -rf libgcc"
+  fi
+  echotab "\$(RANLIB) lisp.a"
+  echo
+  echo "libnoreadline.a : noreadline.o"
+  echotab "ar rcv libnoreadline.a noreadline.o"
+  echotab "\$(RANLIB) libnoreadline.a"
+  echo
+fi
+
+if [ $TERMINAL = readline -a $HOS = unix ] ; then
+
+  echo "readline_ : libreadline.a readline.tar.Z"
+  echo
+  echo "${READLINELIB} :"
+  echotab "(cd ${READLINEDIR} ; make CC='${XCC}' CFLAGS='${XCFLAGS}' RANLIB='\$(RANLIB)')"
+  echo
+  echo "libreadline.a : ${READLINELIB}"
+  echotab "-\$(LN) ${READLINELIB} libreadline.a"
+  echo
+  echo "readline.tar.Z :"
+  echotab "(cd ${SRCDIR} ; tar -cvf - readline glob | compress -c) > readline.tar.Z"
+  echo
+
+  echo
+
+fi
+
+echo "lisp${LEXE} : \$(OBJECTS) ${READLINELIB}"
+if [ $HOS != dos -a $HOS != os2 ] ; then
+  echotab "${XCC} ${XCFLAGS} ${XCLFLAGS} \$(OBJECTS) ${LIBS} -o lisp${LEXE}"
+  echo
+else
+  # DOS has a very limited command line length
+  # XCLFLAGS=$XCLFLAGS' -s' # strip, geht unter emx0.8f nicht mehr
+  echotab "\$(RM) lisp"
+  echotab "\$(RM) lisp${LEXE}"
+  if true; then
+    echotab "${XCC} ${XCFLAGS} -o lisp @gcclink.in ${XCLFLAGS} ${LIBS}"
+  else
+    echotab "\$(LD) -o lisp1.o -r spvw.o spvwtabf.o spvwtabs.o spvwtabo.o"
+    echotab "\$(LD) -o lisp2.o -r eval.o control.o pathname.o stream.o io.o"
+    echotab "\$(LD) -o lisp3.o -r array.o hashtabl.o list.o package.o record.o sequence.o"
+    echotab "\$(LD) -o lisp4.o -r charstrg.o debug.o misc.o predtype.o symbol.o"
+    echotab "\$(LD) -o lisp5.o -r lisparit.o ari80386.o"
+    echotab "${XCC} ${XCFLAGS} -o lisp lisp1.o lisp2.o lisp3.o lisp4.o lisp5.o ${XCLFLAGS} ${LIBS}"
+    echotab "\$(RM) lisp?.o"
+  fi
+  if [ $TSYS = dos ] ; then
+    echotab "strip lisp"
+    # emx-Option -p hält das untere Megabyte frei, damit EXECUTE geht.
+    #   Bei lisp_1mb.exe nutzen wir dagegen soviel RAM wie möglich.
+    # emx-Option -C0 bewirkt, daß malloc() bei fehlendem Speicher und
+    #   Plattenplatz NULL liefert, statt es später auf einen Programm-Ausstieg
+    #   wegen "Out of swap space" ankommen zu lassen.
+    echotab "emxbind -q c:\emx\bin\emx.exe lisp lisp${LEXE} -p -C0"
+    echotab "emxbind -q c:\emx\bin\emx.exe lisp lisp_1mb${LEXE} -C0"
+  else
+    # emx-Option -acm bewirkt, daß unter DOS der Zugriff auf den Bildschirm-
+    #   speicher funktioniert.
+    echotab "emxbind -q c:\emx\bin\emx.exe lisp lisp${LEXE} -p -acm"
+  fi
+  echo
+fi
+
+echo
+
+echo "alllsp : \$(LSPFILES)"
+echo
+
+if [ $TOS = atari ] ; then
+  CONFIG=cfgathd
+fi
+if [ $TOS = amiga ] ; then
+  CONFIG=cfgamiga
+fi
+if [ $TOS = dos -o $TOS = os2 ] ; then
+  CONFIG=cfgdos
+fi
+if [ $TOS = unix -a $CROSS = false ] ; then
+  if [ "$HSYSOS" = sunos ] ; then
+    CONFIG=cfgsunux
+  fi
+  if [ "$HSYSOS" = linux ] ; then
+    CONFIG=cfglinux
+  fi
+  if test -z "$CONFIG"; then
+    CONFIG=cfgunix
+  fi
+fi
+if [ $TOS = vms ] ; then
+  CONFIG=cfgvms
+fi
+for f in $CODE ; do
+  if [ $f = config ] ; then
+    echo "${f}.lsp : ${SRCDIR}${CONFIG}.lsp"
+    echotab "\$(CP) ${SRCDIR}${CONFIG}.lsp ${f}.lsp"
+    echo
+  else
+    if [ -n "${SRCDIR}" ] ; then
+      echo "${f}.lsp : ${SRCDIR}${f}.lsp"
+      echotab "-\$(LN) ${SRCDIR}${f}.lsp ${f}.lsp"
+      echo
+    fi
+  fi
+done
+
+if [ $CROSS = false ] ; then
+
+  echo "interpreted.mem : lisp${LEXE} \$(LSPFILES)"
+  if [ $HOS != dos -a $HOS != os2 ] ; then
+    echotab "${HERE}lisp${LEXE}"' -x "(load \"init.lsp\") (saveinitmem) (exit)"'
+  else
+    echotab "${HERE}lisp${LEXE} < interpreted.in"
+    echotab "-\$(RM) interpreted.mem"
+  fi
+  echotab "\$(MV) lispinit.mem interpreted.mem"
+  echo
+
+fi
+
+if [ $CROSS = false ] ; then
+
+  for f in $CODE ; do
+    echo "${f}.fas : ${f}.lsp lisp${LEXE} interpreted.mem"
+    echotab "${HERE}lisp${LEXE} -M interpreted.mem -q -c ${f}.lsp"
+    echo
+  done
+
+else
+
+  for f in $CODE ; do
+    echo "${f}.fas : ${f}.lsp"
+    echotab 'clisp -M cross.mem -q -x "(cross:compile-file \"'"${f}.lsp"'\")"'
+    echo
+  done
+
+fi
+
+if [ $CROSS = false ] ; then
+
+  echo "compiled.mem : lisp${LEXE} \$(FASFILES)"
+  if [ $HOS != dos -a $HOS != os2 ] ; then
+    echotab "${HERE}lisp${LEXE}"' -x "(load \"init.fas\") (saveinitmem) (exit)"'
+  else
+    echotab "${HERE}lisp${LEXE} < compiled.in"
+    echotab "-\$(RM) compiled.mem"
+  fi
+  echotab "\$(MV) lispinit.mem compiled.mem"
+  echo
+
+fi
+
+echo
+
+if [ $CROSS = false ] ; then
+
+  echo "# Test: recompile \$(LSPFILES) and check if the resulting .mem file has the same length."
+  echo "test : compiled.mem ${TESTDIR} \$(TESTLSPFILES) \$(TESTFASFILES)"
+  if [ $HOS = unix ] ; then
+    for f in $CODE ; do
+      if [ $f != editor ] ; then
+        echotab "cmp -s ${f}.fas ${TESTDIR}/${f}.fas"' || (echo "Test failed." ; exit 1)'
+      fi
+    done
+    echotab 'echo "Test passed."'
+    echo
+  else
+    if [ $HOS = dos -o $HOS = os2 ] ; then
+      echotab "-\$(RM) ${TESTDIR}\editor.*"
+      echotab "comp *.fas ${TESTDIR}"
+      echotab "REM The test passed if no differences were found."
+      echo
+    else
+      echotab 'echo "Compare the .fas files by hand."'
+      echo
+    fi
+  fi
+
+  echo "${TESTDIR} :"
+  echotab "-mkdir ${TESTDIR}"
+  echo
+
+  for f in $CODE ; do
+    echo "${TESTDIR}/${f}.lsp : ${f}.lsp"
+    if [ $HOS = unix ] ; then
+      echotab "cd ${TESTDIR} ; \$(LN) ${PARENT_}${f}.lsp ${f}.lsp"
+    else
+      echotab "\$(LN) ${f}.lsp ${TESTDIR}"
+    fi
+    echo
+  done
+
+  for f in $CODE ; do
+    echo "${TESTDIR}/${f}.fas : ${TESTDIR}/${f}.lsp lisp${LEXE} compiled.mem"
+    echotab "${HERE}lisp${LEXE} -M compiled.mem -q -c ${TESTDIR}/${f}.lsp"
+    echo
+  done
+
+  echo "compiled2.mem : lisp${LEXE} \$(TESTFASFILES)"
+  echotab "${HERE}lisp${LEXE}"' -x "(cd \"'"${TESTDIR}"'/\") (load \"init.fas\") (cd \"'"${PARENT_2}"'\") (saveinitmem) (exit)"'
+  echotab "-\$(RM) compiled2.mem"
+  echotab "\$(MV) lispinit.mem compiled2.mem"
+  echo
+
+  echo
+
+  if [ $HOS = unix ] ; then
+    echo "testsuite : ${TESTSDIR} lisp${LEXE} compiled.mem"
+    echotab "LISP=\""'`pwd`'"/lisp${LEXE} -M "'`pwd`'"/compiled.mem\"; export LISP; cd ${TESTSDIR}; make LISP=\"\$\$LISP\""
+    echo
+    echo "${TESTSDIR} :"
+    echotab "-mkdir ${TESTSDIR}"
+    echotab "cd ${TESTSDIR} ; \$(LN) ${PARENT_}${PARENT_}tests/Makefile ."
+    echotab "cd ${TESTSDIR} ; \$(LN) ${PARENT_}${PARENT_}tests/*.lsp ."
+    echotab "cd ${TESTSDIR} ; \$(LN) ${PARENT_}${PARENT_}tests/*.tst ."
+    echo
+  fi
+
+fi
+
+if [ $HOS = unix -a $XCC_GCC = true ] ; then
+  echo "clisp.h :${EVERY_INCLUDES_C}"
+  echotab "((${XCPP} ${XCFLAGS} -P lispbibl.c | grep -v \"^ *\$\$\") ; (${XCPP} ${XCFLAGS} -P -dM lispbibl.c | sort) ) > clisp.h"
+  echo
+  echo
+fi
+
+echo "manual : ANNOUNCE COPYRIGHT GNU-GPL SUMMARY README clisp.1 impnotes.txt"
+echo
+echo "manualx : manual clisp.man"
+echo
+
+for f in ANNOUNCE COPYRIGHT GNU-GPL SUMMARY ; do
+  echo "${f} : ${PARENT}${f}"
+  echotab "-\$(LN) ${PARENT_}${f} ${f}"
+  echo
+done
+
+for f in README clisp.1 impnotes.txt ; do
+  echo "${f} : ${SRCDIR}_${f}${TXT_INCLUDES}"
+  echotab "\$(TXT2C) < ${SRCDIR}_${f}${DEELIF_FILTER} > txt.c"
+  # if [ "$COMPILER" = oldcc ] ; then
+  # echotab "\$(CPP) txt.c > txt.i"
+  # echotab "\$(CC) \$(CFLAGS) txt.i -o txt${HEXE}"
+  # else
+  echotab "\$(CC) \$(CFLAGS) txt.c -o txt${HEXE}"
+  # fi
+  line="${HERE}txt"
+  if [ $f = clisp.1 ] ; then
+    if [ $HOS != dos -a $HOS != os2 ] ; then
+      line=$line" | grep -v '^ *\$\$'"
+    else
+      # DOS command line args may not contain spaces. grep.in contains "^ *$"
+      line=$line" | grep -v -f grep.in"
+    fi
+  fi
+  echotab "${line} > ${f}"
+  echotab "\$(RM) txt.c"
+  echotab "\$(RM) txt.i"
+  echotab "\$(RM) txt${HEXE}"
+  echo
+done
+OBSOLETE=$OBSOLETE" txt.c txt.i txt${HEXE}"
+
+echo "clisp.man : clisp.1"
+echotab "\$(ROFF_MAN) clisp.1 > clisp.man"
+echo
+echo "clisp.dvi : clisp.1"
+echotab "\$(ROFF_DVI) clisp.1 > clisp.dvi"
+echo
+
+echo
+
+if [ $CROSS = false ] ; then
+  if [ $HOS = unix ] ; then
+    echo "install : install-bin install-man"
+    echo
+    echo "install-bin : lisp${LEXE} compiled.mem force"
+    echotab "if [ ! -d \$(libdir) ] ; then mkdir \$(libdir) ; fi"
+    echotab "if [ ! -d \$(lisplibdir) ] ; then mkdir \$(lisplibdir) ; fi"
+    echotab "\$(INSTALL_PROGRAM) lisp${LEXE} \$(lisplibdir)/lisp${LEXE}"
+    echotab "strip \$(lisplibdir)/lisp${LEXE}"
+    echotab "\$(INSTALL_DATA) compiled.mem \$(lisplibdir)/lispinit.mem"
+    echotab "if [ ! -d \$(bindir) ] ; then mkdir \$(bindir) ; fi"
+    echotab "(echo '#!${GOOD_SH}' ; echo 'exec \$(lisplibdir)/lisp${LEXE} -M \$(lisplibdir)/lispinit.mem \"\$\$@\"') > \$(bindir)/clisp"
+    echotab "chmod a+x \$(bindir)/clisp"
+    echo
+    echo "install-man : clisp.1 force"
+    echotab "if [ ! -d \$(mandir) ] ; then mkdir \$(mandir) ; fi"
+    echotab "if [ ! -d \$(mandir)/man1 ] ; then mkdir \$(mandir)/man1 ; fi"
+    echotab "\$(INSTALL_DATA) clisp.1 \$(mandir)/man1/clisp.1"
+    echo
+    echo
+  fi
+  if [ $HOS = dos -o $HOS = os2 ] ; then
+    echo "install : install-bin"
+    echo
+    echo "install-bin : lisp${LEXE} compiled.mem force"
+    echotab "-mkdir \$(libdir)"
+    echotab "-mkdir \$(lisplibdir)"
+    echotab "\$(INSTALL_PROGRAM) lisp${LEXE} \$(lisplibdir)\lisp${LEXE}"
+    echotab "\$(INSTALL_DATA) compiled.mem \$(lisplibdir)\lispinit.mem"
+    echotab "-mkdir \$(bindir)"
+    echotab "echo \$(lisplibdir)\lisp${LEXE} -M \$(lisplibdir)\lispinit.mem %1 %2 %3 %4 %5 %6 %7 %8 %9 > \$(bindir)\clisp.bat"
+    echo
+  fi
+fi
+
+if [ $HOS = unix ] ; then
+cat <<!!
+# Choose one of the packers:
+
+# Standard Unix packer. Requires GNU tar.
+PACK = tar
+PACKOPT = cvfhz
+PACKEXT = .tar.Z
+
+# The one with the best performance.
+#PACK = lha
+#PACKOPT = a
+#PACKEXT = .lzh
+
+# Popular DOS packer.
+#PACK = zip
+#PACKOPT = -r
+#PACKEXT = .zip
+
+# Popular Atari packer.
+#PACK = zoo
+#PACKOPT = -add
+#PACKEXT = .zoo
+
+!!
+echo "distrib : force all lisp.a manualx libnoreadline.a libreadline.a"
+echotab "\$(RM) /tmp/clisp\$(PACKEXT)"
+echotab "ln compiled.mem lispinit.mem"
+echotab "\$(PACK) \$(PACKOPT) /tmp/clisp\$(PACKEXT) ANNOUNCE COPYRIGHT GNU-GPL SUMMARY README clisp.1 clisp.man impnotes.txt lisp.a \$(LSPFILES) \$(FASFILES) lispinit.mem libnoreadline.a libreadline.a"
+echotab "\$(RM) lispinit.mem"
+echo
+OBSOLETE=$OBSOLETE" lispinit.mem"
+echo
+fi
+
+cat <<!!
+# clean0 is harmless: removes only superfluous things: temporary files.
+clean0 : force
+	-\$(RM) core${OBSOLETE}
+
+# clean1 removes everything that becomes obsolete once lisp.run is recompiled
+# without changing the bytecode format and the tables in
+# constobj.d, constsym.d, subr.d, fsubr.d, pseudofun.d.
+clean1 : clean0
+	-\$(RM) clisp.h *.i *.s *.o *.a lisp${LEXE} ${TESTDIR}/* ${TESTSDIR}/*
+	-rmdir ${TESTDIR}
+	-rmdir ${TESTSDIR}
+	-\$(RM) README clisp.1 impnotes.txt
+
+# clean2 removes everything that becomes obsolete once lisp.run is recompiled
+# without changing the bytecode format.
+clean2 : clean1
+	-\$(RM) interpreted.mem compiled.mem compiled2.mem
+
+# clean3 removes everything that becomes obsolete once lisp.run is recompiled.
+# It leaves everything generated by "make allc".
+clean3 : clean2
+	-\$(RM) \$(FASFILES) *.lib
+
+# clean4 removes everything that becomes obsolete
+# when switching to a new version of the C compiler.
+# It leaves everything generated by "make init".
+clean4 : clean3
+	-\$(RM) \$(CFILES)
+
+# clean5 even undoes "make init".
+!!
+echo "clean5 : clean4"
+if [ -n "${SRCDIR}" ] ; then
+  echotab "-\$(RM) \$(DFILES) \$(LSPFILES) COPYRIGHT"
+else
+  echotab "-\$(RM) config.lsp"
+fi
+echotab "-\$(RM) comment5${HEXE} ansidecl${HEXE} ccpaux${HEXE} deelif${HEXE} deerror${HEXE} traddecl${HEXE} mergestrings${HEXE} txt2c${HEXE}"
+echotab "-\$(RM) generrors${HEXE} errors.c"
+echo
+cat <<!!
+# clean6 lets us go back to "makemake > makefile".
+clean6 : clean5
+	-\$(RM) makefile
+
+# clean7 lets us go back to "target".
+clean7 : clean6
+	-\$(RM) config.status machine.h unixconf.h makemake
+	-\$(RM) readline.tar.Z
+	cd readline ; make clean
+
+# clean8 moreover cleans up the SRCDIR.
+clean8 : clean7
+	-\$(RM) ${SRCDIR}lisparit0.d
+
+# The normal "start over" command:
+clean : clean4
+
+# Make "clear for distribution":
+distclean : clean7
+
+# Remove everything that can be generated otherwise:
+realclean : clean8
+
+!!
+
+echo
+
+echo "force:"
+
+echo
+

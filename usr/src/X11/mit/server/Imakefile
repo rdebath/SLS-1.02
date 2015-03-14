@@ -1,0 +1,510 @@
+XCOMM $Header: /home/x_cvs/mit/server/Imakefile,v 1.20 1992/09/16 15:10:29 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.135 91/09/22 10:27:51 rws Exp $
+/*
+ * Server Master Makefile
+ */
+
+#include <Server.tmpl>
+
+#define StdSubdirs dix os ddx/mi
+#define MFBSubdirs StdSubdirs ddx/mfb
+#define CFBSubdirs MFBSubdirs ddx/cfb
+#define StdLibs $(DIX) $(OS) $(MI) $(EXTENSIONS)
+#define NoMFBLibs $(DIX) $(OS) $(FONT) $(MI) $(EXTENSIONS)
+#define MFBBareLibs $(DIX) $(OS) $(FONT) $(MFB) $(MI)
+#define MFBLibs MFBBareLibs $(EXTENSIONS)
+#define CFBBareLibs $(DIX) $(OS) $(FONT) $(CFB) $(MFB) $(MI)
+#define CFBLibs CFBBareLibs $(EXTENSIONS)
+
+#if BuildPexExt
+   PEXTENSIONSRC = $(EXTENSIONSRC)/server/PEX
+         PEXLIBS = $(PEXTENSIONSRC)/dipex/dispatch/libdidipex.a \
+                   $(PEXTENSIONSRC)/dipex/swap/libdiswapex.a \
+                   $(PEXTENSIONSRC)/dipex/objects/libdiobpex.a \
+                   $(PEXTENSIONSRC)/dipex/dispatch/libdidipex.a \
+                   $(PEXTENSIONSRC)/ddpex/mi/level4/libddpex4.a \
+                   $(PEXTENSIONSRC)/ddpex/mi/level3/libddpex3.a \
+                   $(PEXTENSIONSRC)/ddpex/mi/shared/libddpexs.a \
+                   $(PEXTENSIONSRC)/ddpex/mi/level2/libddpex2.a \
+                   $(PEXTENSIONSRC)/ddpex/mi/level1/libddpex1.a \
+		   $(PEXTENSIONSRC)/ospex/libospex.a 
+#endif
+#if BuildXInputExt
+      OTHEREXTS = $(EXTENSIONSRC)/server/xinput/libxinput.a
+#endif
+
+        DEPDIRS = $(FONTSRC)/lib/font $(EXTENSIONSRC)/server
+     NONPEXEXTS = $(OTHEREXTS) $(EXTENSIONSRC)/server/libext.a
+     EXTENSIONS = $(NONPEXEXTS) $(PEXLIBS)
+         XAULIB = $(XAUTHSRC)/libXau.a
+       XDMCPLIB = $(XDMCPLIBSRC)/libXdmcp.a
+             OS = os/libos.a $(XAULIB) $(XDMCPLIB)
+        BSDEMUL = $(LIBSRC)/Berk/Berklib.o
+            MFB = ddx/mfb/libmfb.a
+            CFB = ddx/cfb/libcfb.a
+             MI = ddx/mi/libmi.a
+            DIX = dix/libdix.a
+           FONT = $(FONTSRC)/lib/font/libfont.a
+#if i386Mach
+#ifdef i386Mach_BsdTree
+   EXTRASYSLIBS = /usr/lib/libmach.a
+#else
+   EXTRASYSLIBS = /usr/misc/.mach/lib/libmach.a
+#endif
+#endif
+#if HasSdbm
+         DBMLIB = -lsdbm
+#else
+#if !i386Bsd
+         DBMLIB = -ldbm
+#endif
+#endif
+        SYSLIBS = -lm $(DBMLIB) $(EXTRASYSLIBS)
+           CBRT = ddx/mi/cbrt.o
+
+XCOMM
+XCOMM This turns off the default rule for compiling .c files because
+XCOMM this makefile does not really know how to build it.  This is really
+XCOMM just a hack because of the Sun version of make and nfs.
+XCOMM
+.c.o:
+
+/*****************************************************************************
+ *		  ALL definitions, add one for each server                   *
+ *****************************************************************************/
+
+#if XqdssServer
+ALL1 = Xqdss
+#endif
+
+#if XqvssServer
+#if XqdssServer
+ALL2 = Xqvss
+#else
+ALL1 = Xqvss
+#endif
+#endif
+
+#if XdecServer
+ALL1 = Xdec
+#endif
+
+#if XmfbpmaxServer
+ALL1 = Xmfbpmax
+#endif
+
+#if XcfbpmaxServer
+#if XmfbpmaxServer
+ALL2 = Xcfbpmax
+#else
+ALL1 = Xcfbpmax
+#endif
+#endif
+
+#if XsunMonoServer
+#if XsunServer
+ALL2 = XsunMono
+#else
+ALL1 = XsunMono
+#endif
+#endif
+
+#if XsunServer
+ALL1 = Xsun
+#endif
+
+#if XibmServer
+ALL1 = Xibm
+#endif
+
+#if XtekServer
+ALL1 = Xtek
+#endif
+
+#if XmacIIServer
+ALL1 = XmacII
+#endif
+
+#if XlunaServer
+ALL1 = Xluna
+#endif
+
+#if XmipsServer
+ALL1 = Xmips
+#endif
+
+#if X386MonoServer
+#if X386Server
+ALL2 = X386mono
+#else
+ALL1 = X386mono
+#endif
+#endif
+
+#if X386Server
+ALL1 = X386
+#endif
+
+/*
+#if X386Server
+#if X386MonoServer
+ALL1 = X386mono
+#else
+ALL1 = X386
+#endif
+#endif
+*/
+
+#if XnonServer
+ALL2 = Xnon
+#endif
+
+/* end ALL definitions */
+
+ALL = $(ALL1) $(ALL2)
+
+all: $(ALL)
+
+
+/*****************************************************************************
+ *		  Build rule blocks, add one for each server                 *
+ *****************************************************************************/
+
+
+#if XqdssServer
+XCOMM
+XCOMM Digital qdss server
+XCOMM
+SUBDIRS0 = MFBSubdirs ddx/dec/lk201
+SUBDIRS1 = ddx/dec/qdss ddx/dec/qdss/libtl
+QDSSDIRS = $(SUBDIRS0) $(SUBDIRS1) $(DEPDIRS)
+QDSSOBJS = ddx/dec/qdss/init.o ddx/dec/qdss/qdss_io.o ddx/dec/lk201/lk201.o
+QDSSLIBS = ddx/dec/qdss/libqdss.a ddx/dec/qdss/libtl/libtl.a \
+           ddx/dec/qdss/libqdss.a MFBLibs
+
+ServerTarget(Xqdss,$(QDSSDIRS),$(QDSSOBJS),$(QDSSLIBS),$(SYSLIBS))
+#endif /* XqdssServer */
+
+
+#if XqvssServer
+XCOMM
+XCOMM Digital qvss server
+XCOMM
+SUBDIRS0 = MFBSubdirs ddx/dec/lk201
+SUBDIRS2 = ddx/dec/qvss
+QVSSDIRS = $(SUBDIRS0) $(SUBDIRS2) $(DEPDIRS)
+QVSSOBJS = ddx/dec/qvss/init.o ddx/dec/qvss/qvss_io.o ddx/dec/lk201/lk201.o
+QVSSLIBS = MFBLibs
+
+ServerTarget(Xqvss,$(QVSSDIRS),$(QVSSOBJS),$(QVSSLIBS),$(SYSLIBS))
+#endif /* XqvssServer */
+
+
+#if XdecServer
+XCOMM
+XCOMM Digital MIPS based WS server (ultrix 4.2 and beyond)
+XCOMM
+SUBDIRS0 = CFBSubdirs ddx/dec/ws
+DECDIRS = $(SUBDIRS0) $(DEPDIRS)
+DECOBJS = ddx/dec/ws/init.o
+DECLIBS = ddx/dec/ws/libdec.a CFBLibs
+
+ServerTarget(Xdec,$(DECDIRS),$(DECOBJS),$(DECLIBS),$(SYSLIBS))
+#endif /* XdecServer */
+
+
+#if XmfbpmaxServer
+XCOMM
+XCOMM Digital mfbpmax server
+XCOMM
+SUBDIRS0 = MFBSubdirs
+SUBDIRS2 = ddx/dec/lk201
+SUBDIRS3 = ddx/dec/mfbpmax
+PMAXMFBDIRS = $(SUBDIRS0) $(SUBDIRS2) $(SUBDIRS3) $(DEPDIRS)
+PMAXMFBOBJS = ddx/dec/mfbpmax/init.o ddx/dec/mfbpmax/mfbpmax_io.o ddx/dec/lk201/lk201.o
+PMAXMFBLIBS = MFBLibs
+
+ServerTarget(Xmfbpmax,$(PMAXMFBDIRS),$(PMAXMFBOBJS),$(PMAXMFBLIBS),$(SYSLIBS))
+#endif /* XmfbpmaxServer */
+
+
+#if XcfbpmaxServer
+XCOMM
+XCOMM Digital cfbpmax server
+XCOMM
+SUBDIRS0 = MFBSubdirs
+SUBDIRS1 = ddx/cfb ddx/dec/cfbpmax
+SUBDIRS2 = ddx/dec/lk201
+PMAXCFBDIRS = $(SUBDIRS0) $(SUBDIRS1) $(SUBDIRS2) $(DEPDIRS)
+PMAXCFBOBJS = ddx/dec/cfbpmax/init.o ddx/dec/cfbpmax/cfbpmax_io.o \
+	ddx/dec/cfbpmax/cfbpmaxcolor.o ddx/dec/lk201/lk201.o
+PMAXCFBLIBS = CFBLibs
+
+ServerTarget(Xcfbpmax,$(PMAXCFBDIRS),$(PMAXCFBOBJS),$(PMAXCFBLIBS),$(SYSLIBS))
+#endif /* XcfbpmaxServer */
+
+
+#if XsunServer
+XCOMM
+XCOMM Sun server
+XCOMM
+#if UseSunWindowsInServer
+SUNWINDOWSLIBS = -lsunwindow -lpixrect
+#endif
+SUBDIRS0 = MFBSubdirs
+SUBDIRS1 = ddx/cfb
+SUBDIRS2 = ddx/sun
+SUNDIRS = $(SUBDIRS0) $(SUBDIRS1) $(SUBDIRS2) $(DEPDIRS)
+SUNOBJS = ddx/sun/sunInit.o
+SUNLIBS = ddx/sun/libsun.a CFBLibs
+SUNSYSLIBS = $(SYSLIBS) $(SUNWINDOWSLIBS)
+
+ServerTarget(Xsun,$(SUNDIRS),$(SUNOBJS),$(SUNLIBS),$(SUNSYSLIBS))
+#endif /* XsunServer */
+
+
+#if XsunMonoServer
+XCOMM
+XCOMM Sun monochrome server
+XCOMM
+#if UseSunWindowsInServer
+SUNWINDOWSLIBS = -lsunwindow -lpixrect
+#endif
+SUBDIRS0 = MFBSubdirs
+SUBDIRS2 = ddx/sun
+SUNMDIRS = $(SUBDIRS0) $(SUBDIRS2) $(DEPDIRS)
+SUNMOBJS = ddx/sun/sunInitMono.o ddx/sun/sunInitExtMono.o
+SUNMLIBS = ddx/sun/libsun.a MFBBareLibs $(NONPEXEXTS)
+SUNSYSLIBS = $(SYSLIBS) $(SUNWINDOWSLIBS)
+
+ServerTarget(XsunMono,$(SUNMDIRS),$(SUNMOBJS),$(SUNMLIBS),$(SUNSYSLIBS))
+#endif /* XsunMonoServer */
+
+
+#if XibmServer
+XCOMM
+XCOMM IBM server
+XCOMM
+#if SpecialMalloc
+IBMALLOCLIB = ddx/ibm/common/libibmalloc.a
+#else
+IBMALLOCLIB = 
+#endif
+SUBDIRS0 = CFBSubdirs ddx/ibm
+IBMDIRS = $(SUBDIRS0) $(DEPDIRS)
+IBMOBJS = ddx/ibm/common/ibmcomm.o ddx/ibm/common/ibmDate.o ddx/ibm/pgc/pgc.o
+IBMLIBS = ddx/ibm/AIX/hft.o ddx/ibm/libibm.a $(IBMALLOCLIB) CFBLibs
+
+ServerTarget(Xibm,$(IBMDIRS),$(IBMOBJS),$(IBMLIBS),$(SYSLIBS))
+#endif /* XibmServer */
+
+
+#if XtekServer
+XCOMM
+XCOMM Tektronix server
+XCOMM
+SUBDIRS0 = CFBSubdirs ddx/tek
+TEKDIRS = $(SUBDIRS0) $(DEPDIRS)
+TEKOBJS = ddx/tek/pegInit.o
+TEKLIBS = ddx/tek/libtek.a CFBLibs
+TEKSYSLIBS = $(CBRT) $(SYSLIBS)
+
+ServerTarget(Xtek,$(TEKDIRS),$(TEKOBJS),$(TEKLIBS),$(TEKSYSLIBS))
+#endif /* XtekServer */
+
+
+#if XmacIIServer
+XCOMM
+XCOMM Apple MacII server
+XCOMM
+SUBDIRS0 = CFBSubdirs ddx/macII
+MACIIDIRS = $(SUBDIRS0) $(DEPDIRS)
+MACIIOBJS = ddx/macII/macIIInitS.o ddx/macII/macIIColor.o
+MACIILIBS = ddx/macII/libmacII.a CFBLibs
+MACIISYSLIBS = $(CBRT) $(SYSLIBS)
+ 
+ServerTarget(XmacII,$(MACIIDIRS),$(MACIIOBJS),$(MACIILIBS),$(MACIISYSLIBS))
+#endif /* XmacIIServer */
+
+
+#if XlunaServer
+XCOMM
+XCOMM OMRON Luna server
+XCOMM
+SUBDIRS0 = MFBSubdirs ddx/omron
+LUNADIRS = $(SUBDIRS0) $(DEPDIRS)
+LUNAOBJS = ddx/omron/omronInit.o
+#ifdef uniosu
+LUNALIBS = ddx/omron/libomron.a MFBLibs $(BSDEMUL)
+#else
+LUNALIBS = ddx/omron/libomron.a MFBLibs
+#endif
+
+ServerTarget(Xluna,$(LUNADIRS),$(LUNAOBJS),$(LUNALIBS),$(SYSLIBS))
+#endif /* XlunaServer */
+
+
+#if XmipsServer
+XCOMM
+XCOMM MIPS server
+XCOMM
+SUBDIRS0 = CFBSubdirs ddx/mips
+MIPSDIRS = $(SUBDIRS0) $(DEPDIRS)
+MIPSOBJS = ddx/mips/mipsInit.o
+MIPSLIBS = ddx/mips/libmips.a CFBLibs
+MIPSSYSLIBS = $(SYSLIBS) -lc /usr/lib/libc.a
+ 
+ServerTarget(Xmips,$(MIPSDIRS),$(MIPSOBJS),$(MIPSLIBS),$(MIPSSYSLIBS))
+#endif /* XmipsServer */
+
+
+#if X386Server
+XCOMM
+XCOMM X386 server
+XCOMM
+SUBDIRS0 = include StdSubdirs ddx/x386
+SUBDIRS1 = ddx/mfb
+X386DIRS = $(SUBDIRS0) $(SUBDIRS1) $(DEPDIRS)
+#ifdef i386SVR3Architecture
+X386SYSLIBS = $(CBRT) $(BSDEMUL)
+#endif
+#ifdef LinuxArchitecture
+X386SYSLIBS = $(CBRT)
+#endif
+#if SpecialMalloc
+X386MALLOCLIB = /usr/local/lib/libdbmalloc.a
+#endif
+FONT = $(FONTSRC)/lib/font/libfont.a $(RENDERERLIBS)
+X386OBJS1 = ddx/x386/common/x386Init.o $(X386CONFOBJS)
+X386OBJS2 = dix/dixfonts.o ddx/mi/mibitblt.o
+X386VGALIB = ddx/x386/vga256/libvga256.a $(VGAOBJS)
+X386LIBS = ddx/x386/common/libx386.a $(X386VGALIB) MFBLibs \
+	   $(X386SYSLIBS) $(X386MALLOCLIB)
+X386OBJS = $(X386OBJS1) $(X386OBJS2)
+INSTPGMFLAGS = $(INSTUIDFLAGS)     /* server must be suid root  */
+
+reloadX386: $(CONFIGSRC)/X386Conf.tmpl
+	@$(MAKE) $(MFLAGS) Makefile
+	@$(MAKE) $(MFLAGS) DoReload
+
+DoReload: $(X386CONFOBJS) $(VGAOBJS) $(RENDERERLIBS) loadX386
+
+$(X386CONFOBJS): $(ICONFIGFILES)
+	@for i in $(X386CONFSUBDIRS); do \
+	(echo Checking in $$i...; cd $$i; set -x; \
+	$(MAKE) $(MFLAGS) Configure); done
+
+$(VGAOBJS): $(ICONFIGFILES)
+	@echo Checking in $(VGADRIVERSRC)...; cd $(VGADRIVERSRC); set -x; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(VGASUBDIRS)" Makefiles; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(VGASUBDIRS)" Depend; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(VGASUBDIRS)"
+	touch $(VGAOBJS)
+
+
+ServerTarget(X386,$(X386DIRS),$(X386OBJS),$(X386LIBS),$(SYSLIBS))
+
+#endif /* X386Server */
+
+
+#if X386MonoServer
+XCOMM
+XCOMM X386mono server
+XCOMM
+SUBDIRS0 = include StdSubdirs ddx/x386
+X386MDIRS = $(SUBDIRS0) $(DEPDIRS)
+#ifdef i386SVR3Architecture
+X386SYSLIBS = $(CBRT) $(BSDEMUL)
+#endif
+#ifdef LinuxArchitecture
+X386SYSLIBS = $(CBRT)
+#endif
+#if SpecialMalloc
+X386MALLOCLIB = /usr/local/lib/libdbmalloc.a
+#endif
+FONT = $(FONTSRC)/lib/font/libfont.a $(RENDERERLIBS)
+X386MOBJS1 = ddx/x386/common/x386Init_m.o $(X386MCONFOBJS)
+X386MOBJS2 = dix/dixfonts_m.o ddx/mi/mibitblt_m.o
+X386MVGALIB = ddx/x386/vga2/libvga2.a $(VGA2OBJS)
+X386MLIBS = ddx/x386/common/libx386.a $(X386MVGALIB) NoMFBLibs \
+	   $(X386SYSLIBS) $(X386MALLOCLIB)
+X386MOBJS = $(X386MOBJS1) $(X386MOBJS2)
+INSTPGMFLAGS = $(INSTUIDFLAGS)     /* server must be suid root  */
+
+reloadX386mono: $(CONFIGSRC)/X386Conf.tmpl
+	@$(MAKE) $(MFLAGS) Makefile
+	@$(MAKE) $(MFLAGS) DoReloadmono
+
+DoReloadmono: $(X386MCONFOBJS) $(VGA2OBJS) $(RENDERERLIBS) loadX386mono
+
+$(X386MCONFOBJS): $(ICONFIGFILES)
+	@for i in $(X386MCONFSUBDIRS); do \
+	(echo Checking in $$i...; cd $$i; set -x; \
+	$(MAKE) $(MFLAGS) Configure); done
+
+$(VGA2OBJS): $(ICONFIGFILES)
+	@echo Checking in $(VGA2DRIVERSRC)...; cd $(VGA2DRIVERSRC); set -x; \
+	$(MAKE) $(MFLAGS) Makefile; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(VGA2SUBDIRS)" Makefiles; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(VGA2SUBDIRS)" Depend; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(VGA2SUBDIRS)"
+	touch $(VGA2OBJS)
+
+ServerTarget(X386mono,$(X386MDIRS),$(X386MOBJS),$(X386MLIBS),$(SYSLIBS))
+
+#endif /* X386MonoServer */
+
+/* Common rules */
+#if X386Server || X386MonoServer
+$(CONFIGSRC)/X386Conf.tmpl: $(ICONFIGFILES)
+	@echo Checking in $(CONFIGSRC)...
+	@cd $(CONFIGSRC); set -x; $(MAKE) $(MFLAGS) Makefiles
+
+$(RENDERERCONFOBJ): $(ICONFIGFILES)
+	@for i in $(RENDERERCONFSUBDIR); do \
+	(echo Checking in $$i...; cd $$i; set -x; \
+	$(MAKE) $(MFLAGS) Configure); done
+
+#if ExtraRenderers
+$(RENDERERLIBS):: $(ICONFIGFILES)
+	@echo Checking in $(RENDERERSRC)...; cd $(RENDERERSRC); set -x; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(RENDERERSUBDIRS)" Makefiles; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(RENDERERSUBDIRS)" Depend; \
+	$(MAKE) $(MFLAGS) SUBDIRS="$(RENDERERSUBDIRS)" subdirs
+	touch $(RENDERERLIBS)
+	@for i in $(RENDERERLIBS); do (set -x; \
+	RanLibrary($$i)); done
+#endif
+#endif
+
+
+#if XnonServer
+XCOMM
+XCOMM non server, just compile sources for build test
+XCOMM
+SUBDIRS0 = CFBSubdirs
+
+Xnon: $(SUBDIRS0) $(DEPDIRS)
+
+#endif /* XnonServer */
+
+
+SUBDIRS = $(SUBDIRS0) $(SUBDIRS1) $(SUBDIRS2) $(SUBDIRS3)
+
+InstallMultipleFlags($(ALL),$(BINDIR),$(INSTPGMFLAGS))
+
+install::
+	-(cd $(DESTDIR)$(BINDIR); $(RM) X; $(LN) $(ALL1) X)
+
+#define IHaveSubdirs
+
+DependSubdirs($(SUBDIRS))
+MakeLintLibSubdirs($(SUBDIRS))
+LintSubdirs($(SUBDIRS))
+
+ForceSubdirs($(DEPDIRS) $(SUBDIRS))
+
+clean::
+	$(RM) $(ALL)
+
+InstallManPage(Xserver,$(MANDIR))

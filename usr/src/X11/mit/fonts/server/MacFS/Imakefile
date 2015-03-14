@@ -1,0 +1,62 @@
+
+#include <Server.tmpl>
+
+#define PassCDebugFlags 'CDEBUGFLAGS=$(CDEBUGFLAGS)' 'CC=$(CC)' 'CCOPTIONS=$(CCOPTIONS)'
+
+CC = ServerCcCmd
+CCOPTIONS = ServerCCOptions
+STD_DEFINES = ServerDefines
+CDEBUGFLAGS = ServerCDebugFlags
+REZ =           /mac/bin/rez -i /:mac:lib:rincludes -d AUX
+
+OSDIR = $(FONTSRC)/server/os
+OSLIB = $(OSDIR)/libos.a
+DIFSDIR = $(FONTSRC)/server/difs
+DIFSLIB = $(DIFSDIR)/libdifs.a
+FONTDIR = $(FONTSRC)/lib/font
+FONTLIB = $(FONTDIR)/libfont.a
+SYSLIBS =
+
+
+INCLUDES = -I/usr/include/mac -I$(FONTSRC)/include \
+	-I$(FONTSRC)/lib/font/include -I$(FONTSERVERSRC)/include \
+	-I$(FONTSERVERSRC)/os
+HEADERS = 
+
+FSDIRS = $(OSDIR) $(DIFSDIR) $(PCFDIRS)
+FSLIBS = $(DIFSLIB) $(FONTLIB) $(OSLIB) $(BSDEMUL)
+
+
+SRCS = MacFontFuncs.c MacFontInfo.c MacFontRender.c MacFont.c MacFontUI.c \
+	MacFontUIError.c ffs.c
+ASMSRCS = MacFontUIGlue.s MacInitFonts.s OutlineCalls.s
+OBJS = MacFontFuncs.o MacFontInfo.o MacFontRender.o MacFont.o MacFontUI.o \
+       MacFontUIGlue.o MacInitFonts.o OutlineCalls.o ffs.o
+
+
+all:: MacFS
+
+clean::
+        $(RM) MacFS
+
+MacFS:		${FSLIBS} ${OBJS} MacFontUIError.o
+		ld /usr/lib/maccrt0.o /lib/crt2.o -o MacFS MacFontUIError.o \
+		${OBJS} ${FSLIBS} \
+		/usr/lib/low.o -lmac_s -lat -lld -lmr -lc_s \
+		/lib/crtn.o /usr/lib/low.ld -ll -ly
+
+%MacFS:		MacFontUI.r 
+		${REZ} MacFontUI.r
+		-fcnvt -f -d Rez.out MacFontUI.rsrc
+		mv %MacFontUI.rsrc %MacFS
+		rm -f Rez.out MacFontUI.rsrc
+		setfile -c 'MOOT' -t 'APPL' -a i -a B MacFS
+
+OutlineCalls.s: OutlineCalls.C
+		c89 -S -a OutlineCalls.C
+
+NormalLibraryObjectRule()
+NormalLintTarget($(SRCS))
+
+DependTarget()
+

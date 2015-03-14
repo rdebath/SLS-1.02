@@ -1,0 +1,124 @@
+This is the beta-test release of ispell version 2.0.  As I discussed in
+a previous comp.sources.d posting, I will collect bug fixes for this version,
+and then post a final version with dictionary to mod.sources, at which time
+I will wash my hands of the bloody thing.
+
+Because I am short on time, I can only promise to integrate bug fixes.  If
+you send me improvements, they will very likely disappear into a black hole.
+Sorry, but it takes time to integrate every change, even the ones I can't test
+because they're for BSD.  If you plan on hacking extensively, I'd suggest
+waiting for the mod.sources posting, or you may have to repeat some work.
+
+Send bug reports/fixes to:
+
+	Geoff Kuenning   geoff@ITcorp.com   {uunet,trwrb}!desint!geoff
+---------------------------------------------------------------------------
+INSTRUCTIONS:
+
+In response to many requests, this posting contains all sources except the
+dictionary.  Since shar won't overwrite files and some file names have
+changed, you should unshar it in an empty directory.  If you installed my
+previous posting, you may also want to remove expand[12].sed from
+/usr/public/lib, since these scripts have been renamed to to isexp[1-4].sed.
+
+Once you have unpacked, edit "Makefile" and "config.X" according to the
+comments in each.  Note that the Makefile edits "config.X" further to
+produce "config.h".  Then type "make install" and go away for a while
+(if you're brave and foolish;  otherwise do the equivalent more carefully).
+
+If you don't already have a dictionary, please don't ask me for one.  Ask
+a neighbor.  If they don't have one, and you can't make one from
+/usr/dict/words or /usr/dict/web2 by running it through "munchlist",
+try running a bunch of text files through "makedict.sh".  (It depends on
+UNIX spell, though in a pinch you can do without if your source files are
+very good).  If all else fails, you'll just have to wait for the mod.sources
+posting.
+
+If you do have a dictionary, and you would like to use the new CAPITALIZE
+feature, you will have to convert you dictionary.  If you have UNIX spell,
+the "fixdict.sh" script will do this for you, without violating any
+copyrights or license restrictions.  This script replaces the current
+dictionary, and writes a (short) list of questionable capitalizations
+to standard output;  these must be analyzed and, if necessary, corrected
+by hand.  The file "Othercap.txt" (included in this posting) contains
+words that are in dict.191 which will be missed by "fixdict.sh" with
+the standard UNIX spell program.
+
+Problems fixed in this posting:
+
+    (1) Ispell did not duplicate the permissions on the files it edited.
+	(David Neves)
+    (2) The actual maximum number of possible corrections was 99, not 100.
+    (3) Ispell assumed a terminal width of 80 columns, rather than
+	consulting the termcap entry.
+    (4) Long lines could wrap around on the terminal, damaging the
+	display.
+    (5) The includes of types.h and param.h need to be interchanged on
+	BSD systems.  (Ken Yap, Jacob Gore)
+    (6) The givehelp() routine now actually waits for a space to be typed
+	like it claims, instead of just waiting for any character.  (Steve
+	Kelem)
+    (7) Good.c was missing a declaration of the index() (strchr) routine.
+    (8) The excessive strlen() calls in good.c have been removed, and
+	register declarations have been added.  (Joe Orost, Rich Salz)
+    (9) Some systems get "multiple symbol definition" messages when
+	linking (Joe Orost).
+   (10) Expand[12].sed didn't handle new-format dictionaries.
+   (11) Some minor errors in the usage message have been corrected.
+   (12) If a space (or other non-word character) is inserted using "R",
+        ispell would treat the entire replacement string as a token
+        and try to find it in the dictionary.
+   (13) Ispell now follows the proper UNIX procedure for signal catching
+	(i.e., it doesn't catch SIGINT if it's run in background).
+   (14) The handling of process stopping on BSD systems has been cleaned
+	up and made to work right (Mark Davies).
+
+Improvements added in this posting:
+
+    (1) Ispell's handling of troff size and font requests has again been
+	improved.  (Isaac Balbin, Steve Kelem, Joe Orost) (Everybody seems
+	to fix the particular problem that bothers their individual world :-).
+    (2) If ispell is run on a file with an extension of ".tex", it will
+	automatically go into TeX mode for this and subsequent files.
+	(Steve Kelem)
+    (3) The emacs support now includes "ispell-buffer", and ispell is run
+	from "ispell-program-name" so you can specify an explicit path.
+	(Stewart Clamen)
+    (4) There is a TERM_MODE configuration option so you can choose between RAW
+	and CBREAK modes.  The default has been changed to CBREAK (it used
+	to be RAW) to preserve parity.  (Joe Orost)
+    (5) Term.c will now compile on V7 systems (Joe Orost)
+    (6) Register declarations have been added throughout.  (Joe Orost)
+    (7) Ispell now buffers stdout, improving display performance slightly.
+    (8) The backup file extension is now configurable (George Sipe).
+    (9) All config.X definitions except MAGIC can be overridden with -D
+	switches (George Sipe).
+   (10) There is now a version.h file, so you will know what version you
+	have (I guess Larry Wall deserves credit.  Even though he didn't
+	harass me, guilt set in).  There is also a -v switch to print the
+	version information.
+   (11) (This was a lot tougher that I expected).  Ispell now knows about
+	capitalization and proper names (yay).  It recognizes four flavors
+	of words:  lowercase, capitalized, all-capitals, and "followcase".
+	If a word appears in the dictionary in lowercase, it is accepted
+	in lowercase, capitalized, or all-capitals.  If it is capitalized
+	in the dictionary, all-lowercase is disallowed.  If it is all-caps
+	in the dictionary, it must always appear in all caps.  Finally,
+	if the word has "weird" capitalization (like the name of my company,
+	ITcorp or ITCorp), either that capitalization must be followed
+	*exactly* or else the word must appear in all-caps.  More than
+	one of these variants may occur;  "munchlist" will remove unneeded
+	ones from a dictionary.  Finally, if you blow capitalization,
+	ispell will offer a list of correctly-capitalized alternatives.
+	Because it increases the size of the hash file, this feature is
+	optional (see the CAPITALIZE option in config.X).
+   (12) A new shell script ("fixdict.sh") is provided to aid in converting
+	your old dictionary to provide capitalization information.
+   (13) Buildhash now pads the string table to a "struct dent" boundary
+	in the hash file, so that it will be aligned when reading in.  On
+	many machines, this will speed startup.
+   (14) The -w option now accepts characters specified in octal with
+	backslashes like any other UNIX program, as well as the previous
+	decimal option, and it will also accept numeric strings of less
+	than three digits.
+   (15) The ispell.el file now supports ispell-region and ispell-buffer.

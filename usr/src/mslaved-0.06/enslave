@@ -1,0 +1,82 @@
+#!/bin/sh
+#
+# enslave - manual startup of MandelSpawn computation servers
+# 
+# usage: enslave [-n] [-v] [hosts...]
+#
+#	-v means print the rsh commands before executing
+# 	-n means print the rsh commands but don't execute them
+#
+
+# If you are running System V where "rsh" means "restricted shell" by default,
+# you may need to change "rsh" below to "/usr/ucb/rsh", "/usr/bsd/rsh" or 
+# wherever the "remote shell" command resides on your particular system.
+RSH=rsh
+
+while true
+do
+	case $1 in
+		-v) SHOPTS="${SHOPTS}v"; shift ;;
+		-n) SHOPTS="${SHOPTS}nv"; shift ;;
+		*) break ;;
+	esac
+done
+
+tmp=/tmp/ens$$
+tmp3=/tmp/enu$$
+
+sort -b $HOME/.enslave | grep -v '^#' >$tmp
+
+# if arguments, extract the wanted machines
+if test -n "$*"
+then
+	tmp2=/tmp/ent$$
+	for mach in $*
+	do 
+		echo $mach
+	done | sort -b >$tmp2
+	cat $tmp | awk '{print $1}' | comm -13 - $tmp2 |
+           awk '{printf "'$0': host %s not in .enslave, ignored\n", $1}' 1>&2
+	join $tmp $tmp2
+	rm -f $tmp2
+else
+	cat $tmp
+fi >$tmp3
+
+cat $tmp3 |
+  awk '
+  { opts=""
+     for(i=3; i<=NF; i++) opts=opts" "$i
+     printf "%s \"%s%s%s %s%s >/dev/null </dev/null &\"\n", \
+	 $1, $2, "mslavedc", opts, $2, "mslaved" 
+  }' >$tmp
+
+# If you have a different username on a remote machine and don't trust
+# it enough to put it in your .rhosts file, put it in .rhostile instead.
+
+cat $HOME/.rhosts $HOME/.rhostile 2>/dev/null | sort -b | 
+  # if multiple usernames for the same host, chooses one arbitrarily
+  awk '{print $2, $1}' | uniq -1 | 
+  awk '{print $2, "-l", $1}' | join -a2 - $tmp | 
+
+# Now the data stream contains ready-to-run rsh arguments.  Run the rsh's
+# in parallel, with some delay inbetween to avoid driving the load average
+# too high.  Because most of the possible error messages from the remote
+# process do not include the host name, prepend it to the output from rsh.
+
+(
+while read host rest
+do
+	# the silly quoted newline is there just to get newlines in the output
+	# of "enslave -v" and "enslave -n".  The redirect from </dev/null
+	# is to stop rsh from eating the standard input stream intended
+	# for the "read" above.
+	sh -c$SHOPTS "exec $RSH $host $rest 2>&1 | sed -e 's/^/$host: /' 1>&2"'
+' </dev/null &
+	sleep 2
+done 
+
+wait	# make sure all error messages have been printed before exiting
+)
+
+rm -f $tmp $tmp3

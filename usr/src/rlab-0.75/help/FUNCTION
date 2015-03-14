@@ -1,0 +1,180 @@
+FUNCTION:
+
+	Functions are an essential part of the language. Functions
+	arguments are passed by REFERENCE (ala FORTRAN). Functions
+	return a single value (if you must return multiple objects
+	group them together in a LIST). By default all function
+	variables are GLOBAL, unless declared local.
+
+	Functions in RLaB are treated as objects, in a manner similar
+	to matrices. Thus, users can assign/copy user-functions like
+	ordinary variables. This leads to the slightly unusual syntax
+	used for a function declarations.
+
+	Example:
+
+	> sum = function (s) 
+	  {
+	    local(i, Sum);
+	    Sum = 0;
+	    for(i in 1:size(s)) {
+	      Sum = Sum + s[i];
+	    }
+	    return Sum;
+	  };
+	>
+
+	creates a function, and assigns is to the variable `sum'.
+	Sum is invoked invoked like:
+
+	> sum( [1,2,3,4,5] )
+		15
+	----------------------------------------------------------------
+
+	Functions can return a single entity to the calling
+	environment. If it is necessary to return more than one
+	entity, a list can be used to group multiple entities together
+	for return.
+
+	Example:
+
+	We want to write a function that creates a set of matrices (a
+	state-space model). We will write such a function, and group
+	the separate matrices together in a list.
+
+	> ss = function( w )
+	  {
+ 	    local(A, B, n);
+	    n = size( w )[1];
+	    A = [ zeros(n,n), eye(n,n);
+	          -w;       , zeros(n,n) ];
+	    B = ones(n,n);
+ 	
+ 	    return << A = A, B = B >>;
+	  };
+	>
+
+	The return statement creates the list, and assign the names
+	`A' and `B' to it's members.	
+
+	Functions always return something, even though the return
+	statement is optional. 
+
+	----------------------------------------------------------------
+
+	Functions can call themselves recursively. Since a function is
+	stored in the same manner as a variable, the function can be
+	deleted, or renamed. Therefore, users must be careful not to
+	rename functions that call themselves, or they must use the
+	`$self' keyword.
+
+	Example:
+
+	> fact = function (f) 
+	  {
+	    if(f <= 1) {
+	      return 1;
+	    else
+	      return f*$self(f-1);
+	    }
+	  };
+	> fact(10)
+		3628800
+
+	----------------------------------------------------------------
+
+	All function variables are GLOBAL by default. Since builtin
+	and user-functions are treated like ordinary variables this
+	ensures that user-functions have full access to existing
+	functions. If you need local variables, use the local
+	statement at the beginning of your function.
+
+	Example:
+
+	> x = function(y)
+	 {
+	   local(i);
+	   for( i in 1:y.n ) {
+	     y[i] = 0;
+	   }
+	   return y;
+	 };
+	>
+
+	The local statement declares `i' to be a local scalar variable
+	with initial value UNDEFINED. When the function returns the
+	variable `i' will cease to exist. When x() is called again `i'
+	will again be re-initialized UNDEFINED. The local statement
+	must be the 1st statement in a function, and only one local
+	statement is allowed. If you must declare alot of local
+	variables, then break the local statement with a continuation.
+
+	local(i, j, k,...
+ 	      l, m, n);
+
+	Local variables are resolved 1st. When a name collision occurs
+	between a local variable, and a global variable, including
+	builtin functions, the local variable takes precedence.
+
+	----------------------------------------------------------------
+
+	You do not have to call a function with the same number of
+	arguments specified in the definition. If you invoke a
+	function with more arguments than declared, the result is an
+	error. If you call the function with less arguments than
+	declared, RLaB will pad the argument with "dummy" scalar
+	arguments with zero value. The name function is provided as a
+	method of distinguishing "dummy" arguments. If RLaB has
+	created an argument to pad a short argument list, it will have
+	the name "dummy".
+	
+	----------------------------------------------------------------
+
+	Lists can be used to get the effect of variable argument
+	lists. If you are not familiar with lists, then now would be a
+	good time to `help LIST'. A function can take a list as an
+	argument and then pull the actual number of list elements, and
+	their values, from the list when the function is called. For
+	example:
+
+	> vlistf = function( l )
+	  {
+	    local(i,x);
+
+	    printf( "number of elements in variable arg-list = %i\n", size(l) );
+	  
+	    // Pull each element from the list
+	  
+	    for( i in 1:size(l) )
+	    {
+	      x = l.[i];
+	      // now do something with x
+	    }
+	  };
+	> vlistf( << "string"; [1,2;3,4] >> )
+	number of elements in variable arg-list = 2
+	
+	----------------------------------------------------------------
+
+	Functions can take other functions as arguments, for example:
+
+	> trick = function ( a , b )
+	  {
+	    a(b)
+	  };
+	> trick( eye, [3,3] );
+	 matrix columns 1 thru 3
+	           1           0           0
+	           0           1           0
+	           0           0           1
+
+	Note that the function name, passed as an argument, did not
+	need quotes. This is so because functions are variables in the
+	same sense as scalars, strings, and matrices. The variable a
+	in the previous function example refers to the function eye,
+	since function args are passed by reference.
+
+
+	Function references are resolved at run-time. This allows
+	users to create or load functions, which refer to other
+	functions, without be concerned about the order of definition.

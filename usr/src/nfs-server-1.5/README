@@ -1,0 +1,278 @@
+
+
+			The LINUX User-Space NFS Server
+
+				  Version 1.5
+
+		    Mark Shand, <shand@cad.jmrc.eecs.unsw.oz>
+
+		       Donald J. Becker, <becker@super.org>
+
+			Rick Sladkey, <jrs@world.std.com>
+
+		      Orest Zborowski, <obz@raster.Kodak.COM>
+
+		  Fred N. van Kempen, <waltje@uwalt.nl.mugnet.org>
+
+
+HISTORY:
+	=====================================================================
+	This package implements a simple user level NFS server based on the
+	sunrpc3.9 package that was posted to the net a few months ago.  The
+	current version only provides read access from the clients.  It has
+	been tested between a VAX11/780 running 4.3BSD (the server) and
+	several diskful SUN3/60 running SunOS 3.4 (the clients) and on a
+	diskless SUN3/50 running SunOS 3.2 remounting its own root at a
+	lower level of its file hierarchy.
+
+	The server is implemented by two programs unfsd and unfsmntd.
+	Unfsmntd handles the mount protocol, and unfsd handles all sub-
+	sequent operations.
+
+	Currently NFS is defined to use internet port 2049.  As a consequence
+	there can only be one implementation of NFS active on a given machine.
+	Thus a machine cannot make it filesystem available through this server
+	while concurrently running some alternate server implementation.
+
+	Normally the server would be run by the super-user.  I had hoped to be
+	able to run the server as a normal user, and indeed the server contains
+	code to cope with paths containing directories that can be accessed but
+	not searched, however the sunrpc portmapper listens on port 111 so some
+	superuser cooperation is required to at least gain support for sunrpc
+	on sites running standard 4.3 BSD.
+
+	Unlike SUN's NFS-servers, the file hierarchy exported by unfsd treats
+	mount points within an exports filesystem transparently; thus the
+	client sees the same file hierarchy as is seen from the server.
+
+	COPYRIGHT
+	=========
+	These programs may be freely distributed provided they retain my
+	copyright notices.  They are provided as is, with no warranty
+	expressed or implied.
+
+	INSTALLATION
+	============
+
+	1. If you have installed Van Jacobson's TCP/IP code be sure you have
+   	   installed the fix I posted to comp.bugs.4bsd (reproduced below).
+   	   Otherwise UDP packets larger than the maximum IP fragment size of
+   	   your net will mysteriously fail.
+
+	2. Edit the first few lines of the Makefile to reflect local conditions.
+
+	3. If your client and server machines have different uid/username
+   	   mappings you may wish to run ugidd on the client (see below).
+   	   Otherwise the server assumes  one-to-one correspondence between
+   	   uids and gids on the server.
+
+	4. "make" and "make install".
+
+	5. Create a /etc/unfsd_exports file to authorize clients of your
+	   server, and set desired options (Note: options may also be set
+	   with the command that starts the server see unfsd(8) and instal-
+	   lation step 7).
+
+	6. Run "unfsmntd" and "unfsd" and try to mount server file systems
+	   from your authorized clients.
+
+	7. Arrange for the server to be started at boot-time.  EG in the
+	  /etc/rc.local file, add:
+
+		if [ -f /etc/unfsmntd ]; then
+			/etc/unfsmntd
+		fi
+		if [ -f /etc/unfsd ]; then
+			/etc/unfsd
+		fi
+
+	8. Edit client fstabs to mount from the new server at boot-time.
+
+	UGIDD
+	=====
+
+	If you have the same set of user group names on your client and server
+	machines but differing uids and gids you may wish to run the ugidd on
+	the clients and enable to server to map between local and remote ids
+	using this pprogram.  Ugidd is a simple rpc-based service that supplies
+	translations between names and uid/gids on the client.  To guard against
+	trojan horses the ugidd authenicates itself by signalling the unfsd on
+	a reserved internet port.
+
+	To install ugidd on a client:
+
+	1. "make ugidd" and copy ugidd to standard place like
+	   /usr/etc/rpc.ugidd
+
+	2. Either run it from /etc/rc.local with the command
+
+		/usr/etc/rpc.ugidd -d
+
+	   or if using a version of inetd that supports sunrpc, invoke it
+	   from inetd with the line
+
+		rpc     udp     /usr/etc/rpc.ugidd      545580417 1
+
+	   in /etc/servers (SunOS 3.x) or /etc/inetd.conf (4.3 BSD).
+	   (See ugidd(8)).
+
+	3. Set the "map_daemon" option for this client in the servers
+	   /etc/unfsd_exports file.  (See unfsd_exports(5)).
+
+	Note: When ugidd fails to respond to a server, or the specified
+	name (or uid/gid) has no corresponding uid/gid (or name), the
+	server assumes a mapping to the unprivelegded user "nobody"
+	(uid: -2).
+
+	TCP/IP FIX
+	==========
+
+	Here follows a fix to the Van Jacobson TCP/IP upgrade.
+
+	Subject: bug in new tcp/ip code
+
+	[ posted to comp.bugs.4bsd Thu Apr 21 16:36:04 1988 ]
+
+	There is a bug in the upgrade of 4.3BSD networking code that was
+	recently posted to comp.bugs.4bsd.ucb-fixes.  When an IP packet is
+	too large for an interface and must therefore be fragmented, some of
+	the fields of the IP header in the first packet are not converted to
+	network byte-order.
+
+	The fix is as follows:
+
+	*** /sys/netinet/ip_output.c.orig	Tue Apr 12 15:52:46 1988
+	--- /sys/netinet/ip_output.c	Thu Apr 21 13:16:16 1988
+	***************
+	*** 232,239 ****
+		* and updating header, then send each fragment (in order).
+  	 	*/
+  		m_adj(m0, hlen + firstlen - ip->ip_len);
+	! 	ip->ip_len = hlen + firstlen;
+	! 	ip->ip_off |= IP_MF;
+	  	ip->ip_sum = 0;
+  		ip->ip_sum = in_cksum(m0, hlen);
+	  sendorfree:
+--- 232,239 ----
+	  	 * and updating header, then send each fragment (in order).
+	  	 */
+	  	m_adj(m0, hlen + firstlen - ip->ip_len);
+	! 	ip->ip_len = htons((u_short)(hlen + firstlen));
+	! 	ip->ip_off = htons((u_short)(ip->ip_off | IP_MF));
+	  	ip->ip_sum = 0;
+	  	ip->ip_sum = in_cksum(m0, hlen);
+	  sendorfree:
+
+	SECURITY ISSUES
+	===============
+
+	When I first started looking at standard SunOS 3.x NFS I was pretty
+	well appalled by the lack of security.  I later found that Security
+	could be improved considerably it was just that the defaults were
+	(in my opinion) wrong.  By default, unfsd insists that NFS requests
+	originate from a secure port from a known internet address.
+
+	Unfsd presumes that the kernel of the client deals correctly with
+	access permission checks.  In my experience this seems to be true
+	of SunOS 3.x kernels for read accesses across NFS, but not for write
+	accesses.  It is for this reason that write accesses remain unimple-
+	mented in the current version of the server.
+
+	----------
+	Mark Shand
+	Joint Microelectronics Research Centre
+	School of Electrical Engineering
+	University of NSW
+	PO Box 1
+	Kensington
+	NSW 2033
+	AUSTRALIA
+	+61 2 697 4898
+
+	shand@cad.jmrc.eecs.unsw.oz
+
+HISTORY:
+	=====================================================================
+	This directory contains the Harris NFS server, developed by Don Becker
+	at the Advanced Technology Department, Harris Corporation.  He may be
+	reached at becker@trantor.harris-atd.com.
+	COMMENT: his current address is <becker@super.org>
+
+	An early version of my NFS server is available by anonymous FTP on
+	trantor.harris-atd.com.  That version still uses some of Mark Shand's
+	NFS code and manual pages, but it has been tested.  My current version
+	uses only Harris-written code, but it hasn't been tested and needs work
+	on the manual pages.  Eventually I hope to put in additional
+	authentication mechanisms such as Kerberos.  If you send me mail
+	requesting it, I'll send you a letter whenever I release a new
+	version.
+
+	This is a user-level (no kernel mods) NFS server, unlike Der Mouse's
+	server which does add system calls to improve performance.  This is
+	not an NFS client implementation, which would require changes to both
+	the kernel and system utilities.
+
+	Oh, by the way, this is not an official Harris product.  It is
+	in the anonymous FTP directory in the hope that it will be useful
+	to others.  I would like to receive any bug reports or improvements,
+	but Harris Corporation can't offer any user support or warranty.  I
+	personally would be happy to help in any way I can.
+
+	Written while I was:
+	Donald Becker			Advanced Technology Department
+	becker@trantor.harris-atd.com	Harris Corporation, Melbourne FL
+
+	New address:
+	Donald Becker			Supercomputing Research Center
+	becker@super.org		17100 Science Dr.   Bowie MD.
+	(301) 805-7482
+
+	
+	=====================================================================
+	This is an NFS server package for Linux.
+
+	It is a combination of two packages:
+
+	* unfsd - Mark Shand's user-space read-only NFS package, circa 1988
+	* hnfs  - Don Becker's extension of unfsd for read-write NFS, circa 1989
+
+	I made quite a few changes and bug fixes and then merged the two.
+
+	Requirements:
+
+	* you must have the RPC library or libc-4.2 installed to compile it
+	* you must have the portmapper running before you start the daemons
+	* you must have a syslog daemon running to peruse debugging output
+
+	Installation:
+
+	* read the exports man page and set up /etc/exports
+	* start up the nfsd and mountd daemons in you rc/rc.local/rc.net
+	  or whatever
+	* mount a filesystem from a system that supports NFS clients
+	  (e.g. a Sun)
+
+	*** IMPORTANT ***
+
+	Make sure that you mount using the options rsize=1024,wsize=1024 or
+	their equivalents when mounting a Linux filesystem from a non-Linux
+	NFS client.  Lots of nasty things can happen if you don't do this.
+
+	Rick Sladkey
+	jrs@world.std.com
+
+	=====================================================================
+	This the 1.4 release of Rick Sladkey's NFS server package for the
+	LINUX operating system.  I cleaned up the sources (GCC now only
+	issues some warnings on the RPC files- cannot do anything about
+	that...).  I reorganized the modules "a bit", and simplified the
+	debug/log facility.  It can now be configured for either SYSLOG
+	(normal operation) or a log file (debug runs).
+
+	I also fixed a bug in auth_init.c, which caused my network to
+	be left with RO-file systems only.  The function that read the
+	/etc/exports file acted weird when it encountered "empty" lines
+	(i.e. blank or comment lines).  It's OK now.
+
+	Fred N. van Kempen, 02/14/93
+	<waltje@uwalt.nl.mugnet.org>

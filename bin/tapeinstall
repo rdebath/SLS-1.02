@@ -1,0 +1,51 @@
+[ "$INSTROOT" = "" ] && {
+	export INSTROOT=/root
+	export INSTTOPDIR=$INSTROOT/install
+	export INSTDIR=$INSTTOPDIR/installed
+	export INSTSCRDIR=$INSTTOPDIR/scripts
+	export INSTSCRIPT=doinst.sh
+	export COMPR=gzip
+	}
+
+function doextr()
+{
+	
+	if  [ "$DOPROMPT" = "-doprompt" ]; then
+		fgrep "`basename $b $1`:" $INSTTOPDIR/catalog/disk*;
+		echo -n "Install pkg `basename $b $1` (y/n/q)?"
+		read ans;
+		if [ "$ans" != "Y" -a "$ans" != "y" ]; then
+			return 0
+		fi
+	fi
+	echo -n "installing $b ... "
+	(cd $INSTROOT; $COMPR -dc | tar -xvlpf - | sed "/\/$/d" ) > $INSTDIR/`basename $b $1`
+	echo done
+}
+
+b=`basename $1`
+
+if [ -e $INSTTOPDIR/$INSTSCRIPT ]; then
+	rm $INSTTOPDIR/$INSTSCRIPT
+fi
+
+echo $b >>$INSTTOPDIR/disks/`dirname $1`
+
+case $1 in
+*taz)	 doextr .taz ;;
+*tar.Z)	 doextr .tar.Z ;;
+*tpz)	 doextr .tpz ;;
+*tgz)	 doextr .tgz ;;
+*tar)	e=.tar
+	(cd $INSTROOT; cat | tar -xvlpf - | sed "/\/$/d" ) > $INSTDIR/`basename $b $e`
+	;;
+*disk*)	cat > $INSTTOPDIR/catalog/disk*;
+	;;
+*)	cat > $INSTTOPDIR/$b
+	;;
+esac
+
+if [ -f $INSTTOPDIR/$INSTSCRIPT ]; then
+	(cd $INSTROOT; sh $INSTTOPDIR/$INSTSCRIPT -install;)
+	mv $INSTTOPDIR/$INSTSCRIPT $INSTSCRDIR/`basename $1 .$2`;
+fi

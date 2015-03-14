@@ -1,0 +1,107 @@
+#!pish -f
+
+option add *Background beige
+option add *Button.Background red
+
+option add *Barchart.foreground navyblue
+option add *Barchart.Geometry 500x500
+option add *Barchart.font *new*century*14* 
+#option add *Barchart.BarWidthPct 100 
+option add *Barchart.YStepSize 50.0
+option add *Barchart.AxisThickness 2
+option add *Hypertext.Geometry 500x140
+option add *Hypertext.Font *Helvetica*Bold*R*14*
+
+frame .top
+htext .top.msg -text {
+This time, the bar chart is displayed using arbitrary bitmaps to stencil 
+the bars.  In addition, the X axis tick labels can be rotated at right angles.  
+Pressing any of the following buttons will set the rotation of the labels
+to %%
+button $this.rot0 -text {0} -command {.top.bar config -xrot 0} -bg dodgerblue
+$this append $this.rot0
+%%, %%
+button $this.rot90 -text {90} -command {.top.bar config -xrot 90} -bg green
+$this append $this.rot90
+%%, %%
+button $this.rot180 -text {180} -command {.top.bar config -xrot 180} -bg red
+$this append $this.rot180
+%%, or %% 
+button $this.rot270 -text {270} -command {.top.bar config -xrot 270} -bg yellow 
+$this append $this.rot270
+%% degrees.
+
+Hit the %%
+button $this.quit -text {Quit} -command {exit} 
+$this append $this.quit
+%% button when you've seen enough.
+}
+
+barchart .top.bar -title "Yet Another Bar Chart" -xlabel "X Axis Label" \
+	-ylabel "Y Axis Label" \
+
+set colors { red green blue purple orange brown cyan }
+set names { Zero One Two Three Four Five Six Seven Eight Nine Ten }
+for { set i 1 } { $i < 10 } { incr i } {
+  .top.bar insert $i -y { $i } \
+	-fg [lindex $colors [expr $i%7]] \
+	-bg [lindex $colors [expr 6-($i%7)]] \
+	-stipple @bitmaps/pattern$i  -label [lindex $names $i]
+}
+.top.bar insert A -y { -0.5 } -fg red 
+.top.bar insert B -y { 2 } -fg seagreen -stipple @bitmaps/hobbes.bm \
+	 -bg palegreen
+.top.bar insert C -y { 1 } -fg blue 
+
+pack append .top .top.bar {top fill} .top.msg { top padx 20 }
+pack append . .top {}
+bind .top.bar <ButtonPress-1> { start.drag %W %x %y }
+
+wm min . 0 0
+global whichBar
+
+proc start.drag { w sx sy } {
+  global whichBar
+
+  set x [lindex [$w locate $sx $sy] 0]
+  # From the x value determine the bar to be changed
+
+  # What I really wanted was set pos [expr rint($x)-1]
+  if { $x > 0.0 } {
+    set x [expr $x+0.5]
+  } else {
+    set x [expr $x-0.5]
+  }
+  regsub "\..*" $x "" pos
+  set pos [expr $pos-1]
+  set bars [ $w show ]
+  if { $pos < 0 || $pos >= [llength $bars] } {
+      return
+  }
+  set whichBar [lindex $bars $pos]
+  bind $w <B1-Motion> { drag.bar %W %x %y }
+  bind $w <ButtonRelease-1> { finish.drag %W %x %y }
+}
+
+proc drag.bar { w sx sy } {
+  global whichBar
+  set y [lindex [$w locate $sx $sy] 1]
+  $w barconfigure $whichBar -ydata $y
+}
+
+proc finish.drag { w sx sy } {
+  drag.bar $w $sx $sy
+  bind $w <B1-Motion> {}
+  bind $w <ButtonRelease-1> {}
+  set whichBar {}
+}
+
+
+
+
+
+
+  
+
+
+  

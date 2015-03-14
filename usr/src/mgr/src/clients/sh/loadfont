@@ -1,0 +1,78 @@
+#!/bin/sh
+#                        Copyright (c) 1988 Bellcore
+#                            All Rights Reserved
+#       Permission is granted to copy or use this program, EXCEPT that it
+#       may not be sold for profit, the copyright notice must be reproduced
+#       on copies, and credit should be given to Bellcore where it is due.
+#       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+
+#	load a font by name into a give position
+
+usage="Usage:  `basename $0` [ -c ] font-name font-number
+Load the given font-name into the given font number
+-c	Make the given font the current font.
+"
+
+ESC=''
+
+if [ $TERM != mgr ]
+then
+	echo "$0 only works on mgr terminals"
+	exit 1
+fi
+
+trap 'exit' 1 2 15
+trap 'stty echo' 0
+
+stty -echo
+
+current=no
+while [ -n "$1" ]
+do
+	case $1 in
+	-c )
+		current=yes
+		;;
+	-* )
+		echo >&2 "$0:  Illegal option argument.  '$1'"
+		echo >&2 "${usage}"
+		exit 255
+		;;
+	* )
+		break
+	esac
+	shift
+done
+
+if [ $# -lt 2 ]
+then
+	echo >&2 "${usage}"
+	exit 255
+fi
+
+fontname=$1
+if [ ! -f $fontname ]
+then
+  echo "$0: No such font."
+  exit 1
+fi
+shift
+
+fontnumber=$1
+
+case "${fontnumber}" in
+[1-9] | [1-9][0-9] )
+	;;
+* )
+	echo >&2 "$0:  font number '${fontnumber}' invalid.  Must be between
+	1 through 99."
+	echo >&2 "${usage}"
+	exit 1
+esac
+
+len=`expr ${fontname} : '.*'`
+echo "${ESC}${fontnumber},${len}F${fontname}"
+if [ "${current}" = yes ]
+then
+	echo "${ESC}${fontnumber}F"
+fi

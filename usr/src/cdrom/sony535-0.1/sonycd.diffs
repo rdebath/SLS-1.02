@@ -1,0 +1,225 @@
+*** linux.orig/fs/buffer.c	Mon Feb 15 19:21:59 1993
+--- linux/fs/buffer.c	Mon Feb 15 18:33:54 1993
+***************
+*** 36,41 ****
+--- 36,44 ----
+  extern int revalidate_scsidisk(int, int);
+  #endif
+  #endif
++ #ifdef CONFIG_BLK_DEV_SCD
++ extern int sony_check_cdrom_media_change(int, int);
++ #endif
+  
+  static struct buffer_head * hash_table[NR_HASH];
+  static struct buffer_head * free_list = NULL;
+***************
+*** 153,158 ****
+--- 156,168 ----
+           case 11: /* CDROM */
+  		i = check_cdrom_media_change(dev, 0);
+  		if (i) printk("Flushing buffers and inodes for CDROM\n");
++ 		break;
++ #endif
++ 
++ #if defined (CONFIG_BLK_DEV_SCD)
++          case 15: /* Sony I/F CDROM */
++ 		i = sony_check_cdrom_media_change(dev, 0);
++ 		if (i) printk("Flushing buffers and inodes for Sony CDROM\n");
+  		break;
+  #endif
+  
+*** linux.orig/fs/isofs/inode.c	Mon Feb 15 19:18:51 1993
+--- linux/fs/isofs/inode.c	Fri Jan 22 02:50:07 1993
+***************
+*** 18,24 ****
+--- 18,29 ----
+  #include <asm/segment.h>
+  #include <linux/errno.h>
+  
++ #if defined(CONFIG_BLK_DEV_SR) && defined(CONFIG_SCSI)
+  extern int check_cdrom_media_change(int, int);
++ #endif
++ #if defined(CONFIG_BLK_DEV_SCD)
++ extern int sony_check_cdrom_media_change(int, int);
++ #endif
+  
+  #ifdef LEAK_CHECK
+  static int check_malloc = 0;
+***************
+*** 225,235 ****
+  		printk("get root inode failed\n");
+  		return NULL;
+  	}
+  	if(MAJOR(s->s_dev) == 11) {
+! 		/* Chech this one more time. */
+  		if(check_cdrom_media_change(s->s_dev, 0))
+  		  goto out;
+  	};
+  	return s;
+   out: /* Kick out for various error conditions */
+  	brelse(bh);
+--- 230,250 ----
+  		printk("get root inode failed\n");
+  		return NULL;
+  	}
++ 
++ #if defined(CONFIG_BLK_DEV_SR) && defined(CONFIG_SCSI)
+  	if(MAJOR(s->s_dev) == 11) {
+! 		/* Check this one more time. */
+  		if(check_cdrom_media_change(s->s_dev, 0))
+  		  goto out;
+  	};
++ #endif
++ #if defined (CONFIG_BLK_DEV_SCD)
++ 	if(MAJOR(s->s_dev) == 15) {
++ 		/* Check this one more time. */
++ 		if(sony_check_cdrom_media_change(s->s_dev, 0))
++ 		  goto out;
++ 	};
++ #endif
+  	return s;
+   out: /* Kick out for various error conditions */
+  	brelse(bh);
+*** linux.orig/kernel/blk_drv/blk.h	Mon Feb 15 19:18:58 1993
+--- linux/kernel/blk_drv/blk.h	Fri Jan 22 02:50:08 1993
+***************
+*** 1,7 ****
+  #ifndef _BLK_H
+  #define _BLK_H
+  
+! #define NR_BLK_DEV	12
+  /*
+   * NR_REQUEST is the number of entries in the request-queue.
+   * NOTE that writes may use only the low 2/3 of these: reads
+--- 1,7 ----
+  #ifndef _BLK_H
+  #define _BLK_H
+  
+! #define NR_BLK_DEV      16
+  /*
+   * NR_REQUEST is the number of entries in the request-queue.
+   * NOTE that writes may use only the low 2/3 of these: reads
+***************
+*** 70,75 ****
+--- 70,76 ----
+  extern int * blk_size[NR_BLK_DEV];
+  
+  extern unsigned long hd_init(unsigned long mem_start, unsigned long mem_end);
++ extern unsigned long init_sony_cd(unsigned long mem_start, unsigned long mem_end);
+  extern int is_read_only(int dev);
+  extern void set_device_ro(int dev,int flag);
+  
+***************
+*** 142,147 ****
+--- 143,157 ----
+  #define DEVICE_NAME "CD-ROM"
+  #define DEVICE_INTR do_sr
+  #define DEVICE_REQUEST do_sr_request
++ #define DEVICE_NR(device) (MINOR(device))
++ #define DEVICE_ON(device)
++ #define DEVICE_OFF(device)
++ 
++ #elif (MAJOR_NR == 15)
++ /* Sony CD-ROM */
++ #define DEVICE_NAME "SONY-CD"
++ #define DEVICE_INTR do_scd
++ #define DEVICE_REQUEST do_scd_request
+  #define DEVICE_NR(device) (MINOR(device))
+  #define DEVICE_ON(device)
+  #define DEVICE_OFF(device)
+*** linux.orig/kernel/blk_drv/ll_rw_blk.c	Sat Dec 12 01:05:32 1992
+--- linux/kernel/blk_drv/ll_rw_blk.c	Fri Jan 22 02:53:49 1993
+***************
+*** 386,391 ****
+--- 386,394 ----
+  #ifdef CONFIG_BLK_DEV_HD
+  	mem_start = hd_init(mem_start,mem_end);
+  #endif
++ #ifdef CONFIG_BLK_DEV_SCD
++ 	mem_start = init_sony_cd(mem_start,mem_end);
++ #endif
+  	if (ramdisk_size)
+  		mem_start += rd_init(mem_start, ramdisk_size*1024);
+  	return mem_start;
+*** linux.orig/kernel/blk_drv/Makefile	Fri Dec 11 20:55:14 1992
+--- linux/kernel/blk_drv/Makefile	Fri Jan 22 02:50:08 1993
+***************
+*** 18,24 ****
+  
+  SUBDIRS	= scsi
+  
+! OBJS = hd.o ll_rw_blk.o floppy.o ramdisk.o genhd.o
+  
+  all: blk_drv.a scsisubdirs
+  
+--- 18,24 ----
+  
+  SUBDIRS	= scsi
+  
+! OBJS = hd.o ll_rw_blk.o floppy.o ramdisk.o genhd.o sonycd535.o
+  
+  all: blk_drv.a scsisubdirs
+  
+*** linux.orig/Configure	Mon Feb 15 19:20:25 1993
+--- linux/Configure	Fri Jan 22 02:52:47 1993
+***************
+*** 49,59 ****
+  				ans=$def
+  			fi
+  		fi
+! 		if [ "$ans" = "y" ]
+  		then
+! 			echo $j = $j >> $CONFIG
+! 			echo "#define" $j 1 >> $CONFIG_H
+! 			next="y";
+  		fi
+  		read i || break
+  	done
+--- 49,74 ----
+  				ans=$def
+  			fi
+  		fi
+! 		if [ "$def" = "y" ]
+  		then
+! 			if [ "$ans" = "y" ]
+! 			then
+! 				echo $j = $j >> $CONFIG
+! 				echo "#define" $j 1 >> $CONFIG_H
+! 				next="y";
+! 			fi
+! 		elif [ "$def" = "n" ]
+! 		then
+! 			if [ "$ans" = "y" ]
+! 			then
+! 				echo $j = $j >> $CONFIG
+! 				echo "#define" $j 1 >> $CONFIG_H
+! 				next="y";
+! 			fi
+! 		else
+! 			echo $j = $ans >> $CONFIG
+! 			echo "#define" $j $ans >> $CONFIG_H
+! 			next="y"
+  		fi
+  		read i || break
+  	done
+*** linux.orig/config.in	Mon Feb 15 19:21:59 1993
+--- linux/config.in	Mon Feb 15 18:33:54 1993
+***************
+*** 13,18 ****
+--- 13,28 ----
+  Use -m486 flag for 486-specific optimizations
+  CONFIG_M486 y/n y
+  :
++ Sony CDROM support
++ .
++ Sony interface CDROM support?
++ CONFIG_BLK_DEV_SCD y/n n
++ :
++ Sony support
++ .
++ Sony interface address?
++ CONFIG_SCD_ADDRESS address_in_hex 0x340
++ :
+  SCSI support
+  .
+  SCSI support?

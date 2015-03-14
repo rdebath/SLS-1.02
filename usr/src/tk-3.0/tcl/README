@@ -1,0 +1,229 @@
+Tcl
+
+by John Ousterhout
+University of California at Berkeley
+ouster@sprite.berkeley.edu
+
+1. Introduction
+---------------
+
+This directory contains the sources and documentation for Tcl, an
+embeddable tool command language.  The information here corresponds
+to release 6.5.
+
+For an introduction to the facilities provided by Tcl, your best bet
+is to retrieve the partial draft of the Tcl/Tk book, which is available
+for FTP from the standard Tcl/Tk release directories.  Another possibility
+is to see the paper ``Tcl:  An Embeddable Command Language'', in the
+Proceedings of the 1990 Winter USENIX Conference.  A copy of that paper
+is also available in Postscript form in the distribution directory.
+However, the paper corresponds to a much earlier version of Tcl
+(approximately version 3.0), so some details of the paper may not be
+correct anymore and there are many new features not described in the
+paper.
+
+2. What's New Or Different In This Release
+------------------------------------------
+
+This release contains only minor changes, which should not break any
+existing Tcl scripts or C programs.  Refer to the "changes" file for
+complete details on all the changes.  Below is a list of the most
+significant changes:
+
+(a) The "unknown" procedure has been improved in several ways:
+    - It now allows nested auto-loads, so that the auto-load of one file
+      can trigger additional auto-loads, as long as there are no cycles.
+    - It now emulates csh's "!!", "!<num>", and "^<old>^<new>" history
+      substitutions.
+    - Auto_reset now deletes all auto-loaded procedures so that they'll
+      be reloaded from disk the next time they're invoked.  This makes
+      script debugging easier.
+
+(b) The installation setup has been modified (improved?) in several ways:
+    - The Makefile checks to be sure that config has been run and won't
+      compile the program if it hasn't.
+    - The TCL_LIBRARY environment variable can be used to override the
+      compiled-in location of the library directory.
+    - The "config" script is now cleverer about figuring out which switches
+      to pass to nm.
+    - Manual entries have been renamed to use ".3" and ".n" extensions.
+    - The Makefile includes a "make install" target.
+    - Introductory documents are no longer part of the release;  they have
+      to be retrieved separately.
+
+(c) There's a new command, "info complete", plus a C procedure
+    Tcl_CommandComplete, which provide some help in parsing Tcl commands.
+
+3. Documentation
+----------------
+
+The "doc" subdirectory contains a complete set of manual entries for
+Tcl.  Files with extension ".3" are for C library procedures provided
+by Tcl;  files with extension ".n" describe the core Tcl commands. The
+file "doc/Tcl.n" gives an overall description of the Tcl language and
+describes the core Tcl commands (most of this material is now available
+in a more palatable form in the book draft).  To print any of the man
+pages, cd to the "doc" directory and invoke your favorite variant of
+troff using the normal -man macros, for example
+
+		ditroff -man <file>
+
+where <file> is the name of the man page you'd like to print.
+
+4. Machines supported
+---------------------
+
+If you follow the directions below, this release should compile
+and run on the following configurations either "out of the box"
+or with only trivial changes:
+
+    - Sun-3's, Sun-4's, SPARCstation-1's and SPARCstation-2's running
+      many variants of SunOS, such as 4.1.
+    - DECstation-3100's and DECstation-5000's running many versions of
+      Ultrix, such as 2.0 and 4.2.
+    - DEC VAXes running many versions of Ultrix or BSD UNIX. 
+    - Intel 386 based systems running SCO Unix 3.2v2.
+    - Intel 386 based systems running SCO Xenix 2.3.3.
+    - Intel 386 based systems running Bell-Tech (now Intel) Unix 3.2.0.
+    - Silicon Graphics systems running IRIX 4.0.
+    - Various H-P machines running versions of HP-UX such as 7.05
+    - Sequent Symmetry running versions of Dynix/ptx such as v1.2.4
+    - AT&T 368 machines running SVR4 2.0.1
+
+If you find problems running Tcl on any of the above configurations,
+please let me know.  Also, if you are able to compile Tcl and run the
+test suite successfully on configurations not listed above, please
+let me know and tell me what changes, if any, you needed to make to
+do it.  I'd like to keep the above list up-to-date and continue to
+improve the portability of Tcl.
+
+Tcl can be used on many other configurations with only a few
+modifications.  The file "porting.notes" contains information sent to
+me about what it took to get Tcl to run on various other configurations.
+I make no guarantees that this information is accurate or complete, but
+you may find it useful.  If you get Tcl running on a new configuration,
+I'd be happy to receive new information to add to "porting.notes".
+
+5. Compiling Tcl
+----------------
+
+To compile Tcl on any of the configurations listed above, or systems
+similar to them, do the following:
+
+    (a) If your system isn't one of the ones listed above, look in the
+        file "porting.notes" to see if your system is listed there.  This
+	file contains additional notes on getting Tcl to run on various
+	other systems.
+
+    (b) Edit the "set" commands at the beginning of the file "config"
+        if necessary to correspond to your system configuration (they
+	should already be right for most versions of Unix).
+
+    (c) Configure the Makefile in this directory according to the
+        instructions at the beginning of the file.  In particular, if
+	you're not going to install the library in the suggested place
+	(/usr/local/lib/tcl) you need to reset the TCL_LIBRARY variable.
+	You may also want to change CC, CFLAGS, etc.
+
+    (d) Type "./config" to invoke Tcl's auto-configuration script.  This
+        script pokes around in your system to see if certain almost-standard
+	things are missing (header files, library procedures, etc.); if
+	your system doesn't seem to have them, it configures Tcl to use
+	its own copies of these things instead (Tcl's copies are kept in
+	the "compat" subdirectory).  Config prints out messages for all
+	the substitutions it made.  You can ignore any of the messages
+	unless they say "ERROR!!", in which case something is fundamentally
+	wrong and the script couldn't handle your system configuration.
+
+	If Tcl isn't able to configure itself to compile on your machine,
+        then I suggest the following approach:
+	    - Start again with a fresh copy of the distribution.
+	    - Set the #defines that appear at the very front of
+	      tclUnix.h (before the first #include) to correspond
+	      to your system.
+	    - Create a file "configured" in this directory, so that the
+	      Makefile won't generate errors.
+	    - If things don't compile or don't link, then you may need
+	      to copy some of the .c or .h files from the "compat"
+	      directory into the main Tcl directory to compensate for
+	      files missing from your system.  Modify the COMPAT_OBJS
+	      definition in Makefile to include a .o name for each of
+	      the .c files that you copied up from the compat directory.
+
+    (e) Type "make" to compile the library.  This will create the Tcl
+	library in "libtcl.a".  The Makefile should work without any
+	modifications but you may wish to personalize it, e.g. to
+	turn on compiler optimization.
+
+    (f) Type "make install" to install Tcl binaries and script files in
+        standard places.  You'll need write permission on /usr/local to
+	do this.  See the Makefile for details on where things get
+	installed.
+
+    (g) Type "make tclTest", which will create a simple test program that
+	you can use to try out the Tcl facilities.  TclTest is just a
+	main-program sandwich around the Tcl library.  It reads standard
+	input until it reaches the end of a line where parentheses and
+	backslashes are balanced, then sends everything it's read to the
+	Tcl interpreter.  When the Tcl interpreter returns, tclTest prints
+	the return value or error message.  TclTest defines a few other
+	additional commands, most notably:
+    
+			echo arg arg ...
+    
+	The "echo" command prints its arguments on standard output,
+	separated by spaces.
+
+6. Test suite
+-------------
+
+There is a relatively complete test suite for all of the Tcl core in
+the subdirectory "tests".  To use it just type "make test" in this
+directory.  You should then see a printout of the test files processed.
+If any errors occur, you'll see a much more substantial printout for
+each error.  Tcl should pass the test suite cleanly on all of the
+systems listed in Section 4.  See the README file in the "tests"
+directory for more information on the test suite.
+
+7. Compiling on non-UNIX systems
+--------------------------------
+
+The Tcl features that depend on system calls peculiar to UNIX (stat,
+fork, exec, times, etc.) are now separate from the main body of Tcl,
+which only requires a few generic library procedures such as malloc
+and strcpy.  Thus it should be relatively easy to compile Tcl for
+these machines, although a number of UNIX-specific commands will
+be absent (e.g.  exec, time, and glob).  See the comments at the
+top of Makefile for information on how to compile without the UNIX
+features.
+
+8. Special thanks
+-----------------
+
+Mark Diekhans and Karl Lehenbauer of Santa Cruz Operation deserve special
+thanks for all their help during the development of Tcl 6.0.  Many of the
+new features in Tcl 6.0 were inspired by an enhanced version of Tcl 3.3
+called Extended Tcl 4.0, which was created by Mark, Karl, and Peter
+da Silva.  Mark and Karl explained these features to me and provided
+excellent (and challenging) feedback during the 6.0 development process.
+They were also a great help in finding and fixing portability problems.
+Without their ideas and assistance Tcl 6.0 would be much less powerful.
+
+9. Support
+----------
+
+There is no official support organization for Tcl, and I can't promise
+to provide much hand-holding to people learning Tcl.  However, I'm very
+interested in receiving bug reports and suggestions for improvements.
+Bugs usually get fixed quickly (particularly if they are serious), but
+enhancements may take a while and may not happen at all unless there
+is widespread support for them.
+
+10. Tcl newsgroup
+-----------------
+
+There is a network news group "comp.lang.tcl" intended for the exchange
+of information about Tcl, Tk, and related applications.  Feel free to use
+this newsgroup both for general information questions and for bug reports.
+I read the newsgroup and will attempt to fix bugs and problems reported
+to it.

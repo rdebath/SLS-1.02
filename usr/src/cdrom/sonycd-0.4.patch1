@@ -1,0 +1,114 @@
+*** cdu31a.c.old	Wed Mar 17 21:08:27 1993
+--- linux/kernel/blk_drv/cdu31a.c	Thu Mar 25 07:13:05 1993
+***************
+*** 71,77 ****
+  #include <linux/hdreg.h>
+  #include <linux/genhd.h>
+  
+- #define REALLY_SLOW_IO
+  #include <asm/system.h>
+  #include <asm/io.h>
+  #include <asm/segment.h>
+--- 71,76 ----
+***************
+*** 1434,1440 ****
+     if (!sony_spun_up)
+     {
+        do_sony_cd_cmd(SONY_SPIN_UP_CMD, NULL, 0, res_reg, &res_size);
+!       if ((res_size < 2) || (res_reg[0] != 0))
+        {
+           printk("Sony CDROM error 0x%2.2x (scd_open, spin up)\n", res_reg[1]);
+           return -EIO;
+--- 1441,1450 ----
+     if (!sony_spun_up)
+     {
+        do_sony_cd_cmd(SONY_SPIN_UP_CMD, NULL, 0, res_reg, &res_size);
+! 
+!       /* The drive sometimes returns error 0.  I don't know why, but ignore
+!          it.  It seems to mean the drive has already done the operation. */
+!       if ((res_size < 2) || ((res_reg[0] != 0) && (res_reg[1] != 0)))
+        {
+           printk("Sony CDROM error 0x%2.2x (scd_open, spin up)\n", res_reg[1]);
+           return -EIO;
+***************
+*** 1441,1451 ****
+        }
+        
+        do_sony_cd_cmd(SONY_READ_TOC_CMD, NULL, 0, res_reg, &res_size);
+!       if ((res_size < 2) || (res_reg[0] != 0))
+        {
+!          /* If the drive is already playing, its ok.  Also, the drive
+!             sometimes returns error 0.  I don't know why. */
+!          if ((res_reg[1] == SONY_AUDIO_PLAYING_ERR) && (res_reg[1] == 0))
+           {
+              goto drive_spinning;
+           }
+--- 1451,1463 ----
+        }
+        
+        do_sony_cd_cmd(SONY_READ_TOC_CMD, NULL, 0, res_reg, &res_size);
+! 
+!       /* The drive sometimes returns error 0.  I don't know why, but ignore
+!          it.  It seems to mean the drive has already done the operation. */
+!       if ((res_size < 2) || ((res_reg[0] != 0) && (res_reg[1] != 0)))
+        {
+!          /* If the drive is already playing, its ok.  */
+!          if ((res_reg[1] == SONY_AUDIO_PLAYING_ERR) || (res_reg[1] == 0))
+           {
+              goto drive_spinning;
+           }
+*** linux/fs/buffer.c.old	Mon Mar 29 14:55:54 1993
+--- linux/fs/buffer.c	Mon Mar 29 14:56:26 1993
+***************
+*** 37,43 ****
+  extern int revalidate_scsidisk(int, int);
+  #endif
+  #endif
+! #ifdef CONFIG_BLK_DEV_SCD
+  extern int sony_check_cdrom_media_change(int, int);
+  #endif
+  
+--- 37,43 ----
+  extern int revalidate_scsidisk(int, int);
+  #endif
+  #endif
+! #ifdef CONFIG_BLK_DEV_CDU31A
+  extern int sony_check_cdrom_media_change(int, int);
+  #endif
+  
+***************
+*** 165,171 ****
+  		break;
+  #endif
+  
+! #if defined (CONFIG_BLK_DEV_SCD)
+           case 15: /* Sony I/F CDROM */
+  		i = sony_check_cdrom_media_change(dev, 0);
+  		break;
+--- 165,171 ----
+  		break;
+  #endif
+  
+! #if defined (CONFIG_BLK_DEV_CDU31A)
+           case 15: /* Sony I/F CDROM */
+  		i = sony_check_cdrom_media_change(dev, 0);
+  		break;
+*** linux/fs/isofs/inode.c.old	Mon Mar 29 14:57:07 1993
+--- linux/fs/isofs/inode.c	Mon Mar 29 14:56:41 1993
+***************
+*** 21,27 ****
+  #if defined(CONFIG_BLK_DEV_SR) && defined(CONFIG_SCSI)
+  extern int check_cdrom_media_change(int, int);
+  #endif
+! #if defined(CONFIG_BLK_DEV_SCD)
+  extern int sony_check_cdrom_media_change(int, int);
+  #endif
+  
+--- 21,27 ----
+  #if defined(CONFIG_BLK_DEV_SR) && defined(CONFIG_SCSI)
+  extern int check_cdrom_media_change(int, int);
+  #endif
+! #if defined(CONFIG_BLK_DEV_CDU31A)
+  extern int sony_check_cdrom_media_change(int, int);
+  #endif
+  

@@ -1,0 +1,194 @@
+#!/bin/csh -f
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+# 
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# appear in all copies, and that the name of Bellcore not be 
+# used in advertising or publicity pertaining to this 
+# material without the specific, prior written permission 
+# of an authorized representative of Bellcore.  BELLCORE 
+# MAKES NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+# 
+
+if ($#argv <3) then
+    echo "Usage: showexternal body-file access-type name [site [directory [mode]]]"
+    exit -1
+endif
+set bodyfile=$1
+set atype=`echo $2 | tr ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz`
+set name=$3
+if ($#argv > 3) then
+    set site=$4
+else 
+    set site=""
+endif
+if ($#argv > 4) then
+    set dir=$5
+else
+    set dir=""
+endif
+if ($#argv > 5) then
+    set mode=$6
+else
+    set mode=""
+endif
+
+set ctype=`grep -i content-type: $bodyfile | sed -e 's/............: //'`
+set cenc=`grep -i content-transfer-encoding: $bodyfile | sed -e 's/.........................: //'`
+set username=""
+set pass=""
+set TMPDIR=/tmp/XXXternal.$$
+mkdir $TMPDIR
+cd $TMPDIR
+set NEWNAME="mm.ext.$$"
+set NEEDSCONFIRMATION=1
+switch ($atype)
+    case anon-ftp:
+	echo "This mail message contains a POINTER (reference) to data that is "
+	echo not included in the message itself.  Rather, the data can be retrieved 
+	echo automatically using  anonymous FTP to a site on the network.
+	breaksw
+    case ftp:
+	echo "This mail message contains a POINTER (reference) to data that is "
+	echo not included in the message itself.  Rather, the data can be retrieved 
+	echo automatically using  the FTP protocol to a site on the network.
+	breaksw
+    case mail-server:  
+	cat > /tmp/ext.junk.$$ <<!
+This mail message contains a POINTER (reference) to data that is 
+not included in the message itself.  Rather, the data can be retrieved 
+by sending a special mail message to a mail server on the network.
+However, doing this automatically is slightly dangerous, because  someone
+might be using this mechanism to cause YOU to send obnoxious mail.
+For that reason, the mail message that WOULD be sent is being shown to you
+first for your approval.
+
+This is the message that will be sent if you choose to go ahead and
+retreive the external data:
+
+To: ${name}@${site}:
+Subject: Automated Mail Server Request
+
+!
+	cat $bodyfile >> /tmp/ext.junk.$$
+	more /tmp/ext.junk.$$
+	rm /tmp/ext.junk.$$
+	breaksw
+    default:
+	# IGNORE ALL THE OTHERS -- AUTOMATIC FOR LOCAL-FILE, AFS.
+	set NEEDSCONFIRMATION=0
+endsw
+
+if ($NEEDSCONFIRMATION) then
+	echo ""
+	echo -n "Do you want to proceed with retrieving the external data [y] ? "
+	set ANS=$<
+	if ("$ANS" =~ n* ||  "$ANS" =~ N* ) exit 0
+endif
+
+switch ($atype)
+    case anon-ftp:
+	set username=anonymous
+	set pass=`whoami`@`hostname`
+	# DROP THROUGH
+    case ftp:
+	if ("$site" == "") then
+	    echo -n "Site for ftp access: "
+	    set site=$<
+	endif
+	if ("$username" == "") then
+	    echo -n "User name at site ${site}: "
+	    set username=$<
+	endif
+	if ("$pass" == "") then
+	    echo -n "Password for user $username at site ${site}: "
+	    stty -echo
+	    set pass=$<
+	    stty echo
+	    echo ""
+	endif
+	if ("$dir" == "") then
+	    set DIRCMD=""
+	else
+	    set DIRCMD="cd $dir"
+	endif
+	if ("$mode" == "") then
+	    set MODECMD=""
+	else
+	    set MODECMD="type $mode"
+	endif
+	echo OBTAINING MESSAGE BODY USING FTP
+	echo SITE: $site USER $username
+	ftp -n <<!
+open $site
+user $username $pass
+$DIRCMD
+$MODECMD
+get $name $NEWNAME
+quit
+!
+	if (! -e $NEWNAME) then
+	    echo FTP failed.
+	    exit -1
+	endif
+	breaksw
+    case afs:
+    case local-file:
+	if (! -e $name) then
+	    echo local file not found
+	    exit -1
+	endif
+    	set NEWNAME=$name
+	echo GETTING BODY FROM FILE NAMED: $NEWNAME
+	breaksw
+    case mail-server:  # A very special case
+	if ("$bodyfile" == "") then
+	    echo mail-server access-type requires a body file
+	    exit -1
+	endif
+	echo Subject: Automated Mail Server Request > $NEWNAME
+	echo To: ${name}@${site} >> $NEWNAME
+	echo "" >> $NEWNAME
+	cat $bodyfile >> $NEWNAME
+	/usr/lib/sendmail -t  < $NEWNAME
+	if ($status) then
+	    echo sendmail failed
+	    rm -rf $TMPDIR
+	    exit -1
+	endif
+	rm -rf $TMPDIR
+	echo Your $ctype data has been requested from a mail server.
+	exit 0
+    default:
+	echo UNRECOGNIZED ACCESS-TYPE
+	exit -1
+endsw
+if ($cenc == base64) then
+	mmencode -u -b < $NEWNAME > OUT
+	mv OUT $NEWNAME
+else if ($cenc == quoted-printable) then
+	mmencode -u -q < $NEWNAME > OUT
+	mv OUT $NEWNAME
+endif
+
+metamail -b -c $ctype $NEWNAME
+
+if ($status) then
+	echo metamail failed
+	rm -rf $TMPDIR
+	exit -1
+endif
+
+if ($NEWNAME != $name) then
+	echo ""
+	echo The data just displayed is stored in the file $TMPDIR/$NEWNAME
+	echo "Do you want to delete it?"
+	rm -i $NEWNAME
+endif
+if (! -e ${TMPDIR}/${NEWNAME}) then
+    rmdir $TMPDIR
+endif
+exit 0

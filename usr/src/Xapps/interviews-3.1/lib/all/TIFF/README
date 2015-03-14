@@ -1,0 +1,519 @@
+$Header: /usr/people/sam/tiff/RCS/README,v 1.15 92/03/31 11:31:13 sam Exp $
+
+NOTE: The file CHANGES-v3.0 has a list of changes between
+      v2.4.2 and this software.
+
+TIFF Software "Release" 3.00
+----------------------------
+This is Version 3.00 of my public domain TIFF support software.
+Included is a library, libtiff, for reading and writing TIFF files.
+The library, along with associated tool programs, should handle most of
+your needs for reading and writing files that follow the 5.0 TIFF spec
+for Classes B, G, P, and R.  There is also considerable support for
+proposed additions that are to appear in the 6.0 TIFF spec.
+
+    o core requirements
+	both "MM" and "II" byte orders are handled
+	multiple subfiles can be read and written
+	editing is NOT supported in that related subfiles (e.g.
+	  a reduced resolution version of an image) are not automatically
+	  updated
+	
+	Tags handled: NewSubfileType, ImageWidth, ImageLength, Rowsperstrip,
+		      StripOffsets, StripByteCounts, XResolution, YResolution,
+		      ResolutionUnit.
+    o Class B for bilevel images
+	SamplesPerPixel = 1
+	BitsPerSample = 1
+	Compression = 1 (none), 2 (CCITT 1D), or 32773 (PackBits)
+	PhotometricInterpretation = 0 (Min-is-White), 1 (Min-is-Black)
+    o Class G for grayscale images
+	SamplesPerPixel = 1
+	BitsPerSample = 4, 8
+	Compression = 1 (none) 5 (LZW)
+	PhotometricInterpretation = 0 (Min-is-White), 1 (Min-is-Black)
+    o Class P for palette color images
+	SamplesPerPixel = 1
+	BitsPerSample = 1-8
+	Compression = 1 (none) 5 (LZW)
+	PhotometricInterpretation = 3 (Palette RGB)
+	ColorMap
+    o Class R for RGB full color images
+	SamplesPerPixel = 3
+	BitsPerSample = <8,8,8>
+	PlanarConfiguration = 1, 2
+	Compression = 1 (none) 5 (LZW)
+	PhotometricInterpretation = 2 (RGB)
+    o Class F for facsimile (proposed appendix to 5.0 spec)
+	(Class B tags plus...)
+	Compression = 3 (CCITT Group 3), 4 (CCITT Group 4)
+	FillOrder = 1 (MSB), 2 (LSB)
+	Group3Options = 1 (2d encoding), 4 (zero fill), 5 (2d+fill)
+	ImageWidth = 1728, 2048, 2482
+	NewSubFileType = 2
+	ResolutionUnit = 2 (Inch), 3 (Centimeter)
+	PageNumber, XResolution,  YResolution, Software,
+	BadFaxLines, CleanFaxData, ConsecutiveBadFaxLines,
+	DateTime, DocumentName, ImageDescription, Orientation
+    o Class S for separated images (Appendix K to appear in 6.0)
+	SamplesPerPixel = 4
+	PlanarConfiguration = 1, 2
+	Compression = 1 (none), 5 (LZW)
+	PhotometricInterpretation = 5 (Separated)
+	InkSet = 1 (CMYK)
+	DotRange, InkNames, DotRange, TargetPrinter
+    o Class Y for JPEG images (Appendix O to appear in 6.0)
+	SamplesPerPixel = 3
+	BitsPerSample = <8,8,8>
+	PlanarConfiguration = 1, 2
+	Compression = 1 (none),  5 (LZW), 32865 (JPEG)
+	PhotometricInterpretation = 6 (YCbCr)
+	YCbCrCoefficients, YCbCrSubsampling, YCbCrPositioning
+	(colorimetry info from Appendix H; see below)
+    o Class "JPEG" for JPEG images (Appendix P to appear in 6.0)
+	PhotometricInterpretation = 1 (grayscale), 2 (RGB), 5 (CMYK), 6 (YCbCr)
+	(Class Y tags if YCbCr)
+	(Class S tags if CMYK)
+	Compression = 6 (JPEG)
+	JPEGProc = 0 (baseline)
+	JPEGQTables = ... (offsets to per-channel Q matrices)
+	JPEGDCTables = .... (offsets to per-channel DC tables)
+	JPEGACTables = .... (offsets to per-channel AC tables)
+	JPEGRestartInterval
+    o Tiled Images (Appendix L to appear in 6.0)
+	TileWidth
+	TileLength
+	TileOffsets
+	TileByteCounts
+    o Image Colorimetry Information (Appendix H to appear in 6.0)
+	WhitePoint
+	PrimaryChromaticities
+	TransferFunction
+	ReferenceBlackWhite
+
+In addition, the library supports some optional compression algorithms
+that are, in some cases, of dubious value.
+	Compression = 32766	NeXT 2-bit encoding
+	Compression = 32809	ThunderScan 4-bit encoding
+
+[JPEG compression should fit into this library simply by replacing
+ the existing stub JPEG compression module.  That is, all YCbCr and
+ JPEG-related tags are supported in this version of the library.]
+
+The following tags are recognized and handled by the library (as
+described in the table).  If no use is indicated, then the library
+reads and writes the tag, but does not use it internally.
+
+Tag Name		Value	R/W	Library's Use
+-----------------------------------------------------
+NewSubFileType		254	R/W	(called SubFileType)
+SubFileType		255	R/W	(called OSubFileType)
+ImageWidth		256	R/W	lots
+ImageLength		257	R/W	lots
+BitsPerSample		258	R/W	lots
+Compression		259	R/W	choosing compression routines
+PhotometricInterpretation 262	R/W	Group 3 and JPEG code
+Thresholding		263	R/W	
+CellWidth		264		parsed but ignored
+CellLength		265		parsed but ignored
+FillOrder		266	R/W	control bit order
+DocumentName		269	R/W
+ImageDescription 	270	R/W
+Make			271	R/W
+Model			272	R/W
+StripOffsets		273	R/W	data i/o
+Orientation		274	R/W
+SamplesPerPixel		277	R/W	lots
+RowsPerStrip		278	R/W	data i/o
+StripByteCounts		279	R/W	data i/o
+MinSampleValue		280	R/W
+MaxSampleValue		281	R/W
+XResolution		282	R/W
+YResolution		283	R/W	used by Group 3 2d encoding
+PlanarConfiguration	284	R/W	data i/o
+PageName		285	R/W
+XPosition		286	R/W
+YPosition		286	R/W
+FreeOffsets		288		parsed but ignored
+FreeByteCounts		289		parsed but ignored
+GrayResponseUnit	290		parsed but ignored
+GrayResponseCurve	291		parsed but ignored
+Group3Options		292	R/W	used by Group 3 code
+Group4Options		293	R/W
+ResolutionUnit		296	R/W
+PageNumber		297	R/W
+ColorResponseUnit	300		parsed but ignored
+TransferFunction	301	R/W
+Software		305	R/W
+DateTime		306	R/W
+Artist			315	R/W
+HostComputer		316	R/W
+Predictor		317	R/W	used by LZW code
+WhitePoint		318	R/W
+PrimaryChromacities	319	R/W
+ColorMap		320	R/W
+TileWidth		322	R/W	data i/o
+TileLength		323	R/W	data i/o
+TileOffsets		324	R/W	data i/o
+TileByteCounts		324	R/W	data i/o
+BadFaxLines		326	R/W
+CleanFaxData		327	R/W
+ConsecutiveBadFaxLines	328	R/W
+InkSet			332	R/W
+InkNames		333	R/W
+DotRange		336	R/W
+TargetPrinter		337	R/W
+ExtraSamples		338	R/W
+SampleFormat		339	R/W
+JPEGProc		512	R/W	JPEG code
+JPEGQRestartInterval	515	R/W	JPEG code
+JPEGQTables		519	R/W	JPEG code
+JPEGDCTables		520	R/W	JPEG code
+JPEGACTables		521	R/W	JPEG code
+YCbCrCoefficients	529	R/W	used by TIFFReadRGBAImage
+YCbCrSubsampling	530	R/W	tile/strip size calculations
+YCbCrPositioning	531	R/W
+ReferenceBlackWhite	532	R/W
+Matteing		32995	R
+DataType		32996	R
+ImageDepth		32997	R/W	tile/strip calculations
+TileDepth		32998	R/W	tile/strip calculations
+
+The Matteing and DataType tags have been obsoleted by the 6.0
+ExtraSamples and SampleFormat tags.  Note that the ExtraSamples tag is
+only supported as needed to store Associated Alpha data.  Consult the
+documentation on the ExtraSamples tag and Associated Alpha for
+elaboration.  Note however that if you use Associated Alpha, you are
+expected to save data that is pre-multipled by Alpha.  If this means
+nothing to you, check out Porter & Duff's paper in the '84 SIGGRAPH
+proceedings: "Compositing Digital Images".
+
+The ImageDepth tag is a non-standard, but registered tag that specifies
+the Z-dimension of volumetric data.  The combination of ImageWidth,
+ImageLength, and ImageDepth, defines a 3D volume of pixels that are
+further specified by BitsPerSample and SamplesPerPixel.  The TileDepth
+tag (also non-standard, but registered) can be used to specified a
+subvolume "tiling" of a volume of data.
+
+The JPEG, Colorimetry, and CMYK tags are planned additions for TIFF
+6.0.  Consult the appropriate TIFF appendices for the descriptions of
+these tags.
+
+LIBTIFF
+-------
+Libtiff is the software library that you can use to read and write TIFF
+files (most all the tools use it to do their work).  The library
+provides two interfaces, one for strip-based images and one for
+tile-based images.  The normal interface is through a simple
+scanline-based interface that works with images comprised of strips.
+For example, to read the contents of a file, the following might be used:
+
+	#include "tiffio.h"
+
+	TIFF *tif;
+	unsigned long imagelength;
+	char *buf;
+	long row;
+
+	tif = TIFFOpen("myfile.tif", "r");
+	TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &imagelength);
+	buf = malloc(TIFFScanlineSize(tif));
+	for (row = 0; row < imagelength; row++)
+		TIFFReadScanline(tif, buf, row);
+
+(this example assumes samples are packed contiguously.)  Similarly, to
+write a file, something like the following can be used:
+
+	tif = TIFFOpen("myfile.tif", "w");
+	TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, imagewidth);
+	TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_LZW);
+	... <set other required tags>
+	row = 0;
+	while (...more scanlines to write...)
+		TIFFWriteScanline(tif, buf, row);
+	TIFFClose(tif);
+
+(once again, we assume samples are packed contiguously.)
+
+A 2D tile-based interface is also provided as an alternative to the
+scanline-orientated interfaces.  With this interface, an image is
+broken up into a set of rectangular areas called tiles.  All the tiles
+in an image have the same size, and the tile width and length must each
+be a multiple of 16 pixels.  Tiles are ordered left-to-right and
+top-to-bottom in an image.  As for scanlines, samples can be packed
+contiguously or separately.  When separated, all the tiles for a sample
+are colocated in the file.  That is, all the tiles for sample 0 appear
+before the tiles for sample 1, etc.
+
+Tiles and strips may also be extended in a z dimension to form
+volumes.  Data volumes are organized as "slices".  That is, all the
+data for a slice is colocated.  Volumes whose data is organized in
+tiles can also have a tile depth so that data can be organized in
+cubes.
+
+The interface for tiles is similar to scanlines.  To read a tiled image,
+code of the following sort might be used:
+
+	unsigned long imageWidth, imageLength;
+	unsigned long tileWidth, tileLength;
+	unsigned long x, y;
+	char *buf;
+
+	tif = TIFFOpen("myfile.tif", "r");
+	TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &imageWidth);
+	TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &imageLength);
+	TIFFGetField(tif, TIFFTAG_TILEWIDTH, &tileWidth);
+	TIFFGetField(tif, TIFFTAG_TILELENGTH, &tileLength);
+	buf = malloc(TIFFTileSize(tif));
+	for (y = 0; y < imageLength; y += tileLength)
+		for (x = 0; x < imageWidth; x += tileWidth)
+			TIFFReadTile(tif, buf, x, y, 0);
+
+(once again, we assume samples are packed contiguously.)
+
+Note that unlike the stdio library, libtiff only supports reading OR
+writing of a file.   There is also an append mode, but this has not
+really been tested.
+
+TOOLS
+-----
+There are two device-dependent programs:
+
+o tiffgt is used to display the contents of a TIFF file on a
+  framebuffer.  The version included in this release was written
+  for the Silicon Graphics Graphics Library (GL), although it
+  should be a simple matter to tailor it for other systems.
+o tiffsv is used to save all or part of a framebuffer in a
+  TIFF file.  Once again, the version of tiffsv included here
+  was written for the GL, but should be tailorable to other devices.
+  (Note, tiffsv uses the readdisplay routine that was introduced
+  in IRIX 4.0.)
+
+The remaining programs should be device-independent:
+
+o tiffinfo formats information about one or more TIFF files
+o tiffdump displays the verbatim contents of the TIFF directory in a
+  file (it's very useful for debugging bogus files that you may get from
+  someone that claims they support TIFF).
+o tiffcp is used to copy, concatenate, and convert TIFF images (e.g.
+  switching from Compression=5 to Compression=1).
+o tiff2ps is a program that converts a TIFF image to PostScript.
+o tiffcmp can be used to compare the contents of two TIFF files (it does
+  not check all the directory information, but does check all the data).
+o tiff2bw is a simple program to convert a color image to grayscale.
+o ras2tiff is a quick hack that converts Sun rasterfile format images to
+  TIFF -- it's less than complete.
+o rgb2ycbcr converts an RGB, grayscale, or bilevel TIFF image to a
+  YCbCr TIFF image.
+o gif2tiff is a quick hack that converts GIF 87a format images to TIFF.
+o ppm2tiff is a quick hack that converts PPM format images to TIFF.
+o fax2tiff converts raw Group 3 facsimile data to TIFF.
+o pal2rgb converts a Palette color image to a full color RGB image by
+  applying the colormap.
+o tiffdither dithers a b&w image into a bilevel image (suitable for
+  use in creating fax files)
+o tiffsplit creates one or more single-image files from a (possibly)
+  multi-image file
+o Finally, tiffmedian is a version of Paul Heckbert's median cut program
+  that reads an RGB TIFF image, and creates a TIFF palette file as a
+  result.  It's useful for converting full-color RGB images to 8-bit
+  color for your friends that have cheapo 8-bit framebuffers.
+
+There is also:
+
+o sgi2tiff, a program to convert SGI image files to TIFF.  This
+  program is only useful on SGI machines as it uses -limage.
+
+Check out the manual pages for details about the above programs.
+
+CONTRIBUTED STUFF:
+-----------------
+The directory contrib has contributed software:
+
+contrib/dbs	an X-based TIFF viewer from Dan & Chris Sears
+contrib/ras	two programs by Patrick Naughton for converting
+		between Sun rasterfile format and TIFF (these
+		require libpixrect.a, as opposed to the one in
+		tools that doesn't)
+contrib/fax2ps	a program that converts TIFF/F images to an encoded
+		form of PostScript that is faster to print than just
+		dumping a full raster
+contrib/vms	scripts and files from Karsten Spang for building
+		the library and tools under VMS
+contrib/xv	patches to XV version 2.00 to make it support TIFF
+		(XV is an X-based viewer from John Bradley)
+
+Don't send me mail asking about these programs.  Send questions
+and/or bug reports directly to the authors.
+
+DOCUMENTATION:
+-------------
+A copy of the 5.0 spec is included in the doc directory.  This document
+was obtained by Bill Johnston of LBL who retrieved it from simtel20. 
+Beware that the document has been modified slightly from the original
+version to enhance printability.  We've tried to be very careful in making
+any changes, but there's always the possibility of mistakes being
+introduced.
+
+Another document describes a proposed addition to TIFF 6.0 for Associated
+Alpha data (i.e. what is now the Matteing tag).
+
+TEST IMAGES:
+-----------
+Test images are available for most formats supported by the library.
+The images are kept in a separate archive that should be located along
+with this software.  If the archive that you retrieve was v3.0.tar.Z,
+then the images should be in the same directory in an archive named
+v3.0pics.tar.Z.
+
+BUILDING THE SOFTWARE
+---------------------
+The software, as distributed, is setup for building the software on an
+SGI machine (release 4.0.1 if you care).  To configure things for your
+machine, check for Makefiles in the libtiff and tools directories for
+your machine:
+
+    Makefile.aix	Makefile for an IBM RS/6000 running AIX
+    Makefile.apollo	Makefile for an Apollo
+    Makefile.hpux	Makefile for HP machines running HP-UX
+    Makefile.mips	Makefile for a MIPS running MIPS OS 2.?
+    Makefile.next	Makefile for a NeXT
+    Makefile.sgi	Makefile for a VGX, GT, GTX, or Personal Iris
+    Makefile.sun	Makefile for a Sun-3 or Sun-4 running SunOS 3.5+
+    Makefile.tahoe	Makefile for a TAHOE running 4.3BSD
+    Makefile.vax	Makefile for a VAX running 4.3BSD
+
+If your machine is not represented, you'll have to make up a Makefile
+that is right for you.  In libtiff the important things to setup are
+
+    AR=/usr/bin/ar			whatever your library archiver is called
+    RANLIB=/usr/bin/ranlib		if you need to ranlib a library
+    IPATH=-I. -I/usr/include/bsd	list of directories to search includes
+    CONF=....				configuring optional support
+
+To build the library, just
+	cd libtiff; make
+
+In the tools directory, you'll want to setup the MACHALL macro,
+
+	MACHALL=ras2tiff tiffgt tiffsv
+
+and add definitions for how to build tiffgt and tiffsv for your machine
+(if appropriate).  Note also that for building the fax2tiff program, the
+CONF_LIBRARY macro in the Makefile MUST agree with the definition in the
+Makefile in the libtiff directory!  If this is not true, then fax2tiff
+will not work.
+
+To build the tools library, just
+	cd ../tools; make
+
+CHECKING OUT THE SOFTWARE
+-------------------------
+Assuming you have working versions of tiffgt and tiffsv, you can just
+use them to view any of the sample images  (the list is given below).
+Otherwise, you can check out the operation of the library with tiffcp
+and tiffcmp. For example,
+
+	tiffcp -lzw cramps.tif x.tif
+	tiffcmp cramps.tif x.tif
+
+(tiffcmp should be silent if the files compare correctly).
+
+BUGS AND SUCH....
+-----------------
+This software is free.  The only thing that I ask in return is that you
+tell me when you find a problem or fix a bug.  I also gladly accept
+software contributions, although I hesitate to include such software in
+my regular stuff if I am personally unable to test it.
+
+There is a mailing list associated with the software,
+tiff@ucbvax.berkeley.edu, that you can join by sending a message to
+tiff-request@ucbvax.berkeley.edu.  You can also reach me directly at
+sam@sgi.com.
+
+ACKNOWLEDGEMENTS
+----------------
+The LZW algorithm is derived from the compress program (the proper
+attribution is included in the source code).  The Group 3 fax stuff
+originated as code from Jef Poskanzer, but has since been rewritten
+several times.  The latest version uses an algorithm from Michael
+Marking -- consult libtiff/mkg3states.c for further information.
+Many other people have, by now, helped with bug fixes and code.
+
+WARNING
+-------
+It appears that Unisys is actively pursuing copyright control on the
+LZW compression algorithm.  In particular, users of the LZW compression
+within the TIFF framework.  For this reason the TIFF 6.0 spec will
+state that LZW compression is not recommended.  It is unclear at this
+time what compression algorithm will be used in place of it.  I have
+no idea what this means to you or to this library.  I make no warranty
+or guarantees with regard to the LZW support in this library.
+
+FILE CONTENTS
+-------------
+At least the following files are included in the distribution:
+
+libtiff/prototypes.h		stuff for ANSI function prototypes
+libtiff/tiff.h			TIFF spec definitions
+libtiff/tiffio.h		public TIFF library definitions
+libtiff/tiffioP.h		private TIFF library definitions
+libtiff/tiffcompat.h		UNIX-compatibility definitions
+libtiff/t4.h			CCITT Group 3 1d code tables+definitions
+libtiff/tif_fax3.h		CCITT Group 3-related definitions
+
+libtiff/tif_aux.c		auxilary directory-related functions
+libtiff/tif_ccittrle.c		CCITT 1d Huffman compression
+libtiff/tif_compat.c		OS-related compatibility stuff
+libtiff/tif_compress.c		list of supported compression algorithms
+libtiff/tif_dir.c		directory tag interface code
+libtiff/tif_dirinfo.c		directory known tag support code
+libtiff/tif_dirread.c		directory reading code
+libtiff/tif_dirwrite.c		directory writing code
+libtiff/tif_dumpmode.c		"no" compression algorithm
+libtiff/tif_fax3.c		CCITT Group 3 fax compression
+libtiff/tif_fax4.c		CCITT Group 4 fax compression
+libtiff/tif_getimage.c		code to read an entire image into an RGBA raster
+libtiff/tif_jpeg.c		JPEG compression placeholder
+libtiff/tif_lzw.c		LZW encoding and decoding
+libtiff/tif_next.c		NeXT 2-bit decoding algorithm (no encoding)
+libtiff/tif_machdep.c		machine/architecture-specific code
+libtiff/tif_open.c		open and simply query code
+libtiff/tif_packbits.c		Packbits encoding and decoding
+libtiff/tif_print.c		directory printing support
+libtiff/tif_swab.c		byte and bit swapping support
+libtiff/tif_strip.c		some strip-related code
+libtiff/tif_thunder.c		Thunderscan decoding (no encoding)
+libtiff/tif_tile.c		some tile-related code
+libtiff/mkg3states.c		program to generate G3 decoding state tables
+libtiff/mkspans.c		program to generate black-white span tables
+
+tools/getopt.c		public domain getopt from Berkeley used by tools
+tools/fax2tiff.c	convert raw facsimile data to TIFF
+tools/gif2tiff.c	convert GIF87 file to TIFF
+tools/pal2rgb.c		convert TIFF Palette image to TIFF RGB
+tools/ppm2tiff.c	convert PPM image file to TIFF
+tools/ras2tiff.c	convert Sun rasterfile format to TIFF (limited)
+tools/rgb2ybcr.c	convert TIFF to YCbCr TIFF
+tools/sgi2tiff.c	convert SGI image file to TIFF
+tools/sgigt.c		TIFF picture get for SGI framebuffer (uses GL)
+tools/sgisv.c		save image on SGI framebuffer in TIFF file
+tools/tiff2bw.c		convert color TIFF file to B&W
+tools/tiff2ps.c		convert TIFF to PostScript
+tools/tiffcmp.c		compare two TIFF files
+tools/tiffcp.c		copy/convert TIFF files (used to change compression)
+tools/tiffdither.c	dither grayscale to bilevel
+tools/tiffdump.c	dump TIFF header and directory tags w/o library
+tools/tiffinfo.c	print info about TIFF file(s)
+tools/tiffmedian.c	median cut RGB -> palette conversion program
+tools/tiffsplit.c	split a multi-page TIFF into single-page TIFFs
+tools/ycbcr.c		RGB->YCbCr->RGB test program
+
+doc/5.0spec		raw text version of TIFF 5.0 spec
+doc/ClassF.txt		raw text version of current Class F (fax) document
+doc/alpha.ps		PostScript version of proposed TIFF 6.0 appendix
+doc/extra.ps		PostScript version of proposed TIFF 6.0 tag
+doc/TIFF6.ps		PostScript version of 1st draft of TIFF 6.0 spec
+
+man/man1		UNIX manual pages for tools
+man/man3		UNIX manual pages for libtiff functions

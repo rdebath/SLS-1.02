@@ -1,0 +1,122 @@
+SENSING & CONTROL
+
+.nf
+	ktemp	\fBtempest\fR  	kin, iprd, imindur, imemdur, ihp, ithresh, ihtim, ixfdbak,
+					istartempo, ifn[, idisprd, itweek]
+.fi
+
+Estimate the tempo of beat patterns in a control signal.
+
+INITIALIZATION
+
+\fIiprd\fR - period between analyses (in seconds).
+Typically about .02 seconds.
+.sp .8
+\fIimindur\fR - minimum duration (in seconds) to serve as a unit of tempo.
+Typically about .2 seconds.
+.sp .8
+\fIimemdur\fR - duration (in seconds) of the \fIkin\fR short-term memory buffer
+which will be scanned for periodic patterns.  Typically about 3 seconds.
+.sp .8
+\fIihp\fR - half-power point (in cps) of a low-pass filter used to smooth input
+\fIkin\fR prior to other processing.  This will tend to suppress activity that
+moves much faster.  Typically 2 cps.
+.sp .8
+\fIithresh\fR - loudness threshold by which the low-passed \fIkin\fR is
+center-clipped before being placed in the short-term buffer as
+tempo-relevant data.  Typically at the noise floor of the incoming data.
+.sp .8
+\fIihtim\fR - half-time (in seconds) of an internal forward-masking filter
+that masks new \fIkin\fR data in the presence of recent, louder data.
+Typically about .005 seconds.
+.sp .8
+\fIixfdbak\fR - proportion of this unit's \fIanticipated value\fR to be mixed
+with the incoming \fIkin\fR prior to all processing.  Typically about .3.
+.sp .8
+\fIistartempo\fR - initial tempo (in beats per minute).  Typically 60.
+.sp .8
+\fIifn\fR - table number of a stored function (drawn left-to-right) by which
+the short-term memory data is attenuated over time.
+.sp .8
+\fIidisprd\fR (optional) - if non-zero, display the short-term past and
+future buffers every \fIidisprd\fR seconds (normally a multiple of \fIiprd\fR).
+The default value is 0 (no display).
+.sp .8
+\fIitweek\fR (optional) - fine-tune adjust this unit so that it is stable
+when analyzing events controlled by its own output.
+The default value is 1 (no change).
+
+PERFORMANCE
+
+\fBtempest\fR examines \fIkin\fR for amplitude periodicity, and estimates
+a current tempo.  The input is first low-pass filtered, then center-clipped,
+and the residue placed in a short-term memory buffer (attenuated over time)
+where it is analyzed for periodicity using a form of autocorrelation.
+The period, expressed as a \fItempo\fR in beats per minute, is output as
+\fIktemp\fR.  The period is also used internally to make predictions about
+future amplitude patterns, and these are placed in a buffer adjacent to
+that of the input.  The two adjacent buffers can be periodically displayed,
+and the predicted values optionally mixed with the incoming signal
+to simulate expectation.
+.sp .8
+This unit is useful for sensing the metric implications of any k-signal (e.g.
+the RMS of an audio signal, or the second derivative of a conducting gesture),
+before sending to a \fBtempo\fR statement.
+
+.nf
+Example:
+	ksum	specsum 	wsignal, 1			; sum the amps of a spectrum
+	ktemp	tempest 	ksum, .02, .1, 3, 2, 800, .005, 0, 60, 4, .1, .995	;   & look for beats
+.fi
+.bp
+
+.nf
+	kx, ky	\fBxyin\fR	      iprd, ixmin, ixmax, iymin, iymax[, ixinit, iyinit]
+		\fBtempo\fR	      ktempo, istartempo
+.fi
+
+Sense the cursor position in an input window.
+Apply tempo control to an uninterpreted score.
+
+
+INITIALIZATION
+
+\fIiprd\fR - period of cursor sensing (in seconds).  Typically .1 seconds.
+
+\fIxmin, xmax, ymin, ymax\fR - edge values for the x-y coordinates of a cursor
+in the input window.
+
+\fIixinit, iyinit\fR (optional) - initial x-y coordinates reported; the
+default values are 0,0.  If these values are not within the given min-max
+range, they will be coerced into that range.
+
+\fIistartempo\fR - initial tempo (in beats per minute).  Typically 60.
+
+
+PERFORMANCE
+
+\fBxyin\fR samples the cursor x-y position in an input window every \fIiprd\fR
+seconds.  Output values are repeated (not interpolated) at the K-rate,
+and remain fixed until a new change is registered in the window.
+There may be any number of input windows.
+This unit is useful for Realtime control, but continuous motion should be
+avoided if \fIiprd\fR is unusually small.
+
+\fBtempo\fR allows the performance speed of Csound scored events to be controlled
+from within an orchestra.  If the \fBcsound\fR command's \fB-B\fR (beatmode)
+flag is set, scored events will be performed from their uninterpreted p2 and p3
+(beat) parameters, at a default tempo of 60 beats per minute.
+When a \fBtempo\fR statement is activated in any instrument (with \fIktempo\fR
+> 0.), the operating tempo will be set to \fIktempo\fR beats per minute.
+There may be any number of \fBtempo\fR statements in an orchestra,
+but coincident activation is best avoided.
+
+
+.nf
+Example:
+
+	kx,ky	xyin	 .05, 30, 0, 120, 0, 75 	; sample the cursor
+		tempo	 kx, 75 			; and control the tempo of performance
+.fi
+.bp
+

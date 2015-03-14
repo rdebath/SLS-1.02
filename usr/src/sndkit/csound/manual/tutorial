@@ -1,0 +1,369 @@
+.TL
+1. A BEGINNING TUTORIAL
+.SH
+Introduction
+.PP
+The purpose of this section is to expose the reader to the fundamentals
+of designing and using computer music instruments in \fBCsound\fR.
+Only a small portion of the language will be covered here,
+sufficient to implement some simple instrument examples.
+The remaining sections in the text are arranged as a \fIReference\fR
+manual (not a tutorial), since that is the form the user will eventually
+find most helpful when inventing instruments.
+Once the basic concepts are grasped from this tutorial,
+the reader might let himself into the remainder of the text by locating
+the information presented here in the Reference entries that follow.
+.SH
+The Orchestra File
+.PP
+\fBCsound\fR runs from two basic files:  an \fIorchestra\fR file and a
+\fIscore\fR file.  The orchestra file is a set of \fIinstruments\fR
+that tell the computer how to synthesize sound;  the score file tells the
+computer when.
+An instrument is a collection of modular statements which either
+\fIgenerate\fR or \fImodify\fR a signal;  signals are represented by
+\fIsymbols\fR, which can be "patched" from one module to another.
+For example, the following two statements will generate a 440 Hz sine tone
+and send it to an output channel:
+.i
+asig	oscil	10000, 440, 1
+	out	asig
+.e
+The first line sets up an oscillator whose controlling inputs are
+an amplitude of 10000, a frequency of 440 Hz, and a waveform number,
+and whose output is the audio signal \fIasig\fR.
+The second line takes the signal \fIasig\fR and sends it to an (implicit) output channel.
+The two may be encased in another pair of statements that identify the 
+instrument as a whole:
+.i
+	instr	1
+asig	oscil	10000, 440, 1
+	out	asig
+	endin
+.e
+.PP
+In general, an orchestra statement in \fBCsound\fR consists of an action symbol
+followed by a set of input variables and preceded by a result symbol.
+Its \fIaction\fR is to process the inputs and deposit the result where told.
+The meaning of the input variables depends on the action requested.
+The 10000 above is interpreted as an amplitude value because it occupies
+the first input slot of an oscil unit;  440 signifies a frequency in Hertz
+because that is how an oscil unit interprets its second input argument;
+the waveform number is taken to point indirectly to a stored function table,
+and before we invoke this instrument in a score we must fill function table #1
+with some waveform.
+.PP
+The output of \fBCsound\fR computation is not a real audio signal,
+but a stream of numbers which describe such a signal.
+When written onto a sound file these can later be converted to sound by an
+independent program; for now, we will think of variables such as \fIasig\fR
+as tangible audio signals.
+.PP
+Let us now add some extra features to this instrument.
+First, we will allow the pitch of the tone to be defined as a
+\fIparameter\fR in the score.  Score parameters can be represented
+by orchestra variables which take on their different values
+on successive notes.  These variables are named sequentially:
+p1, p2, p3, ...  The first three have a fixed meaning (see the Score File),
+while the remainder are assignable by the user.  Those of significance here
+are:
+.i
+p3 - duration of the current note (always in seconds).
+p5 - pitch of the current note (in units agreed upon by score and orchestra).
+.e
+Thus in
+.i
+asig	oscil	10000, p5, 1
+.e
+the oscillator will take its pitch (presumably in cps) from score parameter 5.
+.PP
+If the score had forwarded pitch values in units other than cycles-per-second
+(Hertz), then these must first be converted.
+One convenient score encoding, for instance, combines \fIpitch class\fR
+representation (00 for C, 01 for C#, 02 for D, ... 11 for B)
+with \fIoctave\fR representation (8. for middle C, 9. for the C above, etc.)
+to give pitch values such as 8.00, 9.03, 7.11.
+The expression
+.i
+	cpspch(8.09)
+.e
+will convert the pitch A (above middle C) to its cps equivalent (440 Hz).
+Likewise, the expression
+.i
+	cpspch(p5)
+.e
+will first read a value from p5, then convert it from octave.pitch-class units
+to cps.
+This expression could be imbedded in our orchestra statement as
+.i
+asig	oscil	10000, cpspch(p5), 1
+.e
+to give the score-controlled frequency we sought.
+.PP
+Next, suppose we want to shape the amplitude of our tone with a linear
+rise from 0 to 10000.  This can be done with a new action
+statement
+.i
+amp	line	0, p3, 10000
+.e
+Here, \fIamp\fR will take on values that move from 0 to 10000 over time p3
+(the duration of the note in seconds).
+The instrument will then become
+.i
+	instr	1
+amp	line	0, p3, 10000
+asig	oscil	amp, cpspch(p5), 1
+	out	asig
+	endin
+.e
+.PP
+The signal \fIamp\fR is not something we would expect to listen to directly.
+It is really a variable whose purpose is to control the amplitude of the
+audio oscillator.  Although audio output requires fine resolution in time for
+good fidelity, a controlling signal often does not need that much resolution.
+We could use another kind of signal for this amplitude control
+.i
+kamp	line	0, p3, 10000
+.e
+in which the result is a new kind of signal.
+Signal names up to this point have always begun with the letter
+\fBa\fR (signifying an \fIaudio\fR signal);  this one begins with \fBk\fR
+(for \fIcontrol\fR).
+Control signals are identical to audio signals,
+differing only in their resolution in time.
+A control signal changes its value less often than an audio signal,
+and is thus faster to generate.
+Using one of these, our instrument would then become
+.i
+	instr	1
+kamp	line	0, p3, 10000
+asig	oscil	kamp, cpspch(p5), 1
+	out	asig
+	endin
+.e
+This would likely be indistinguishable in sound from the first version,
+but would run a little faster.
+In general, instruments take constants and parameter values,
+and use calculations and signal processing to move first towards the generation
+of control signals, then finally audio signals.
+Remembering this flow will help you write efficient instruments
+with faster execution times.
+.PP
+We are now ready to create our first orchestra file.
+Type in the following orchestra using the system editor,
+and name it "intro.orc".
+.i
+	sr = 20000		; audio sampling rate is 20 kHz
+	kr = 500   		; control rate is 500 Hz
+	ksmps = 40		; number of samples in a control period (sr/kr)
+	nchnls = 1		; number of channels of audio output
+
+	instr	1
+kctrl	line	0, p3, 10000		; amplitude envelope
+asig	oscil	kctrl, cpspch(p5), 1	; audio oscillator
+	out	asig			; send signal to channel 1
+	endin
+.e
+It is seen that comments may follow a semi-colon, and extend to the end of
+a line.  There can also be blank lines, or lines with just a comment.
+Once you have saved your orchestra file on disk, we can next consider the
+score file that will drive it.
+.SH
+The Score File
+.PP
+The purpose of the score is to tell the instruments when to play and with what
+parameter values.
+The score has a different syntax from that of the orchestra,
+but similarly permits one statement per line and comments after a semicolon.
+The first character of a score statement is an \fBopcode\fR, determining an
+action request;
+the remaining data consists of numeric parameter fields (pfields)
+to be used by that action.
+.PP
+Suppose we want a sine-tone generator to play a pentatonic scale starting
+at C-sharp above middle-C, with notes of 1/2 second duration.
+We would create the following score:
+.i
+;    a sine wave function table
+f1 0 256 10 1
+;    a pentatonic scale
+i1   0 .5  0 8.01
+i1  .5  .  . 8.03
+i1 1.0  .  . 8.06
+i1 1.5  .  . 8.08
+i1 2.0  .  . 8.10
+e
+.e
+The first statement creates a stored sine table.
+The protocol for generating wave tables is simple but powerful.
+Lines with opcode \fBf\fR interpret their parameter fields as follows:
+.i
+p1 - function table \fInumber\fR being created
+p2 - \fIcreation time\fR, or time at which the table becomes readable
+p3 - table \fIsize\fR (number of points), which must be a power of two or one greater
+p4 - \fIgenerating subroutine\fR, chosen from a prescribed list.
+.e
+Here the value 10 in p4 indicates a request for subroutine GEN10 to fill
+the table.  GEN10 mixes harmonic sinusoids in phase,
+with relative strengths of consecutive partials given by the
+succeeding parameter fields.  Our score requests just a single sinusoid.
+An alternative statement
+.i
+f1 0 256 10 1 0 3
+.e
+would produce one cycle of a waveform with third harmonic three
+times as strong as the first.
+.PP
+The \fIi\fR-statements, or note statements, will invoke the p1 instrument
+at time p2, then turn it off after p3 seconds;
+it will pass all of its p-fields to that instrument.
+Individual score parameters are separated by any number of spaces or tabs;
+neat formatting of parameters in columns is nice but unnecessary.
+The dots in p-fields 3 and 4 of the last four notes invoke a
+\fIcarry feature\fR, in which values are simply copied from the immediately
+preceding note \fIof the same instrument\fR.
+A score normally ends with an \fIe\fR-statement.
+.PP
+The unit of time in a \fBCsound\fR score is the beat.
+In the absence of a \fITempo\fR statement, one beat takes one second.
+To double the speed of the pentatonic scale in the above score,
+we could either modify p2 and p3 for all the notes in the score,
+or simply insert the line
+.i
+t 0 120
+.e
+to specify a tempo of 120 beats per minute from beat 0.
+.PP
+Two more points should be noted.  First, neither the \fIf\fR-statements
+nor the \fIi\fR-statements need be typed in time order;
+\fBCsound\fR will sort the score automatically before use.
+Second, it is permissable to play more than one note at a time with a single
+instrument.  To play the same notes as a three-second pentatonic chord
+we would create the following:
+.i
+;    a sine wave function
+f1 0 256 10 1
+;    five notes at once
+i1   0  3 0 8.01
+i1   0  .  . 8.03
+i1   0  .  . 8.06
+i1   0  .  . 8.08
+i1   0  .  . 8.10
+e
+.e
+Now go into the editor once more and create your own score file.  Name it
+"intro.sco".
+.SH
+The CSOUND Command
+.PP
+To request your orchestra to perform your score, type the command
+.i
+csound  intro.orc  intro.sco
+.e
+The resulting performance will take place in three phases:
+.br
+1) sort the score file into chronological order.
+If score syntax errors are encountered they will be reported on your console.
+.br
+2) translate and load your orchestra.
+The console will signal the start of translating each \fIinstr\fR block,
+and will report any errors.
+If the error messages are not immediately meaningful, translate again
+with the \fIverbose\fR flag turned on:
+.i
+csound  -v  intro.orc  intro.sco
+.e
+.br
+3) fill the wave tables and perform the score.
+Information about this performance will be displayed throughout
+in messages resembling
+.i
+B  4.000 ..  6.000   T 3.000  TT  3.000  M    7929.    7929.
+.e
+A message of this form will appear for every \fIevent\fR in your score.
+An event is defined as any change of state (as when a new note begins
+or an old one ends).  The first two numbers refer to beats in your
+original score, and they delimit the current segment of sound
+synthesis between successive events (e.g. from beat 4 to beat 6).
+The second beat value is next restated in real seconds of time, and reflects
+the \fItempo\fR of the score.  That is followed by the Total Time elapsed
+for all sections of the score so far.
+The last values on the line show the maximum amplitude of the audio signal,
+measured over just this segment of time, and reported separately
+for each channel.
+.PP
+Console messages are printed to assist you in following the orchestra's
+handling of your score.  You should aim at becoming an intelligent
+reader of your console reports.
+When you begin working with longer scores and your instruments no longer
+cause surprises, the above detail may be excessive.  You can elect to
+receive abbreviated messages using the -m option of the \fBcsound\fR command.
+.PP
+When your performance goes to completion, it will have created a sound file
+named \fItest\fR in your soundfile directory.
+You can now listen to your sound file by typing
+.i
+play test
+.e
+.SH
+More about the Orchestra
+.PP
+Suppose we next wished to introduce a small vibrato,
+whose rate is 1/50 the frequency of the note
+(i.e. A440 is to have a vibrato rate of 8.8 Hz.).
+To do this we will generate a control signal using a second oscillator,
+then add this signal to the basic frequency derived from p5.
+This might result in the instrument
+.i
+	instr	1
+kamp	line	0, p3, 10000
+kvib	oscil	2.75, cpspch(p5)/50, 1
+a1	oscil	kamp, cpspch(p5)+kvib, 1
+	out	a1
+	endin
+.e
+.PP
+Here there are two control signals, one controlling the amplitude and the other
+modifiying the basic pitch of the audio oscillator.
+For small vibratos, this instrument is quite practical;  however it does
+contain a misconception that is worth noting.  This scheme has added
+a sine wave deviation to the cps value of an audio oscillator.
+The value 2.75 determines the \fIwidth\fR of vibrato in cps,
+and will cause an A440 to be modified about one-tenth of one semitone
+in each direction (1/160 of the frequency in cps).
+In reality, a cps deviation produces a different musical interval
+above than it does below.  To see this, consider an exaggerated deviation of
+220 cps, which would extend a perfect 5th above A440 but a whole octave below.
+To be more correct, we should first convert p5 into a
+\fItrue decimal octave\fR (not cps), so that an \fIinterval\fR deviation above
+is equivalent to that below.
+In general, pitch modification is best done in true octave units
+rather than pitch-class or cps units, and there exists a group of pitch
+converters to make this task easier.
+The modified instrument would be
+.i
+	instr	1
+ioct	=	octpch(p5)
+kamp	line	0, p3, 10000
+kvib	oscil	1/120, cpspch(p5)/50, 1
+asig	oscil	kamp, cpsoct(ioct+kvib), 1
+	out	asig
+	endin
+.e
+.PP
+This instrument is seen to use a third type of orchestra variable,
+an \fIi\fR-variable.
+The variable \fIioct\fR receives its value at an \fIinitialization\fR pass
+through the instrument, and does not change during the lifespan of this note.
+There may be many such \fIinit time\fR calculations in an instrument.
+As each note in a score is encountered, the event space is allocated
+and the instrument is initialized by a special pre-performance pass.
+\fIi-variables\fR receive their values at this time, and any other
+expressions involving just constants and \fIi\fR-variables are evaluated.
+At this time also, modules such as \fBline\fR set up their target
+values (such as beginning and end points of the line), and
+units such as \fBoscil\fR do phase setup and other bookkeeping in
+preparation for performance.  A full description of init-time and
+performance-time activities, however, must be deferred to a general
+consideration of the orchestra syntax.
+

@@ -1,0 +1,223 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: main program
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/01/30 14:49:17 $
+ *	$Revision: 1.4 $
+ *
+ ***)
+
+MODULE mtc;
+
+FROM System	IMPORT
+  Exit		;
+
+FROM IO		IMPORT
+  StdOutput	, WriteS	, WriteI	, WriteNl	,
+  WriteFlush	, CloseIO	;
+
+FROM Strings	IMPORT
+  tString	, Assign	, AssignEmpty	, Append	,
+  Concatenate	, ArrayToString	, StringToArray	;
+
+FROM Base	IMPORT
+  CheckArguments, MtcLibrary	, SourceFile	, OptionIsSet	;
+
+FROM Scanner	IMPORT
+  ScanTabName	, BeginFile	;
+
+FROM Parser	IMPORT
+  ParsTabName	, Parser	, ParsAttribute	, CloseParser	;
+
+FROM Tree	IMPORT
+  BeginTree	, CloseTree	, TreeRoot	;
+
+FROM DefMods	IMPORT
+  GetDefinitionModules;
+
+FROM Defs	IMPORT
+  BeginDefs	, CloseDefs	;
+
+FROM Semantics	IMPORT
+  BeginSemantics, Eval		, CloseSemantics;
+
+FROM Code	IMPORT
+  BeginCode	, CodeCompUnits	, CloseCode	;
+
+FROM Errors	IMPORT
+  NumberOfErrors, PrintMessages	;
+
+IMPORT Times, Tree, Defs, Code, Memory;
+
+VAR
+  String	,
+  FileNameS	: tString;
+  ParseErrors	: CARDINAL;
+  t, m		: BOOLEAN;
+
+MODULE TestOutput;
+
+IMPORT	StdOutput, WriteS, WriteI, WriteNl, WriteFlush;
+
+IMPORT	Times, Tree, Defs, Code, Memory;
+
+EXPORT QUALIFIED WritePhase, WriteMemory, WriteCompleteTime;
+
+VAR
+  StartTime	,
+  StopTime	: LONGINT;
+
+PROCEDURE WritePhase (Phase: ARRAY OF CHAR);
+(* print compiler phase		*)
+BEGIN
+  WriteS (StdOutput, Phase); WriteNl (StdOutput);
+  WriteFlush (StdOutput);
+END WritePhase;
+
+PROCEDURE WriteMemory;
+(* print storage requirements	*)
+BEGIN
+  WriteS (StdOutput, "Memory "); WriteI (StdOutput, Memory.MemoryUsed, 7);
+  WriteS (StdOutput, "  Heap (Tree) "); WriteI (StdOutput, Tree.HeapUsed, 7);
+  WriteS (StdOutput, "  Heap (Defs) "); WriteI (StdOutput, Defs.HeapUsed, 7);
+  WriteNl (StdOutput);
+  WriteFlush (StdOutput);
+END WriteMemory;
+
+PROCEDURE WriteCompleteTime (Text: ARRAY OF CHAR);
+(* print execution time of mtc	*)
+BEGIN
+  StopTime := Times.CpuTime ();
+  WriteS (StdOutput, Text);
+  WriteI (StdOutput, StopTime - StartTime, 5);
+  WriteNl (StdOutput);
+END WriteCompleteTime;
+
+BEGIN
+  StartTime := Times.CpuTime ();
+END TestOutput;
+
+PROCEDURE Halt (Status: CARDINAL);
+(* print error messages, close io, and terminate program with	*)
+(* exit status 'Status'.					*)
+BEGIN
+  PrintMessages (OptionIsSet ('w'));
+  CloseIO;
+  Exit (Status);
+END Halt;
+
+BEGIN
+  SourceFile [0] := 0C;
+  AssignEmpty (MtcLibrary);
+
+  (* handling of arguments	*)
+  CheckArguments;
+
+  IF OptionIsSet ('h') THEN
+    WriteS (StdOutput, "usage: mtc [-options] [file]			");
+    WriteNl (StdOutput);
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-w suppress warning diagnostics			");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-i generate header files for imported modules	");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-c generate type casts to make programs lint free");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-r generate runtime checks			");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-h print help information			");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-t print test output (time)			");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-m print test output (memory)			");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-ddir allow import from modules in library dir	");
+    WriteNl (StdOutput);
+    WriteS (StdOutput, "-ldir specify directory where mtc finds its tables");
+    WriteNl (StdOutput);
+    Halt (0);
+  END; (* IF *)
+
+  t := OptionIsSet ('t');
+  m := OptionIsSet ('m');
+
+  ArrayToString	(ScanTabName, FileNameS);	(* name of scanner table *)
+  Assign	(String, MtcLibrary);
+  Concatenate	(String, FileNameS);
+  Append	(String, 0C);
+  StringToArray	(String, ScanTabName);
+
+  ArrayToString	(ParsTabName, FileNameS);	(* name of parser table *)
+  Assign	(String, MtcLibrary);
+  Concatenate	(String, FileNameS);
+  Append	(String, 0C);
+  StringToArray	(String, ParsTabName);
+
+  IF SourceFile [0] # 0C THEN BeginFile (SourceFile); END;
+
+(*
+  BeginTree;	(* automatically called during initialization of module Tree *)
+  BeginDefs;	(* automatically called during initialization of module Defs *)
+*)
+
+  IF m THEN TestOutput.WriteMemory; END;
+  IF t OR m THEN TestOutput.WritePhase ("Parser"); END;
+
+  (* parse compilation unit and construct an abstract	*)
+  (* tree for it					*)
+  ParseErrors := Parser ();
+
+  IF t THEN Times.WriteStepTime ("Parser "); END;
+
+  IF NumberOfErrors () = 0 THEN
+    IF m THEN TestOutput.WriteMemory; END;
+    IF t OR m THEN TestOutput.WritePhase ("GetDefinitionModules"); END;
+
+    (* get all definition modules on which the current	*)
+    (* compilation unit depends and construct an ab-	*)
+    (* stract tree for them				*)
+    GetDefinitionModules (ParsAttribute.Tree, TreeRoot);
+
+    IF t THEN Times.WriteStepTime ("GetDefinitionModules  "); END;
+  END; (* IF *)
+
+  CloseParser;
+
+  IF NumberOfErrors () = 0 THEN
+    IF m THEN TestOutput.WriteMemory; END;
+    IF t OR m THEN TestOutput.WritePhase ("Eval"); END;
+
+    (* semantic analysis and computation of code	*)
+    (* generation attributes				*)
+    BeginSemantics;
+    Eval (TreeRoot);
+    CloseSemantics;
+
+    IF t THEN Times.WriteStepTime ("Eval  "); END;
+
+    IF m THEN TestOutput.WriteMemory; END;
+    IF t OR m THEN TestOutput.WritePhase ("Code"); END;
+
+    (* generate C code					*)
+    BeginCode;
+    CodeCompUnits (TreeRoot);
+    CloseCode;
+
+    IF t THEN Times.WriteStepTime ("Code  "); END;
+  END; (* IF *)
+
+  CloseTree;
+  CloseDefs;
+
+  IF t THEN TestOutput.WriteCompleteTime ("mtc  "); END;
+  IF m THEN TestOutput.WriteMemory; END;
+
+  IF NumberOfErrors () # 0 THEN
+    Halt (1);
+  ELSE
+    Halt (0);
+  END;
+END mtc.

@@ -1,0 +1,550 @@
+/* exp_main_tk.c - main for expectk
+
+This is "main.c" from the Tk distribution with some minor modifications to
+support Expect.
+
+Don Libes, NIST, 12/19/92
+
+*/
+
+
+/* 
+ * main.c --
+ *
+ *	This file contains the main program for "wish", a windowing
+ *	shell based on Tk and Tcl.  It also provides a template that
+ *	can be used as the basis for main programs for other Tk
+ *	applications.
+ *
+ * Copyright 1990-1992 Regents of the University of California.
+ * Permission to use, copy, modify, and distribute this
+ * software and its documentation for any purpose and without
+ * fee is hereby granted, provided that the above copyright
+ * notice appear in all copies.  The University of California
+ * makes no representations about the suitability of this
+ * software for any purpose.  It is provided "as is" without
+ * express or implied warranty.
+ */
+
+#ifndef lint
+static char rcsid[] = "$Header: /user6/ouster/wish/RCS/main.c,v 1.70 92/12/12 16:17:22 ouster Exp $ SPRITE (Berkeley)";
+#endif
+
+#include "tkConfig.h"
+#include "tkInt.h"
+#include "exp_main.h"
+
+/*
+ * Declarations for library procedures:
+ */
+
+extern int isatty();
+
+/*
+ * Command used to initialize wish:
+ */
+
+static char initCmd[] = "source $tk_library/wish.tcl";
+
+/*
+ * Global variables used by the main program:
+ */
+
+static Tk_Window w;		/* The main window for the application.  If
+				 * NULL then the application no longer
+				 * exists. */
+static Tcl_Interp *interp;	/* Interpreter for this application. */
+static int x, y;		/* Coordinates of last location moved to;
+				 * used by "moveto" and "lineto" commands. */
+static Tcl_CmdBuf buffer;	/* Used to assemble lines of terminal input
+				 * into Tcl commands. */
+static int tty;			/* Non-zero means standard input is a
+				 * terminal-like device.  Zero means it's
+				 * a file. */
+
+/*
+ * Command-line options:
+ */
+
+int synchronize = 0;
+char *fileName = NULL;
+char *name = NULL;
+char *display = NULL;
+char *geometry = NULL;
+
+/* for Expect */
+int my_rc = 1;
+int sys_rc = 1;
+int optcmd_eval();
+
+Tk_ArgvInfo argTable[] = {
+    {"-file", TK_ARGV_STRING, (char *) NULL, (char *) &fileName,
+	"File from which to read commands"},
+    {"-geometry", TK_ARGV_STRING, (char *) NULL, (char *) &geometry,
+	"Initial geometry for window"},
+    {"-display", TK_ARGV_STRING, (char *) NULL, (char *) &display,
+	"Display to use"},
+    {"-name", TK_ARGV_STRING, (char *) NULL, (char *) &name,
+	"Name to use for application"},
+    {"-sync", TK_ARGV_CONSTANT, (char *) 1, (char *) &synchronize,
+	"Use synchronous mode for display server"},
+
+/* for Expect */
+    {"-command", TK_ARGV_GENFUNC, (char *) optcmd_eval, (char *) &name,
+	"Command(s) to execute immediately"},
+    {"-debug", TK_ARGV_CONSTANT, (char *) 1, (char *) &exp_is_debugging,
+	"Turn on debugging"},
+    {"-interactive", TK_ARGV_CONSTANT, (char *) 1, (char *) &exp_interactive,
+	"Interactive mode"},
+    {"-norc", TK_ARGV_CONSTANT, (char *) 0, (char *) &my_rc,
+	"Don't read ~/.expect.rc"},
+    {"-NORC", TK_ARGV_CONSTANT, (char *) 0, (char *) &sys_rc,
+	"Don't read system-wide expect.rc"},
+
+    {(char *) NULL, TK_ARGV_END, (char *) NULL, (char *) NULL,
+	(char *) NULL}
+};
+
+/*ARGSUSED*/
+int
+optcmd_eval(dst,interp,key,argc,argv)
+char *dst;
+Tcl_Interp *interp;
+char *key;
+int argc;
+char **argv;
+{
+	int i;
+	int rc;
+
+	exp_cmdlinecmds = 1;
+
+	rc = Tcl_Eval(interp,argv[0],0,(char **)0);
+
+	argc--;
+	for (i=0;i<argc;i++) {
+		argv[i] = argv[i+1];
+	}
+
+	return(rc == TCL_ERROR?TCL_ERROR:argc);
+}
+
+/*
+ * Declaration for Tcl command procedure to create demo widget.  This
+ * procedure is only invoked if SQUARE_DEMO is defined.
+ */
+
+extern int Tk_SquareCmd _ANSI_ARGS_((ClientData clientData,
+	Tcl_Interp *interp, int argc, char **argv));
+
+/*
+ * Forward declarations for procedures defined later in this file:
+ */
+
+static void		DelayedMap _ANSI_ARGS_((ClientData clientData));
+static int		LinetoCmd _ANSI_ARGS_((ClientData clientData,
+			    Tcl_Interp *interp, int argc, char **argv));
+static int		MovetoCmd _ANSI_ARGS_((ClientData clientData,
+			    Tcl_Interp *interp, int argc, char **argv));
+static void		StdinProc _ANSI_ARGS_((ClientData clientData,
+			    int mask));
+static void		StructureProc _ANSI_ARGS_((ClientData clientData,
+			    XEvent *eventPtr));
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * main --
+ *
+ *	Main program for Wish.
+ *
+ * Results:
+ *	None. This procedure never returns (it exits the process when
+ *	it's done
+ *
+ * Side effects:
+ *	This procedure initializes the wish world and then starts
+ *	interpreting commands;  almost anything could happen, depending
+ *	on the script being interpreted.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+main(argc, argv)
+    int argc;				/* Number of arguments. */
+    char **argv;			/* Array of argument strings. */
+{
+    char *args, *p, *msg;
+    char buf[20];
+    int result;
+    Tk_3DBorder border;
+
+    interp = Tcl_CreateInterp();
+#ifdef TCL_MEM_DEBUG
+    Tcl_InitMemory(interp);
+#endif
+
+	exp_init(interp);
+
+    /*
+     * Parse command-line arguments.
+     */
+
+    if (Tk_ParseArgv(interp, (Tk_Window) NULL, &argc, argv, argTable, 0)
+	    != TCL_OK) {
+	fprintf(stderr, "%s\n", interp->result);
+	exit(1);
+    }
+
+    exp_interpret_rcfiles(interp,my_rc,sys_rc);
+
+/* for Expect */
+	if (!fileName) fileName = argv[1];
+
+    if (name == NULL) {
+	if (fileName != NULL) {
+	    p = fileName;
+	} else {
+	    p = argv[0];
+	}
+	name = strrchr(p, '/');
+	if (name != NULL) {
+	    name++;
+	} else {
+	    name = p;
+	}
+    }
+
+/* for Expect */
+    if (fileName) {
+	if (0 == strcmp(fileName,"-")) {
+		exp_cmdfile = stdin;
+	} else if (NULL == (exp_cmdfile = fopen(fileName,"r"))) {
+		perror(fileName);
+		exp_exit(interp,-1);
+	}
+    }
+
+    /*
+     * Initialize the Tk application and arrange to map the main window
+     * after the startup script has been executed, if any.  This way
+     * the script can withdraw the window so it isn't ever mapped
+     * at all.
+     */
+
+    w = Tk_CreateMainWindow(interp, display, name);
+    if (w == NULL) {
+	fprintf(stderr, "%s\n", interp->result);
+	exit(1);
+    }
+    Tk_SetClass(w, "Tk");
+    Tk_CreateEventHandler(w, StructureNotifyMask, StructureProc,
+	    (ClientData) NULL);
+    Tk_DoWhenIdle(DelayedMap, (ClientData) NULL);
+    if (synchronize) {
+	XSynchronize(Tk_Display(w), True);
+    }
+    Tk_GeometryRequest(w, 200, 200);
+    border = Tk_Get3DBorder(interp, w, None, "#4eee94");
+    if (border == NULL) {
+	Tcl_SetResult(interp, (char *) NULL, TCL_STATIC);
+	Tk_SetWindowBackground(w, WhitePixelOfScreen(Tk_Screen(w)));
+    } else {
+	Tk_SetBackgroundFromBorder(w, border);
+    }
+    XSetForeground(Tk_Display(w), DefaultGCOfScreen(Tk_Screen(w)),
+	    BlackPixelOfScreen(Tk_Screen(w)));
+
+    /*
+     * Make command-line arguments available in the Tcl variables "argc"
+     * and "argv".  Also set the "geometry" variable from the geometry
+     * specified on the command line.
+     */
+
+    args = Tcl_Merge(argc-1, argv+1);
+    Tcl_SetVar(interp, "argv", args, TCL_GLOBAL_ONLY);
+    ckfree(args);
+    sprintf(buf, "%d", argc-1);
+    Tcl_SetVar(interp, "argc", buf, TCL_GLOBAL_ONLY);
+    if (geometry != NULL) {
+	Tcl_SetVar(interp, "geometry", geometry, TCL_GLOBAL_ONLY);
+    }
+
+    /*
+     * Add a few application-specific commands to the application's
+     * interpreter.
+     */
+
+    Tcl_CreateCommand(interp, "lineto", LinetoCmd, (ClientData) w,
+	    (void (*)()) NULL);
+    Tcl_CreateCommand(interp, "moveto", MovetoCmd, (ClientData) w,
+	    (void (*)()) NULL);
+#ifdef SQUARE_DEMO
+    Tcl_CreateCommand(interp, "square", Tk_SquareCmd, (ClientData) w,
+	    (void (*)()) NULL);
+#endif
+
+    /*
+     * Execute Wish's initialization script, followed by the script specified
+     * on the command line, if any.
+     */
+
+    result = Tcl_Eval(interp, initCmd, 0, (char **) NULL);
+    if (result != TCL_OK) {
+	goto error;
+    }
+
+	/* become interactive if requested or "nothing to do" */
+	if (exp_interactive || (!fileName && !exp_cmdlinecmds)) {
+		(void) Tcl_Eval(interp, "update", 0, (char **) NULL);
+		(void) exp_interpreter(interp);
+	}
+
+	if (exp_cmdfile) {
+		exp_interpret_cmdfile(interp,exp_cmdfile);
+		(void) Tcl_Eval(interp, "update", 0, (char **) NULL);
+		Tk_MainLoop();
+	}
+
+	exp_exit(interp,0);
+
+#if 0
+    tty = isatty(0);
+    if (fileName != NULL) {
+	result = Tcl_VarEval(interp, "source ", fileName, (char *) NULL);
+	if (result != TCL_OK) {
+	    goto error;
+	}
+	tty = 0;
+    } else {
+	/*
+	 * Commands will come from standard input.  Set up a handler
+	 * to receive those characters and print a prompt if the input
+	 * device is a terminal.
+	 */
+
+	Tk_CreateFileHandler(0, TK_READABLE, StdinProc, (ClientData) 0);
+	if (tty) {
+	    printf("wish: ");
+	}
+    }
+    fflush(stdout);
+    buffer = Tcl_CreateCmdBuf();
+    (void) Tcl_Eval(interp, "update", 0, (char **) NULL);
+
+    /*
+     * Loop infinitely, waiting for commands to execute.  When there
+     * are no windows left, Tk_MainLoop returns and we clean up and
+     * exit.
+     */
+
+    Tk_MainLoop();
+    Tcl_DeleteInterp(interp);
+    Tcl_DeleteCmdBuf(buffer);
+    exit(0);
+#endif
+
+error:
+    msg = Tcl_GetVar(interp, "errorInfo", TCL_GLOBAL_ONLY);
+    if (msg == NULL) {
+	msg = interp->result;
+    }
+    fprintf(stderr, "%s\n", msg);
+    Tcl_Eval(interp, "destroy .", 0, (char **) NULL);
+    exit(1);
+    return 0;			/* Needed only to prevent compiler warnings. */
+}
+
+#if 0
+/*
+ *----------------------------------------------------------------------
+ *
+ * StdinProc --
+ *
+ *	This procedure is invoked by the event dispatcher whenever
+ *	standard input becomes readable.  It grabs the next line of
+ *	input characters, adds them to a command being assembled, and
+ *	executes the command if it's complete.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Could be almost arbitrary, depending on the command that's
+ *	typed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+    /* ARGSUSED */
+static void
+StdinProc(clientData, mask)
+    ClientData clientData;		/* Not used. */
+    int mask;				/* Not used. */
+{
+    char line[200];
+    static int gotPartial = 0;
+    char *cmd;
+    int result;
+
+    if (fgets(line, 200, stdin) == NULL) {
+	if (!gotPartial) {
+	    if (tty) {
+		Tcl_Eval(interp, "destroy .", 0, (char **) NULL);
+		exit(0);
+	    } else {
+		Tk_DeleteFileHandler(0);
+	    }
+	    return;
+	} else {
+	    line[0] = 0;
+	}
+    }
+    cmd = Tcl_AssembleCmd(buffer, line);
+    if (cmd == NULL) {
+	gotPartial = 1;
+	return;
+    }
+    gotPartial = 0;
+    result = Tcl_RecordAndEval(interp, cmd, 0);
+    if (*interp->result != 0) {
+	if ((result != TCL_OK) || (tty)) {
+	    printf("%s\n", interp->result);
+	}
+    }
+    if (tty) {
+	printf("wish: ");
+	fflush(stdout);
+    }
+}
+#endif
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * StructureProc --
+ *
+ *	This procedure is invoked whenever a structure-related event
+ *	occurs on the main window.  If the window is deleted, the
+ *	procedure modifies "w" to record that fact.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Variable "w" may get set to NULL.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static void
+StructureProc(clientData, eventPtr)
+    ClientData clientData;	/* Information about window. */
+    XEvent *eventPtr;		/* Information about event. */
+{
+    if (eventPtr->type == DestroyNotify) {
+	w = NULL;
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * DelayedMap --
+ *
+ *	This procedure is invoked by the event dispatcher once the
+ *	startup script has been processed.  It waits for all other
+ *	pending idle handlers to be processed (so that all the
+ *	geometry information will be correct), then maps the
+ *	application's main window.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	The main window gets mapped.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static void
+DelayedMap(clientData)
+    ClientData clientData;	/* Not used. */
+{
+
+    while (Tk_DoOneEvent(TK_IDLE_EVENTS) != 0) {
+	/* Empty loop body. */
+    }
+    if (w == NULL) {
+	return;
+    }
+    Tk_MapWindow(w);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * MoveToCmd and LineToCmd --
+ *
+ *	This procedures are registered as the command procedures for
+ *	"moveto" and "lineto" Tcl commands.  They provide a trivial
+ *	drawing facility.  They don't really work right, in that the
+ *	drawn information isn't persistent on the screen (it will go
+ *	away if the window is iconified and de-iconified again).  The
+ *	commands are here partly for testing and partly to illustrate
+ *	how to add application-specific commands to Tk.  You probably
+ *	shouldn't use these commands in any real scripts.
+ *
+ * Results:
+ *	The procedures return standard Tcl results.
+ *
+ * Side effects:
+ *	The screen gets modified.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static int
+MovetoCmd(dummy, interp, argc, argv)
+    ClientData dummy;			/* Not used. */
+    Tcl_Interp *interp;			/* Current interpreter. */
+    int argc;				/* Number of arguments. */
+    char **argv;			/* Argument strings. */
+{
+    if (argc != 3) {
+	Tcl_AppendResult(interp, "wrong # args: should be \"", argv[0],
+		" x y\"", (char *) NULL);
+	return TCL_ERROR;
+    }
+    x = strtol(argv[1], (char **) NULL, 0);
+    y = strtol(argv[2], (char **) NULL, 0);
+    return TCL_OK;
+}
+	/* ARGSUSED */
+static int
+LinetoCmd(dummy, interp, argc, argv)
+    ClientData dummy;			/* Not used. */
+    Tcl_Interp *interp;			/* Current interpreter. */
+    int argc;				/* Number of arguments. */
+    char **argv;			/* Argument strings. */
+{
+    int newX, newY;
+
+    if (argc != 3) {
+	Tcl_AppendResult(interp, "wrong # args: should be \"", argv[0],
+		" x y\"", (char *) NULL);
+	return TCL_ERROR;
+    }
+    newX = strtol(argv[1], (char **) NULL, 0);
+    newY = strtol(argv[2], (char **) NULL, 0);
+    Tk_MakeWindowExist(w);
+    XDrawLine(Tk_Display(w), Tk_WindowId(w),
+	    DefaultGCOfScreen(Tk_Screen(w)), x, y, newX, newY);
+    x = newX;
+    y = newY;
+    return TCL_OK;
+}

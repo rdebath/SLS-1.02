@@ -1,0 +1,115 @@
+NOTE:   The latest distribution includes a DOS metamail binary, metamail.exe.  
+What follows is not necessary to read unless you want to recompile metamail for
+DOS, i.e. if you're not satisfied with the binary version.
+
+Notes for using METAMAIL on MS-DOS machines (revised 2/20/92)
+By Blake C. Ramsdell (blake@pinpoint.com)
+
+
+Introduction
+
+This document describes the author's conversion of METAMAIL and some of
+its associated components to an MS-DOS environment using the Borland C++
+3.0 compiler.  I have not yet tried Microsoft C in any version, so I
+don't know if the code will compile using that compiler or any other
+for that matter.
+
+Information about patching mail-reading programs on DOS is included in the 
+regular "mailers.txt" file in the top-level directory.
+
+Method Used
+
+To convert the source code, I simply went through and #ifdef'ed anything
+that didn't apply or wouldn't work in an MS-DOS environment.
+
+
+--------------------------------------------------------------------------
+METAMAIL.C / CODES.C / MMENCODE.C NOTES
+
+The following changes were made to the source:
+
+1. The #include section was all but removed -- most of the files are not
+   distributed with Borland C++, and the others that were removed were
+   done so because I removed the calls that would use the information in
+   them.
+
+2. The signal() and kill() commands don't need to be supported.  I don't
+   know if they even are...  These were removed.
+
+3. The concept of background processing is nonexistent.  I make sure that
+   DoInBackground is always 1.
+
+4. The concept of being "root" is nonexistent.  RunAsRootOK is always 0.
+
+5. getuid() and geteuid() are not or do not need to be supported.
+   Reference to these were removed.
+
+6. A UNIX path is composed diferently than an MS-DOS path (UNIX uses colons
+   to separate entries, MS-DOS uses semicolons).  This is accounted for.
+
+7. getpwuid() is not or does not need to be suported.
+
+8. The concept of setting/getting the TTY state is not or does not need to
+   be supported (SaveTtyState(), RestoreTtyState(), gtty(), and stty()).
+
+9. The concept of setting the core dump size limit is not or does not need
+   to be supported.
+
+10. Environments in MS-DOS are handled / accessed differently.  This led to
+    the rewriting of SetUpEnvironment().  THIS IS MOST LIKELY WHERE ANY
+    BUGS EXIST!  Nothing seems to be wrong now...
+
+11. The name formation for temporary filenames is different for MS-DOS.
+
+12. /dev/tty is nonexistent.  Yanked the freopen() calls for this.
+
+13. The stack size for the program MUST be larger than the default assigned
+    by the compiler (8192 doesn't work.  16384 seems to be OK...).  This
+    is done with the _stklen variable at the top of the program.
+
+
+Bugs
+
+1. At some point or another some wise guy is going to try working with a
+   binary file.  This makes my brain hurt.  CR/LF/EOF translation might
+   possibly be a bear.
+
+
+Other notes
+
+In the "metamail" and "richmail" directories, there is a makefile for 
+Borland C++ called MAKEFILE.BCC.  To compile METAMAIL, just do:
+
+make -fmakefile.bcc metamail
+
+Also, you can make MMENCODE.EXE by doing the following:
+
+make -fmakefile.bcc mmencode
+
+And that's it!  Some warnings will be generated, but it should fly.
+
+
+--------------------------------------------------------------------------
+RICHTEXT.C NOTES
+
+1. Added ansi variable for ANSI support.
+
+2. Added "-a" command line option support for enabling ANSI attribute
+   output.
+
+3. Removed getenv("TERM") and associated logic -- it doesn't apply.
+
+4. Set termcolumns to always be 80.  I could probably ask DOS just in case
+   it's different, but I don't think that it's a big deal.
+
+5. NULLed out KS, KE, standoutbuf, standendbuf, StartUnderline, and
+   StopUnderline if not in ANSI mode.
+
+6. Put color selection strings into variables listed in 5 if we ARE in ANSI
+   mode.
+
+
+Other notes
+
+Once again there is a makefile.  The target is "richtext".
+

@@ -1,0 +1,1611 @@
+.ev 1
+.if t .lt 6.85i
+.if n .lt 7.2i
+.ev
+.if t .po .45i
+.if t .ll 6.85i
+.if n .ll 7.2i
+.if \n(mo=1 .ds mo January
+.if \n(mo=2 .ds mo February
+.if \n(mo=3 .ds mo March
+.if \n(mo=4 .ds mo April
+.if \n(mo=5 .ds mo May
+.if \n(mo=6 .ds mo June
+.if \n(mo=7 .ds mo July
+.if \n(mo=8 .ds mo August
+.if \n(mo=9 .ds mo September
+.if \n(mo=10 .ds mo October
+.if \n(mo=11 .ds mo November
+.if \n(mo=12 .ds mo December
+.TH TIN 1 "Version 1.1 PL8" "" "LOCAL"
+.ds ]W \*(mo \n(dy, 19\n(yr
+.nh
+.SH NAME
+tin, rtin, cdtin, tind \- A threaded Netnews reader
+.SH SYNOPSIS
+.B tin/rtin/cdtin/tind
+[
+.I options
+] [
+.I newsgroups
+]
+.SH DESCRIPTION
+.I Tin
+is a full-screen easy to use threaded Netnews reader. It can read news locally
+(i.e. \fI/usr/spool/news\fP) or remotely (\fIrtin\fP or \fItin -r\fP option) via a NNTP 
+(Network News Transport Protocol) server.  \fICdtin\fP can read news locally and 
+news archived on CD-ROM. The manipulation of MH style mail folders is also
+supported.
+.PP
+.I
+Tin
+has five separate levels of operation: Group selection level, Spooldir
+selection level, Group level, Thread level and Article level.
+Use the 'h' (help) command to view a list of the commands available at a
+particular level.
+.PP
+On startup \fItin\fP will show a list of the newsgroups found in 
+\fI$HOME/.newsrc\fP. An arrow '->' or highlighted bar will point to the first 
+newsgroup. Move to a group by using the terminal arrow keys (terminal dependent)
+or 'j' and 'k'.  Use PgUp/PgDn (terminal dependent) or Ctrl-U and Ctrl-D to
+page up/down.  Enter a newsgroup by pressing RETURN.
+.PP
+The TAB key advances to the next newsgroup with unread articles and enters it.
+.SH OPTIONS
+.TP 12
+.B -c
+create/update index files for every group in \fI$HOME/.newsrc\fP or
+file specified by -f option and mark all articles as read.
+.TP
+.BI -f " file"
+use the specified file of subscribed to newsgroups in place of
+\fI$HOME/.newsrc\fP.
+.TP
+.B -h
+help listing all command line options.
+.TP
+.B -H
+brief introduction to \fItin\fP that is also shown the first time it is started.
+.TP
+.BI -I " dir"
+directory in which to store newsgroup index files.  Default is 
+\fI$HOME/.tin/.index\fP.
+.TP
+.BI -m " dir"
+mailbox directory to use.  Default is \fI$HOME/Mail\fP.
+.TP
+.BI -M " user"
+mail unread articles to specified user for later reading.  For more
+information read section Automatic Mailing and Saving New News. 
+.TP
+.BI -p " program"
+print program with options.
+.TP
+.BI -q
+quick start without checking for new newsgroups.
+.TP
+.BI -P
+purge group index files of articles that no longer exist. Care should
+be taken when using this command as it stats each and every article
+in each group that is accessed. On a low speed connection this can
+have an undisirable effect and it also knocks the hell out of your 
+filesystem.
+.TP
+.B -r
+read news remotely from the default NNTP server specified in the
+environment variable NNTPSERVER or contained in the file
+\fI/etc/nntpserver\fP.
+.TP
+.B -R
+read news saved by -S option (not yet implemented).
+.TP
+.BI -s " dir"
+save articles to directory.  Default is \fI$HOME/News\fP.
+.TP
+.B -S
+save unread articles for later reading by -R option.  For more information
+read section Automatic Mailing and Saving New News.
+.TP
+.B -u
+create/update index files for every group in \fI$HOME/.newsrc\fP or
+file specified by -f option.  This option is disabled if \fItin\fP retreives 
+its index files via a NNTP server. 
+.TP
+.B -U
+start \fItin\fP in the background to update index files while reading news 
+in the foreground.  This option is disabled if \fItin\fP retreives its index
+files via a NNTP server.
+.TP
+.B -v
+verbose mode for -c -M -S -u and -Z options.
+.TP
+.B -w
+quick mode to post an article and then exit.
+.TP
+.B -z
+only start \fItin\fP if there is any new/unread news.  If there is news 
+\fItin\fP will position cursor at first group with unread news. Useful 
+for putting in login file.
+.TP
+.B -Z
+check if there is any new/unread news and exit with appropriate status.
+If -v option is specified the number of unread articles in each group
+is printed.  An exit code 0 indicates no news, 1 that an error occurred
+and 2 that new/unread news exists.  Useful for writing scripts.
+.PP
+\fITin\fP can also dynamically change its options by the 'M' menu command.
+Any changes are written to \fI$HOME/.tin/tinrc\fP.
+.PP
+The index daemon version, \fItind\fP, only supports the -f, -h, -I and -v 
+options.
+.SH "INDEX FILES"
+In order to keep track of threads, \fItin\fP maintains an index for each 
+newsgroup. There are a number of methods in which index files can be created 
+and updated.
+.PP
+The simplest method is that each user creates/updates there own index files
+that are stored in \fI$HOME/.tin/.index\fP. This has the advantage that any 
+user can compile and install \fItin\fP, but the disadvantage is that each user 
+is going to be creating duplicate files and using precious disk space.  A good 
+way to keep index files updated is by doing a \fItin -U\fP that will update 
+index files in the background while you are reading news in the foreground. 
+You can also update index files via the system batcher cron with the -u
+option:
+.RS
+.nf
+.ft CW
+30 6 * * * /usr/local/bin/tin -u
+.ft P
+.fi
+.RE
+.PP
+A slightly better method is to set \fItin\fP setuid news and have all index 
+files created and updated in the news spool directory 
+(i.e. \fI/usr/spool/news/.index\fP). This has the advantage that there will 
+only be one copy of the index files on each machine on your network, but the 
+disadvantage is that you will have \fItin\fP running setuid news.
+.PP
+A better method is to install the \fItind\fP index file updating daemon and 
+have it create and update index files for all groups in your active file at
+regular intervals in the news spool directory 
+(i.e. \fI/usr/spool/news/.index\fP). This has the advantage that there will 
+only be one copy of the index files on each machine on your network and 
+\fItin\fP must not be setuid news, but the disadvantage is that you will have 
+to have news permissions to install \fItind\fP and root permissions to install
+an entry in the cron batcher system to have \fItind\fP regularly update index 
+files.
+.PP
+The best method is to install the \fItind\fP index file updating daemon on your
+NNTP server and have it create and update index files for all groups in your
+active file at regular intervals in the news spool directory 
+(i.e. \fI/usr/spool/news/.index\fP).
+This has the advantage that there will only be one copy of the index files on
+the NNTP server for the whole of your network, but the disadvantage is that you
+will have to install my NNTP server patches to allow \fItin\fP to retreive 
+index file from your NNTP server and and you must install an entry in the cron 
+batcher system to have \fItind\fP regularly update index files (note that this
+is the method we use on our network of 40-50 machines and have not had any 
+problems).
+.PP
+Entering a group the first time tends to be slow because the index file must
+be built from scratch unless the \fItind\fP update daemon is being used. To 
+alleviate the slowness start \fItin\fP to create all index files for the 
+groups you subscribe to with \fItin -u -v\fP and go for a coffee. Subsequent 
+readings of a group will cause incremental updating of the index file.
+.PP
+If reading news remotely and locally updating index files operation will be
+somewhat slower because the articles must be retreived from the NNTP server.
+.SH "NEWS ADMINISTRATION"
+Maintaining Netnews on large networks of machines can be a pretty time 
+consuming job as I discovered when I was given the job of maintaining our 
+news system and news users.
+.PP
+\fITin\fP is a News User Agent and so most of the users were always asking
+questions or doing things that could be frowned upon by there departments.
+To releive news admins (and especially me) of this features have been added
+to make life easier for news adminstrators.
+.PP
+When a user starts \fItin\fP it is possible to inform them of any important 
+changes/information concerning the news system by displaying a message of the 
+day (motd) file. The motd file should be created in your news lib directory 
+(i.e. \fI/usr/lib/news/motd\fP) and should have file permissions set to 0644. 
+The motd file will only be displayed if its contents is newer than the last
+time the user started \fItin\fP. If reading news via NNTP my XMOTD patch will
+have to have been applied to your NNTP server.
+.PP
+A user starting \fItin\fP for the first time can be automatically subscribed 
+to a list of newsgroups that are deemed appropriate by the news administrator.  
+At our site the subscriptions file has 125 groups (our active file contains
+over 400 groups with many only being marginally interesting to most people).
+The subscriptions file should be created in your news lib directory (i.e.
+\fI/usr/lib/news/subscriptions\fP) and should have file permissions set to 
+0644. If reading news via NNTP my LIST SUBSCRIPTIONS patch will have to 
+have been applied to your NNTP server.
+.PP
+If my NNTP XUSER patch has been applied to your NNTP server you will be
+able to log the username and machine to your NNTP logfile for usage
+statistics.
+.SH "SCREEN FORMAT"
+\fITin\fP has five separate levels of operation: Group selection level, 
+Spooldir selection level, Group level, Thread level and Article level.
+.PP
+At the Group Selection level the title displays the number of subscribed
+groups.  The newsgroups are displayed on the left of the screen with the
+number of unread articles displayed on the same line in the middle of
+the screen.
+.RS
+.nf
+.ft CW
+.in +.5i
+.ta +\w'1  'u +\w'news.software.readers  'u
+<Selection Num> <Newsgroup> <Num of unread articles>
+.ti -.5i
+.ft P
+i.e.,
+.ft CW
+1	alt.sources			10
+2	comp.sources.misc		3
+3	news.software.readers		12
+.in -.5i
+.ft P
+.fi
+.RE
+.PP
+At the Group level the title contains the name of the group, the number
+of conversation threads and total number of articles i.e., alt.sources (7 23).
+If the group has been setup not to thread articles (i.e., alt.sources
+is in \fI$(HOME)/.tin/unthread\fP) the title will be alt.sources (U 23).
+There are two possible display formats as shown below:
+.RS
+.nf
+.ft CW
+.in +.5i
+.ta +\w'1   'u +\w'+   'u +\w'3   'u +\w'This question has   'u
+<Selection Num> <Unread> <Responses> <Subject> <Author>
+.ti -.5i
+.ft P
+i.e.,
+.ft CW
+1	+	3	Bnews sources?		iain@anl433.uucp
+2		1	This question has	ether@net
+.ti -.5i
+.ft P
+or
+.ft CW
+.ta +\w'1   'u +\w'+   'u +\w'3   'u +\w'This question has a long subject line   'u
+<Selection Num> <Unread> <Responses> <Subject (longer)>
+.ti -.5i
+.ft P
+i.e.,
+.ft CW
+1	+	3	Bnews sources?
+2		1	This question has a longer subject line
+.in -.5i
+.ft P
+.fi
+.RE
+.PP
+At the Article level the page header has the following format:
+.RS
+.nf
+.ft CW
+.in +.5i
+.ta \w'<Date posted> <Newsgroup>    'u
+<Date posted> <Newsgroup>	<Thread 1 of n>
+<Article Num> <Subject>	<Num of responses in thread>
+<Author>	<Organization>
+
+<Article body>
+.ti -.5i
+.ft P
+i.e.,
+.ft CW
+.ta \w'24 Jul 15:20:03 GMT   'u +\w'Bnews sources?   'u
+24 Jul 15:20:03 GMT	alt.sources	Thread 1 of 2
+Article 452	Bnews sources?	3 responses
+iain@anl433.uucp		Organization name
+
+<Article boby>
+.in -.5i
+.ft P
+.fi
+.RE
+.SH "COMMON MOVING KEYS"
+This table shows the common keys/commands for moving at all five levels
+within \fItin\fP.
+.RS
+.nf
+.ta \w'Beginning of list/article  'u +\w'ansi/at386/vt100  'u
+	ansi/at386/vt100	Other Terminals
+Beginning of list/article	\fBHome\fP	\fB1\fP (\fB^R\fP or \fBg\fP at article level)
+End of list/article	\fBEnd\fP	\fB$\fP (also \fBG\fP at article level)
+Page Up	\fBPgUp\fP	\fB^U\fP or \fB^B\fP or \fBb\fP 
+Page Down	\fBPgDn\fP	\fB^D\fP or \fB^F\fP or \fB<SPACE>\fP
+Line Up	\fBUp arrow\fP	\fBk\fP (not at article level)
+Line Down	\fBDown arrow\fP	\fBj\fP (not at article level)
+.fi
+.RE
+.SH "COMMON EDITING COMMANDS"
+An emacs style editing package allows the easy editing of input strings.
+An history list allows the easy reuse of previously entered strings.
+The following commands are available when editing a string:
+.PP
+.TP 10
+\fB^A,^E\fP
+move to beginning or end of line, respectively.
+.TP
+\fB^F,^B\fP
+nondestructive move forward or back one location, respectively.
+.TP
+\fB^D\fP
+delete the character currently under the cursor, or send EOF if no
+characters in the buffer.
+.TP
+\fB^H,<DEL>\fP
+delete character left of the cursor.
+.TP
+\fB^K\fP
+delete from cursor to end of line.
+.TP
+\fB^P,^N\fP
+move through history, previous and next, respectively.
+.TP
+\fB^L,^R\fP
+redraw the current line.
+.TP
+\fB<CR>\fP
+places line on history list if nonblank, appends newline and returns
+to the caller.
+.TP
+\fB<ESC>\fP
+aborts the present editing operation.
+.SH "NEWSGROUP SELECTION COMMANDS"
+.TP 10
+\fB4\fP
+Select group 4.
+.TP
+\fB^K\fP
+Delete current group from \fI$HOME/.newsrc\fP file.
+.TP
+\fB^L\fP
+Redraw page.
+.TP
+\fB^R\fP
+Reset \fI$HOME/.newsrc\fP file.
+.TP
+\fB<CR>\fP
+Read current group.
+.TP
+\fB<TAB>\fP
+View next group with unread news. Will wrap around to the beginning of the
+group selection list looking for unread groups.
+.TP
+\fBB\fP
+Mail a bug report or comment to the author.  This is the best way of
+getting bugs fixed and features added/changed.
+.TP
+\fBc\fP
+Mark current group as all read with confirmation and goto next group
+in group selection list.
+.TP
+\fBC\fP
+Mark current group as all read and goto next unread group in group
+selection list.
+.TP
+\fBd\fP
+Toggle display to show just the groupname or the groupname and the groups
+description.
+.TP
+\fBg\fP
+Choose a new group by name.  The position of the group within the group
+list will also be asked for.  By entering '1' the new group will be the
+first group in the displayed list, by entering '8' the group will be
+the eighth group in the list etc.  By entering '$' the group will be the
+last group displayed.
+.TP
+\fBh\fP
+Help screen of newsgroup selection commands.
+.TP
+\fBH\fP
+Toggle the display of help mini menu at the bottom of the screen.
+.TP
+\fBI\fP
+Toggle inverse video.
+.TP
+\fBl\fP
+List and allow selection of the available spool directories.  This feature
+requires a special library to be linked with \fItin\fP to create \fIcdtin\fP 
+which can then read news from an active news feed and also from multiple 
+CD-ROMs.
+.TP
+\fBm\fP
+Move the current group within the group selection list.
+By entering '1' the group will become the first displayed group in
+the list, by entering '8' the eighth group in the list etc.  By
+entering '$' the group will be the last group displayed.
+.TP
+\fBM\fP
+User configurable options menu (for more information see section Options Menu).
+.TP
+\fBq\fP
+Quit \fItin\fP.
+.TP
+\fBQ\fP
+Quit \fItin\fP.
+.TP
+\fBr\fP
+Toggle display of all subscribed to groups and just the subscribed to groups 
+containing unread articles. Command has no effect if groups were read from
+the command line when \fItin\fP was started.
+.TP
+\fBs\fP
+Subscribe to current group.
+.TP
+\fBS\fP
+Subscribe to groups matching user specified pattern.
+.TP
+\fBu\fP
+Unsubscribe to current group.
+.TP
+\fBU\fP
+Unsubscribe to groups matching user specified pattern.
+.TP
+\fBv\fP
+Print \fItin\fP version information.
+.TP
+\fBw\fP
+Post an article to current group.
+.TP
+\fBW\fP
+List articles posted by user.  The date posted, the newsgroup and the
+subject are listed.
+.TP
+\fBy\fP
+The first time this command is called it will yank in all groups from
+\fI$LIBDIR/active\fP that are not in \fI$HOME/.newsrc\fP.
+After any groups have been subscribed/unsubscribed to, this command
+if pressed again will reread \fI$HOME/.newsrc\fP and display only
+the subscribed groups.
+.TP
+\fBY\fP
+Reread the active file to see if any new news has arrived since
+starting \fItin.
+.TP
+\fBz\fP
+Mark all articles in the current group as unread.
+.TP
+\fBZ\fP
+Undelete previously deleted group by ^K command from \fI$HOME/.newsrc\fP.
+.TP
+\fB/\fP
+Group forward search.
+.TP
+\fB?\fP
+Group backward search.
+.SH "SPOOL DIRECTORY SELECTION COMMANDS"
+.TP 10
+\fB4\fP
+Select spool directory 4.
+.TP
+\fB^L\fP
+Redraw page.
+.TP
+\fB<CR>\fP
+Read news from selected spool directory.
+.TP
+\fBB\fP
+Mail a bug report or comment to the author.  This is the best way of
+getting bugs fixed and features added/changed.
+.TP
+\fBh\fP
+Help screen of spool directory selection commands.
+.TP
+\fBH\fP
+Toggle the display of help mini menu at the bottom of the screen.
+.TP
+\fBI\fP
+Toggle inverse video.
+.TP
+\fBq\fP
+Return to previous level.
+.TP
+\fBQ\fP
+Quit \fItin.
+.TP
+\fBv\fP
+Print \fItin\fP version information.
+.SH "GROUP INDEX COMMANDS"
+.TP 10
+\fB4\fP
+Select article 4.
+.TP
+\fB^K\fP
+Kill current article (for more information read section Kill Article Menu).
+.TP
+\fB^L\fP
+Redraw page.
+.TP
+\fB<CR>\fP
+Read current article.
+.TP
+\fB<TAB>\fP
+View next unread article or group.
+.TP
+\fBa\fP
+Author forward search.
+.TP
+\fBA\fP
+Author backward search.
+.TP
+\fBB\fP
+Mail a bug report or comment to the author.  This is the best way of
+getting bugs fixed and features added/changed.
+.TP
+\fBc\fP
+Mark all articles as read with confirmation.
+.TP
+\fBC\fP
+Mark all articles as read and goto next group with unread news.
+.TP
+\fBd\fP
+Toggle display to show just the subject or the subject and author.
+.TP
+\fBg\fP
+Choose a new group by name.
+.TP
+\fBh\fP
+Help screen of group index commands.
+.TP
+\fBH\fP
+Toggle the display of help mini menu at the bottom of the screen.
+.TP
+\fBI\fP
+Toggle inverse video.
+.TP
+\fBK\fP
+Mark article/thread as read and advance to next unread article/thread.
+.TP
+\fBl\fP
+List the author of each response in current thread and enter thread
+selection level.
+.TP
+\fBm\fP
+Mail current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles
+to someone.
+.TP
+\fBM\fP
+User configurable options menu (for more information see section Options Menu).
+.TP
+\fBn\fP
+Go to next group.
+.TP
+\fBN\fP
+Go to next unread article.
+.TP
+\fBo\fP
+Output current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles
+to printer.
+.TP
+\fBp\fP
+Go to previous group.
+.TP
+\fBP\fP
+Go to previous unread article.
+.TP
+\fBq\fP
+Return to previous level.
+.TP
+\fBQ\fP
+Quit \fItin.
+.TP
+\fBs\fP
+Save current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles to file / files / 
+mailbox.  To save to a mailbox enter '=' or '=mailbox' when asked
+for filename to save to.  To save in <newsgroup name>/<filename>
+format enter '+filename'.  Environment variables are allowed within
+a filename (i.e. \fI$SOURCES/dir/filename\fP).
+.TP
+\fBt\fP
+Tag current article / thread for mailing ('m') / piping ('|') / 
+printing ('o') / saving ('s') / crossposting ('x').
+.TP
+\fBu\fP
+Toggle display to show all articles as unthreaded or threaded.
+.TP
+\fBU\fP
+Untag all articles that were tagged.
+.TP
+\fBv\fP
+Print \fItin\fP version information.
+.TP
+\fBw\fP
+Post an article to current group.
+.TP
+\fBW\fP
+List articles posted by user.  The date posted, the newsgroup and the
+subject are listed.
+.TP
+\fBx\fP
+Crosspost already posted current article / thread / 
+auto selected (hot) articles / articles matching pattern / 
+tagged articles to another newsgroup(s).  Useful for reposting
+from global to local newsgroups.
+.TP
+\fBX\fP
+Mark all unread articles that have not been selected as read,
+redo screen to reflect changes and put index at the first
+thread to begin reading. Pressing 'X' again will toggle back 
+to the way it was before. See '~' command for clearing the 
+toggle effect.
+.TP
+\fBz\fP
+Mark current article as unread.
+.TP
+\fBZ\fP
+Mark current thread as unread.
+.TP
+\fB/\fP
+Search forward for specified subject.
+.TP
+\fB?\fP
+Search backward for specified subject.
+.TP
+\fB-\fP
+Show last message.
+.TP
+\fB|\fP
+Pipe current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles into command.
+.TP
+\fB*\fP
+Select current thread for later processing.
+.TP
+\fB\.\fP
+Toggle selection of current thread. If at least one unread art,
+but not all unread arts, in thread is selected, then all unread
+arts become selected.
+.TP
+\fB@\fP
+Reverse all selections on all articles.
+.TP
+\fB~\fP
+Undo all selections on all articles. It clears the toggle effect 
+of 'X' command. Thus after first doing a 'X', one can then do '~'
+to reset articles. Thus, one can iteratively whittle down 
+uninteresting threads.
+.TP
+\fB+\fP
+Perform auto-selection on current group.
+.TP
+\fB;\fP
+For each thread in current group, if it at least one unread 
+art is selected, all unread arts become selected. This is
+useful for auto-selection on author where reader wants to
+see entire thread.
+.TP
+\fB=\fP
+Prompts for a pattern with which to match on. All threads 
+whose subjects match the pattern will be selected. A pattern
+of "*" will match all subjects. Entering just <CR> will cause
+the previous pattern to be used. 
+.SH "THREAD LISTING COMMANDS"
+.TP 10
+\fB4\fP
+Select article 4 within thread.
+.TP
+\fB^L\fP
+Redraw page.
+.TP
+\fB<CR>\fP
+Read current article within thread.
+.TP
+\fB<TAB>\fP
+View next unread article within thread.
+.TP
+\fBB\fP
+Mail a bug report or comment to the author.  This is the best way of
+getting bugs fixed and features added/changed.
+.TP
+\fBc\fP
+Mark thread as read after confirmation and return to previous level.
+.TP
+\fBd\fP
+Toggle display to show just the subject or the subject and author.
+.TP
+\fBh\fP
+Help screen of thread listing commands.
+.TP
+\fBH\fP
+Toggle the display of help mini menu at the bottom of the screen.
+.TP
+\fBI\fP
+Toggle inverse video.
+.TP
+\fBK\fP
+Mark thread as read and return to previous level.
+.TP
+\fBq\fP
+Return to previous level.
+.TP
+\fBQ\fP
+Quit \fItin.
+.TP
+\fBr\fP
+Toggle display to show all articles or only unread articles.
+.TP
+\fBt\fP
+Tag current article for mailing ('m') / piping ('|') / printing ('o') /
+saving ('s') / crossposting ('x').
+.TP
+\fBT\fP
+Return to group index level.
+.TP
+\fBv\fP
+Print \fItin\fP version information.
+.TP
+\fBz\fP
+Mark current article in thread as unread.
+.TP
+\fBZ\fP
+Mark all articles in thread as unread.
+.SH "ARTICLE VIEWER COMMANDS"
+.TP 10
+\fB0\fP
+Read the base article in this thread.
+.TP
+\fB4\fP
+Read response 4 in this thread.
+.TP
+\fB^H\fP
+Show all of the articles mail header.
+.TP
+\fB^K\fP
+Kill current article (for more information read section Kill Article Menu).
+.TP
+\fB^L\fP
+Redraw page.
+.TP
+\fB<CR>\fP
+Goto next base article.
+.TP
+\fB<TAB>\fP
+Goto next unread article.
+.TP
+\fBa\fP
+Author forward search.
+.TP
+\fBA\fP
+Author backward search.
+.TP
+\fBB\fP
+Mail a bug report or comment to the author.  This is the best way of
+getting bugs fixed and features added/changed.
+.TP
+\fBc\fP
+Mark all articles as read with confirmation and return to group selection 
+level.
+.TP
+\fBC\fP
+Mark current group as all read and goto next unread group in group
+selection list.
+.TP
+\fBd\fP
+Toggle rot-13 decoding for this article.
+.TP
+\fBD\fP
+Delete current article.  It must have been posted by the same user.  The
+cancel message can be seen in the newsgroup 'control'.
+.TP
+\fBf\fP
+Post a followup to the current article with a copy of the article included.
+.TP
+\fBF\fP
+Post a followup to the current article.
+.TP
+\fBh\fP
+Help screen of article page commands.
+.TP
+\fBH\fP
+Toggle the display of help mini menu at the bottom of the screen.
+.TP
+\fBI\fP
+Toggle inverse video.
+.TP
+\fBk\fP
+Mark article as read and advance to next unread article.
+.TP
+\fBK\fP
+Mark thread as read and advance to next unread thread.
+.TP
+\fBm\fP
+Mail current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles
+to someone.
+.TP
+\fBM\fP
+User configurable options menu (for more information see section Options Menu).
+.TP
+\fBn\fP
+Go to the next article.
+.TP
+\fBN\fP
+Go to the next unread article.
+.TP
+\fBo\fP
+Output current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles to printer.
+.TP
+\fBo\fP
+Output article/thread/tagged articles to printer.
+.TP
+\fBp\fP
+Go to the previous article.
+.TP
+\fBP\fP
+Go to the previous unread article.
+.TP
+\fBq\fP
+Return to previous level.
+.TP
+\fBQ\fP
+Quit \fItin.
+.TP
+\fBr\fP
+Reply through mail to the author of the current article with a copy of the 
+article included.
+.TP
+\fBR\fP
+Reply through mail to the author of the current article.
+.TP
+\fBs\fP
+Save current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles to file / files / mailbox.
+To save to a mailbox enter '=' or '=mailbox' when asked for filename
+to save to.  To save in <newsgroup name>/<filename> format enter 
+'+filename'.  Environment variables are allowed within a filename
+(i.e. \fI$SOURCES/dir/filename\fP).
+.TP
+\fBt\fP
+Return to group selection level.
+.TP
+\fBT\fP
+Tag current article for mailing ('m') / piping ('|') / printing ('o') /
+saving ('s') / crossposting ('x').
+.TP
+\fBv\fP
+Print \fItin\fP version information.
+.TP
+\fBw\fP
+Post an article to current group.
+.TP
+\fBW\fP
+List articles posted by user.  The date posted, the newsgroup and the
+subject are listed.
+.TP
+\fBx\fP
+Crosspost already posted current article / thread / 
+auto selected (hot) articles / articles matching pattern / 
+tagged articles to another newsgroup(s).  Useful for reposting
+from global to local newsgroups.
+.TP
+\fBz\fP
+Mark article as unread.
+.TP
+\fB/\fP
+Article forward search.
+.TP
+\fB?\fP
+Article backward search
+.TP
+\fB|\fP
+Pipe current article / thread / auto selected (hot) articles / 
+articles matching pattern / tagged articles into command.
+.TP
+\fB<\fP
+Goto the first article in the current thread.
+.TP
+\fB>\fP
+Goto the last article in the current thread.
+.TP
+\fB*\fP
+Select current thread for later processing.
+.TP
+\fB\.\fP
+Toggle selection of current article.
+.TP
+\fB@\fP
+Reverse article selections.
+.TP
+\fB~\fP
+Undo all selections on current thread.
+.SH "GLOBAL OPTIONS MENU"
+This menu is accessed by pressing 'M' at all levels.  It allows the user
+to customize the behaviour of \fItin\fP. The options are saved to the file
+\fI$HOME/.tin/tinrc\fP.  Use <SPACE> to toggle the required option and
+<CR> to set.
+.TP 4
+\fBAuto save\fP
+Automatically save articles/threads by ``Archive-name:'' line in article
+header and post process them if process type is not set to None.
+.TP
+\fBEditor offset\fP
+Set ON if the editor used for posting, follow-ups and bug reports has
+the capability of starting and positioning the cursor at a specified line
+within a file.
+.TP
+\fBMark saved read\fP
+Allows saved articles/threads to be automatically marked as read. 
+.TP
+\fBConfirm Command\fP
+Allows certain commands (i.e. 'c' catchup) that require user confirmation
+to be executed immediately if set OFF.
+.TP
+\fBDraw arrow\fP
+Allows groups/articles to be selected by an arrow '->' if set ON or
+by an highlighted bar if set OFF.
+.TP
+\fBPrint header\fP
+This allows the complete mail header or only the ``Subject:'' and ``From:''
+fields to be output when printing articles.
+.TP
+\fBGoto 1st unread\fP
+This allows the cursor to be placed at the first / last unread article
+upon entering a newsgroup with unread news.
+.TP
+\fBScroll full page\fP
+If set ON scrolling of groups/articles will be a full page at a time,
+otherwise half a page at a time.
+.TP
+\fBCatchup on quit\fP
+If set ON the user is asked when quitting if all groups read during the
+current session should be marked read.
+.TP
+\fBThread articles\fP
+If set ON articles will be threaded in all groups (default), otherwise
+articles will be shown unthreaded. Threading/unthreading is possible on
+a per group basis by setting the group attribute variable 'thread_arts'
+to ON/OFF in the file \fI$HOME/.tin/attributes\fP.
+.TP
+\fBShow only unread\fP
+If set ON show only new/unread articles, otherwise show all articles.
+.TP
+\fBShow description\fP
+If set ON show a short descriptive text for each displayed newsgroup.
+The text used is taken from the \fI$LIBDIR/newsgroups\fP file.
+.TP
+\fBShow Author\fP
+If set 'None' only the ``Subject:'' line will be displayed.  If set 'Addr'
+``Subject:'' line & the address part of the ``From:'' line are displayed.  If
+set 'Name' ``Subject:'' line & the authors full name part of the ``From:''
+line are displayed.  If set 'Both' ``Subject:'' line & all of the ``From:'' line
+are displayed.
+.TP
+\fBProcess type\fP
+This specifies the default type of post processing to perform on saved
+articles.  The following types of processing are allowed:
+.in +.5i
+.ti -\w'\(em'u
+\(emnone.
+.ti -\w'\(em'u
+\(emunpacking of multi-part shell archives.
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files.
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files, which produce a *.zoo archive
+whose contents is listed.
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files, which produce a *.zoo archive
+whose contents is extracted.
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files, which produce a *.zip archive
+whose contents is listed.
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files, which produce a *.zip archive
+whose contents is extracted.
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files, which produce a *.lha archive
+whose contents is listed (AmigaDOS version only).
+.ti -\w'\(em'u
+\(emunpacking of multi-part uuencoded files, which produce a *.lha archive
+whose contents is extracted (AmigaDOS version only).
+.in -.5i
+.TP
+\fBSort articles by\fP
+This specifies how articles should be sorted.  The following sort
+types are allowed:
+.in +.5i
+.ti -\w'\(em'u
+\(emdon't sort articles (default).
+.ti -\w'\(em'u
+\(emsort articles by ``Subject:'' field (ascending & descending).
+.ti -\w'\(em'u
+\(emsort articles by ``From:'' field (ascending & descending).
+.ti -\w'\(em'u
+\(emsort articles by ``Date:'' field (ascending & descending).
+.in -.5i
+.TP
+\fBSave directory\fP
+The directory where articles/threads are to be saved.  Default is
+\fI$HOME/News\fP.
+.TP
+\fBMail directory\fP
+The directory where articles/threads are to be saved in mailbox format.
+This feature is mainly for use with the Elm mail program.  It allows
+the user to save articles/threads/groups simply by giving '=' as
+the filename to save to.
+.TP
+\fBPrinter\fP
+The printer program with options that is to be used to print
+articles.  Default is lpr for BSD machines and lp for SysV machines.
+.SH "TINRC CONFIGURABLE VARIABLES"
+The following variables are user configurable by editing \fI$HOME/.tin/tinrc\fP
+directly. It is hoped to eventually provide a menu to allow the setting of the
+most common variables. 
+.TP 4
+\fBbatch_save\fP
+If set ON articles/threads will be saved in batch mode when save -S
+or mail -M is specified on the command line. Default is OFF.
+.TP 4
+\fBbeginner_level\fP
+If set ON a mini menu of the most useful commands will be displayed at the
+bottom of the screen for each level. Default is ON.
+.TP 4
+\fBdisplay_reading_prompt\fP
+The prompt ``Reading...'' will be displayed when reading an article from a 
+NNTP server to provide feedback to the user. Default is ON.
+.TP 4
+\fBforce_screen_redraw\fP
+Specifies whether a screen redraw should always be done after certain 
+external commands. Default is OFF.
+.TP 4
+\fBgroupname_max_length\fP
+Maximum length of the names of newsgroups to be displayed so that more of the 
+newgroup description can be displayed. Default is 132.
+.TP 4
+\fBdefault_sigfile\fP
+The path that specifies the signature file to use when posting, following upto
+or replying to an article. If the path is a directory then the signature will
+be randomly generated from files that are in the specified directory.
+Default is \fI$HOME/.Sig\fP.
+.TP 4
+\fBhot_art_mark\fP
+The character used to show that an article/thread is auto-selected (hot). 
+Default is '*'.
+.TP 4
+\fBquote_chars\fP
+The character used in quoting included text to article followups and mail 
+replys. The '_' character represents a blank character and is replaced 
+with ' ' when read. Default is ':_'.
+.TP 4
+\fBreread_active_file_secs\fP
+The news active file is reread at regular intervals to show if any new news 
+has arrived. Default is 300 seconds.
+.TP 4
+\fBreturn_art_mark\fP
+The character used to show that an article will return. Default is '-'.
+.TP 4
+\fBsave_to_mmdf_mailbox\fP
+Allows articles to be saved to a MMDF style mailbox instead of mbox format.
+Default is OFF unless reading news on SCO Unix which uses MMDF by default. 
+.TP 4
+\fBshow_last_line_prev_page\fP
+The last line of the previous page will be displayed as the first line of 
+next page. Default is OFF.
+.TP 4
+\fBslow_speed_terminal\fP
+Strips the blanks from the end of each line therefore speeding up the display
+when reading on a slow terminal or via modem. Default is OFF.
+.TP 4
+\fBtab_after_X_selection\fP
+If enabled will automatically goto the first unread article after having
+selected all hot articles and threads with the 'X' command at group index
+level. Default is OFF.
+.TP 4
+\fBunread_art_mark\fP
+The character used to show that an article has not been read. Default is '+'.
+.TP 4
+\fBuse_builtin_inews\fP
+Allows the builtin NNTP inews to be enabled/disabled. Default is ON (enabled).
+.TP 4
+\fBuse_keypad\fP
+Allows the scroll keys on the keypad to be enabled/disabled on supported 
+terminals. Default is OFF.
+.SH "GROUP ATTRIBUTES"
+\fITin\fP allows certain attributes to be set on a per group basis. These
+group attributes are read from the file \fI$HOME/.tin/attributes\fP.
+A later version will provide a menu interface to set all the attributes. 
+At present you will have to edit the file with your editor :-(. The 
+following group attributes are available:
+
+.RS
+.nf
+.ft CW
+newsgroup=alt.sources
+maildir=/usr/iain/Mail/sources
+savedir=/usr/iain/News/alt.sources
+sigfile=/usr/iain/.funny_sig
+organization=Wacky Bits Inc.
+followup_to=alt.sources.d
+printer=/usr/local/bin/a2ps -nn | /bin/lpr
+auto_save=ON
+batch_save=OFF
+delete_tmp_files=ON
+show_only_unread=OFF
+thread_arts=ON
+show_author=1
+sort_art_type=5
+post_proc_type=1
+.ft P
+.fi
+.RE
+
+Note that the ''newsgroup=<groupname>'' line has to be specified 
+before the attributes are specified for that group.
+.PP
+All attributes are set to a reasonable default so you only have to
+specify the attribute that you want to change (i.e., savedir).
+.PP
+All toggle attributes are set by specifying ON/OFF. 
+.PP
+The show_author attribute is specified by a number from the following 
+range: 0=none, 1=username, 2=network address, 3=both.
+.PP
+The sort_art_type attribute is specified by a number from the following 
+range: 0=none, 1=subject descending, 2=subject ascending, 3=from descending, 
+4=from ascending, 5=date descending, 6=date ascending.
+.PP
+The post_proc_type attribute is specified by a number from the following 
+range: 0=none, 1=unshar, 2=uudecode, 3=uudecode & list zoo archive, 
+4=uudecode & extract zoo archive, 5=uudecode & list zip archive, 
+6=uudecode & extract zip archive. (note: if running on AmigaDOS the zoo
+options are replaced by there corresponding lha archiver options).
+.SH "AUTOMATIC KILL AND SELECTION"
+When there is a subject or an author which you are either very
+interested in, or find completely uninteresting, you can easily
+instruct \fItin\fP to \fIauto-select\fP or \fIauto-kill\fP articles
+with specific subjects or from specific authors.  These instructions
+are stored in a \fIkill file\fP.
+.PP
+This menu is accessed by pressing '^K' at the group and page levels.  It
+allows the user to kill or select an article that matches the current 
+``Subject:'' line, ``From:'' line or a string entered by the user.  
+The user entered string can be applied to the ``Subject:'' or ``From:'' 
+lines of an article.  The kill description can be limited to the current 
+newsgroup or it can apply to all newsgroups. Once entered the user can 
+abort the command and not save the kill description, edit the kill file 
+or save the kill description.
+.PP
+On starting \fItin\fP the users killfile \fI$HOME/.tin/kill\fP is read and
+on entering a newsgroup any kill or select descriptions are applied.  
+.PP
+Articles that match a kill description are marked killed and are not 
+displayed. Articles that match an auto-select description are marked 
+with a ''*'' when displayed.
+.SH "POSTING ARTICLES"
+\fITin\fP allows posting of articles, follow-up to already posted articles
+and replying direct through mail to the author of an article.
+.PP
+Use the 'w' command to post an article to a newsgroup.  After entering
+the post subject the default editor (i.e. vi) or the editor specified
+by the $VISUAL environment variable will be started and the article can
+be entered.  To crosspost articles simply add a comma and the name of
+the newsgroup(s) to the end of the ``Newsgroups:'' line at the beginning of
+the article.  After saving and exiting the editor you are asked if you
+wish to a)bort posting the article, e)dit the article again or p)ost
+the article to the specified newsgroup(s).
+.PP
+Use the 'W' command to display a history of the articles you have posted.
+The date the article was posted, which newsgroups the article was
+posted to and the articles subject line are displayed.
+.PP
+Use the 'f' / 'F' command to post a follow-up article to an already
+posted article.  The 'f' command will copy the text of the original
+article into the editor.  The editing procedure is the same as when
+posting an article with the 'w' command.
+.PP
+Use the 'r' / 'R' command to reply direct through mail to the author
+of an already posted article.  The 'r' command will copy the text of
+the original article into the editor.  The editing procedure is the
+same as when posting an article with the 'w' command.  After saving
+and exiting the editor you are asked if you wish to a)bort sending
+the article, e)dit the article again or s)end the article to the
+author.
+.SH "CUSTOMIZING THE ARTICLE QUOTE STRING"
+When posting a followup to an article or replying direct to the author
+of an article via email the text of the article can be quoted. The 
+beginning of the quoted text can contain information about the quoted
+article (i.e., Name and the Message Id of the article). To allow for
+different situations certain information from the article can be used 
+in the quoted string. The following variables are expanded if found in 
+the tinrc variables 'mail_quote_format=' or 'news_quote_format=':
+.RS
+.nf
+.ta \w'%A  'u +\w'Address'u
+\fB%A\fP	Address (Email)
+\fB%D\fP	Date 
+\fB%F\fP	Full address (%N (%A))
+\fB%G\fP	Groupname
+\fB%M\fP	Message Id
+\fB%N\fP	Name of user
+.fi
+.RE
+i.e.,
+.RS
+.nf
+.ft CW
+mail_quote_format=On %D in %G you wrote:
+news_quote_format=In %M, %F wrote:
+.ft P
+.fi
+.RE
+would expand when used to:
+.RS
+.nf
+.ft CW
+On 21 Jul 1992 09:45:51 -0400 in alt.sources you wrote:
+In <abcINN123@anl433.uucp>, Iain Lea (iain@anl433.uucp) wrote:
+.ft P
+.fi
+.RE
+.SH "MAILING PIPING PRINTING REPOSTING AND SAVING ARTICLES"
+The command interface to mail ('m'), pipe ('|'), print ('o'),
+crosspost ('x') and save ('s') articles is the same for ease of use.
+.PP
+The initial command will ask you to select which a)rticle, t)hread,
+h)ot (auto selected) r)egex pattern, t)agged articles you wish to
+mail, pipe etc.
+.PP
+Tagged articles must have already been tagged with the 'T' command.
+All tagged articles can be untagged by the 'U' untag command.
+.PP
+If regex pattern matching is selected you are asked to enter a regular
+expression (i.e. to match all articles subject lines containing 'net News'
+you must enter '*net News*').  Any articles that match the
+entered expression will be mailed, piped etc.
+.PP
+To save articles to a mailbox with the name of the current newsgroup
+(i.e. Alt.sources) enter '=' or '=<mailbox name>' when asked for the
+save filename.
+.PP
+To save articles in <newsgroup name>/<filename> format enter '+<filename>'.
+.PP
+When saving articles you can specify whether the saved files should be
+post processed (i.e. unshar shell archive, uudecode multiple parts etc).
+A default process type can be set by the 'Process type:' in the 'M'
+options menu.
+.SH "AUTOMATIC MAILING AND SAVING NEW NEWS"
+\fITin\fP allows new/unread news articles to be mailed (-M option)/saved
+(-S option) in batch mode for later reading.  Useful when going on
+holiday and you don't want to return and find that expire has removed a
+whole load of unread articles.  Best to run from crontab everyday while away,
+after which you will be mailed a report of which articles were mailed/saved
+from which newsgroups and the total number of articles mailed/saved.
+Articles are saved in a private news structure under your <savedir> directory
+(default is \fI$HOME/News\fP).  Be careful of using this option if you read a
+lot of groups because you could overflow your filesystem.  If you only want to
+save a few groups it would be best to backup your full \fI$HOME/.newsrc\fP and
+create a new one that only contains the newsgroups you want to mail/save.
+Saved news can be read later by \fItin -R\fP.
+.PP
+.TP 2i
+\fItin -M iain -f newsrc.mail\fP 
+(mail any unread articles in newgroups specified in file newsrc.mail)
+.PP
+.TP 2i
+\fItin -S -f newsrc.save\fP 
+(save any unread articles in newgroups specified in file newsrc.save)
+.PP
+.TP 2i
+\fItin -R\fP 
+(read any articles saved by \fItin -S\fP)
+.SH SIGNATURES
+\fITin\fP will recognize a signature in either \fI$HOME/.signature\fP or
+\fI$HOME/.Sig\fP.  If \fI$HOME/.signature\fP exists, then the signature
+will be pulled into the editor for mail commands.  A signature in
+\fI$HOME/.signature\fP will not be pulled into the editor for posting
+commands since \fIinews\fP will append the signature itself.
+.PP
+A signature in \fI$HOME/.Sig\fP will be pulled into the editor for both
+posting and mailing commands.
+.PP
+The following is an example of a \fI$HOME/.Sig\fP file:
+.RS
+.nf
+.ft CW
+NAMES  Iain Lea    Iain.Lea%anl433.uucp@Germany.EU.net
+SNAIL  Bruecken Strasse 12, 8500 Nuernberg 90, Germany
+PHONE  +49-911-331963 (home)  +49-911-3089-407 (work)
+.ft P
+.fi
+.RE
+\fITin\fP also has the capability to generate random signatures on a per
+newsgroup basis if so desired. The way to accomplish this is to specify
+the default signature or the group attribute sigfile as a directory.
+If for example the sigfile path is \fI/usr/iain/.sigs\fP and \fI.sigs\fP is
+a directory then \fItin\fP will select a random signature from any file that
+is in the directory \fI.sigs\fP (note: one signature per numbered file). A 
+random signature can also consist of a fixed part signature that can contain 
+your name, address etc. followed by the random sig. The fixed part of the 
+random sig is read from the file \fI$HOME/.sigfixed\fP.
+.SH "ENVIROMENT VARIABLES"
+.TP
+\fBTINRC\fP
+Define this variable if you want to specify command line options that \fItin\fP
+should be started with to save typing them each time it is started. The
+contents of the environment variable are added to the front of the command 
+line options before it is parsed therefore allowing an option specified on 
+the command line to override the same option specified in the environment.
+.TP
+\fBTINDIR\fP
+Define this variable if you do not want the .tin directory in 
+\fI$HOME/.tin\fP. (i.e. if you want all tin's private files in \fI/tmp/.tin\fP
+you would set TINDIR to \fI/tmp\fP.
+.TP
+\fBTIN_INDEX\fP
+Define this variable if you do not want the .index directory in 
+\fI$HOME/.tin/.index\fP. (i.e. if you want all tin's index files in
+\fI/tmp/.index\fP you would set TIN_INDEX to \fI/tmp\fP.
+.TP
+\fBNNTPSERVER\fP
+The default NNTP server to remotely read news from.  This variable only
+needs to be set if the -r command line option is specified and the file
+\fI/etc/nntpserver\fP does not exist.
+.TP
+\fBDISTRIBUTION\fP
+Set the article header field ``Distribution:'' to the contents of the
+variable instead of the system default.
+.TP
+\fBORGANIZATION\fP
+Set the article header field ``Organization:'' to the contents of the
+variable instead of the system default.  This variable has precedence
+over the file \fI$HOME/.tin/organization\fP that may also contain an
+organization string.  If reading news on an Apollo DomainOS machine
+the environment variable NEWSORG has to be used instead of ORGANIZATION.
+.TP
+\fBREPLYTO\fP
+Set the article header field ``Reply-To:'' to the return address specified
+by the variable.
+This is useful if the machine is not registered in the UUCP mail maps
+or if you wish to receive replies at a different machine.
+This variable has precedence over the file \fI$HOME/.tin/replyto\fP
+that may also contain a return address.
+.TP
+\fBADD_ADDRESS\fP
+This can contain an address to append to the return address when replying
+directly through mail to somebody whose mail address is not directly
+recognized by the local host.  For example say the return address is
+\fIuser@bigvax\fP, but \fIbigvax\fP is not recognized by your host, so
+therefore the mail will not reach \fIuser\fP.  But the host \fIlittevax\fP
+is known to recognize your host and \fIbigvax\fP, so if ADD_ADDRESS is set
+(i.e. 'setenv ADD_ADDRESS @littevax' for csh or 'set ADD_ADDRESS @littevax'
+and 'export ADD_ADDRESS' for sh) the address \fIuser@bigvax@littlevax\fP will
+be used and the mail will reach \fIuser@bigvax\fP.
+This variable has precedence over the file \fI$HOME/.tin/add_address\fP
+that may also contain an address.
+.TP
+\fBBUG_ADDRESS\fP
+If the 'B' command bug report mail address is not correct this variable should be
+set to the correct mail address.  This variable has precedence over the file
+\fI$HOME/.tin/bug_address\fP that may also contain a mail address.
+.TP
+\fBMAILER\fP
+This variable has precedence over the default mailer that is used in all
+mailing operations within \fItin\fP (i.e. replying 'rR', and bug reports 'B').
+.TP
+\fBVISUAL\fP
+This variable has precedence over the default editor (i.e. vi) that is
+used in all editing operations within \fItin\fP (i.e. posting 'w', replying 'rR',
+follow-ups 'fF' and bug reports 'B').
+.SH "TIPS AND TRICKS"
+The following newsgroups provide useful information concerning news software:
+.in +.5i
+.ti -\w'\(em'u
+\(emnews.software.readers (info. about news user agents tin,rn,nn,vn etc.)
+.ti -\w'\(em'u
+\(emnews.software.nntp (info. about NNTP)
+.ti -\w'\(em'u
+\(emnews.software.b (info. about news transport agents Bnews,Cnews and INN)
+.ti -\w'\(em'u
+\(emnews.answers (Frequently Asked Questions (FAQ) about many different themes)
+.PP
+Many prompts (i.e. 'Mark everything as read? (y/n): y') within \fItin\fP 
+offer a default choice that the cursor is positioned on.  By pressing
+<CR> the default value is taken.
+.PP
+When \fItin\fP is run in an xterm window it will resize itself each time the 
+xterm is resized.
+.PP
+\fITin\fP will reread the active file at set intervals to show any new news.
+.SH FILES
+.TP 2i
+\fI$HOME/.newsrc\fP
+subscribed to newgroups.
+.TP 2i
+\fI$HOME/.newsauth\fP
+``nntpserver password'' pairs for NNTP servers that require authorization.
+.TP 2i
+\fI$HOME/.tin/tinrc\fP
+options.
+.TP 2i
+\fI$HOME/.tin/attributes\fP
+contains user specified group attributes.
+.TP 2i
+\fI$HOME/.tin/.index\fP
+newsgroups index files directory.
+.TP 2i
+\fI$HOME/.tin/.mailidx\fP
+mailgroups index files directory.
+.TP 2i
+\fI$HOME/.tin/.saveidx\fP
+saved newsgroups index files directory.
+.TP 2i
+\fI$HOME/.tin/active.mail\fP
+active file of users mailgroups.
+.TP 2i
+\fI$HOME/.tin/active.save\fP
+active file of users saved newsgroups.
+.TP 2i
+\fI$HOME/.tin/add_address\fP
+address to add to when replying through mail.
+.TP 2i
+\fI$HOME/.tin/bug_address\fP
+address to send bug reports to.
+.TP 2i
+\fI$HOME/.tin/kill\fP
+article kill and auto-selection file.
+.TP 2i
+\fI$HOME/.tin/organization\fP
+string to replace default organization.
+.TP 2i
+\fI$HOME/.tin/posted\fP
+history of articles posted by user.
+.TP 2i
+\fI$HOME/.tin/replyto\fP
+host address to use in ``Reply-To:'' mail header.
+.TP 2i
+\fI$HOME/.signature\fP
+signature.
+.TP 2i
+\fI$HOME/.Sig\fP
+signature.
+.TP 2i
+\fI$HOME/.sigfixed\fP
+fixed part of a randomly generated signature.
+.TP 2i
+\fI/usr/lib/news/motd\fP
+News message of the day file.
+.TP 2i
+\fI/usr/lib/news/newsgroups\fP
+Short description of all newsgroups.
+.TP 2i
+\fI/usr/lib/news/subscriptions\fP
+List of newsgroups to subscribe first time user to.
+.SH BUGS
+There are bugs somewhere among the creeping featurism.  Any bugs found
+should be reported by the 'B' (bug report) command.
+.PP
+Will not uudecode some of the images in alt.binaries.pictures because
+more than one image is in the multi-part file to uudecode.  Only the
+first image will be uudecoded.
+.PP
+Does not yet handle ``Xref:'' headers for cross-posted articles.
+.PP
+Coredumps when setting certain toggle options from the options menu at article
+viewer level.
+.PP
+Coredumps when killing last article in a thread at article viewer level.
+.SH HISTORY
+Based on the \fItass\fP newsreader that was developed by Rich Skrenta and 
+posted to alt.sources in March 1991.  Tass was itself heavily influenced by 
+NOTES which was developed at the University of Illinois by Ray Essick and
+Rob Kolstad in 1982.
+.PP
+v1.0 PL0 (full) was posted in 8 parts to alt.sources on 23 Aug 1991.
+.br
+v1.0 PL1 (full) was posted in 8 parts to alt.sources on 03 Sep 1991.
+.br
+v1.0 PL2 (full) was posted in 9 parts to alt.sources on 24 Sep 1991.
+.br
+v1.0 PL3 (patch) was posted in 4 parts to alt.sources on 30 Sep 1991.
+.br
+v1.0 PL4 (patch) was posted in 2 parts to alt.sources on 02 Oct 1991.
+.br
+v1.0 PL5 (patch) was posted in 4 parts to alt.sources on 17 Oct 1991.
+.br
+v1.0 PL6 (patch) was posted in 5 parts to alt.sources on 27 Nov 1991.
+.br
+v1.0 PL7 (patch) was posted in 2 parts to alt.sources on 27 Nov 1991.
+.br
+v1.1 PL0 (full) was posted in 11 parts to alt.sources on 13 Feb 1992.
+.br
+v1.1 PL1 (full) was posted in 12 parts to alt.sources on 24 Mar 1992.
+.br
+v1.1 PL2 (patch) was posted in 4 parts to alt.sources on 30 Mar 1992.
+.br
+v1.1 PL3 (full) was posted in 15 parts to alt.sources on 13 May 1992.
+.br
+v1.1 PL4 (full) was posted in 15 parts to alt.sources on 22 Jun 1992.
+.br
+v1.1 PL5 (patch) was posted in 7 parts to alt.sources on 11 Aug 1992.
+.br
+v1.1 PL6 (full) was posted in 15 parts to alt.sources on 14 Sep 1992.
+.br
+v1.1 PL7 (patch) was posted in 10 parts to alt.sources on 15 Nov 1992.
+.br
+v1.1 PL8 (patch) was posted in 6 parts to alt.sources on 06 Dec 1992.
+.SH CREDITS
+.TP 1.5i
+Rich Skrenta
+author of tass v3.2 which this newsreader used as its base.
+.TP 1.5i
+Bill Davidsen
+author of envarg.c environment variable reading routine.
+.TP 1.5i
+Mike Gleason 
+author of sigfile.c random signature generation routines.
+.TP 1.5i
+Arnold Robbins
+author of strftime.c date formatting routine.
+.TP 1.5i
+Jim Robinson
+co-author of kill.c article kill and auto-selection routines.
+.TP 1.5i
+Rich Salz
+author of wildmat.c pattern matching and parsedate.y date parsing routines.
+.TP 1.5i
+Dave Taylor
+author of curses.c from the elm mailreader.
+.TP 1.5i
+Chris Thewalt
+author of getline.c emacs style editing routine.
+.TP 1.5i
+Mark Tomlinson
+for porting \fItin\fP to the Commodore AmigaDOS operating system.
+.TP 1.5i
+Dieter Becker
+for generously posting certain releases for me when my net
+connection was removed by a group of very short sighted people.
+.PP
+I wish to thank the following people for supplying patches:
+.PP
+Earle Ake, Anton Aylward, Paul Bauwens, Dieter Becker, Dan Berry, 
+Fokke de Boer, Marc Boucher, Leila Burrell-Davis, Peter Castro, Robert Claeson, 
+Steven Cogswell, Don Costello, Ned Danieley, Chris Davies, John Davis, 
+Craig Durland, Kirk Edson, Rob Engle, Brent Ermlick, Olle Eriksson, 
+Michael Faurot, Werner Fleck, Callum Gibson, Carl Hage, Paul Halsema, Ed Hanway,
+Scott Hauck, Daniel Hermans, Jose Herrero, Tom Hite, Torsten Homeyer, Tommy Hsieh, 
+Steve Hunt, Robbin Johnson, Nelson Kading, Fritz Kleeman, Dwarven Knight, 
+Karl-Koenig Koenigsson, Martin Kraemer, Kris Kugel, Alex Lange, Hakan Lennestal,
+Clifford Luke, David MacKenzie, Hugh Mahon, Sergio Morales, James Nugen, 
+Jeb Palmer, Neil Parker, Tom Parry, Walter Pelissero, Eric Peterson, 
+Tim Pierce, Bill Poitras, Wolfgang Prediger, Ted Richards, Jim Robinson, 
+Stephen Roseman, Nickolay Saukh, Rich Salz, John Sauter, John Schmitz, Bart Sears,
+Karl-Olav Serrander, Doug Sewell, Steve Spearman, Cliff Stanford, Steve Starck, 
+Ed Sznyter, Derek Terveer, Andry Timonin, Mark Tomlin, Michael Traub, 
+Adri Verhoef, Paul Vickers, Cary Whitney, Greg Woods, Lloyd Wright
+.PP
+I wish to thank the following people for bug reports/comments:
+.PP
+Jack Applin, Klaus Arzig, Scott Babb, Reiner Balling, Preston Bannister, 
+Bill de Beabien, Volker Beyer, Etienne Bido, Roger Binns, Georg Biehler, 
+Jean-Marc Bonnaudet, Eric Bowles, Sean Brady, Ian Brown, Andreas Brosig, 
+Craig Bruce, Tom Czarnik, Dave Datta, Mat Davis, Klaus Dimmler, David Donovan,
+Peter Dressler, Gerhard Ermer, Hugh Fader, Miguel Farah, Joachim Feld, Paul Fox, 
+Jay Geertsen, Bernhard Gmelch, Jason Haar, Viet Hoang, Andy Jackson, Joe Johnson, 
+Cyrill Jung, Kuo-Chein Kai, Hans-Juergen Knopp, Tom Kovar, Bernhard Kroenung, 
+Murray Laing, Marty Leisner, Per Lindqvist, Eric Litman, Bob Lukas, Michael Marshall, 
+Kazushi Marukawa, Phillip Molloy, Toni Metz, Greg Miller, Deeptendu Majumder, 
+Klaus Neuberger, Otto Niesser, Reiner Oelhaf, Alex Pakter, John Palkovic, 
+Dave Pascoe, Wolf Paul, Andrew Phillips, Stefan Rathmann, David Ross, 
+Jonas Rwgmyr, Daemon Schaefer, Dean Schrimpf, Klamer Schutte, Fredy Schwatz, 
+Dave Schweisguth, Bernd Schwerin, Don Sheythe, Chris Smith, Daniel Smith, 
+Hironobu Takahashi, Ken Taylor, Tony Travis, Paul Verket, Sven Werner, 
+Dick Wexelblat, Paul Wood, Gregory Woodbury, Norm Yamane, Blair Zajac, 
+Orest Zboroski, Thomas Ziegler
+.SH AUTHOR
+.TP 1i
+Iain Lea
+(Iain.Lea%anl433.uucp@Germany.EU.net)

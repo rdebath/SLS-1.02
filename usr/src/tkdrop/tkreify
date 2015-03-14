@@ -1,0 +1,61 @@
+#!/depot/tcl/bin/wish -f
+# $Id: tkreify,v 2.0 1993/01/14 23:27:41 schwartz Exp $
+# Copyright 1993, Scott Schwartz <schwartz@cs.psu.edu>
+
+# XXX - this shares code with tkfb; we should have a library for it.
+
+proc tidypath {p} {
+    if {$p == ""} {
+      set p "/"
+    } else {
+      if {[regexp {(^[^/])|(^\.$)} $p]} { set p [pwd]/$p } else { set p "/$p" }
+    }
+    regsub -all {/\.(/|$)} $p {/} p
+    regsub -all {//*} $p {/} p
+    regsub -all {([^/])/$} $p {\1} p
+    return $p
+}
+
+	# I know these formats are redundant, but at one point I was 
+	# using them to interpolate %s and might decide to do it again.
+
+proc reify {s} {
+    set s [tidypath $s]
+    set label [file tail $s]
+
+    if [file isdirectory $s] {
+	set icon /usr/include/X11/bitmaps/mailempty
+	set cmd [format {cp "$@" "$id"} $s]
+    } {
+	if [file isfile $s] {
+	    if [file executable $s] {
+		if {[is_xapp $s]} {
+		  set icon /usr/include/X11/bitmaps/xlogo32
+		  set cmd [format {"$id" "$@"} $s]
+		} {
+		  set icon /usr/include/X11/bitmaps/Term
+		  set cmd [format {xterm -e "$id" "$@"} $s]
+                }
+	    } {
+		set icon /usr/include/X11/bitmaps/letters
+		set cmd [format {xterm -e vi "$id"} $s]
+	    }
+	}
+    }
+    exec tkdrop $cmd $s $icon $label < /dev/null &
+    exec /bin/true
+}
+
+# try and stomach this one...
+proc is_xapp {s} {
+    set s [catch {
+      exec strings - $s | \
+        egrep -s -i "_XOpenDisplay|_XtApp|_XrmInitialize|#!.*wish"
+    } rc ]
+    return [expr "!$s"]
+}
+
+# main
+wm withdraw .
+foreach f $argv { reify $f }
+destroy .

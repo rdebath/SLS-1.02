@@ -1,0 +1,65 @@
+.nf
+	ar	\fBadsyn\fR		kamod, kfmod, ifilno
+	ar	\fBpvoc\fR		ktimpnt, kfmod, ispecwp, ifilno
+.fi
+
+Output is an additive set of individually controlled sinusoids, using either
+an oscillator bank or phase vocoder resynthesis.
+
+
+INITIALIZATION
+
+\fIispecwp\fR - if non-zero, attempts to preserve the spectral envelope
+while its frequency content is varied by \fIkfmod\fR.
+
+\fIifilno\fR - control-file suffix (m) of a file named \fIadsyn.m\fR
+or \fIpvoc.m\fR, stemming from analysis of an audio signal.
+\fBadsyn\fR control contains breakpoint amplitude- and frequency-envelope
+values organized for oscillator resynthesis, 
+while \fBpvoc\fR control contains similar data organized for fft resynthesis.
+Note that memory usage depends on the size of the control files involved,
+which are stored internally during computation.
+
+
+PERFORMANCE
+
+\fBadsyn\fR synthesizes complex time-varying timbres through the method of
+additive synthesis.  Any number of sinusoids, each individually controlled
+in frequency and amplitude, can be summed by high-speed arithmetic
+to produce a high-fidelity result.
+
+Component sinusoids are described by a control file (format described
+elsewhere) that specifies both frequency and amplitude tracks in
+breakpoint fashion (to the millisecond).  Through interpolation,
+the instantaneous frequency and amplitude values are used by an
+internal fixed-point oscillator that adds each active partial
+into an accumulated output signal.
+There are no limits on the number of contributing partials,
+or on their behavior over time.  Any sound complex that can be
+described in terms of the behavior of sinusoids can be synthesized
+by \fBadsyn\fR alone.
+
+In addition, the sound described by the control file
+can be modified during actual synthesis.  The signals \fIkamod, kfmod,\fR
+will modify the amplitude and frequency, respectively, of each
+contributing partial.  Note that these are multiplying factors, with
+\fIkfmod\fR being applied to the cps frequency.  Thus the values .7,1.5
+will give rise to a softer sound, a perfect fifth higher; the values
+1,1 will leave the sound unmodified.  Each of these inputs can be
+a control signal.
+
+\fBpvoc\fR implements signal reconstruction using an fft-based phase vocoder.
+The control data stems from a precomputed analysis file with a known
+frame rate.  The passage of time through this file is specified by
+\fIktimpnt\fR, which represents the time in seconds.
+\fIktimpnt\fR must always be positive, but can move forwards or backwards
+in time, be stationary or discontinuous, as a pointer into the analysis file.
+\fIkfmod\fR is a control-rate transposition factor:  a value of 1 incurs
+no transposition, 1.5 transposes up a perfect fifth, and .5 down an octave.
+
+This implementation of \fBpvoc\fR was written by Dan Ellis.  It is based
+in part on the system of Mark Dolson, but the pre-analysis concept is new.
+.bp
+
+
+

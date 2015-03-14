@@ -1,0 +1,313 @@
+The Tk Toolkit, Version 3.0
+
+by John Ousterhout
+University of California at Berkeley
+
+1. Introduction
+---------------
+
+This directory contains the sources and documentation for Tk, which
+is an X11 toolkit that provides the Motif look and feel and is
+implemented using the Tcl command language.
+
+The following things are present in this directory and its subdirectories:
+
+    1. Tk, a toolkit for X11 windowing applications.
+    2. Tcl, an embeddable command language on which Tk is based.
+    3. Wish, a simple windowing shell that uses Tk and Tcl.
+    4. A collection of demonstration scripts to illustrate the use
+       of various features of Tk.
+    5. Reference documentation for all of the above.  Introductory
+       information on Tcl and Tk is available separately (see the
+       README file in the FTP directory).
+
+The enclosed code is known to run on most Sun, H-P, DEC, and IBM
+workstations running recent OS releases (UNIX-like OS'es only, not
+VMS, for example) in combination with the X11R4 and X11R5 window
+servers from MIT.  It does not run on X11R3 or earlier versions of
+X11.
+
+2. What's New Or Different In This Release
+------------------------------------------
+
+Tk 3.0 is a major new release.  For a complete list of all the changes,
+see the tail end of the "changes" file in the distribution.  Here is a
+short summary of the most important new user-visible features:
+
+(a) Canvases can now generate Postscript output.  See the "postscript"
+    widget command.
+
+(b) Code to deal with the window manager has been overhauled:
+    - Tk should now work with virtual-root window managers like tvtwm.
+      There is a new C procedure Tk_GetVRootInfo plus new options to the
+      "wm" command: "vrootx", "vrooty", "vrootwidth", and "vrootheight".
+    - Various bugs having to do with window placement and size changes
+      have been fixed.
+    - The "wm" command has new options "protocol" (support for window
+      manager protocols like WM_DELETE_WINDOW), "client" (support for the
+      CLIENT_MACHINE property), "command" (support for the WM_COMMAND
+      property), and "overrideredirect" (to allow creation of windows
+      with the override-redirect flag on).
+
+(c) Focus management has undergone a major overhaul:
+    - Tk watches FocusIn and FocusOut events for focus changes as well
+      as Enter and Leave events, so it will work better with explicit-
+      focus window managers.
+    - Tk generates FocusIn and FocusOut events for the focus window.  The
+      old procedural interface (Tk_CreateFocusHandler) is still supported
+      (for now), but it is obsolete and shouldn't be used anymore.  The
+      model for FocusIn and FocusOut events is different than described
+      in the Xlib documentation.  See the "focus" manual entry for details.
+    - If there is no input focus, then keyboard events are discarded instead
+      of going to the window under the pointer.
+
+(d) The event binding mechanism has been upgraded to support the Mode_switch
+    key to support the full ISO character set.  Caps_Lock/Shift_Lock support
+    has also been improved to conform with official X specs.
+
+(e) New demo programs have been added:
+    tcolor -	Interactive editor for colors, using HSV, RGB, or CMY.
+		It can hook up to another application with "send" to
+		update the other application as you edit.
+    rmt -	Attaches to any other Tk application so you can type
+		commands remotely to that application.  You can switch
+		between applications dynamically.
+
+(f) Several new features have been added to color management:
+    - There is now a notion of "color model", which determines whether
+      Tk treats the display as color or mono.  This allows you to force
+      mono operation even on a color display.  See the "tk colormodel"
+      command and the Tk_GetColorModel and Tk_SetColorModel procedures.
+    - Tk deals with colormap exhaustion more gracefully now: it generates
+      a warning message and switches over to a mono color model.
+    - Support has been added for different visual types.  See procedures
+      Tk_SetWindowVisual and Tk_SetWindowColormap, plus macros Tk_Visual,
+      Tk_Depth, and Tk_Colormap.  The code for this was contributed by
+      Paul MacKerras.
+
+(g) Support for multiple simultaneous displays has been improved.  This
+    includes changes to the "grab" command ("grab none" no longer exists;
+    use "grab release <window>" instead), plus changes in the C interfaces
+    to procedures like Tk_FreeCursor.  There are still problems with
+    some of the default widget bindings.
+
+(h) The event-sharing code has been removed from Tk (e.g. there is no longer a
+    file tkShare.c) and menus have been modified to use grabs instead, which
+    is much cleaner.  The -variable option for menubuttons has been removed,
+    as have the "post" and "unpost" widget commands for menubuttons.  The
+    procedure tk_menus has been replaced by tk_menuBar, which has a slightly
+    different interface.  In addition, the interpretation of the "-command"
+    option for cascade menu entries has changed so that the command is
+    invoked when the entry is activated, not when it is invoked.
+
+(i) The configuration of the release has been modified slightly:
+    - Introductory documents are no longer bundled with the sources.
+    - The Makefiles include "install" targets.
+    - Manual entries have been renamed to use ".1", ".3", and ".n"
+      extensions instead of ".man".
+    - Tcl and Tk support TCL_LIBRARY and TK_LIBRARY environment variables,
+      which override the compiled-in locations for the library directories.
+
+(j) Tk now has the beginnings of a test suite.  It's woefully inadequate
+    right now but I hope it will grow over time.  I'd be delighted to
+    receive contributions of additional tests.
+
+(k) Various new or enhanced commands:
+    - "winfo exists"
+    - "yposition" and "delete" options for menu widget command
+    - "-setgrid" option for listboxes
+    - multiple (or zero) arguments to "destroy" and the "delete" widget
+      command for canvases
+    - new "tk" command
+    - new options to "grab": "current", "release", "set", "status"
+
+This release also contains a few incompatibilities that will require
+changes in existing C code or Tcl scripts (hence the jump in version
+number to 3.0).  Most of these changes won't affect most users, but
+a few of them (like the first one) are likely to affect lots of scripts.
+Below is a complete list of all the incompatibilities:
+
+(a) The procedure "tk_menus" has been replaced by "tk_menuBar", which has
+    a slightly different calling sequence.
+
+(b) In canvas and entry widgets the options "cursorBackground",
+    "cursorBorderWidth", "cursorOffTime", "cursorOnTime", and "cursorWidth"
+    have been renamed to "insertBackground" etc.  In addition, the
+    "cursor" index has been renamed to "insert" in both widgets and
+    the "cursor" widget command has been renamed to "icursor".  This
+    was all done to avoid confusion between the insertion and mouse
+    cursors (text widgets already use the "insert" names in anticipation
+    of the change).
+
+(c) The procedures Tk_FreeBitmap, Tk_NameOfBitmap, Tk_SizeOfBitmap,
+    Tk_FreeCursor, Tk_NameOfCursor, and Tk_FreeGC all require a Display *
+    argument so that they will do the right thing when there are windows
+    on multiple displays.
+
+(d) The -command option for cascade menu entries is now invoked before
+    entry activation rather than before entry invocation.
+
+(e) The command "grab none" no longer exists.  Instead, use "grab release"
+    with an explicit window argument.
+
+(f) Menubuttons no longer support the "-variable" option or the "post"
+    and "unpost" widget commands.
+
+(g) Window names that start with upper-case letters are now prohibited
+    (they never worked very well, since they caused confusion with class
+    names).
+
+(h) If there is no official focus window then keystrokes are discarded
+    instead of going to the window under the pointer.
+
+(i) Boolean options such as -exportselection are now returned by the
+    "configure" widget command as "0" or "1" rather than "true" or
+    "false".
+
+(j) The widget classes "RadioButton" and "CheckButton" have been renamed
+    "Radiobutton" and "Checkbutton" for consistency.  From now on widget
+    class names will have exactly one capital letter.
+
+(k) The "dependents" option to the place command has been renamed "slaves"
+    instead, which is more consistent with master/slave terminology used
+    in documentation.
+
+3. Documentation
+----------------
+
+Manual entries for Tk are in the "doc" subdirectory as a set of files
+with ".1", ".3", or ".n" extensions.  File with ".1" extensions are for
+programs, such as wish.  Files with ".3" extensions are for C procedures
+in the Tk library.  Files with ".n" extensions are for Tcl commands
+implemented by Tk.  To print any of the man pages, cd to the "doc"
+directory and invoke your favorite variant of troff using the normal
+-man macros, for example
+
+		ditroff -man <file>
+
+where <file> is the name of the man page you'd like to print.
+
+Manual entries for Tcl are available in the subdirectory "tcl/doc";
+see the README file in the "tcl" directory for more information.
+
+Unfortunately, there doesn't yet exist a tutorial-style introduction
+to the facilities of Tcl and Tk.  The papers give a general introduction,
+but it may be difficult to make the transition from the papers to the
+manual entries.  I'm in the middle of writing a book on Tcl and Tk, which
+will eventually provide a gentle introduction.  As pieces of the book
+enter draft form I'm making them available for public FTP in the Tcl/Tk
+distribution area.  Right now only the first quarter of the book (on
+writing Tcl scripts) is available.
+
+4. Compiling Tk
+---------------
+
+Before attempting to compile Tk, personalize Makefile by following the
+directions at the beginning of the file.  You should also configure
+Tcl by following the directions in the file "tcl/README".  Pay particular
+attention to the values of the TK_LIBRARY and TCL_LIBRARY definitions,
+which indicate where library scripts are stored.  Then type "make" in
+the top-level directory (the one that contains this file).  This will
+compile the Tk library and generate a simple windowing shell called
+"wish".  It will also compile the Tcl library, which is in the "tcl"
+subdirectory.  If you type "make install" then all of the binaries and
+scripts will get installed in standard places (but you'll need to have
+write permissions on the places;  see the Makefiles for details).
+
+Tk should compile "out of the box" on the most popular workstation
+platforms (Sun, H-P, IBM, and DEC), plus almost any other machine that
+provides UNIX-like facilities and X11 version 4 or later.  The file
+"porting.notes" contains information about changes needed to compile
+Tk under some environments (see tcl/porting.notes for additional
+information about getting Tcl to run in various places).  I'd be happy
+to receive additional contributions to add to porting.notes.
+
+5. Installing
+-------------
+
+If you type "make install" then all of the binaries and scripts will get
+installed in standard places, such as /usr/local/wish for the wish binary
+and /usr/local/lib/tk for Tk's script library.  Of course, you'll need to
+have write permissions on the places;  see the Makefiles for details on
+what is installed where.
+
+Tk depends on a library of scripts that establish default behaviors
+for Tk widgets and do many other things.  Tk normally expects the
+scripts to be in /usr/local/lib/tk.  If you don't want to create a
+subdirectory of /usr/local/lib (or if you can't), you can either make
+a symbolic link from there to the library subdirectory or you can
+modify the "-DTK_LIBRARY" definition in Makefile, or you can set your
+TK_LIBRARY environment variable;  any of these approaches will allow
+you to put the script library wherever you like.  Tcl has a similar
+script library; see the Tcl README file for details.
+
+6. Test Suite
+-------------
+
+Tk now has the barest beginnings of a test suite.  To execute the tests,
+start up wish, type "cd tests", then type "source all".  This will run
+all of the tests.  If all goes well, all you'll see is a listing of the
+test files (plus occasional instructions where you have to perform things
+manually to help out the tests).  If any errors occur, you'll see a much
+more substantial printout for each error.  The test suite is very young,
+so it's possible that it contains machine-dependencies that cause false
+errors in some environments.
+
+7. Getting Started
+------------------
+
+Once wish is compiled you can use it to play around with the Tk
+facilities.  If you run wish with no arguments, it will open a small
+window on the screen and read Tcl commands from standard input.
+Or, you can play with some of the pre-canned scripts in the subdirectory
+scripts/demos.  See the README file in the directory for a description
+of what's available.  The file scripts/demos/widget is a script that
+you can use to invoke many individual demonstrations of Tk's facilities. 
+
+If you want to start typing Tcl/Tk commands to wish, I'd suggest
+starting with a widget-creation command like "button", and also learn
+about the "pack" and "place" commands for geometry management.  Note:
+when you create a widget, it won't appear on the screen until you tell
+a geometry manager about it.  The only geometry managers at present
+are the packer and the placer.  If you don't already know Tcl, read the
+Tcl book excerpt that can be FTP'ed separately from the distribution
+directory.
+
+The easiest way to learn about writing new widgets is probably to look
+at existing widget implementations.  The demos directory contains an
+example of a trivial widget, which you might find useful as a starting
+point for writing new widgets.  You might also take a look at main.c,
+the main program for wish, to see how to write a main program that uses
+the facilities of Tk and Tcl.
+
+8. Newsgroup
+------------
+
+There is a network news group "comp.lang.tcl" intended for the exchange
+of information about Tcl, Tk, and related applications.  Feel free to use
+this newsgroup both for general information questions and for bug reports.
+I read the newsgroup and will attempt to fix bugs and problems reported
+to it.
+
+9. Feedback Wanted
+------------------
+
+I'm very interested in getting feedback from you both about bugs and about
+overall design issues.  Send your comments to "ouster@cs.berkeley.edu".
+I'll do my best to fix show-stopping bugs quickly, but most other things
+may not get fast turnaround, since I already have a zillion high-priority
+things to fix or implement.  Before submitting requests for new features
+you may wish to check the file ToDo, which has a list of things I already
+know about and plan to implement soon.
+
+10. The Future
+-------------
+
+Tk is still young.  I expect it to undergo substantial changes as I learn
+more about its strengths and weaknesses.  Some of the changes will not be
+backward compatible:  at this point I think it's more important to fix
+problems and improve Tk's structure than to maintain compatibility.  At
+some point in the next year or so there will be another new release with
+even more substantial incompatibilities than there are in this release.
+My plan is to save up as many as possible of the incompatible changes
+that are needed and do them all at once.

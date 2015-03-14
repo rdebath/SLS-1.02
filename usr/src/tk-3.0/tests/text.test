@@ -1,0 +1,1101 @@
+# This file is a Tcl script to test out Tk's text widget.  The test
+# file "btree.test" contains additional tests focussed on the B-tree
+# facilities in particular.  This file is organized in the standard
+# fashion for Tcl tests.
+#
+# Don't "source" definitions if they're already been "sourced".
+# This allows manual users the flexibility to run only those
+# tests which they wish to and in the verbosity they wish, while 
+# at the same time allowing automated scripts to execute commands 
+# of the form:       tclTest < expr.test 
+
+if {[string compare test [info procs test]] == 1} then \
+  {source defs}
+
+catch {destroy .t}
+text .t -font *-Courier-Medium-R-Normal-*-120-* -width 80 -height 24
+pack append . .t {top expand fill}
+.t debug on
+wm geometry . {}
+
+proc setup {} {
+    .t delete 1.0 end
+    foreach i [.t tag names] {
+	if {$i != "sel"} {
+	    .t tag delete $i
+	}
+    }
+    .t insert 1.0 "Text for first line\nSecond line\n\nLast line of info"
+    .t tag add x 1.1
+    .t tag add x 1.5 1.13
+    .t tag add x 2.2 2.6
+    .t tag add y 1.5
+}
+
+setup
+foreach i [.t mark names] {
+    if {($i != "insert") && ($i != "current")} {
+	.t mark unset $i
+    }
+}
+test text-1.1 {"compare" option} {
+    list [.t compare 1.1 < 1.2] [.t compare 1.1 < 1.1] [.t compare 1.1 < 1.0]
+} {1 0 0}
+test text-1.2 {"compare" option} {
+    list [.t compare 1.1 <= 1.2] [.t compare 1.1 <= 1.1] [.t compare 1.1 <= 1.0]
+} {1 1 0}
+test text-1.3 {"compare" option} {
+    list [.t compare 1.1 == 1.2] [.t compare 1.1 == 1.1] [.t compare 1.1 == 1.0]
+} {0 1 0}
+test text-1.4 {"compare" option} {
+    list [.t compare 1.1 >= 1.2] [.t compare 1.1 >= 1.1] [.t compare 1.1 >= 1.0]
+} {0 1 1}
+test text-1.5 {"compare" option} {
+    list [.t compare 1.1 > 1.2] [.t compare 1.1 > 1.1] [.t compare 1.1 > 1.0]
+} {0 0 1}
+test text-1.6 {"compare" option} {
+    list [.t compare 1.1 != 1.2] [.t compare 1.1 != 1.1] [.t compare 1.1 != 1.0]
+} {1 0 1}
+test text-1.7 {"compare" option} {
+    list [.t compare 1.3 < 2.3] [.t compare 1.3 == 2.3] [.t compare 1.1 > 2.3]
+} {1 0 0}
+test text-1.8 {"compare" option} {
+    list [.t compare 2.1 < 2.3] [.t compare 2.1 == 2.3] [.t compare 2.1 > 2.3]
+} {1 0 0}
+test text-1.9 {"compare" option} {
+    list [.t compare 2.3 < 2.3] [.t compare 2.3 == 2.3] [.t compare 2.3 > 2.3]
+} {0 1 0}
+test text-1.10 {"compare" option} {
+    list [.t compare 2.5 < 2.3] [.t compare 2.5 == 2.3] [.t compare 2.5 > 2.3]
+} {0 0 1}
+test text-1.11 {"compare" option} {
+    list [.t compare 3.0 < 2.3] [.t compare 3.0 == 2.3] [.t compare 3.0 > 2.3]
+} {0 0 1}
+test text-1.12 {"compare" option} {
+    list [catch {.t compare} msg] $msg
+} {1 {wrong # args: should be ".t compare index1 op index2"}}
+test text-1.13 {"compare" option} {
+    list [catch {.t compare 1 2} msg] $msg
+} {1 {wrong # args: should be ".t compare index1 op index2"}}
+test text-1.14 {"compare" option} {
+    list [catch {.t compare 1 2 3 4} msg] $msg
+} {1 {wrong # args: should be ".t compare index1 op index2"}}
+test text-1.15 {"compare" option} {
+    list [catch {.t compare foo < 1.2} msg] $msg
+} {1 {bad text index "foo"}}
+test text-1.16 {"compare" option} {
+    list [catch {.t compare 1.2 < foo} msg] $msg
+} {1 {bad text index "foo"}}
+test text-1.17 {"compare" option} {
+    list [catch {.t compare 1.0 a 1.2} msg] $msg
+} {1 {bad comparison operator "a": must be <, <=, ==, >=, >, or !=}}
+test text-1.18 {"compare" option} {
+    list [catch {.t compare 1.0 <a 1.2} msg] $msg
+} {1 {bad comparison operator "<a": must be <, <=, ==, >=, >, or !=}}
+test text-1.19 {"compare" option} {
+    list [catch {.t compare 1.0 <=x 1.2} msg] $msg
+} {1 {bad comparison operator "<=x": must be <, <=, ==, >=, >, or !=}}
+test text-1.20 {"compare" option} {
+    list [catch {.t compare 1.0 >=x 1.2} msg] $msg
+} {1 {bad comparison operator ">=x": must be <, <=, ==, >=, >, or !=}}
+test text-1.21 {"compare" option} {
+    list [catch {.t compare 1.0 >a 1.2} msg] $msg
+} {1 {bad comparison operator ">a": must be <, <=, ==, >=, >, or !=}}
+test text-1.22 {"compare" option} {
+    list [catch {.t compare 1.0 !x 1.2} msg] $msg
+} {1 {bad comparison operator "!x": must be <, <=, ==, >=, >, or !=}}
+test text-1.23 {"compare" option} {
+    list [catch {.t compare 1.0 === 1.2} msg] $msg
+} {1 {bad comparison operator "===": must be <, <=, ==, >=, >, or !=}}
+
+setup
+.t mark set m1 1.2
+.t mark set m2 2.4
+update
+test text-2.1 {"index" option, "@" notation} {
+    .t index @1,1
+} {1.0}
+test text-2.2 {"index" option, "@" notation} {
+    .t index @133,8
+} {1.18}
+test text-2.3 {"index" option, "@" notation} {
+    .t index @136,8
+} {1.19}
+test text-2.4 {"index" option, "@" notation} {
+    .t index @5,19
+} {2.0}
+test text-2.5 {"index" option, "@" notation} {
+    .t index @69,46
+} {4.9}
+test text-2.6 {"index" option, "@" notation} {
+    .t index @10,100
+} {4.17}
+test text-2.7 {"index" option, "@" notation} {
+    list [catch {.t index "@"} msg] $msg
+} {1 {bad text index "@"}}
+test text-2.8 {"index" option, "@" notation} {
+    list [catch {.t index "@a"} msg] $msg
+} {1 {bad text index "@a"}}
+test text-2.9 {"index" option, "@" notation} {
+    list [catch {.t index "@1x"} msg] $msg
+} {1 {bad text index "@1x"}}
+test text-2.10 {"index" option, "@" notation} {
+    list [catch {.t index "@1."} msg] $msg
+} {1 {bad text index "@1."}}
+test text-2.11 {"index" option, "@" notation} {
+    list [catch {.t index "@1.a"} msg] $msg
+} {1 {bad text index "@1.a"}}
+
+test text-3.1 {"index" option, line.char notation} {
+    .t index 1.1
+} {1.1}
+test text-3.2 {"index" option, line.char notation} {
+    .t index 2.end
+} {2.11}
+test text-3.3 {"index" option, line.char notation} {
+    .t index 3.end
+} {3.0}
+test text-3.4 {"index" option, line.char notation} {
+    .t index -1.-2
+} {-1.-2}
+test text-3.5 {"index" option, line.char notation} {
+    list [catch {.t index -a} msg] $msg
+} {1 {bad text index "-a"}}
+test text-3.6 {"index" option, line.char notation} {
+    list [catch {.t index 1.} msg] $msg
+} {1 {bad text index "1."}}
+test text-3.7 {"index" option, line.char notation} {
+    list [catch {.t index 1.e} msg] $msg
+} {1 {bad text index "1.e"}}
+test text-3.8 {"index" option, line.char notation} {
+    list [catch {.t index 1.enda} msg] $msg
+} {1 {bad text index "1.enda"}}
+test text-3.9 {"index" option, line.char notation} {
+    list [catch {.t index 400.end} msg] $msg
+} {1 {bad text index "400.end": no such line in text}}
+test text-3.10 {"index" option, line.char notation} {
+    list [catch {.t index 1.x} msg] $msg
+} {1 {bad text index "1.x"}}
+
+test text-4.1 {"index" option, miscellaneous bases} {
+    .t index end
+} {4.17}
+test text-4.2 {"index" option, miscellaneous bases} {
+    .t index m1
+} {1.2}
+test text-4.3 {"index" option, miscellaneous bases} {
+    .t index m2
+} {2.4}
+test text-4.4 {"index" option, miscellaneous bases} {
+    .t index x.first
+} {1.1}
+test text-4.5 {"index" option, miscellaneous bases} {
+    .t index x.last
+} {2.6}
+test text-4.6 {"index" option, miscellaneous bases} {
+    .t index y.first
+} {1.5}
+test text-4.7 {"index" option, miscellaneous bases} {
+    .t index y.last
+} {1.6}
+test text-4.8 {"index" option, miscellaneous bases} {
+    list [catch {.t index x.f} msg] $msg
+} {1 {bad text index "x.f"}}
+test text-4.9 {"index" option, miscellaneous bases} {
+    list [catch {.t index x.firstl} msg] $msg
+} {1 {bad text index "x.firstl"}}
+test text-4.10 {"index" option, miscellaneous bases} {
+    list [catch {.t index x.las} msg] $msg
+} {1 {bad text index "x.las"}}
+test text-4.11 {"index" option, miscellaneous bases} {
+    list [catch {.t index x.last1} msg] $msg
+} {1 {bad text index "x.last1"}}
+test text-4.12 {"index" option, miscellaneous bases} {
+    .t tag remove sel 0.0 end
+    list [catch {.t index sel.first} msg] $msg
+} {1 {text doesn't contain any characters tagged with "sel"}}
+
+test text-5.1 {"index" option with +/- modifiers} {
+    .t index 1.1+1c
+} 1.2
+test text-5.2 {"index" option with +/- modifiers} {
+    .t index @0,0+1c
+} 1.1
+test text-5.3 {"index" option with +/- modifiers} {
+    .t index 1.end+1c
+} 2.0
+test text-5.4 {"index" option with +/- modifiers} {
+    .t index m1+1c
+} 1.3
+test text-5.5 {"index" option with +/- modifiers} {
+    .t index "m1  	+1c"
+} 1.3
+test text-5.6 {"index" option with +/- modifiers} {
+    .t index "m1-1c"
+} 1.1
+test text-5.7 {"index" option with +/- modifiers} {
+    list [catch {.t index "m1 x"} msg] $msg
+} {1 {bad text index "m1 x"}}
+test text-5.8 {"index" option with +/- modifiers} {
+    .t index "m1 +   	1  		c"
+} 1.3
+test text-5.9 {"index" option with +/- modifiers} {
+    list [catch {.t index "m1+x"} msg] $msg
+} {1 {bad text index "m1+x"}}
+test text-5.10 {"index" option with +/- modifiers} {
+    list [catch {.t index "m1+22gorps"} msg] $msg
+} {1 {bad text index "m1+22gorps"}}
+test text-5.11 {"index" option with +/- modifiers} {
+    .t index "1.2+1c"
+} 1.3
+test text-5.12 {"index" option with +/- modifiers} {
+    .t index "1.2+3c"
+} 1.5
+test text-5.13 {"index" option with +/- modifiers} {
+    .t index "1.2+17c"
+} 1.19
+test text-5.14 {"index" option with +/- modifiers} {
+    .t index "1.2+18c"
+} 2.0
+test text-5.15 {"index" option with +/- modifiers} {
+    .t index "1.2+20c"
+} 2.2
+test text-5.16 {"index" option with +/- modifiers} {
+    .t index "1.2+100c"
+} 4.17
+test text-5.17 {"index" option with +/- modifiers} {
+    .t index "2.4-1c"
+} 2.3
+test text-5.18 {"index" option with +/- modifiers} {
+    .t index "2.4-4c"
+} 2.0
+test text-5.19 {"index" option with +/- modifiers} {
+    .t index "2.4-5c"
+} 1.19
+test text-5.20 {"index" option with +/- modifiers} {
+    .t index "2.4-10c"
+} 1.14
+test text-5.21 {"index" option with +/- modifiers} {
+    .t index "2.4-100c"
+} 1.0
+test text-5.22 {"index" option with +/- modifiers} {
+    .t index "2.4 - 100 chars"
+} 1.0
+test text-5.23 {"index" option with +/- modifiers} {
+    list [catch {.t index "2.4 - 100 charsx"} msg] $msg
+} {1 {bad text index "2.4 - 100 charsx"}}
+test text-5.24 {"index" option with +/- modifiers} {
+    .t index "1.3+1l"
+} 2.3
+test text-5.25 {"index" option with +/- modifiers} {
+    .t index "1.3+2l"
+} 3.0
+test text-5.26 {"index" option with +/- modifiers} {
+    .t index "1.3+3li"
+} 4.3
+test text-5.27 {"index" option with +/- modifiers} {
+    .t index "1.3+4lines"
+} 4.3
+test text-5.28 {"index" option with +/- modifiers} {
+    .t index "3.2 - 1 lines"
+} 2.2
+test text-5.29 {"index" option with +/- modifiers} {
+    .t index "3.2 - 2 lines"
+} 1.2
+test text-5.30 {"index" option with +/- modifiers} {
+    .t index "3.2 - 3 lines"
+} 1.2
+test text-5.31 {"index" option with +/- modifiers} {
+    .t index "3.-2 - 1 lines"
+} 2.0
+test text-5.32 {"index" option with +/- modifiers} {
+    list [catch {.t index "3.-2 - 1 linesx"} msg] $msg
+} {1 {bad text index "3.-2 - 1 linesx"}}
+
+setup
+.t insert end "\n#\$foo.bar! first_l60t _ "
+test text-6.1 {"index" option with start/end modifiers} {
+    .t index "2.3 lines"
+} 2.0
+test text-6.2 {"index" option with start/end modifiers} {
+    .t index "2.0 linestart"
+} 2.0
+test text-6.3 {"index" option with start/end modifiers} {
+    .t index "2.-4 linestart"
+} 2.0
+test text-6.4 {"index" option with start/end modifiers} {
+    .t index "2.30 linestart"
+} 3.0
+test text-6.5 {"index" option with start/end modifiers} {
+    .t index "10.0 linestart"
+} 5.0
+test text-6.6 {"index" option with start/end modifiers} {
+    .t index "10.0 lineend"
+} 5.24
+test text-6.7 {"index" option with start/end modifiers} {
+    .t index "3.5 linee"
+} 4.17
+test text-6.8 {"index" option with start/end modifiers} {
+    .t index "2.4 lineend"
+} 2.11
+test text-6.9 {"index" option with start/end modifiers} {
+    .t index "0.0 lineend"
+} 1.19
+test text-6.10 {"index" option with start/end modifiers} {
+    list [catch {.t index "2.2 line"} msg] $msg
+} {1 {bad text index "2.2 line"}}
+test text-6.11 {"index" option with start/end modifiers} {
+    .t index "1.0 wordstart"
+} 1.0
+test text-6.12 {"index" option with start/end modifiers} {
+    .t index "1.1 wordstart"
+} 1.0
+test text-6.13 {"index" option with start/end modifiers} {
+    .t index "1.3 wordstart"
+} 1.0
+test text-6.14 {"index" option with start/end modifiers} {
+    .t index "1.4 words"
+} 1.4
+test text-6.15 {"index" option with start/end modifiers} {
+    .t index "1.5 wordstart"
+} 1.5
+test text-6.16 {"index" option with start/end modifiers} {
+    .t index "1.19 wordstart"
+} 1.19
+test text-6.17 {"index" option with start/end modifiers} {
+    .t index "5.3 wordstart"
+} 5.2
+test text-6.18 {"index" option with start/end modifiers} {
+    .t index "5.20 wordstart"
+} 5.11
+test text-6.19 {"index" option with start/end modifiers} {
+    .t index "5.0 wordend"
+} 5.1
+test text-6.20 {"index" option with start/end modifiers} {
+    .t index "5.1 wordend"
+} 5.2
+test text-6.21 {"index" option with start/end modifiers} {
+    .t index "5.2 wordend"
+} 5.5
+test text-6.22 {"index" option with start/end modifiers} {
+    .t index "5.4 wordend"
+} 5.5
+test text-6.23 {"index" option with start/end modifiers} {
+    .t index "5.5 wordend"
+} 5.6
+test text-6.24 {"index" option with start/end modifiers} {
+    .t index "5.11 wordend"
+} 5.21
+test text-6.25 {"index" option with start/end modifiers} {
+    .t index "5.100 wordend"
+} 5.24
+test text-6.26 {"index" option with start/end modifiers} {
+    list [catch {.t index "2.2 word"} msg] $msg
+} {1 {bad text index "2.2 word"}}
+test text-6.27 {"index" option with start/end modifiers} {
+    .t index "1.2 wordend+1line wordend"
+} 2.6
+test text-6.28 {"index" option with start/end modifiers} {
+    .t index "2.1 wordend-1 line wordend"
+} 1.8
+test text-6.29 {"index" option with start/end modifiers} {
+    .t index "2.3 wordend + 1 char wordend"
+} 2.11
+
+setup
+test text-7.1 {RoundIndex procedure} {
+    .t index -1.4+0c
+} 1.0
+test text-7.2 {RoundIndex procedure} {
+    .t index 100.2+0c
+} 4.17
+test text-7.3 {RoundIndex procedure} {
+    .t index 2.-3+0c
+} 2.0
+test text-7.4 {RoundIndex procedure} {
+    .t index 2.100+0c
+} 3.0
+test text-7.5 {RoundIndex procedure} {
+    .t index 4.100+0c
+} 4.17
+
+test text-8.1 {"tag" option} {
+    list [catch {.t tag} msg] $msg
+} {1 {wrong # args: should be ".t tag option ?arg arg ...?"}}
+test text-8.2 {"tag" option} {
+    list [catch {.t tag gorp} msg] $msg
+} {1 {bad tag option "gorp":  must be add, bind, configure, delete, lower, names, nextrange, raise, ranges, or remove}}
+test text-8.3 {"tag" option} {
+    list [catch {.t tag n} msg] $msg
+} {1 {bad tag option "n":  must be add, bind, configure, delete, lower, names, nextrange, raise, ranges, or remove}}
+test text-8.4 {"tag" option} {
+    list [catch {.t tag r} msg] $msg
+} {1 {bad tag option "r":  must be add, bind, configure, delete, lower, names, nextrange, raise, ranges, or remove}}
+test text-8.5 {"tag" option} {
+    list [catch {.t tag ra} msg] $msg
+} {1 {bad tag option "ra":  must be add, bind, configure, delete, lower, names, nextrange, raise, ranges, or remove}}
+
+setup
+test text-9.1 {"tag add" option} {
+    .t tag add x1 2.0
+    .t tag ranges x1
+} {2.0 2.1}
+test text-9.2 {"tag add" option} {
+    .t tag a x2 2.0 2.3
+    .t tag ranges x2
+} {2.0 2.3}
+test text-9.3 {"tag add" option} {
+    .t tag remove sel 0.0 end
+    .t tag add sel 2.0 2.3
+    selection get
+} {Sec}
+test text-9.4 {"tag add" option} {
+    list [catch {.t tag add} msg] $msg
+} {1 {wrong # args: should be ".t tag add tagName index1 ?index2?"}}
+test text-9.5 {"tag add" option} {
+    list [catch {.t tag add a b c d} msg] $msg
+} {1 {wrong # args: should be ".t tag add tagName index1 ?index2?"}}
+test text-9.6 {"tag add" option} {
+    list [catch {.t tag add a #xgorp} msg] $msg
+} {1 {bad text index "#xgorp"}}
+test text-9.7 {"tag add" option} {
+    list [catch {.t tag add a 1.0 #xgorp} msg] $msg
+} {1 {bad text index "#xgorp"}}
+
+setup
+test text-10.1 {"tag configure" option} {
+    .t tag configure test -foreground white
+    lindex [.t tag c test -foreground] 4
+} {white}
+test text-10.2 {"tag configure" option} {
+    llength [.t tag configure test]
+} {8}
+test text-10.3 {"tag configure" option} {
+    list [catch {.t tag configure test -gorp} msg] $msg
+} {1 {unknown option "-gorp"}}
+test text-10.4 {"tag configure" option} {
+    list [catch {.t tag configure test -gorp blue} msg] $msg
+} {1 {unknown option "-gorp"}}
+test text-10.5 {"tag configure" option} {
+    list [catch {.t tag configure} msg] $msg
+} {1 {wrong # args: should be ".t tag configure tagName ?option? ?value? ?option value ...?"}}
+test text-10.6 {"tag configure" option} {
+    .t tag configure sel -foreground white
+    lindex [.t configure -selectforeground] 4
+} {white}
+test text-10.7 {"tag configure" option} {
+    .t tag configure sel -foreground black
+    lindex [.t configure -selectforeground] 4
+} {black}
+test text-10.8 {"tag configure" option} {
+    .t tag configure sel -borderwidth 8
+    lindex [.t configure -selectborderwidth] 4
+} {8}
+test text-10.6 {"tag configure" option} {
+    .t tag configure sel -background white
+    lindex [.t configure -selectbackground] 4
+} {white}
+test text-10.7 {"tag configure" option} {
+    .t tag configure sel -background black
+    lindex [.t configure -selectbackground] 4
+} {black}
+
+setup
+test text-11.1 {"tag delete" option} {
+    .t tag add t1 2.0 2.3
+    .t tag delete t1
+    .t tag names
+} {sel x y}
+test text-11.2 {"tag delete" option} {
+    .t tag d x y
+    .t tag names
+} {sel}
+test text-11.3 {"tag delete" option} {
+    list [catch {.t tag delete sel} msg] $msg
+} {1 {can't delete selection tag}}
+test text-11.4 {"tag delete" option} {
+    list [catch {.t tag delete} msg] $msg
+} {1 {wrong # args: should be ".t tag delete tagName tagName ..."}}
+test text-11.5 {"tag delete" option} {
+    list [catch {.t tag delete #gorp} msg] $msg
+} {0 {}}
+
+setup
+.t tag add a 2.0
+.t tag add b 2.1
+.t tag lower b
+test text-12.1 {"tag lower" option} {
+    .t tag names
+} {b sel x y a}
+.t tag l b a
+test text-12.2 {"tag lower" option} {
+    .t tag names
+} {sel x y b a}
+.t tag lower b b
+test text-12.3 {"tag lower" option} {
+    .t tag names
+} {sel x y b a}
+.t tag lower b y
+test text-12.4 {"tag lower" option} {
+    .t tag names
+} {sel x b y a}
+test text-12.5 {"tag lower" option} {
+    list [catch {.t tag lower} msg] $msg
+} {1 {wrong # args: should be ".t tag lower tagName ?belowThis?"}}
+test text-12.6 {"tag lower" option} {
+    list [catch {.t tag lower a b c} msg] $msg
+} {1 {wrong # args: should be ".t tag lower tagName ?belowThis?"}}
+test text-12.7 {"tag lower" option} {
+    list [catch {.t tag lower #gorp} msg] $msg
+} {1 {tag "#gorp" isn't defined in text widget}}
+test text-12.8 {"tag lower" option} {
+    list [catch {.t tag lower a #gorp} msg] $msg
+} {1 {tag "#gorp" isn't defined in text widget}}
+
+setup
+.t tag add a 2.0 2.3
+.t tag add b 2.2
+.t tag lower b
+test text-13.1 {"tag names" option} {
+    .t tag na
+} {b sel x y a}
+test text-13.2 {"tag names" option} {
+    .t tag names 2.2
+} {b x a}
+test text-13.3 {"tag names" option} {
+    list [catch {.t tag names a b} msg] $msg
+} {1 {wrong # args: should be ".t tag names ?index?"}}
+test text-13.4 {"tag names" option} {
+    list [catch {.t tag names @gorp} msg] $msg
+} {1 {bad text index "@gorp"}}
+test text-13.5 {"tag names" option} {
+    list [catch {.t tag names 100000.0} msg] $msg
+} {0 {}}
+test text-13.6 {"tag names" option} {
+    list [catch {.t tag names 2.7} msg] $msg
+} {0 {}}
+
+setup
+test text-14.1 {"tag nextrange" option} {
+    .t tag ne x 1.0
+} {1.1 1.2}
+test text-14.2 {"tag nextrange" option} {
+    .t tag nextrange x 1.1
+} {1.1 1.2}
+test text-14.3 {"tag nextrange" option} {
+    .t tag nextrange x 1.2
+} {1.5 1.13}
+test text-14.4 {"tag nextrange" option} {
+    .t tag nextrange x 1.6
+} {2.2 2.6}
+test text-14.5 {"tag nextrange" option} {
+    .t tag nextrange x 1.3 1.14
+} {1.5 1.13}
+test text-14.6 {"tag nextrange" option} {
+    .t tag nextrange x 1.3 1.13
+} {1.5 1.13}
+test text-14.7 {"tag nextrange" option} {
+    .t tag nextrange x 1.3 1.10
+} {1.5 1.13}
+test text-14.8 {"tag nextrange" option} {
+    .t tag nextrange x 1.3 1.6
+} {1.5 1.13}
+test text-14.9 {"tag nextrange" option} {
+    .t tag nextrange x 1.3 1.5
+} {}
+test text-14.10 {"tag nextrange" option} {
+    list [catch {.t tag nextrange} msg] $msg
+} {1 {wrong # args: should be ".t tag nextrange tagName index1 ?index2?"}}
+test text-14.11 {"tag nextrange" option} {
+    list [catch {.t tag nextrange a} msg] $msg
+} {1 {wrong # args: should be ".t tag nextrange tagName index1 ?index2?"}}
+test text-14.12 {"tag nextrange" option} {
+    list [catch {.t tag nextrange a b c d} msg] $msg
+} {1 {wrong # args: should be ".t tag nextrange tagName index1 ?index2?"}}
+test text-14.13 {"tag nextrange" option} {
+    list [catch {.t tag nextrange #gorp 1.0} msg] $msg
+} {0 {}}
+test text-14.14 {"tag nextrange" option} {
+    list [catch {.t tag nextrange x @bogus} msg] $msg
+} {1 {bad text index "@bogus"}}
+test text-14.15 {"tag nextrange" option} {
+    list [catch {.t tag nextrange x 1.0 @bogus} msg] $msg
+} {1 {bad text index "@bogus"}}
+
+setup
+.t tag add a 2.0
+.t tag add b 2.1
+.t tag rai x
+test text-15.1 {"tag raise" option} {
+    .t tag names
+} {sel y a b x}
+.t tag raise x y
+test text-15.2 {"tag raise" option} {
+    .t tag names
+} {sel y x a b}
+.t tag raise x x
+test text-15.3 {"tag raise" option} {
+    .t tag names
+} {sel y x a b}
+.t tag raise x a
+test text-15.4 {"tag raise" option} {
+    .t tag names
+} {sel y a x b}
+test text-15.5 {"tag raise" option} {
+    list [catch {.t tag raise} msg] $msg
+} {1 {wrong # args: should be ".t tag raise tagName ?aboveThis?"}}
+test text-15.6 {"tag raise" option} {
+    list [catch {.t tag raise a b c} msg] $msg
+} {1 {wrong # args: should be ".t tag raise tagName ?aboveThis?"}}
+test text-15.7 {"tag raise" option} {
+    list [catch {.t tag raise #gorp} msg] $msg
+} {1 {tag "#gorp" isn't defined in text widget}}
+test text-15.8 {"tag raise" option} {
+    list [catch {.t tag raise a #gorp} msg] $msg
+} {1 {tag "#gorp" isn't defined in text widget}}
+
+setup
+.t tag configure a -foreground black
+test text-16.1 {"tag ranges" option} {
+    .t tag ran x
+} {1.1 1.2 1.5 1.13 2.2 2.6}
+test text-16.2 {"tag ranges" option} {
+    .t tag ranges y
+} {1.5 1.6}
+test text-16.3 {"tag ranges" option} {
+    .t tag ranges a
+} {}
+test text-16.4 {"tag ranges" option} {
+    .t tag ranges #gorp
+} {}
+test text-16.5 {"tag ranges" option} {
+    list [catch {.t tag ranges} msg] $msg
+} {1 {wrong # args: should be ".t tag ranges tagName"}}
+test text-16.6 {"tag ranges" option} {
+    list [catch {.t tag ranges a b} msg] $msg
+} {1 {wrong # args: should be ".t tag ranges tagName"}}
+
+setup
+test text-17.1 {"tag remove" option} {
+    .t tag re x 2.3 2.7
+    .t tag ranges x
+} {1.1 1.2 1.5 1.13 2.2 2.3}
+test text-17.2 {"tag remove" option} {
+    list [catch {.t tag remove} msg] $msg
+} {1 {wrong # args: should be ".t tag remove tagName index1 ?index2?"}}
+
+setup
+test text-18.1 {"tag bind" option} {
+    .t tag delete x
+    .t tag bind x <Enter> "going in"
+    .t tag bind x <Leave> "going out"
+    list [lsort [.t tag bind x]] [.t tag bind x <Enter>] [.t tag bind x <Leave>]
+} {{<Enter> <Leave>} {going in} {going out}}
+test text-18.2 {"tag bind" option} {
+    .t tag delete x
+    .t tag bind x <Enter> "command #1"
+    .t tag bind x <Enter> "+command #2"
+    .t tag bind x <Enter>
+} {command #1; command #2}
+test text-18.3 {"tag bind" option} {
+    .t tag delete x
+    .t tag bind x <Enter> "command #1"
+    .t tag bind x <Enter> {}
+    list [catch {.t tag bind x <Enter>} msg] $msg
+} {1 {no binding exists for "<Enter>"}}
+test text-18.4 {"tag bind" option} {
+    list [catch {.t tag bind} msg] $msg
+} {1 {wrong # args: should be ".t tag bind tagName ?sequence? ?command?"}}
+test text-18.5 {"tag bind" option} {
+    list [catch {.t tag bind a b c d} msg] $msg
+} {1 {wrong # args: should be ".t tag bind tagName ?sequence? ?command?"}}
+test text-18.6 {"tag bind" option} {
+    list [catch {.t tag bind x <badEvent> abcd} msg] $msg
+} {1 {bad event type or keysym "badEvent"}}
+test text-18.7 {"tag bind" option} {
+    .t tag delete x
+    list [catch {.t tag bind x <Configure> abcd} msg] $msg [.t tag bind x]
+} {1 {requested illegal events; only key, button, motion, and enter/leave events may be used} {}}
+
+setup
+test text-19.1 {"debug" option} {
+    .t debug on
+    .t debug
+} on
+test text-19.2 {"debug" option} {
+    .t debug off
+    .t debug
+} off
+test text-19.3 {"debug" option} {
+    list [catch {.t debug a b} msg] $msg
+} {1 {wrong # args: should be ".t debug ?on|off?"}}
+test text-19.4 {"debug" option} {
+    list [catch {.t debug gorp} msg] $msg
+} {1 {expected boolean value but got "gorp"}}
+
+test text-20.1 {"delete" option} {
+    setup
+    .t delete 1.2
+    .t get 1.0 1.end
+} {Tet for first line}
+test text-20.2 {"delete" option} {
+    setup
+    .t delete 1.2 1.6
+    .t get 1.0 1.end
+} {Teor first line}
+test text-20.3 {"delete" option} {
+    list [catch {.t delete} msg] $msg
+} {1 {wrong # args: should be ".t delete index1 ?index2?"}}
+test text-20.4 {"delete" option} {
+    list [catch {.t delete a b c} msg] $msg
+} {1 {wrong # args: should be ".t delete index1 ?index2?"}}
+test text-20.5 {"delete" option} {
+    list [catch {.t delete @badIndex} msg] $msg
+} {1 {bad text index "@badIndex"}}
+test text-20.6 {"delete" option} {
+    list [catch {.t delete 1.2 @badIndex} msg] $msg
+} {1 {bad text index "@badIndex"}}
+test text-20.7 {"delete" option} {
+    setup
+    .t config -state disabled
+    list [catch {.t delete 1.2} msg] $msg
+    .t get 1.0 1.end
+} {Text for first line}
+.t config -state normal
+
+setup
+test text-21.1 {"get" option} {
+    .t get 1.3 1.5
+} {t }
+test text-21.2 {"get" option} {
+    .t get 1.8 2.4
+} " first line\nSeco"
+test text-21.3 {"get" option} {
+    .t get 1.5 4.4
+} "for first line\nSecond line\n\nLast"
+test text-21.4 {"get" option} {
+    .t get 2.0
+} S
+test text-21.5 {"get" option} {
+    .t get 1.0 2.0
+} "Text for first line\n"
+test text-21.6 {"get" option} {
+    list [catch {.t get} msg] $msg
+} {1 {wrong # args: should be ".t get index1 ?index2?"}}
+test text-21.7 {"get" option} {
+    list [catch {.t get a b c} msg] $msg
+} {1 {wrong # args: should be ".t get index1 ?index2?"}}
+test text-21.8 {"get" option} {
+    list [catch {.t get badMark} msg] $msg
+} {1 {bad text index "badMark"}}
+test text-21.8 {"get" option} {
+    list [catch {.t get 1.0 badMarkToo} msg] $msg
+} {1 {bad text index "badMarkToo"}}
+
+test text-22.1 {errors in "index" option} {
+    list [catch {.t index} msg] $msg
+} {1 {wrong # args: should be ".t index index"}}
+test text-22.2 {errors in "index" option} {
+    list [catch {.t index a b} msg] $msg
+} {1 {wrong # args: should be ".t index index"}}
+test text-22.3 {errors in "index" option} {
+    list [catch {.t index badMarkToo} msg] $msg
+} {1 {bad text index "badMarkToo"}}
+
+test text-23.1 {"insert" option} {
+    setup
+    .t insert 1.3 XYZ
+    .t get 1.0 1.end
+} {TexXYZt for first line}
+test text-23.2 {"insert" option} {
+    setup
+    .t insert 1.3 {}
+    .t get 1.0 1.end
+} {Text for first line}
+test text-23.3 {"insert" option} {
+    setup
+    .t configure -state disabled
+    .t insert 1.3 "Lots of text"
+    .t configure -state normal
+    .t get 1.0 1.end
+} {Text for first line}
+test text-23.4 {"insert" option} {
+    list [catch {.t insert a} msg] $msg
+} {1 {wrong # args: should be ".t insert index chars ?chars ...?"}}
+test text-23.5 {"insert" option} {
+    list [catch {.t insert a b c} msg] $msg
+} {1 {wrong # args: should be ".t insert index chars ?chars ...?"}}
+test text-23.6 {"insert" option} {
+    list [catch {.t insert @bogus foo} msg] $msg
+} {1 {bad text index "@bogus"}}
+
+setup
+.t mark set mark1 1.3
+.t mark set mark2 1.6
+test text-24.1 {"mark" options} {
+    list [catch {.t mark} msg] $msg
+} {1 {wrong # args: should be ".t mark option ?arg arg ...?"}}
+test text-24.2 {"mark" options} {
+    list [catch {.t mark badOption} msg] $msg
+} {1 {bad mark option "badOption":  must be names, set, or unset}}
+test text-24.3 {"mark" options} {
+    lsort [.t mark names]
+} {current insert m1 m2 mark1 mark2}
+test text-24.4 {"mark" options} {
+    list [catch {.t mark names a} msg] $msg
+} {1 {wrong # args: should be ".t mark names"}}
+test text-24.5 {"mark" options} {
+    .t index mark1
+} 1.3
+test text-24.6 {"mark" options} {
+    list [catch {.t mark set} msg] $msg
+} {1 {wrong # args: should be ".t mark set markName index"}}
+test text-24.7 {"mark" options} {
+    list [catch {.t mark set a b c} msg] $msg
+} {1 {wrong # args: should be ".t mark set markName index"}}
+test text-24.8 {"mark" options} {
+    list [catch {.t mark set a @bogus} msg] $msg
+} {1 {bad text index "@bogus"}}
+.t mark unset mark1 mark2
+test text-24.9 {"mark" options} {
+    list [catch {.t index mark1} msg] $msg
+} {1 {bad text index "mark1"}}
+test text-24.10 {"mark" options} {
+    list [catch {.t index mark2} msg] $msg
+} {1 {bad text index "mark2"}}
+test text-24.11 {"mark" options} {
+    list [catch {.t mark unset bogus bogus m1} msg] $msg
+} {0 {}}
+test text-24.12 {"mark" options} {
+    list [catch {.t mark unset insert} msg] $msg
+} {1 {can't delete "insert" mark}}
+test text-24.13 {"mark" options} {
+    list [catch {.t mark unset current} msg] $msg
+} {1 {can't delete "current" mark}}
+
+.t delete 1.0 end
+.t insert insert "Line 1"
+for {set i 2} {$i <= 200} {incr i} {
+    .t insert insert "\nLine $i"
+}
+update
+test text-25.1 {"yview" option} {
+    .t y 2
+    .t index @0,0
+} {3.0}
+test text-25.2 {"yview" option} {
+    .t yview 50
+    .t index @0,0
+} {51.0}
+test text-25.3 {"yview" option} {
+    .t yview 1.0
+    .t index @0,0
+} {1.0}
+test text-25.4 {"yview" option} {
+    .t yview 1000000
+    .t index @0,0
+} {200.0}
+test text-25.5 {"yview" option} {
+    .t yview 1.0
+    .t yview -pickplace 25.0
+    .t index @0,0
+} {2.0}
+test text-25.6 {"yview" option} {
+    .t yview 0.0
+    .t yview -pickplace 29.0
+    .t index @0,0
+} {6.0}
+test text-25.7 {"yview" option} {
+    .t yview 0.0
+    .t yview -pickplace 30.0
+    .t index @0,0
+} {19.0}
+test text-25.8 {"yview" option} {
+    .t yview 40.0
+    .t yview -pickplace 39.0
+    .t index @0,0
+} {39.0}
+test text-25.9 {"yview" option} {
+    .t yview 40.0
+    .t yview -pickplace 35.0
+    .t index @0,0
+} {35.0}
+test text-25.10 {"yview" option} {
+    .t yview 40.0
+    .t yview -pickplace 34.0
+    .t index @0,0
+} {23.0}
+test text-25.11 {"yview" option} {
+    .t yview -100
+    .t index @0,0
+} {1.0}
+test text-25.12 {"yview" option} {
+    list [catch {.t yview} msg] $msg
+} {1 {wrong # args: should be ".t yview ?-pickplace? lineNum|index"}}
+test text-25.13 {"yview" option} {
+    list [catch {.t yview 1.0 1.0} msg] $msg
+} {1 {wrong # args: should be ".t yview ?-pickplace? lineNum|index"}}
+test text-25.14 {"yview" option} {
+    list [catch {.t yview -pickplace 1.0 1.0} msg] $msg
+} {1 {wrong # args: should be ".t yview ?-pickplace? lineNum|index"}}
+test text-25.15 {"yview" option} {
+    list [catch {.t yview -poop 1.0} msg] $msg
+} {1 {wrong # args: should be ".t yview ?-pickplace? lineNum|index"}}
+test text-25.16 {"yview" option} {
+    list [catch {.t yview @bogus} msg] $msg
+} {1 {bad text index "@bogus"}}
+
+test text-26.1 {ambiguous options, other errors} {
+    list [catch {.t badOption} msg] $msg
+} {1 {bad option "badOption":  must be compare, configure, debug, delete, get, index, insert, mark, scan, tag, or yview}}
+test text-26.2 {ambiguous options, other errors} {
+    list [catch {.t co} msg] $msg
+} {1 {bad option "co":  must be compare, configure, debug, delete, get, index, insert, mark, scan, tag, or yview}}
+test text-26.3 {ambiguous options, other errors} {
+    list [catch {.t de} msg] $msg
+} {1 {bad option "de":  must be compare, configure, debug, delete, get, index, insert, mark, scan, tag, or yview}}
+test text-26.4 {ambiguous options, other errors} {
+    list [catch {.t in} msg] $msg
+} {1 {bad option "in":  must be compare, configure, debug, delete, get, index, insert, mark, scan, tag, or yview}}
+test text-26.4 {ambiguous options, other errors} {
+    list [catch {.t} msg] $msg
+} {1 {wrong # args: should be ".t option ?arg arg ...?"}}
+
+setup
+.t tag remove sel 1.0 end
+.t tag add sel 1.0 1.10
+test text-27.1 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {0 {Text for f}}
+.t configure -exportselection off
+test text-27.2 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {1 {selection doesn't exist or form "STRING" not defined}}
+.t tag add sel 2.0 2.end
+test text-27.3 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {1 {selection doesn't exist or form "STRING" not defined}}
+.t configure -exportselection on
+test text-27.4 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {0 {Text for fSecond line}}
+.t configure -exportselection off
+.t tag remove sel 1.0 end
+.t configure -exportselection on
+test text-27.5 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {1 {selection doesn't exist or form "STRING" not defined}}
+.t tag add sel 1.0 1.10
+.t tag remove sel 1.0 1.10
+test text-27.6 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {1 {selection doesn't exist or form "STRING" not defined}}
+.t tag add sel 1.0 1.4
+.t tag add sel 1.9 1.14
+.t tag add sel 1.15 1.19
+.t tag add sel 2.3 2.6
+.t tag add sel 4.0 4.9
+test text-27.7 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {0 {TextfirstlineondLast line}}
+.t tag remove sel 1.0 end
+.t tag add sel 1.15 2.6
+.t tag add sel 2.7 4.4
+test text-27.8 {selection exporting} {
+    list [catch {selection get} msg] $msg
+} {0 {line
+Secondline
+
+Last}}
+entry .e
+.e insert end "Some text"
+.e select from 0
+.e select to 4
+test text-27.9 {losing the selection} {
+    .t tag ranges sel
+} {}
+destroy .e
+
+test text-28.1 {copying from configs to sel tag} {
+    .t configure -selectbackground white
+    lindex [.t tag configure sel -background] 4
+} {white}
+test text-28.2 {copying from configs to sel tag} {
+    .t configure -selectbackground black
+    lindex [.t tag configure sel -background] 4
+} {black}
+test text-28.3 {copying from configs to sel tag} {
+    .t configure -selectforeground black
+    lindex [.t tag configure sel -foreground] 4
+} {black}
+test text-28.4 {copying from configs to sel tag} {
+    .t configure -selectforeground white
+    lindex [.t tag configure sel -foreground] 4
+} {white}
+test text-28.5 {copying from configs to sel tag} {
+    .t configure -selectborderwidth 3
+    lindex [.t tag configure sel -borderwidth] 4
+} {3}
+
+.t delete 1.0 end
+.t config -width 20 -height 10
+.t insert 1.0 "abcd efgh ijklmno pqrst uvwxyz 1234 56 7890\nLine 2\nLine 3"
+update
+after 200
+wm geometry . [expr [winfo width .]+3]x[winfo height .]
+update
+after 200
+.t config -wrap none
+test text-29.1 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.20 2.0 2.6 3.0 3.6 3.6}
+.t config -wrap char
+test text-29.2 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.19 1.20 1.39 1.40 1.43 2.0}
+.t config -wrap word
+test text-29.3 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.17 1.18 1.38 1.39 1.43 2.0}
+.t tag add sel 1.16
+.t tag add sel 1.18
+.t tag add sel 1.38
+.t tag add sel 1.39
+.t config -wrap none
+test text-29.4 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.20 2.0 2.6 3.0 3.6 3.6}
+.t config -wrap char
+test text-29.5 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.19 1.20 1.39 1.40 1.43 2.0}
+.t config -wrap word
+test text-29.6 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.17 1.18 1.38 1.39 1.43 2.0}
+.t tag remove sel 1.0 end
+.t tag add sel 1.17
+.t tag add sel 1.37
+.t config -wrap none
+test text-29.7 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.20 2.0 2.6 3.0 3.6 3.6}
+.t config -wrap char
+test text-29.8 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.19 1.20 1.39 1.40 1.43 2.0}
+.t config -wrap word
+test text-29.9 {-wrap option} {
+    list [.t index @500,8] [.t index @1,20] [.t index @500,20] \
+	    [.t index @1,35] [.t index @500,35] [.t index @1,48]
+} {1.17 1.18 1.38 1.39 1.43 2.0}
+
+#destroy .t

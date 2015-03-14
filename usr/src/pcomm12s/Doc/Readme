@@ -1,0 +1,216 @@
+
+				  Pcomm
+		      A Unix Telecommunication Program
+
+Things to do first:
+
+	1) Figure out what files you need.  There is a shell archive
+	called "Unixpc.shar" that contains additional (and replacement)
+	files for users of the AT&T Unix PC 7300/3b1.
+
+	2) Create a default directory where the Pcomm support files will
+	go.  A good location might be /usr/local/lib/pcomm.
+
+	3) Copy the sample support files Pcomm.dial_dir, Pcomm.extrnl,
+	Pcomm.modem, and Pcomm.param to the default directory and rename
+	them to change the upper case "P" to a lower case "p".  The files
+	should *not* have write permission to all.
+
+	4) Copy (and rename as appropriate) the Pcomm.1, Waitfor.1, 
+	Matches.1, and Modem_break.1 nroff manuals to the proper /usr/man
+	directory.
+
+	5) Print the Doc file by piping the output of the Unix "pr"
+	command with the title separated by lots of white space (to help
+	center it), for example:
+
+	pr -h "		   Pcomm Reference Manual	    " Doc | lp
+
+How to configure Pcomm:
+
+	1) Edit the "config.h" file to suit your system's needs and your
+	personal taste.  Sites running HoneyDanBer (HDB) UUCP should pay
+	particular attention to the LOCK_DIR, ASCII_PID, and SETUGID
+	definitions.  The definitions in config.h are:
+
+	BSD		Define if you're using a Berkeley flavor of Unix.
+			You will have to edit the Makefile in several
+			places.
+
+	UNIXPC		If defined, use the dial(3) routines specific
+			to the AT&T Unix PC 7300/3b1.  Useful only if
+			the On Board Modem (OBM) is to be used.
+
+	OLDCURSES	If defined, use the older version of curses(3).
+			(uses termcap in lieu of terminfo).
+
+	SHAREDMEM	If defined, keeps the virtual screen area in
+			shared memory rather than in a file.
+
+	NOPROMOTE	If defined, do not promote missing video
+			attributes to standout.  Normally, curses(3)
+			attempts to compensate for missing attributes.
+
+	SETUGID		If defined, extra precautions are taken before
+			opening files or doing a shell escape to restore
+			the real UID/GID.  Useful if Pcomm is installed
+			as a set-user-id or get-group-id program.  HDB
+			programs often are set-user-id to uucp.
+
+	LOG_CALLS	If defined, Pcomm will keep an administrative log
+			of all calls.  The log contains the name of the
+			person making the call, the phone number, and a
+			date/time stamp.  Useful for verifying long
+			distance phone bills.
+
+	LOGFILE		The path to the log file (if LOG_CALLS is
+			defined).  It should have write permission to
+			all or be writeable under set-user/group-id
+			conditions.
+
+	LIMIT_LD	If defined, Pcomm will limit long distance
+			(toll) calls to a privileged group.  The file
+			"admin.c" may require tweaking to detect long
+			distance numbers.
+
+	GROUP_NAME	The name of the group that is allowed to make
+			long distance calls (if LIMIT_LD is defined).
+
+	LPR		The path to the line printer program (this is
+			not the name of the device).
+
+	LPRINT		The path to the "pretty" line printer program.
+			Typically a program that performs a "pr | lp"
+			function.  If none exist, use "pr | lp".
+
+	DEFAULT_DIR	The path to the directory that contains the
+			default Pcomm support files.
+
+	LOCK_DIR	The path to the directory where the UUCP lock
+			files are found.  On HDB systems this could
+			be /usr/spool/locks or /usr/spool/uucp.
+
+	ASCII_PID	If defined, the lock files will contain an ASCII
+			encoded process id (PID).  On HDB systems this
+			is the default.
+
+	XENIX_LOCKS	If defined, the last letter of the device name
+			is folded to lower case when creating the lock
+			file.  Newer version of XENIX may require this.
+
+	KEEP_PORT	If defined, the port will be kept open between
+			dialing attempts to save time.  Some systems
+			may require the modem to be closed and reopened
+			every time.
+
+	XMC_BROKE	Does the status line scroll up when using "magic
+			cookie" terminals?  Some Pyramid and AT&T
+			systems may require this to be defined.  Find a
+			magic cookie terminal (a Wyse 50 for example),
+			and see what happens.
+
+	WGETCH_BROKE	Does the alarm() system call work correctly with
+			the wgetch() function?  Some Masscomp systems
+			will require this to be defined.  Symptom: the
+			initial screen doesn't go away by itself after 5
+			seconds.
+
+	CLIST_SIZ	The size of the serial port character buffer.
+			The default is 64.
+
+	INPUT_BUF	The size of the input buffer (should be about the
+			same size as CLIST_SIZ).  The default is 64.
+
+	OUTPUT_BUF	The size of the output buffer (should be about
+			one half INPUT_BUF).  The default is 32.  Systems
+			without dedicated I/O processors may require a
+			very small INPUT_BUF value to avoid the problem
+			of a "choppy" display.
+
+	MEMMOVE		The name of the memory copy routine (if none,
+			then use "#undef MEMMOVE").  The default is
+			"memmove", although quite a few versions of
+			"memcpy" will work (if they correctly handle
+			target and source overlap).
+
+	SETUID_BROKE	Does your version of Unix allow you to flip-flop
+			back and forth between the real and effective
+			user (or group) ID?  Some Masscomp systems will
+			require this to be set.
+
+	2) Edit the Makefile.  There are provisions in the Makefile to
+	include getcwd(3) and getopt(3) routines if they are missing
+	from your system.  You may want to customize the CFLAGS,
+	LDFLAGS, and BIN assignments to suit your needs.
+
+	If compiling under Berkeley Unix, you will have to edit the
+	Makefile on the following lines:
+
+		#for old curses(3) or Berkeley systems
+		CURSES = -lcurses -ltermcap
+		TERMLIB = -ltermcap
+		#CURSES = -lcurses
+		#TERMLIB = -lcurses
+
+		#for System V or Berkeley worlds
+		BSD = -DBSD
+		TTY = tty_ucb.o
+		#BSD =
+		#TTY = tty_att.o
+
+	All the defaults in config.h assume a AT&T flavor of Unix, sorry
+	about that...
+
+	3) Compile pcomm and pcomm_input.  Type "make".  The "make
+	install" option will attempt to copy "pcomm" and "pcomm_input"
+	into the BIN directory given in the Makefile.  However, those
+	sites running HDB UUCP software may require that you to change
+	the mode of "pcomm" to be set-user-id to uucp.  DO NOT CHANGE
+	THE SET-UID/GID BITS ON THE "pcomm_input" PROGRAM.
+
+	Three external programs (waitfor, matches, and modem_break) are
+	included in the distribution to help in creating auto-login
+	shell scripts.
+
+	4) Update the sample modem/TTY database.  I know I'm asking the
+	impossible, but...  Read section 3 and the Appendices of the Doc
+	file first, then run Pcomm to update the modem/TTY database by
+	using the TTY Setup and the Modem Setup menues.  You will need
+	to know:
+
+		o The types and number of modems available for dial out
+		o The TTY ports attached to the modems
+		o The range of baud rates at which the modems operate
+		o How to initialize the modems to suit Pcomm's needs
+		o How to make the modems dial
+
+	During this step, you will need write permission on the support
+	files in the default directory.  RESIST THE TEMPTATION TO EDIT
+	THE SUPPORT FILES DIRECTLY.
+
+Portability considerations:
+
+	1) Pcomm makes use of the bold, blinking and standout video
+	attributes.  My concept of "standout" and "reverse" might be
+	different than yours (I like "standout" to be a brighter version
+	of "reverse").  Some very old versions of curses will ignore the
+	standout mode if you're on a magic cookie terminal.
+
+	2) The "port.c" file has a place where you can include your own
+	routine to toggle the getty process on a port (if required).
+
+	3) If you compile Pcomm with LOG_CALLS defined, you'll have to
+	look at the code in "admin.c" to see if the long distance
+	detection routine is correct for your site.
+
+	4) Compilers that adhere to the ANSI C Standard will complain at
+	the declarations of perror(), malloc(), fread(), fwrite(), etc.
+	There is a "typedef SIG_TYPE" in the config.h file to help
+	silence the compiler's warning messages about the signal()
+	return value.
+
+Emmet P. Gray				US Army, HQ III Corps & Fort Hood
+...!uunet!uiucuxc!fthood!egray		Attn: AFZF-DE-ENV
+					Directorate of Engineering & Housing
+					Environmental Management Office
+					Fort Hood, TX 76544-5057

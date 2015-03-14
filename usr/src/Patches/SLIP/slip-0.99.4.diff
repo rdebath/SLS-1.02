@@ -1,0 +1,1684 @@
+diff -c2r linux.orig/include/linux/termios.h linux/include/linux/termios.h
+*** linux.orig/include/linux/termios.h	Fri Jan 22 22:22:59 1993
+--- linux/include/linux/termios.h	Sat Jan 23 13:41:36 1993
+***************
+*** 39,42 ****
+--- 39,44 ----
+  #define FIONBIO		0x5421
+  #define TIOCNOTTY	0x5422
++ #define TIOCSETD	0x5423
++ #define TIOCGETD	0x5424
+  #define FIONCLEX	0x5450  /* these numbers need to be adjusted. */
+  #define FIOCLEX		0x5451
+***************
+*** 225,228 ****
+--- 227,235 ----
+  #define	TCSADRAIN	1
+  #define	TCSAFLUSH	2
++ 
++ /* line disciplines */
++ #define N_TTY		0
++ #define N_SLIP		1
++ #define N_MOUSE		2
+  
+  #endif
+diff -c2r linux.orig/include/linux/tty.h linux/include/linux/tty.h
+*** linux.orig/include/linux/tty.h	Fri Jan 22 22:22:56 1993
+--- linux/include/linux/tty.h	Sat Jan 23 13:41:36 1993
+***************
+*** 59,63 ****
+   * queue is way overkill.  TYT, 9/14/92
+   */
+! #define TTY_BUF_SIZE 1024	/* Must be a power of 2 */
+  
+  struct tty_queue {
+--- 59,64 ----
+   * queue is way overkill.  TYT, 9/14/92
+   */
+! /* #define TTY_BUF_SIZE 1024 */	/* Must be a power of 2 */
+! #define INIT_TTY_BUF 1024
+  
+  struct tty_queue {
+***************
+*** 65,70 ****
+  	unsigned long head;
+  	unsigned long tail;
+  	struct wait_queue * proc_list;
+! 	unsigned char buf[TTY_BUF_SIZE];
+  };
+  
+--- 66,73 ----
+  	unsigned long head;
+  	unsigned long tail;
++ 	int buf_size;
+  	struct wait_queue * proc_list;
+! 	unsigned char tbuf[INIT_TTY_BUF];
+! 	char *buf;
+  };
+  
+***************
+*** 117,127 ****
+  #define DEV_TO_SL(min)		((min) & 0x3F)
+  
+! #define INC(a) ((a) = ((a)+1) & (TTY_BUF_SIZE-1))
+! #define DEC(a) ((a) = ((a)-1) & (TTY_BUF_SIZE-1))
+  #define EMPTY(a) ((a)->head == (a)->tail)
+! #define LEFT(a) (((a)->tail-(a)->head-1)&(TTY_BUF_SIZE-1))
+! #define LAST(a) ((a)->buf[(TTY_BUF_SIZE-1)&((a)->head-1)])
+  #define FULL(a) (!LEFT(a))
+! #define CHARS(a) (((a)->head-(a)->tail)&(TTY_BUF_SIZE-1))
+  
+  extern void put_tty_queue(char c, struct tty_queue * queue);
+--- 120,130 ----
+  #define DEV_TO_SL(min)		((min) & 0x3F)
+  
+! #define INC(a, b) ((a) = ((a)+1) & ((b).buf_size-1))
+! #define DEC(a, b) ((a) = ((a)-1) & ((b).buf_size-1))
+  #define EMPTY(a) ((a)->head == (a)->tail)
+! #define LEFT(a) (((a)->tail-(a)->head-1)&((a)->buf_size-1))
+! #define LAST(a) ((a)->buf[((a)->buf_size-1)&((a)->head-1)])
+  #define FULL(a) (!LEFT(a))
+! #define CHARS(a) (((a)->head-(a)->tail)&((a)->buf_size-1))
+  
+  extern void put_tty_queue(char c, struct tty_queue * queue);
+***************
+*** 191,194 ****
+--- 194,198 ----
+  	int flags;
+  	int count;
++ 	int disc;
+  	struct winsize winsize;
+  	int  (*open)(struct tty_struct * tty, struct file * filp);
+diff -c2r linux.orig/kernel/chr_drv/keyboard.c linux/kernel/chr_drv/keyboard.c
+*** linux.orig/kernel/chr_drv/keyboard.c	Fri Jan 22 22:22:26 1993
+--- linux/kernel/chr_drv/keyboard.c	Sat Jan 23 13:41:37 1993
+***************
+*** 161,165 ****
+  
+  	qp->buf[qp->head]=ch;
+! 	if ((new_head=(qp->head+1)&(TTY_BUF_SIZE-1)) != qp->tail)
+  		qp->head=new_head;
+  	wake_up_interruptible(&qp->proc_list);
+--- 161,165 ----
+  
+  	qp->buf[qp->head]=ch;
+! 	if ((new_head=(qp->head+1)&(qp->buf_size-1)) != qp->tail)
+  		qp->head=new_head;
+  	wake_up_interruptible(&qp->proc_list);
+***************
+*** 179,183 ****
+  	while ((ch = *(cp++)) != 0) {
+  		qp->buf[qp->head]=ch;
+! 		if ((new_head=(qp->head+1)&(TTY_BUF_SIZE-1))
+  				 != qp->tail)
+  			qp->head=new_head;
+--- 179,183 ----
+  	while ((ch = *(cp++)) != 0) {
+  		qp->buf[qp->head]=ch;
+! 		if ((new_head=(qp->head+1)&(qp->buf_size-1))
+  				 != qp->tail)
+  			qp->head=new_head;
+diff -c2r linux.orig/kernel/chr_drv/serial.c linux/kernel/chr_drv/serial.c
+*** linux.orig/kernel/chr_drv/serial.c	Fri Jan 22 22:22:27 1993
+--- linux/kernel/chr_drv/serial.c	Sat Jan 23 18:49:25 1993
+***************
+*** 62,66 ****
+  #endif
+  
+! #define WAKEUP_CHARS (3*TTY_BUF_SIZE/4)
+  
+  /*
+--- 62,66 ----
+  #endif
+  
+! #define WAKEUP_CHARS (3*buf_size/4)
+  
+  /*
+***************
+*** 213,217 ****
+  	struct async_struct * info;
+  	struct tty_queue * queue;
+! 	int head, tail, count, ch;
+  	int done;
+  	
+--- 213,217 ----
+  	struct async_struct * info;
+  	struct tty_queue * queue;
+! 	int head, tail, count, ch, buf_size;
+  	int done;
+  	
+***************
+*** 220,224 ****
+  	 * and head variables.
+  	 */
+! #define VLEFT ((tail-head-1)&(TTY_BUF_SIZE-1))
+  #define IFLAG (info->tty->termios->c_iflag)
+  #define CFLAG (info->tty->termios->c_cflag)
+--- 220,224 ----
+  	 * and head variables.
+  	 */
+! #define VLEFT ((tail-head-1)&(buf_size-1))
+  #define IFLAG (info->tty->termios->c_iflag)
+  #define CFLAG (info->tty->termios->c_cflag)
+***************
+*** 242,245 ****
+--- 242,246 ----
+  			head = queue->head;
+  			tail = queue->tail;
++ 			buf_size = queue->buf_size;
+  			do {
+  				ch = serial_in(info, UART_RX);
+***************
+*** 266,272 ****
+  					if (IFLAG & PARMRK) {
+  						queue->buf[head++] = 0xff;
+! 						head &= TTY_BUF_SIZE-1;
+  						queue->buf[head++] = 0;
+! 						head &= TTY_BUF_SIZE-1;
+  					} else
+  						ch = 0;
+--- 267,273 ----
+  					if (IFLAG & PARMRK) {
+  						queue->buf[head++] = 0xff;
+! 						head &= buf_size-1;
+  						queue->buf[head++] = 0;
+! 						head &= buf_size-1;
+  					} else
+  						ch = 0;
+***************
+*** 273,280 ****
+  				} else if ((IFLAG & PARMRK) && (ch == 0xff)) {
+  					queue->buf[head++] = 0xff;
+! 					head &= TTY_BUF_SIZE-1;
+  				}
+  				queue->buf[head++] = ch;
+! 				head &= TTY_BUF_SIZE-1;
+  			} while ((status = serial_inp(info, UART_LSR)) &
+  				 UART_LSR_DR);
+--- 274,281 ----
+  				} else if ((IFLAG & PARMRK) && (ch == 0xff)) {
+  					queue->buf[head++] = 0xff;
+! 					head &= buf_size-1;
+  				}
+  				queue->buf[head++] = ch;
+! 				head &= buf_size-1;
+  			} while ((status = serial_inp(info, UART_LSR)) &
+  				 UART_LSR_DR);
+***************
+*** 290,293 ****
+--- 291,295 ----
+  			head = queue->head;
+  			tail = queue->tail;
++ 			buf_size = queue->buf_size;
+  			if (head==tail && !info->x_char)
+  				goto no_xmit;
+***************
+*** 302,306 ****
+  					serial_outp(info, UART_TX,
+  						    queue->buf[tail++]);
+! 					tail &= TTY_BUF_SIZE-1;
+  				}
+  			}
+--- 304,308 ----
+  					serial_outp(info, UART_TX,
+  						    queue->buf[tail++]);
+! 					tail &= buf_size-1;
+  				}
+  			}
+***************
+*** 424,427 ****
+--- 426,433 ----
+  	struct async_struct	*info;
+  	unsigned long		next_timeout;
++ 	extern void slip_xmit(struct tty_struct *tty);
++ #ifdef notyet
++ 	extern void mouse_xmit(struct tty_struct *tty);
++ #endif
+  
+  #ifdef FAKE_SOFT_IRQ
+***************
+*** 454,458 ****
+  			}
+  			if (!clear_bit(RS_EVENT_WRITE_WAKEUP, &info->event)) {
+! 				wake_up_interruptible(&info->tty->write_q.proc_list);
+  			}
+  			if (!clear_bit(RS_EVENT_HUP_PGRP, &info->event))
+--- 460,476 ----
+  			}
+  			if (!clear_bit(RS_EVENT_WRITE_WAKEUP, &info->event)) {
+! 				switch(info->tty->disc) {
+! 					case N_TTY:
+! 						wake_up_interruptible(&info->tty->write_q.proc_list);
+! 						break;
+! 					case N_SLIP:
+! 						slip_xmit(info->tty);
+! 						break;
+! 					case N_MOUSE:
+! #ifdef notyet
+! 						mouse_xmit(info->tty);
+! #endif
+! 						break;
+! 				}
+  			}
+  			if (!clear_bit(RS_EVENT_HUP_PGRP, &info->event))
+***************
+*** 510,514 ****
+  {
+  	struct tty_queue * queue;
+! 	int head, tail, count;
+  	
+  	if (serial_inp(info, UART_LSR) & UART_LSR_THRE) {
+--- 528,532 ----
+  {
+  	struct tty_queue * queue;
+! 	int head, tail, count, buf_size;
+  	
+  	if (serial_inp(info, UART_LSR) & UART_LSR_THRE) {
+***************
+*** 521,524 ****
+--- 539,543 ----
+  			tail = queue->tail;
+  			count = info->xmit_fifo_size;
++ 			buf_size = queue->buf_size;
+  			while (count--) {
+  				if (tail == head)
+***************
+*** 525,529 ****
+  					break;
+  				serial_outp(info, UART_TX, queue->buf[tail++]);
+! 				tail &= TTY_BUF_SIZE-1;
+  			}
+  			queue->tail = tail;
+--- 544,548 ----
+  					break;
+  				serial_outp(info, UART_TX, queue->buf[tail++]);
+! 				tail &= buf_size-1;
+  			}
+  			queue->tail = tail;
+diff -c2r linux.orig/kernel/chr_drv/tty_io.c linux/kernel/chr_drv/tty_io.c
+*** linux.orig/kernel/chr_drv/tty_io.c	Fri Jan 22 22:22:27 1993
+--- linux/kernel/chr_drv/tty_io.c	Sat Jan 23 13:41:39 1993
+***************
+*** 70,74 ****
+  
+  	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
+! 	head = (queue->head + 1) & (TTY_BUF_SIZE-1);
+  	if (head != queue->tail) {
+  		queue->buf[queue->head] = c;
+--- 70,74 ----
+  
+  	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
+! 	head = (queue->head + 1) & (queue->buf_size-1);
+  	if (head != queue->tail) {
+  		queue->buf[queue->head] = c;
+***************
+*** 86,90 ****
+  	if (queue->tail != queue->head) {
+  		result = 0xff & queue->buf[queue->tail];
+! 		queue->tail = (queue->tail + 1) & (TTY_BUF_SIZE-1);
+  	}
+  	__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
+--- 86,90 ----
+  	if (queue->tail != queue->head) {
+  		result = 0xff & queue->buf[queue->tail];
+! 		queue->tail = (queue->tail + 1) & (queue->buf_size-1);
+  	}
+  	__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
+***************
+*** 105,108 ****
+--- 105,113 ----
+  void tty_read_flush(struct tty_struct * tty)
+  {
++ 	extern void slip_recv();
++ #ifdef notyet
++ 	extern void mouse_recv();
++ #endif
++ 
+  	if (!tty || EMPTY(&tty->read_q))
+  		return;
+***************
+*** 109,113 ****
+  	if (set_bit(TTY_READ_BUSY, &tty->flags))
+  		return;
+! 	copy_to_cooked(tty);
+  	if (clear_bit(TTY_READ_BUSY, &tty->flags))
+  		printk("tty_read_flush: bit already cleared\n");
+--- 114,130 ----
+  	if (set_bit(TTY_READ_BUSY, &tty->flags))
+  		return;
+! 	switch(tty->disc) {
+! 		case N_TTY:
+! 			copy_to_cooked(tty);
+! 			break;
+! 		case N_SLIP:
+! 			slip_recv(tty);
+! 			break;
+! 		case N_MOUSE:
+! #ifdef notyet
+! 			mouse_recv(tty);
+! #endif
+! 			break;
+! 	}
+  	if (clear_bit(TTY_READ_BUSY, &tty->flags))
+  		printk("tty_read_flush: bit already cleared\n");
+***************
+*** 424,428 ****
+  						put_tty_queue(8,&tty->write_q);
+  					}
+! 					DEC(tty->secondary.head);
+  				}
+  				continue;
+--- 441,445 ----
+  						put_tty_queue(8,&tty->write_q);
+  					}
+! 					DEC(tty->secondary.head, tty->secondary);
+  				}
+  				continue;
+***************
+*** 445,449 ****
+  					put_tty_queue(8,&tty->write_q);
+  				}
+! 				DEC(tty->secondary.head);
+  				continue;
+  			}
+--- 462,466 ----
+  					put_tty_queue(8,&tty->write_q);
+  				}
+! 				DEC(tty->secondary.head, tty->secondary);
+  				continue;
+  			}
+***************
+*** 504,508 ****
+  	if (!EMPTY(&tty->secondary))
+  		wake_up_interruptible(&tty->secondary.proc_list);
+! 	if (tty->write_q.proc_list && LEFT(&tty->write_q) > TTY_BUF_SIZE/2)
+  		wake_up_interruptible(&tty->write_q.proc_list);
+  	if (tty->throttle && (LEFT(&tty->read_q) >= RQ_THRESHOLD_HW)
+--- 521,525 ----
+  	if (!EMPTY(&tty->secondary))
+  		wake_up_interruptible(&tty->secondary.proc_list);
+! 	if (tty->write_q.proc_list && LEFT(&tty->write_q) > (tty->write_q.buf_size/2))
+  		wake_up_interruptible(&tty->write_q.proc_list);
+  	if (tty->throttle && (LEFT(&tty->read_q) >= RQ_THRESHOLD_HW)
+***************
+*** 1146,1150 ****
+--- 1163,1174 ----
+  {
+  	memset(tty, 0, sizeof(struct tty_struct));
++ 	tty->read_q.buf_size = INIT_TTY_BUF;
++ 	tty->write_q.buf_size = INIT_TTY_BUF;
++ 	tty->secondary.buf_size = INIT_TTY_BUF;
++ 	tty->read_q.buf = (char *) &tty->read_q.tbuf;
++ 	tty->write_q.buf = (char *) &tty->write_q.tbuf;
++ 	tty->secondary.buf = (char *) &tty->secondary.tbuf;
+  	tty->line = line;
++ 	tty->disc = N_TTY;
+  	tty->pgrp = -1;
+  	tty->winsize.ws_row = 24;
+diff -c2r linux.orig/kernel/chr_drv/tty_ioctl.c linux/kernel/chr_drv/tty_ioctl.c
+*** linux.orig/kernel/chr_drv/tty_ioctl.c	Fri Jan 22 22:22:26 1993
+--- linux/kernel/chr_drv/tty_ioctl.c	Sat Jan 23 13:41:39 1993
+***************
+*** 17,20 ****
+--- 17,27 ----
+  #include <asm/system.h>
+  
++ #undef	DEBUG
++ #ifdef DEBUG
++ # define	PRINTK	printk
++ #else
++ # define	PRINTK	dummy_routine
++ #endif
++ 
+  extern int session_of_pgrp(int pgrp);
+  extern int do_screendump(int arg);
+***************
+*** 254,257 ****
+--- 261,375 ----
+  }
+  
++ /* Get or set the discipline of a tty line. */
++ static int tty_ldisc(struct tty_struct *tty, unsigned int cmd, unsigned int arg)
++ {
++ 	int ldisc, unit;
++ 	extern int slip_open(struct tty_struct *tty);
++ 	extern int slip_close(struct tty_struct *tty);
++ 	extern int slip_chan(struct tty_struct *tty);
++ #ifdef notyet
++ 	extern int mouse_open(struct tty_struct *tty);
++ 	extern int mouse_close(struct tty_struct *tty);
++ 	extern int mouse_chan(struct tty_struct *tty);
++ #endif
++ 
++ 	PRINTK("TTY_DISC: TTY=%d CMD=0x%lx ARG=0x%08lx\n", tty->line, cmd, arg);
++ 	unit = -1;
++ 	if (cmd == TIOCGETD) {
++ 		switch(tty->disc) {
++ 			case N_TTY:
++ 				unit = tty->disc;
++ 				break;
++ 			case N_SLIP:
++ 				unit = slip_chan(tty);
++ 				break;
++ 			case N_MOUSE:
++ #ifdef notyet
++ 				unit = mouse_chan(tty);
++ #endif
++ 				break;
++ 			default:
++ 				return(-EINVAL);
++ 		}
++ 		PRINTK("TTY_DISC: GETD: disc/unit is %d/%d\n", tty->disc, unit);
++ 		put_fs_long(unit, (unsigned long *) arg);
++ 		return(0);
++ 	}
++ 
++ 	/* Fetch the new line discipline. */
++ 	ldisc = get_fs_long((unsigned long *) arg);
++ 	PRINTK("TTY_DISC: SETD: old/new disc is %d/%d\n", tty->disc, ldisc);
++ 
++ 	/* To prevent misery, check new discipline first. */
++ 	switch(ldisc) {
++ 		case N_TTY:
++ 		case N_SLIP:
++ 		case N_MOUSE:
++ 			break;
++ 		default:
++ 			return(-EINVAL);
++ 	}
++ 
++ 	/* If we already are in the desired discipline, all is well. */
++ 	if (tty->disc == ldisc) return(0);
++ 
++ 	/* Check the current discipline. */
++ 	switch (tty->disc) {
++ 		case N_TTY:
++ 			wait_until_sent(tty);
++ 			PRINTK("TTY_DISC: SETD: shut down TTY.\n");
++ 			break;
++ 		case N_SLIP:
++ 			flush_input(tty);
++ 			PRINTK("TTY_DISC: SETD: shutting down SLIP.\n");
++ 			(void) slip_close(tty);
++ 			break;
++ 		case N_MOUSE:
++ 			flush_input(tty);
++ 			PRINTK("TTY_DISC: SETD: shutting down MOUSE.\n");
++ #ifdef notyet
++ 			(void) mouse_close(tty);
++ #endif
++ 			break;
++ 		default:
++ 			return(-EINVAL);
++ 	}
++ 
++ 	/* Now set up the new line discipline. */
++ 	switch (ldisc) {
++ 		case N_TTY:
++ 			PRINTK("TTY_DISC: SETD: setting up TTY.\n");
++ 			flush_input(tty);
++ 	   		tty->disc = N_TTY;
++ 			break;
++ 		case N_SLIP:
++ 			PRINTK("TTY_DISC: SETD: setting up SLIP: ");
++ 			flush_input(tty);
++ 			if ((unit = slip_open(tty)) < 0)
++ 			{
++ 				PRINTK("ERROR %d\n", -unit);
++ 				return(unit);
++ 			}
++ 			PRINTK("UNIT=%d\n", unit);
++ 			tty->disc = N_SLIP;
++ 			break;
++ 		case N_MOUSE:
++ 			PRINTK("TTY_DISC: SETD: setting up MOUSE: ");
++ 			flush_input(tty);
++ #ifdef notyet
++ 			if ((unit = mouse_open(tty)) < 0)
++ 			{
++ 				PRINTK("ERROR %d\n", -unit);
++ 				return(unit);
++ 			}
++ 			PRINTK("OK\n");
++ #endif
++ 			tty->disc = N_MOUSE;
++ 			break;
++ 	}
++ 	return(0);
++ }
++ 
++ 
+  int tty_ioctl(struct inode * inode, struct file * file,
+  	unsigned int cmd, unsigned int arg)
+***************
+*** 435,439 ****
+  			}
+  			return 0;
+! 
+  	       case TIOCPKT:
+  			{
+--- 553,560 ----
+  			}
+  			return 0;
+! 		case TIOCGETD:
+! 		case TIOCSETD:
+! 			return(tty_ldisc(tty, cmd, arg));
+! 			/*NOTREACHED*/
+  	       case TIOCPKT:
+  			{
+diff -c2r linux.orig/net/tcp/Makefile linux/net/tcp/Makefile
+*** linux.orig/net/tcp/Makefile	Fri Jan 22 22:23:14 1993
+--- linux/net/tcp/Makefile	Sat Jan 23 13:41:39 1993
+***************
+*** 18,22 ****
+  
+  OBJS	= sock.o tcp.o ip.o timer.o we.o arp.o udp.o eth.o Space.o loopback.o \
+! 	  icmp.o protocols.o raw.o pack_type.o dev.o packet.o
+  
+  tcpip.a: $(OBJS)
+--- 18,22 ----
+  
+  OBJS	= sock.o tcp.o ip.o timer.o we.o arp.o udp.o eth.o Space.o loopback.o \
+! 	  icmp.o protocols.o raw.o pack_type.o dev.o packet.o slip.o utils.o
+  
+  tcpip.a: $(OBJS)
+diff -c2r linux.orig/net/tcp/Space.c linux/net/tcp/Space.c
+*** linux.orig/net/tcp/Space.c	Fri Jan 22 22:23:14 1993
+--- linux/net/tcp/Space.c	Sat Jan 23 13:41:40 1993
+***************
+*** 27,32 ****
+  #include <linux/stddef.h>
+  
+- extern int wd8003_init(struct device *);
+  extern int loopback_init(struct device *dev);
+  
+  static struct device wd8003_dev =
+--- 27,33 ----
+  #include <linux/stddef.h>
+  
+  extern int loopback_init(struct device *dev);
++ extern int slip_init(struct device *dev);
++ extern int wd8003_init(struct device *);
+  
+  static struct device wd8003_dev =
+***************
+*** 64,67 ****
+--- 65,209 ----
+  };
+  
++ /* The SLIP device, channel 3. */
++ static struct device sl_dev3 =
++ {
++   "sl3",
++   0,
++   0,
++   0,
++   0,
++   3,	/* base I/O address -> SLIP unit number */
++   0, /* irq */
++   0,0,0,0,0, /* flags */
++   &wd8003_dev, /* next device */
++   slip_init,
++   /* slip_init should set up the rest. */
++   0,  /* trans start. */
++   {NULL}, /* buffs */
++   NULL, /* backlog */
++   NULL, /* open */
++   NULL, /* stop */
++   NULL, /* hard_start_xmit */
++   NULL, /* hard_header */
++   NULL, /* add arp */
++   NULL, /* queue xmit */
++   NULL, /* rebuild header */
++   NULL, /* type_trans */
++   NULL, /* send_packet */
++   NULL, /* private */
++   0,    /* type. */
++   0,    /* hard_header_len */
++   0,    /* mtu */
++  {0,}, /* broadcast address */
++  {0,}, /* device address */
++   0     /* addr len */
++ };
++ 
++ /* The SLIP device, channel 2. */
++ static struct device sl_dev2 =
++ {
++   "sl2",
++   0,
++   0,
++   0,
++   0,
++   2,	/* base I/O address -> SLIP unit number */
++   0, /* irq */
++   0,0,0,0,0, /* flags */
++   &sl_dev3, /* next device */
++   slip_init,
++   /* slip_init should set up the rest. */
++   0,  /* trans start. */
++   {NULL}, /* buffs */
++   NULL, /* backlog */
++   NULL, /* open */
++   NULL, /* stop */
++   NULL, /* hard_start_xmit */
++   NULL, /* hard_header */
++   NULL, /* add arp */
++   NULL, /* queue xmit */
++   NULL, /* rebuild header */
++   NULL, /* type_trans */
++   NULL, /* send_packet */
++   NULL, /* private */
++   0,    /* type. */
++   0,    /* hard_header_len */
++   0,    /* mtu */
++   {0,}, /* broadcast address */
++   {0,}, /* device address */
++   0     /* addr len */
++ };
++ 
++ /* The SLIP device, channel 1. */
++ static struct device sl_dev1 =
++ {
++   "sl1",
++   0,
++   0,
++   0,
++   0,
++   1,	/* base I/O address -> SLIP unit number */
++   0, /* irq */
++   0,0,0,0,0, /* flags */
++   &sl_dev2, /* next device */
++   slip_init,
++   /* slip_init should set up the rest. */
++   0,  /* trans start. */
++   {NULL}, /* buffs */
++   NULL, /* backlog */
++   NULL, /* open */
++   NULL, /* stop */
++   NULL, /* hard_start_xmit */
++   NULL, /* hard_header */
++   NULL, /* add arp */
++   NULL, /* queue xmit */
++   NULL, /* rebuild header */
++   NULL, /* type_trans */
++   NULL, /* send_packet */
++   NULL, /* private */
++   0,    /* type. */
++   0,    /* hard_header_len */
++   0,    /* mtu */
++   {0,}, /* broadcast address */
++   {0,}, /* device address */
++   0     /* addr len */
++ };
++ 
++ /* The SLIP device, channel 0. */
++ static struct device sl_dev0 =
++ {
++   "sl0",
++   0,
++   0,
++   0,
++   0,
++   0,	/* base I/O address -> SLIP unit number */
++   0, /* irq */
++   0,0,0,0,0, /* flags */
++   &sl_dev1, /* next device */
++   slip_init,
++   /* slip_init should set up the rest. */
++   0,  /* trans start. */
++   {NULL}, /* buffs */
++   NULL, /* backlog */
++   NULL, /* open */
++   NULL, /* stop */
++   NULL, /* hard_start_xmit */
++   NULL, /* hard_header */
++   NULL, /* add arp */
++   NULL, /* queue xmit */
++   NULL, /* rebuild header */
++   NULL, /* type_trans */
++   NULL, /* send_packet */
++   NULL, /* private */
++   0,    /* type. */
++   0,    /* hard_header_len */
++   0,    /* mtu */
++   {0,}, /* broadcast address */
++   {0,}, /* device address */
++   0     /* addr len */
++ };
++ 
++ /* The local LOOPBACK device. */
+  static struct device loopback_dev =
+  {
+***************
+*** 74,78 ****
+    0,	    /* irq */
+    0,0,1,0,0, /* flags */
+!   &wd8003_dev, /* next device */
+    loopback_init,
+    /* loopback_init should set up the rest. */
+--- 216,220 ----
+    0,	    /* irq */
+    0,0,1,0,0, /* flags */
+!   &sl_dev0, /* next device */
+    loopback_init,
+    /* loopback_init should set up the rest. */
+diff -c2r linux.orig/net/tcp/ip.c linux/net/tcp/ip.c
+*** linux.orig/net/tcp/ip.c	Fri Jan 22 22:23:15 1993
+--- linux/net/tcp/ip.c	Sat Jan 23 19:23:50 1993
+***************
+*** 68,77 ****
+  unsigned long ip_addr[MAX_IP_ADDRES]={0,0,0};
+  
+  #undef IP_DEBUG
+  
+  #ifdef IP_DEBUG
+! #define PRINTK(X) printk X
+  #else
+! #define PRINTK(X) /**/
+  #endif
+  
+--- 68,81 ----
+  unsigned long ip_addr[MAX_IP_ADDRES]={0,0,0};
+  
++ #ifdef PRINTK
++ #undef PRINTK
++ #endif
++ 
+  #undef IP_DEBUG
+  
+  #ifdef IP_DEBUG
+! #define PRINTK(x) printk x
+  #else
+! #define PRINTK(x) /**/
+  #endif
+  
+***************
+*** 80,83 ****
+--- 84,91 ----
+  struct ip_protocol *ip_protos[MAX_IP_PROTOS] = { NULL, };
+  
++ 
++ extern char *in_ntoa(unsigned long addr);
++ 
++ 
+  #if 0
+  static  struct ip_protocol *
+***************
+*** 209,214 ****
+  print_rt(struct rtable *rt)
+  {
+!   PRINTK (("net = %08X router = %08X\n",rt->net, rt->router));
+!   PRINTK (("dev = %X, next = %X\n",rt->dev, rt->next));
+  }
+  
+--- 217,226 ----
+  print_rt(struct rtable *rt)
+  {
+! #ifdef IP_DEBUG
+!   printk("RT: %06lx NXT=%06lx DEV=%06lx(%s) NET=%s ",
+! 	(long) rt, (long) rt->next, (long) rt->dev,
+! 			rt->dev->name, in_ntoa(rt->net));
+!   printk("ROUTER=%s\n", in_ntoa(rt->router));
+! #endif
+  }
+  
+***************
+*** 240,243 ****
+--- 252,287 ----
+  };
+  
++ /* Remove all routing table entries for a device. */
++ void
++ del_devroute (struct device *dev)
++ {
++   struct rtable *r, *x, *p;
++ 
++   if ((r = rt_base) == NULL) return;	/* nothing to remove! */
++   PRINTK (("IFACE DOWN: clearing routing table for dev 0x%08lx (%s)\n",
++ 						(long) dev, dev->name));
++   p = NULL;
++   while(r != NULL)
++     {
++ 	PRINTK ((">> R=%06lx N=%06lx P=%06lx DEV=%06lx(%s) A=%s\n",
++ 		(long) r, (long) r->next, (long) p, (long) r->dev,
++ 					r->dev->name, in_ntoa(r->net)));
++ 	if (r->dev == dev)
++ 	  {
++ 		PRINTK ((">>> MATCH: removing rt=%08lx\n", (long) r));
++ 		if (p == NULL) rt_base = r->next;
++ 		  else p->next = r->next;
++ 		x = r->next;
++ 		kfree_s(r, sizeof(*r));
++ 		r = x;
++ 	  }
++ 	else
++ 	  {
++ 		p = r;
++ 		r = r->next;
++ 	  }
++     }
++ }
++ 
+  void
+  add_route (struct rtable *rt)
+***************
+*** 246,250 ****
+    struct rtable *r;
+    struct rtable *r1;
+!   PRINTK (("add_route (rt=%X):\n",rt));
+    print_rt(rt);
+  
+--- 290,294 ----
+    struct rtable *r;
+    struct rtable *r1;
+! 
+    print_rt(rt);
+  
+***************
+*** 364,367 ****
+--- 408,418 ----
+      }
+  
++   /* FIX per FvK 92/11/15 */
++   /* When "downing" an interface, this must be done with paddr = -1L. */
++   if (ipc.paddr != -1L)
++     {
++ 	if (!my_ip_addr (ipc.paddr))
++ 	  ip_addr[ip_ads++] = ipc.paddr;
++     }
+  
+    if (!my_ip_addr (ipc.paddr))
+***************
+*** 381,384 ****
+--- 432,436 ----
+         if (dev->stop)
+  	 dev->stop(dev);
++ 	del_devroute(dev);		/* clear routing table for dev	*/
+      }
+  
+***************
+*** 733,737 ****
+    if (!my_ip_addr(iph->daddr))
+      {
+!        PRINTK (("packet meant for someone else.\n"));
+         skb->sk = NULL;
+         kfree_skb(skb, 0);
+--- 785,793 ----
+    if (!my_ip_addr(iph->daddr))
+      {
+! 	printk("\nIP: *** datagram routing not yet implemented ***\n");
+! 	printk("    SRC = %s   ", in_ntoa(iph->saddr));
+! 	printk("    DST = %s (ignored)\n", in_ntoa(iph->daddr));
+!         icmp_reply (skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, dev);
+! 
+         skb->sk = NULL;
+         kfree_skb(skb, 0);
+***************
+*** 740,746 ****
+  
+    /* deal with fragments.  or don't for now.*/
+!   if ((iph->frag_off & 32) || (net16(iph->frag_off)&0x1fff))
+!     {
+!        printk ("packet fragmented. \n");
+         skb->sk = NULL;
+         kfree_skb(skb, 0);
+--- 796,805 ----
+  
+    /* deal with fragments.  or don't for now.*/
+!   if ((iph->frag_off & 64) || (net16(iph->frag_off)&0x1fff))
+!     {	/* FIXME: this ^^^ used to be 64, as per bugfix */
+! 	printk("\nIP: *** datagram fragmentation not yet implemented ***\n");
+! 	printk("    SRC = %s   ", in_ntoa(iph->saddr));
+! 	printk("    DST = %s (ignored)\n", in_ntoa(iph->daddr));
+!        icmp_reply (skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, dev);
+         skb->sk = NULL;
+         kfree_skb(skb, 0);
+diff -c2r linux.orig/net/tcp/slip.c linux/net/tcp/slip.c
+*** linux.orig/net/tcp/slip.c	Sat Jan 23 19:42:12 1993
+--- linux/net/tcp/slip.c	Sat Jan 23 13:41:40 1993
+***************
+*** 0 ****
+--- 1,570 ----
++ /* slip.c */
++ /*
++     Copyright (C) 1992  Laurence Culhane
++ 
++     This program is free software; you can redistribute it and/or modify
++     it under the terms of the GNU General Public License as published by
++     the Free Software Foundation; either version 2, or (at your option)
++     any later version.
++ 
++     This program is distributed in the hope that it will be useful,
++     but WITHOUT ANY WARRANTY; without even the implied warranty of
++     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++     GNU General Public License for more details.
++ 
++     You should have received a copy of the GNU General Public License
++     along with this program; if not, write to the Free Software
++     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
++ 
++     The Author may be reached as loz@holmes.demon.co.uk
++ 
++     Various changes for multi-unit operation and cleaner interface to
++     the 'serial' and 'tty_io' kernel modules by Fred N. van Kempen,
++     <waltje@uwalt.nl.mugnet.org>.
++ */
++ 
++ #include <asm/segment.h>
++ #include <asm/system.h>
++ #include <linux/types.h>
++ #include <linux/kernel.h>
++ #include <linux/sched.h>
++ #include <linux/string.h>
++ #include <linux/mm.h>
++ #include <linux/socket.h>
++ #include <netinet/in.h>
++ #include "dev.h"
++ #include "eth.h"
++ #include "timer.h"
++ #include "ip.h"
++ #include "tcp.h"
++ #include "sock.h"
++ #include <linux/errno.h>
++ #include "arp.h"
++ #include <linux/stat.h>
++ #include <linux/tty.h>
++ #include "slip.h"
++ 
++ #undef	SL_DEBUG
++ #ifdef SL_DEBUG
++ #   define PRINTK printk
++ #else
++ #   define PRINTK dummy_routine
++ #endif
++ 
++ 
++ /* This table holds the control blocks for all SLIP channels. */
++ static struct slip sl_ctrl[SL_NRUNIT];
++ 
++ 
++ /* Find a SLIP channel from its `tty' link. */
++ static struct slip *
++ sl_find(struct tty_struct *tty)
++ {
++ 	int i;
++ 	struct slip *sl;
++ 
++ 	if (tty == NULL) return(NULL);
++ 	for (i = 0; i < SL_NRUNIT; i++) {
++ 		sl = &sl_ctrl[i];
++ 		if (sl->tty == tty) return(sl);
++ 	}
++ 	return(NULL);
++ }
++ 
++ 
++ /* Find a free SLIP channel, and link in this `tty' line. */
++ static inline struct slip *
++ sl_alloc(void)
++ {
++ 	int i;
++ 	struct slip *sl;
++ 	unsigned long flags;
++ 
++ 	for (i = 0; i < SL_NRUNIT; i++) {
++ 		sl = &sl_ctrl[i];
++ 		if (sl->inuse == 0) {
++ 			__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
++ 			sl->inuse++;
++ 			sl->tty = NULL;
++ 			__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
++ 			return(sl);
++ 		}
++ 	}
++ 	return(NULL);
++ }
++ 
++ 
++ /* Free a SLIP channel. */
++ static inline void
++ sl_free(struct slip *sl)
++ {
++ 	unsigned long flags;
++ 
++ 	if (sl->inuse == 1) {
++ 		__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
++ 		sl->inuse--;
++ 		sl->tty = NULL;
++ 		__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
++ 	}
++ }
++ 
++ 
++ /* Stuff one byte into a SLIP queue. */
++ static inline void
++ put_sl_queue(char c, struct sl_queue * queue)
++ {
++ 	int head;
++ 	unsigned long flags;
++ 
++ 	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
++ 	head = (queue->head + 1) & (SL_BUF_SIZE-1);
++ 	if (head != queue->tail) {
++ 		queue->buf[queue->head] = c;
++ 		queue->head = head;
++ 	}
++ 	__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
++ }
++ 
++ 
++ /* Release 'i' bytes from a SLIP queue. */
++ static inline void
++ eat_sl_queue(struct sl_queue * queue, int i)
++ {
++ 	unsigned long flags;
++ 
++ 	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
++ 	if (queue->tail != queue->head)
++ 		queue->tail = (queue->tail + i) & (SL_BUF_SIZE-1);
++ 	__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
++ }
++ 
++ 
++ /* Set the "sending" flag.  This must be atomic, hence the ASM. */
++ static inline void
++ sl_lock(struct slip *sl)
++ {
++ 	unsigned long flags;
++ 
++ 	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
++ 	sl->sending = 1;
++ 	__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
++ }
++ 
++ 
++ /* Clear the "sending" flag.  This must be atomic, hence the ASM. */
++ static inline void
++ sl_unlock(struct slip *sl)
++ {
++ 	unsigned long flags;
++ 
++ 	__asm__ __volatile__("pushfl ; popl %0 ; cli":"=r" (flags));
++ 	sl->sending = 0;
++ 	__asm__ __volatile__("pushl %0 ; popfl"::"r" (flags));
++ }
++ 
++ 
++ /* Send one completely decapsulated IP datagram to the IP layer. */
++ static void
++ sl_recv(struct slip *sl, int len)
++ {
++ 	struct device *dev;
++ 	int i;
++ 
++ 	dev = sl->dev;
++ 	while ((i = dev_rint((unsigned char *)
++ 		&sl->rcv_queue.buf[sl->rcv_queue.tail], len, 0, dev)) == -1) sti();
++ 		sti();
++ 	eat_sl_queue(&sl->rcv_queue, len);
++ 	sti();
++ 	if (i == 0) dev_rint(NULL, 0, 0, dev);
++ 	sti();
++ 	sl->rcvd++;
++ /* printk("sl_recvd: %d\n", len); */
++ }
++ 
++ 
++ /* Encapsulate one IP datagram and stuff into a TTY queue. */
++ static void
++ sl_send(char *p, int len, struct slip *sl)
++ {
++ 	struct tty_struct *tty;
++ 
++ 	tty = sl->tty;
++ 
++ 	/*
++ 	 * Send an initial END character to flush out any
++ 	 * data that may have accumulated in the receiver
++ 	 * due to line noise.
++ 	 */
++ 	if (EMPTY(&tty->write_q)) put_tty_queue(END, &tty->write_q);
++ 
++ 	/*
++ 	 * For each byte in the packet, send the appropriate
++ 	 * character sequence, according to the SLIP protocol.
++ 	 * FIXME: change this to copy blocks of characters between
++ 	 *	  special characters to improve speed.
++ 	 */
++ 	while(len--) {
++                 switch((unsigned char)*p) {
++ 			case END:
++                         	put_tty_queue(ESC, &tty->write_q);
++                         	put_tty_queue(ESC_END, &tty->write_q);
++                         	break;
++ 			case ESC:
++                         	put_tty_queue(ESC, &tty->write_q);
++                         	put_tty_queue(ESC_ESC, &tty->write_q);
++                         	break;
++ 			default:
++                         	put_tty_queue(*p, &tty->write_q);
++ 		}
++ 		p++;
++ 	}
++ 	put_tty_queue(END, &tty->write_q);
++ 	sl->sent++;
++ }
++ 
++ 
++ /* Encapsulate an IP datagram and kick it into a TTY queue. */
++ static int
++ sl_start_xmit(struct sk_buff *skb, struct device *dev)
++ {
++ 	struct slip *sl;
++ 	struct tty_struct *tty;
++ 
++ 	/* Find the correct SLIP channel to use. */
++ 	sl = &sl_ctrl[dev->base_addr];
++ 	tty = sl->tty;
++ 
++ 	/* See if we are busy already. */
++ 	if (sl->sending || ((skb != NULL) && (skb->len*2 > LEFT(&tty->write_q)))) return(1);
++ 	sl_lock(sl);
++ 
++ 	if (skb == NULL) {
++ 		sti();
++ 		sl_unlock(sl);
++ 		slip_xmit(tty);
++ 		return (0);
++ 	}
++ 
++ 	dev->trans_start = jiffies;
++ 	sl_send((char *) (skb + 1), skb->len, sl);
++ 	sl_unlock(sl);
++ 	if (skb->free) kfree_skb (skb, FREE_WRITE);
++ 	rs_write(tty);
++ 	return (0);
++ }
++ 
++ 
++ /* Create a link-level header. Not needed by SLIP. */
++ static int
++ sl_hard_header (unsigned char *buff, struct device *dev,
++   unsigned short type, unsigned long daddr, unsigned long saddr, unsigned len)
++ {
++ 	/* (void *)ZILCH */
++ 	return(0);
++ }
++ 
++ 
++ /* Add an ARP entry to our ARP table. Not needed by SLIP. */
++ static void
++ sl_add_arp (unsigned long addr, struct sk_buff *skb, struct device *dev)
++ {
++ 	/* (void *)ZILCH */
++ }
++ 
++ 
++ /*
++  * Return the frame type ID.  Shouldn't we pick this up from the
++  * frame on which we have to operate, like in 'eth' ? - FvK
++  */
++ static unsigned short
++ sl_type_trans (struct sk_buff *skb, struct device *dev)
++ {
++ #ifdef notdef
++ 	struct slip *sl;
++ 
++ 	sl = sl_ctrl[dev->base_addr];
++ 	return(sl->type);
++ #else
++ 	return(NET16(ETHERTYPE_IP));
++ #endif
++ }
++ 
++ 
++ /* I don't know yet what is supposed to do yet- FvK */
++ static int
++ sl_rebuild_header (void *buff, struct device *dev)
++ {
++ 	return(0);
++ }
++ 
++ 
++ /* Open the low-level part of the SLIP channel. Easy! */
++ static int
++ sl_open(struct device *dev)
++ {
++ 	struct slip *sl;
++ 
++ 	sl = &sl_ctrl[dev->base_addr];
++ 	if (sl->tty == NULL) {
++ 		PRINTK("SLIP: channel sl%d not connected!\n", sl->line);
++ 		return(-ENXIO);
++ 	}
++ 
++ 	sl->escape = 0;			/* SLIP state machine		*/
++ 	sl->received = 0;		/* SLIP receiver count		*/
++ 	PRINTK("SLIP: channel sl%d opened.\n", sl->line);
++ 	return(0);
++ }
++ 
++ 
++ /* Close the low-level part of the SLIP channel. Easy! */
++ static int
++ sl_close(struct device *dev)
++ {
++ 	struct slip *sl;
++ 
++ 	sl = &sl_ctrl[dev->base_addr];
++ 	if (sl->tty == NULL) {
++ 		PRINTK("SLIP: channel sl%d not connected!\n", sl->line);
++ 		return(-EBUSY);
++ 	}
++ 	sl_free(sl);
++ 
++ 	/*
++ 	 * The next two lines should be handled by a "dev_down()"
++ 	 * function, which takes care of shutting down an inter-
++ 	 * face.  It would also be called by the "ip" module when
++ 	 * an interface is brought down manually.
++ 	 */
++ 	del_devroute(dev);
++ 	dev->up = 0;
++ 	PRINTK("SLIP: channel sl%d closed.\n", sl->line);
++ 	return(0);
++ }
++ 
++ 
++ /*
++  * Handle the 'transmitter ready' interrupt.
++  * This function is called by the 'serial' module in the kernel when
++  * a "transmitter done" interrupt occurs on a serial line which is in
++  * the SLIP line discipline.
++  */
++ void
++ slip_xmit(struct tty_struct *tty)
++ {
++ 	struct slip *sl;
++ 	int len, count;
++ 
++ 	if ((sl = sl_find(tty)) == NULL) return;	/* not connected */
++ 
++ 	/* attempt to start a new transmission. */
++ 	if (sl->sending) return; 			/* already running */
++ 
++ 	sl_lock(sl);
++ 	count = 0;
++ 	while (sl->sending && (LEFT(&tty->write_q) > sl->dev->mtu*2)) {
++ 		len = dev_tint((unsigned char *)(sl->dev->mem_start), sl->dev);
++ 		if (len) {
++ 			sl_send((unsigned char *)(sl->dev->mem_start), len, sl);
++ 			count++;
++ 		} else {
++ 			sl_unlock(sl);
++ 			return;
++ 		}
++ 	}
++ 	sl_unlock(sl);
++ }
++ 
++ 
++ /*
++  * Handle the 'receiver data ready' interrupt.
++  * This function is called by the 'tty_io' module in the kernel when
++  * a block of SLIP data has been received, which can now be decapsulated
++  * and sent on to some IP layer for further processing.
++  */
++ void
++ slip_recv(struct tty_struct *tty)
++ {
++ 	struct slip *sl;
++ 	int c;
++ 
++ 	if ((sl = sl_find(tty)) == NULL) return;	/* not connected */
++ 
++ 	if (!(tty && &tty->read_q)) {
++ 		PRINTK("SLIP: slip_recv: missing queues\r\n");
++ 		return;
++ 	}
++ 	while (!EMPTY(&tty->read_q)) {
++ 		if (SL_FULL(&sl->rcv_queue)) {
++ 			PRINTK("SLIP: recv queue full\r\n");
++ 			break;
++ 		}
++ 
++ 		/* Fetch a byte from the queue. */
++ 		c = get_tty_queue(&tty->read_q);
++                 switch(c) {
++ 			case ESC:
++ 				sl->escape = 1;
++ 				break;
++ 			case ESC_ESC:
++ 				if (sl->escape) c = ESC;
++ 				put_sl_queue(c, &sl->rcv_queue);
++ 				sl->escape = 0;
++ 				sl->received++;
++ 				break;
++ 			case ESC_END:
++ 				if (sl->escape) c = END;
++ 				put_sl_queue(c, &sl->rcv_queue);
++ 				sl->escape = 0;
++ 				sl->received++;
++ 				break;
++ 			case END:
++ 				sl->escape = 0;
++ 				if (sl->received < 3)	/* min packet length */
++ 				  {
++ 					if (sl->received)
++ 						eat_sl_queue(&sl->rcv_queue,
++ 								sl->received);
++ 					sl->received = 0;
++ 				  } else {
++ 					sl_recv(sl, sl->received);
++ 					sl->received = 0;
++ 				  }
++ 				break;
++ 			default:
++ 				put_sl_queue(c, &sl->rcv_queue);
++ 				sl->escape = 0;
++ 				sl->received++;
++ 		}
++ 	}
++ }
++ 
++ 
++ /* Return the channel number of a SLIP connection. */
++ int
++ slip_chan(struct tty_struct *tty)
++ {
++ 	struct slip *sl;
++ 
++ 	if ((sl = sl_find(tty)) == NULL) return(-ENXIO);  /* not connected */
++ 	return(sl->line);
++ }
++ 
++ 
++ /*
++  * Open the high-level part of the SLIP channel.  
++  * This function is called by the TTY module when the
++  * SLIP line discipline is called for.  Because we are
++  * sure the tty line exists, we only have to link it to
++  * a free SLIP channel...
++  */
++ int
++ slip_open(struct tty_struct *tty)
++ {
++ 	struct slip *sl;
++ 
++ 	/* First make sure we're not already connected. */
++ 	if ((sl = sl_find(tty)) != NULL) {
++ 		PRINTK("SLIP: TTY %d already connected to sl%d !\n",
++ 			tty->line, sl->line);
++ 		return(-EEXIST);
++ 	}
++ 
++ 	/* OK.  Find a free SLIP channel to use. */
++ 	if ((sl = sl_alloc()) == NULL) {
++ 		PRINTK("SLIP: TTY %d not connected: all channels in use!\n",
++ 							tty->line);
++ 		return(-ENFILE);
++ 	}
++ 	sl->tty = tty;
++ 	sl->tty->write_q.buf = (char *) &sl->tty_alternate;
++ 	sl->tty->write_q.buf_size = SL_RCV_SIZE;
++ 
++ 	/* Link the TTY line to this channel. */
++ 	(void) sl_open(sl->dev);
++ 	PRINTK("SLIP: TTY %d connected to sl%d.\n", tty->line, sl->line);
++ 
++ 	/* Done.  We have linked the TTY line to a channel. */
++ #ifdef should_not_be_here
++ 	tty->count++;
++ 	tty->status_changed = 0;
++ 	tty->ctrl_status = 0;
++ 	tty->packet = 0;
++ #endif
++ 	return(sl->line);
++ }
++ 
++ 
++ /*
++  * Close down a SLIP channel.
++  * This means flushing out any pending queues, and then restoring the
++  * TTY line discipline to what it was before it got hooked to SLIP
++  * (which usually is TTY again).
++  */
++ int
++ slip_close(struct tty_struct *tty)
++ {
++ 	struct slip *sl;
++ 
++ 	/* First make sure we're connected. */
++ 	if ((sl = sl_find(tty)) == NULL) {
++ 		PRINTK("SLIP: TTY %d not connected !\n", tty->line);
++ 		return(-ENXIO);
++ 	}
++ 
++ 	(void) sl_close(sl->dev);
++ 	PRINTK("SLIP: TTY %d disconnected from sl%d.\n", tty->line, sl->line);
++ 	return(0);
++ }
++ 
++ 
++ /*
++  * Initialize a SLIP channel from scratch (usually at boot time).
++  * This function is called by the 'dev' module at boot time, when
++  * all networking interfaces are initialized.
++  */
++ int
++ slip_init(struct device *dev)
++ {
++ 	int i;
++ 	struct slip *sl;
++ 
++ 	sl = &sl_ctrl[dev->base_addr];
++ 
++ 	/* Set up the "SLIP Control Block". */
++ 	sl->inuse            = 0;		/* not allocated now	*/
++ 	sl->line             = dev->base_addr;	/* SLIP channel number	*/
++ 	sl->tty              = NULL;		/* pointer to TTY line	*/
++ 	sl->dev              = dev;		/* pointer to DEVICE	*/
++ 	sl->sending          = 0;		/* locked on output	*/
++ 	sl->rcv_queue.head   = 0;		/* ptr to RECV queue	*/
++ 	sl->rcv_queue.tail   = 0;		/* ptr to RECV queue	*/
++ 	sl->escape           = 0;		/* SLIP state machine	*/
++ 	sl->received         = 0;		/* SLIP receiver count	*/
++ 	sl->sent             = 0;		/* #frames sent out	*/
++ 	sl->rcvd             = 0;		/* #frames received	*/
++ 	sl->errors           = 0;		/* not used at present	*/
++ 
++ 	/* Finish setting up the DEVICE info. */
++ 	dev->mtu             = SL_MTU;
++ 	dev->rmem_end        = (unsigned long)&sl->rcv_queue.buf[SL_BUF_SIZE-1];
++ 	dev->rmem_start      = (unsigned long)&sl->rcv_queue.buf[0];
++ 	dev->mem_end         = (unsigned long)&sl->snd_buf[SL_MTU-1];
++ 	dev->mem_start       = (unsigned long)&sl->snd_buf[0];
++ 	dev->hard_start_xmit = sl_start_xmit;
++ 	dev->open            = sl_open;
++ 	dev->stop            = sl_close;
++ 	dev->hard_header     = sl_hard_header;
++ 	dev->add_arp         = sl_add_arp;
++ 	dev->type_trans      = sl_type_trans;
++ 	dev->hard_header_len = 0;
++ 	dev->addr_len        = 0;
++ 	dev->type            = 0;	/* FIXME: ??? */
++ 	dev->queue_xmit      = dev_queue_xmit;
++ 	dev->rebuild_header  = sl_rebuild_header;
++ 	for (i = 0; i < DEV_NUMBUFFS; i++) dev->buffs[i]= NULL;
++ 
++ 	printk("SLIP: channel sl%d ready.\n", sl->line);
++ 	return(0);
++ }
+diff -c2r linux.orig/net/tcp/slip.h linux/net/tcp/slip.h
+*** linux.orig/net/tcp/slip.h	Sat Jan 23 19:42:14 1993
+--- linux/net/tcp/slip.h	Sat Jan 23 13:41:40 1993
+***************
+*** 0 ****
+--- 1,73 ----
++ /* slip.h */
++ /*
++     Copyright (C) 1992  Laurence Culhane
++ 
++     This program is free software; you can redistribute it and/or modify
++     it under the terms of the GNU General Public License as published by
++     the Free Software Foundation; either version 2, or (at your option)
++     any later version.
++ 
++     This program is distributed in the hope that it will be useful,
++     but WITHOUT ANY WARRANTY; without even the implied warranty of
++     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++     GNU General Public License for more details.
++ 
++     You should have received a copy of the GNU General Public License
++     along with this program; if not, write to the Free Software
++     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
++ 
++     The Author may be reached as loz@holmes.demon.co.uk
++ */
++ 
++ /* SLIP configuration. */
++ #define SL_NRUNIT	4		/* number of SLIP channels	*/
++ #define SL_MTU		320		/* 296; I am used to 600- FvK	*/
++ #define SL_BUF_SIZE	8192		/* same as TTY for now		*/
++ #define SL_RCV_SIZE	2048
++ 
++ /* SLIP protocol characters. */
++ #define END             0300		/* indicates end of frame	*/
++ #define ESC             0333		/* indicates byte stuffing	*/
++ #define ESC_END         0334		/* ESC ESC_END means END 'data'	*/
++ #define ESC_ESC         0335		/* ESC ESC_ESC means ESC 'data'	*/
++ 
++ struct sl_queue {
++   unsigned long		data;
++   unsigned long		head;
++   unsigned long		tail;
++   struct wait_queue	*proc_list;
++   unsigned char		buf[SL_BUF_SIZE];
++ };
++ 
++ struct slip {
++   int			inuse;		/* are we allocated?		*/
++   int			line;		/* SLIP channel number		*/
++   struct tty_struct	*tty;		/* ptr to TTY structure		*/
++   struct device		*dev;		/* easy for intr handling	*/
++   unsigned int		sending;	/* "channel busy" indicator	*/
++   struct sl_queue	rcv_queue;
++   char			snd_buf[(SL_MTU*2)+4];
++   unsigned char		tty_alternate[SL_RCV_SIZE];
++   int			escape;		/* SLIP state machine		*/
++   int			received;	/* SLIP receive counter		*/
++   unsigned long		sent;		/* #frames sent			*/
++   unsigned long		rcvd;		/* #frames rcvd			*/
++   unsigned long		errors;		/* error count			*/
++ };
++ 
++ #define SL_INC(a)	((a) = ((a)+1) & (SL_BUF_SIZE-1))
++ #define SL_DEC(a)	((a) = ((a)-1) & (SL_BUF_SIZE-1))
++ #define SL_EMPTY(a)	((a)->head == (a)->tail)
++ #define SL_LEFT(a)	(((a)->tail-(a)->head-1)&(SL_BUF_SIZE-1))
++ #define SL_LAST(a)	((a)->buf[(SL_BUF_SIZE-1)&((a)->head-1)])
++ #define SL_FULL(a)	(!SL_LEFT(a))
++ #define SL_CHARS(a)	(((a)->head-(a)->tail)&(SL_BUF_SIZE-1))
++ 
++ extern void slip_xmit(struct tty_struct *tty);
++ extern void slip_recv(struct tty_struct *tty);
++ extern int slip_chan(struct tty_struct *tty);
++ extern int slip_open(struct tty_struct *tty);
++ extern int slip_close(struct tty_struct *tty);
++ extern int slip_init(struct device *dev);
++ 
++ /* End of SLIP.H */
+diff -c2r linux.orig/net/tcp/tcp.c linux/net/tcp/tcp.c
+*** linux.orig/net/tcp/tcp.c	Fri Jan 22 22:23:17 1993
+--- linux/net/tcp/tcp.c	Sat Jan 23 13:41:41 1993
+***************
+*** 1615,1619 ****
+    if (skb->h.th->doff == 5)
+      {
+!       newsk->mtu=576-HEADER_SIZE;
+      }
+    else
+--- 1615,1619 ----
+    if (skb->h.th->doff == 5)
+      {
+!       newsk->mtu=dev->mtu-HEADER_SIZE;
+      }
+    else
+***************
+*** 1622,1626 ****
+        if (ptr[0] != 2 || ptr[1] != 4)
+  	{
+! 	   newsk->mtu=576-HEADER_SIZE;
+  	}
+        else
+--- 1622,1626 ----
+        if (ptr[0] != 2 || ptr[1] != 4)
+  	{
+! 	   newsk->mtu=dev->mtu-HEADER_SIZE;
+  	}
+        else
+diff -c2r linux.orig/net/tcp/tcp.h linux/net/tcp/tcp.h
+*** linux.orig/net/tcp/tcp.h	Fri Jan 22 22:23:17 1993
+--- linux/net/tcp/tcp.h	Sat Jan 23 13:41:41 1993
+***************
+*** 85,89 ****
+  #define MAX_WINDOW  12000
+  #define MIN_WINDOW   2048
+! #define MAX_ACK_BACKLOG 2
+  #define MIN_WRITE_SPACE 2048
+  #define TCP_WINDOW_DIFF 2048
+--- 85,89 ----
+  #define MAX_WINDOW  12000
+  #define MIN_WINDOW   2048
+! #define MAX_ACK_BACKLOG 8
+  #define MIN_WRITE_SPACE 2048
+  #define TCP_WINDOW_DIFF 2048
+diff -c2r linux.orig/net/tcp/utils.c linux/net/tcp/utils.c
+*** linux.orig/net/tcp/utils.c	Sat Jan 23 19:42:19 1993
+--- linux/net/tcp/utils.c	Sat Jan 23 13:41:42 1993
+***************
+*** 0 ****
+--- 1,43 ----
++ /*
++  * utils	Various kernel-resident INET utility functions; mainly
++  *		for format conversion and debugging output.
++  *
++  * Version:	@(#)utils.c		1.00	11/14/92	FvK
++  *
++  * Authors:	Original taken from BSD 4.3/TAHOE.
++  *		Fred N. van Kempen, <waltje@uwalt.nl.mugnet.org>
++  */
++ #include <asm/segment.h>
++ #include <asm/system.h>
++ #include <linux/types.h>
++ #include <linux/kernel.h>
++ #include <linux/sched.h>
++ #include <linux/string.h>
++ #include <linux/mm.h>
++ #include <linux/socket.h>
++ #include <arpa/inet.h>
++ #include <netinet/in.h>
++ #include "dev.h"
++ #include "eth.h"
++ #include "timer.h"
++ #include "ip.h"
++ #include "tcp.h"
++ #include "sock.h"
++ #include <linux/errno.h>
++ #include "arp.h"
++ #include <linux/stat.h>
++ 
++ 
++ #define	UC(b)	(((int)b)&0xff)
++ 
++ 
++ char *in_ntoa(in)
++ struct in_addr in;
++ {
++   static char b[18];
++   register char *p;
++ 
++   p = (char *) &in.s_addr;
++   sprintf(b, "%d.%d.%d.%d", UC(p[0]), UC(p[1]), UC(p[2]), UC(p[3]));
++   return(b);
++ }

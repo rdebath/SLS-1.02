@@ -1,0 +1,111 @@
+#! /bin/sh
+# convert_to_xview - convert SunView1 source programs to XView source
+# 
+# convert_to_xview [-c conversion-type] filename...
+#
+#	-c  type of conversion to perform.  The default
+#	    is 'full' conversion.  Alternately, "minimal"
+#	    conversion is offered.  Minimal does not make
+#	    changes to code that is supported through
+#	    backwards-compatible interfaces.  Full conversion
+#	    is recommended.
+# 
+# Produces a new XView source files for each filename
+# 
+USAGE="Usage: `basename ${0}` [-m] filename..."
+
+CONV_TYPE=full
+MIN_CONV_TYPE=minimal
+CTXV_ROOT=
+XVIEW_BINS=bin/xview/
+
+NOT_SET="NOT_SET"
+CTXV_HOME=${OPENWINHOME}${NOT_SET}
+PROGRAM=${NOT_SET}
+CURRENT_FILE=
+TMP_FILE_TO_DEL=
+NOTHING=
+
+while [ ${#} -gt 0 ]; do
+    case "${1}" in
+	-m)	CONV_TYPE=${MIN_CONV_TYPE};;
+        -h)     echo ${USAGE}; exit 1;;
+        *)      PROGRAM=${1}; break;;
+        esac
+    shift
+done
+
+if [ "${PROGRAM}" = "${NOT_SET}" ]; then
+   echo "No filename specified."
+   echo ${USAGE}
+   exit 1
+else
+   CURRENT_FILE=${PROGRAM}
+fi
+
+if [ "${CTXV_HOME}" = "${NOT_SET}" ]; then
+#   don't set the root and expect that it is in the $PATH
+    CTXV_ROOT=
+else
+    CTXV_ROOT=${OPENWINHOME}/${XVIEW_BINS}
+fi
+
+for PROGRAM in $*; do
+	echo "----Converting file: ${PROGRAM} "
+	CURRENT_FILE=${PROGRAM}
+	if [ ${CONV_TYPE} = "full" ]; then
+	  ${CTXV_ROOT}.full1.sed ${CURRENT_FILE} > /tmp/full1.tmp
+	  CURRENT_FILE=/tmp/full1.tmp
+	  TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+# BOILER PLATE HERE:
+#	In order to allow full conversion to grow the following should be
+#	the 'boilerplate' for extending full conversion with addtional sed scripts.
+#	Use 
+#	
+#	  ${CTXV_ROOT}.full999.sed ${CURRENT_FILE} > /tmp/full999.tmp
+#	  CURRENT_FILE=/tmp/full999.tmp
+#	  rm -f ${TMP_FILE_TO_DEL}
+#	  TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+	  ${CTXV_ROOT}.full2.sed ${CURRENT_FILE} > /tmp/full2.tmp
+	  CURRENT_FILE=/tmp/full2.tmp
+	  rm -f ${TMP_FILE_TO_DEL}
+	  TMP_FILE_TO_DEL=${CURRENT_FILE}
+	fi
+	${CTXV_ROOT}.minimal1.sed ${CURRENT_FILE} > /tmp/min1.tmp
+	CURRENT_FILE=/tmp/min1.tmp
+	rm -f ${TMP_FILE_TO_DEL}
+	TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+	${CTXV_ROOT}.minimal2.sed ${CURRENT_FILE} > /tmp/min2.tmp
+	CURRENT_FILE=/tmp/min2.tmp
+	rm -f ${TMP_FILE_TO_DEL}
+	TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+	${CTXV_ROOT}.minimal3.sed ${CURRENT_FILE} > /tmp/min3.tmp
+	CURRENT_FILE=/tmp/min3.tmp
+	rm -f ${TMP_FILE_TO_DEL}
+	TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+# BOILER PLATE HERE:
+#	In order to allow this script to grow with new and better/longer
+#	comments the following should be the 'boilerplate' for extending
+#	this script with addtional sed scripts:
+#	
+#	${CTXV_ROOT}.minimal999.sed ${CURRENT_FILE} > /tmp/min999.tmp
+#	CURRENT_FILE=/tmp/min999.tmp
+#	rm -f ${TMP_FILE_TO_DEL}
+#	TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+	${CTXV_ROOT}.minimal4.sed ${CURRENT_FILE} > /tmp/min4.tmp
+	CURRENT_FILE=/tmp/min4.tmp
+	rm -f ${TMP_FILE_TO_DEL}
+	TMP_FILE_TO_DEL=${CURRENT_FILE}
+#
+	mv ${CURRENT_FILE} ${PROGRAM}.converted_to_xview
+	rm -f ${TMP_FILE_TO_DEL}
+done
+
+echo "--Done"
+

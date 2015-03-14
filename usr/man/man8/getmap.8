@@ -1,0 +1,421 @@
+.\" @(#)man/man8/getmap.an	1.5 8/2/92 03:32:34
+.TH GETMAP X_MAN8_EXT_X "31 January 1988" "Local"
+.SH NAME
+getmap \- unshar USENET map articles into a map directory
+.SH SYNOPSIS
+.B X_UTIL_BIN_DIR_X/getmap
+[
+.B \-m
+.I mapdir
+] [
+.B \-w
+.I workdir
+]
+.in +10
+[
+.B \-b
+.I batch
+] [
+.B \-u
+.I address
+] [
+.B \-n
+.I newsgroups
+]
+.br
+[
+.B \-s
+.I newsspooldir
+]
+.in -10
+.br
+.B X_UTIL_BIN_DIR_X/unsharmap
+[
+.B \-d
+.I dir
+] [
+.B \-n
+.I newsgroups
+]
+.in +10
+[
+.B \-s
+.I newsspooldir
+]
+.in -10
+.SH DESCRIPTION
+The
+.I getmap
+command reads the file
+.I batch
+to obtain a list of article files formatted in the style of USENET
+.BR comp.mail.maps .
+It then uses
+.I unsharmap
+to extract maps from these articles into the directory
+.I mapdir.
+These maps are intended to be used as input data to
+.IR pathalias (X_MAN8_EXT_X).
+The program
+.IR uuwho (X_MAN1_EXT_X)
+prints individual map entries from the extracted map files.
+.SH OPTIONS
+The following options are recognized by
+.IR getmap :
+.TP
+\fB\-m\fP \fImapdir\fP
+Extracted map files will be placed in the directory \fImapdir\fP,
+rather than the default directory
+.IR "X_UNSHAR_MAP_DIR_X" .
+.TP
+\fB\-w\fP \fIworkdir\fP
+The directory \fIworkdir\fP will be used for working storage for
+.I getmap .
+The log and error log files
+.IR getmap.log
+and
+.IR getmap.err
+will also be placed in this directory.
+.TP
+\fB\-b\fP \fIbatch\fP
+Use
+.IR batch ,
+rather than
+.IR "X_UNSHAR_MAP_DIR_X/work/batch" ,
+as the name of the file containing the list of new mail message files.
+A
+.I batch
+file of
+.B \-
+implies that the list of articles is to be read from standard input.
+If
+.I batch
+is not
+.B \-
+then
+.I batch.work
+is used as both the lock file and the work file.
+.TP
+\fB\-u\fP \fIaddress\fP
+If
+.I getmap
+encounters an error, then the contents of the error log file
+will be mailed to
+.I address
+rather than the default address of
+.BR Postmaster .
+If
+.I address
+is
+.B \-
+then the error log is written to standard error rather than
+mailed to some user.
+.TP
+\fB\-n\fP \fInewsgroups\fP
+Specifiy the list of allowed newsgroups for articles.  Multiple
+newsgroups can be specified, separated by single colons.  The default
+list is
+``comp.mail.maps.''
+.TP
+\fB\-s\fP \fInewsspooldir\fP
+Specify the top-level directory of the news article hierarchy.  Batch
+files created by C News contain pathnames that are relative to this
+directory.  The default news spool directory is X_NEWS_SPOOL_DIR_X.
+.PP
+Even though the default values for
+.I mapdir ,
+.I workdir and
+.I batch
+are found in the same directory tree, the
+options \fB\-m\fP, \fB\-w\fP and \fB\-b\fP
+set locations independent of each other.
+E.g., \fB\-m\fP does not change
+.I workdir .
+.PP
+The following options are recognized by
+.BR unsharmap :
+.TP
+\fB\-d\fP \fIdir\fP
+Map files are extracted into
+.I dir
+rather than the current directory.
+.TP
+\fB\-n\fP \fInewsgroups\fP
+Specifiy the list of allowed newsgroups for articles.  Multiple
+newsgroups can be specified, separated by single colons.  The default
+list is
+``comp.mail.maps.''
+.TP
+\fB\-s\fP \fInewsspooldir\fP
+Specify the top-level directory of the news article hierarchy.  Batch
+files created by C News contain pathnames that are relative to this
+directory.  If this option is not specified, the batch file must
+contain pathnames that begin with \fB/\fP.  However, if invoked from
+\fIgetmap\fP, this defaults to X_NEWS_SPOOL_DIR_X.
+.SH GETMAP OPERATION
+The
+.I batch
+file contains a list of article filenames, one per line.
+Article files are files formatted
+in the style of articles received by the USENET news service
+in the newsgroup
+.BR comp.mail.maps .
+The 
+.I getmap
+program uses
+.I unsharmap
+to extact a map file from each artcile named in the
+.I batch
+file.
+All extacted map articles are placed in the directory
+.IR mapdir .
+A log of each article file is obtained from the standard output of
+.I unsharmap
+and appended to the file
+.IR getmap.log
+located in the
+.I workdir
+directory.
+.PP
+At invocation,
+.I getmap
+attemps to move
+.I batch
+to a file with a
+.IR .work
+suffix.  (i.e.,
+.I batch
+is moved to
+.I batch.work .)
+If
+.I batch.work
+already exists,
+.I getmap
+will abort.
+In this way, the
+.I batch.work
+serves as a lock file.
+If
+.I batch
+is
+.BR \-
+then
+article file names are obtained form standard input.
+In this case, the
+.I batch.work
+file is not formed.
+.PP
+The file
+.IR getmap.log
+in the directory
+.I workdir
+contains a history of
+.I getmap
+processing and errors.
+At the start of a given
+.I getmap
+run, the error log file
+.IR getmap.err
+in the directory
+.I workdir
+is cleared.
+During
+.I getmap
+execution, each line written to
+the log file is also written to the error log file.
+If any error conditions are encountered,
+the error log is mailed to
+.I address.
+If
+.I address
+is
+.BR \-
+then the error log is written to standard error.
+If no errors are encountered, the
+error log is removed, otherwise it
+is left behind until a future
+.I getmap
+run clears it.
+.SH UNSHARMAP OPERATION
+The
+.I unsharmap
+program is used by
+.I getmap
+to extract maps out of article files.
+.PP
+Article file names are read from standard input,
+one file per line.
+The map file name is obtained form the article file
+and the map contents are written into the
+.I dir
+directory.
+Old map files are overwritten.
+.PP
+For each map file,
+.I unsharmap
+writes the following information to standard output:
+.PP
+.RS
+.nf
+name of the article file
+name of the extracted map file
+Subject line
+Message-ID line
+article Date
+Approved line
+.fi
+.RE
+.PP
+Each article file contains a news header, a blank line, and an article
+body.  The header, which starts on the first line and continues until
+a blank line is encountered, which separates the header from the body.
+The header is expected to contain at least the following header fields:
+.RS
+.nf
+Newsgroups: comp.mail.maps
+Subject: UUCP ...
+Message-ID: ...
+Date: ...
+Approved: ...
+.fi
+.RE
+For any line above, containing `...', the `...' string can match any
+sequence of characters within a field, where other characters in the
+field must match exactly, independently of case.
+.PP
+The body for each article file is expected to begin with zero or more
+lines beginning with the character `:', followed by the two lines:
+.PP
+.RS
+.nf
+echo shar: extracting \fImap-name\fP
+cat << 'SHAR_EOF' > \fImap-name\fP
+.fi
+.RE
+.PP
+where
+.I map-name
+is the map to be extracted.  What follows are the file contents to be
+placed in the map file, followed by the three lines:
+.PP
+.RS
+.nf
+SHAR_EOF
+:    End of shell archive
+exit 0
+.fi
+.RE
+.SH "INTERFACING GETMAP WITH NETNEWS"
+To interface
+.I getmap
+with the netnews software, version 2.10 or 2.11, add a line to your
+.I sys
+file (see
+.IR news (5))
+containing:
+.PP
+.RS
+.nf
+maps:comp.mailmaps,world:F:\fIbatch\fP
+.fi
+.RE
+.PP
+where
+.I batch
+is the full pathname to
+.IR getmap 's
+.I batch
+file.
+Normally
+.I batch
+is
+.IR X_UNSHAR_MAP_DIR_X/work/batch .
+.PP
+The
+.I getmap
+program should be run on a periodic basis under a user and group ID
+that can write to the map directory.
+See
+.IR smailcron (X_MAN8_EXT_X)
+for details.
+.SH FILES
+.TP 1.5i
+.I "X_NEWS_SPOOL_DIR_X"
+The default top-level directory used for obtaining news articles.
+.TP 1.5i
+.I "X_UNSHAR_MAP_DIR_X"
+The default directory for maps extraction.  Map files broadcast in
+.BR comp.mail.maps
+begin with either ``u.'' or ``d.'' and have a name indicating which
+region of the world they represent.
+.TP 1.5i
+.I "X_UNSHAR_MAP_DIR_X/work/batch"
+The default work file used containing artcile filenames.
+.TP 1.5i
+.I "X_UNSHAR_MAP_DIR_X/work/batch.work"
+The default work file copy created while processing the input
+pathnames.
+This file also serves as a lock file for similar
+.I getmap
+executions.
+.TP 1.5i
+.I "X_UNSHAR_MAP_DIR_X/work/getmap.log"
+The default history log of
+.I getmap
+activity and errors.
+.TP 1.5i
+.I "X_UNSHAR_MAP_DIR_X/work/getmap.err"
+The default error log of the previous
+.I getmap
+execution.
+This is mailed to
+.BR Postmaster
+if an error occured, otherwise
+it is removed.
+.TP 1.5i
+.I "X_UTIL_BIN_DIR_X/unsharmap"
+The program that does the real work of extracting map files from
+netnews articles.
+.TP 1.5i
+.I "X_SMAIL_NAME_X"
+The program used in mailing the
+.IR getmap.err
+error log.
+.SH "SEE ALSO"
+.IR news (5),
+.IR inews (1),
+.IR smail (X_MAN5_EXT_X),
+.IR article (X_MAN5_EXT_X),
+.IR smail (X_MAN8_EXT_X),
+.IR smailcron (X_MAN8_EXT_X),
+.IR uuwho (X_MAN1_EXT_X),
+.IR mkpath (X_MAN8_EXT_X)
+and
+.IR pathalias (X_MAN8_EXT_X).
+.SH BUGS
+The format of USENET articles is subject to change at the whim of
+a few USENET map people.
+.PP
+some articles may not be processed.
+Most netnews software does an open, write and close for each
+filename written to the
+.I batch
+file.
+In rare cases, the
+.I batch
+file may be left opened when
+.I getmap
+moved it to
+.IR batch.work .
+In this case, the last article may be ignored.
+.SH COPYRIGHT
+Copyright(C)1987, 1988 Ronald S. Karr and Landon Curt Noll
+.br
+Copyright(C)1992 Ronald S. Karr
+.br
+See a file COPYING,
+distributed with the source code,
+or type
+.I "smail -bc"
+for distribution rights and restrictions
+associated with this software.

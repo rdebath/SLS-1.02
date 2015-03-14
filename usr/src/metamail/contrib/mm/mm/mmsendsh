@@ -1,0 +1,319 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+
+#
+# Copyright (c) 1992 Wimsey Informations Technologies
+#
+
+# usage: mmsendsh [options] addresses ...
+#	-c cc address
+#	-e encoding
+#	-m MIME-type
+#	-s Subject
+#	-S splitsize
+#	-z zap temp files always
+#
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+if [ -x /usr/bin/tput ] ; then
+    bd=`tput bold`
+    rv=`tput smso`
+    Off=`tput rmso`
+    cls=`tput clear`
+fi
+
+RC=1
+
+clean() {
+    trap clean 1 2 15
+    echo ${Off}
+    #echo caught SIG
+    [ -f "$fname" ] && rm $fname
+    exit $RC
+}
+
+trap clean 1 2 15
+
+MustDelete=0
+encode=""
+splitsize=100000
+verbose=""
+havedash=0
+filecount=0
+haveMIME=0
+haveencode=0
+
+while [ $# -gt 0 ] ; do
+    case $1 in
+	-V|-v)
+	    verbose="-v";
+	    ;;
+	-S)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-S requires a following argument, the SPLIT threshhold"
+                exit
+            fi
+            $splitsize="-S $1"
+            shift
+	    ;;
+	-c)
+            shift
+            if [ $# -eq 0 ] ; then
+                echo "-c requires a following argument, the CC address"
+                exit
+	    fi
+            cc="$cc -c $1"
+            shift
+	    ;;
+	-s)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-s requires a following argument, the SUBJECT"
+                exit
+	    fi
+            subject="$1"
+	    dashs="-s"
+            shift
+	    ;;
+	-e)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-e requires a following argument, the ENCODING value"
+                exit
+	    fi
+            args="$args -e $1"
+	    haveencode=1
+            shift
+	    ;;
+	-f)
+            shift
+	    if [ $haveMIME = 0 ] ; then
+		echo "Must specify MIME content type prior to any files."
+		exit
+	    fi
+	    if [ $# -eq 0 ] ; then
+                echo "-f requires a following argument, the DATA FILE"
+                exit
+	    fi
+            args="$args -f $1"
+	    filecount=`expr $filecount + 1`
+            shift
+	    ;;
+	-m)
+            shift
+	    if [ $# -eq 0 ] ; then
+                echo "-m requires a following argument, the MIME CONTENT-TYPE"
+                exit
+	    fi
+            args="$args -m $1"
+	    haveMIME=1
+            shift
+	    ;;
+	-z)
+            MustDelete=1
+            shift
+	    ;;
+        -*)
+            echo UNRECOGNIZED METASEND OPTION: $1
+            exit
+	    ;;
+	*)
+	    if [ ! "$addresses" ] ; then
+		addresses="$1"
+	    else
+		addresses="$addresses $1"
+	    fi
+            shift
+	    ;;
+    esac
+done
+
+while : ; do
+
+    mmreset
+    echo ${bd}mmsend:${Off} 
+    echo
+    echo "    To:      $addresses"
+    echo "    CC:      $ccaddresses"
+    echo "    Subject: $subject"
+    echo 
+
+    awk ' 
+    BEGIN  { l = 1  ; 
+	    printf "    Args:    ";
+	    for (i = 1;i < ARGC; i++) { 
+	      if ((length(ARGV[i]) + l + 2) >= 64) { 
+	      printf "\n    Args:    "; 
+	      l = 1 } 
+	    printf "%s ", ARGV[i]; l=l+length(ARGV[i])+1
+	    } 
+	    printf "\n"; exit;
+    } ' $args
+    echo 
+    echo "    Selection: T(o, C(c, S(ubject, E(ncode, M(IME, F(ile Q(uit, eX(it: \c",
+
+
+    select=`/usr/local/lib/mm/mmgetchar`
+    echo
+
+    case $select in
+	t|T)
+	    address=
+	    until [ "$address" ] ; do
+		echo
+		echo "Enter address: \c"
+		read address
+		echo
+		echo "Accept $address [y]: \c"
+		ans=`/usr/local/lib/mm/mmgetchar`
+		case $ans in
+		    n|N) address= ;;
+		esac
+	    done
+	    addresses="$addresses $address"
+	    address=
+	    ;;
+
+	c|C)
+	    address=
+	    until [ "$address" ] ; do
+		echo
+		echo "Enter address: \c"
+		read address
+		echo
+		echo "Accept $address [y]: \c"
+		ans=`/usr/local/lib/mm/mmgetchar`
+		case $ans in
+		    n|N) address= ;;
+		esac
+	    done
+	    ccaddresses="$ccaddresses $address"
+	    address=
+	    ;;
+	s|S)
+	    subject=
+	    dashs=
+	    until [ "$subject" ] ; do
+		echo
+		echo "Enter subject: \c"
+		read subject
+		echo
+		echo "Accept $subject [y]: \c"
+		ans=`/usr/local/lib/mm/mmgetchar`
+		case $ans in
+		    n|N) subject=; dashs= ;;
+		esac
+		dashs="-s"
+	    done
+	    ;;
+	e|E)
+	    encode=
+	    until [ "$encode" ] ; do
+		echo
+		echo "Do you want to encode this data for sending through the mail?"
+		echo "  1 -- No, it is already in 7 bit ASCII"
+		echo "  2 -- Yes, encode in base64 (most efficient)"
+		echo "  3 -- Yes, encode in quoted-printable (less efficient, more readable)"
+		echo "  4 -- Yes, encode it using uuencode (not standard, being phased out)"
+		echo
+		echo "Enter number for encoding type: \c"
+		encode=`/usr/local/lib/mm/mmgetchar`
+		echo
+		case $encode in 
+		    7|1) encode=7bit ;;
+		    b|2) encode=base64 ;;
+		    q|3) encode=quoted-printable ;;
+		    x|4) encode=x-uue ;;
+		    *)
+			echo Unrecognized answer, please try again.
+			encode=
+			;;
+		esac
+	    done
+	    args="$args -e $encode"
+	    ;;
+	m|M)
+	    content=
+	    until [ "$content" ] ; do
+		echo
+		echo "Content-type: \c"
+		read content
+		echo
+		echo "Accept $content [y]: \c"
+		ans=`/usr/local/lib/mm/mmgetchar`
+		case $ans in
+		    n|N) content= ;;
+		esac
+	    done
+	    args="$args -m $content"
+	    haveMIME=1
+	    ;;
+	f|F)
+	    file=
+	    if [ $haveMIME -eq 0 ] ; then
+		echo
+		echo "Must specify Content type before any files...."
+		sleep 5
+		continue
+	    fi
+	    until [ "$file" ] ; do
+		echo
+		echo "Enter file: \c"
+		read file
+		echo
+		if [ ! -f "$file" ] ; then
+		    echo $file does not exist
+		    file=
+		fi
+	    done
+	    args="$args -f $file"
+	    ;;
+	q|Q)
+	    tput clear
+	    break
+	    ;;
+	x|X)
+	    echo
+	    echo "Exit? [n]: \c"
+	    ans=`/usr/local/lib/mm/mmgetchar`
+	    case $ans in
+		y|Y) exit ;;
+	    esac
+	    ;;
+	*)
+	    ;;
+    esac
+done
+
+RC=0
+
+echo ${Off}
+
+exec mmsend $cc $dashs "$subject" $args -S $splitsize $verbose $addresses
+

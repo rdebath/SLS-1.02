@@ -1,0 +1,1183 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Key Lookup,  Next: Functions for Key Lookup,  Prev: Creating Keymaps,  Up: Keymaps
+
+Key Lookup
+==========
+
+   "Key lookup" is the process of finding the binding of a key
+sequence from a given keymap.  Actual execution of the definition is
+not part of key lookup.
+
+   When the key sequence consists of multiple characters, the
+characters are handled sequentially: the binding of the first
+character is found, and must be a keymap; then the second character's
+binding is found in that keymap, and so on until all the characters
+in the key sequence are used up.  (The binding thus found for the
+last character may or may not be a keymap.)  Thus, the process of key
+lookup is defined in terms of a simpler process for looking up a
+single character in a keymap.  How this is done depends on the type
+of object associated with the character in that keymap.
+
+   The value directly associated with a character in a keymap is
+called a "keymap entry".  While any Lisp object may be stored in a
+keymap entry, only a few types of object make sense for key lookup. 
+Here is a list of them, and what they mean:
+
+`nil'
+     `nil' means that the characters used so far in the lookup form
+     an undefined key.  When a sparse keymap fails to mention a
+     character, that is equivalent to an entry of `nil'.
+
+KEYMAP
+     The characters used so far in the lookup form a prefix key.  The
+     next character of the key sequence is looked up in KEYMAP, which
+     may be full or sparse.
+
+COMMAND
+     The characters used so far in the lookup form a complete key,
+     and COMMAND is its definition.
+
+STRING
+     STRING represents a keyboard macro.  The characters used so far
+     in the lookup form a complete key, and STRING is its definition.
+     (See *Note Keyboard Macros::, for more information.)
+
+LIST
+     The meaning of a list depends on the types of the elements of
+     the list.
+
+        * If the CAR of LIST is the symbol `keymap', then the list is
+          a sparse keymap, and is treated as a keymap (see above).
+
+        * If the CAR of LIST is `lambda', then the list is a lambda
+          expression.  This is presumed to be a command, and is
+          treated as such (see above).
+
+        * If the CAR of LIST is a keymap and the CDR is a character,
+          then this entry is an indirection to a slot in the other
+          keymap.  When an indirect entry is found in key lookup, it
+          is immediately replaced by the entry in the specified
+          keymap for the specified character.  This permits you to
+          define one key as an alias for another key.  For example,
+          an entry whose CAR is the keymap called `esc-map' and whose
+          CDR is 32 (the code for space) means, "Use the global
+          definition of `Meta-SPC', whatever that may be."
+
+SYMBOL
+     The function definition of SYMBOL is used in place of SYMBOL. 
+     If that too is a symbol, then this process is repeated, any
+     number of times.  Ultimately this should lead to a definition
+     which is a keymap, a command or a string.  A list is allowed if
+     it is a keymap or a command, but indirect entries are not
+     understood when found via symbols.
+
+     Note that keymaps and strings are not valid functions, so a
+     symbol with a keymap or string as its function definition is
+     likewise not valid as a function.  It is, however, valid as a
+     key binding.  If the definition is a string, then the symbol is
+     also valid as an argument to `command-execute' (*note
+     Interactive Call::.).
+
+     The symbol `undefined' is worth special mention: it means to
+     treat the key as undefined.  Strictly speaking, the key is
+     defined, and its definition is the symbol `undefined', but that
+     command does the same thing that is done automatically for an
+     undefined key: it rings the bell (by calling `ding') but does
+     not signal an error.
+
+     `undefined' is used in local keymaps to override a global key
+     binding and make the key undefined locally.  A local binding of
+     `nil' would fail to do this because it would not override the
+     global binding.
+
+ANYTHING ELSE
+     If any other type of object is found, the characters used so far
+     in the lookup form a complete key, and the object is its
+     definition.
+
+   In short, a keymap entry may be a keymap, a command, a string, a
+symbol which leads to one of them, or an indirection or `nil'.  Here
+is an example of a sparse keymap with two characters bound to
+commands and one bound to another keymap.  This map is the normal
+value of `emacs-lisp-mode-map'.  Note that 9 is the code for TAB, 127
+for DEL, 27 for ESC, 17 for `C-q' and 24 for `C-x'.
+
+     (keymap (9 . lisp-indent-line)
+             (127 . backward-delete-char-untabify)
+             (27 keymap (17 . indent-sexp) (24 . eval-defun)))
+
+
+
+File: elisp,  Node: Functions for Key Lookup,  Next: Prefix Keys,  Prev: Key Lookup,  Up: Keymaps
+
+Functions for Key Lookup
+========================
+
+   Here are the functions and variables pertaining to key lookup.
+
+ * Function: lookup-key KEYMAP KEY
+     This function returns the definition of KEY in KEYMAP.  If the
+     string KEY is not a valid key sequence according to the prefix
+     keys specified in KEYMAP (which means it is "too long" and has
+     extra characters at the end), then the value is a number, the
+     number of characters at the front of KEY that compose a complete
+     key.
+
+     All the other functions described in this chapter that look up
+     keys use `lookup-key'.
+
+          (lookup-key (current-global-map) "\C-x\C-f")
+              => find-file
+          (lookup-key (current-global-map) "\C-x\C-f12345")
+              => 2
+
+     If KEY contains a meta-character, that character is implicitly
+     replaced by a two-character sequence: the value of
+     `meta-prefix-char', followed by the corresponding non-meta
+     character.  Thus, the first example below is handled by
+     conversion into the second example.
+
+          (lookup-key (current-global-map) "\M-f")
+              => forward-word
+          (lookup-key (current-global-map) "\ef")
+              => forward-word
+
+     This function does not perform automatic downcasing like that of
+     `read-key-sequence' (*note Keyboard Input::.).
+
+ * Command: undefined
+     Used in keymaps to undefine keys.  It calls `ding', but does not
+     cause an error.
+
+ * Variable: meta-prefix-char
+     This variable is the meta-prefix character code.  It is used
+     when translating a meta-character to a two-character sequence so
+     it can be looked up in a keymap.  For useful results, the value
+     should be a prefix character (*note Prefix Keys::.).  The
+     default value is 27, which is the ASCII code for ESC.
+
+     As long as the value of `meta-prefix-char' remains 27, key
+     lookup translates `M-b' into `ESC b', which is normally defined
+     as the `backward-word' command.  However, if you set
+     `meta-prefix-char' to 24, the code for `C-x', then Emacs will
+     translate `M-b' into `C-x b', and call the `switch-to-buffer'
+     command.
+
+          meta-prefix-char                    ; The default value.
+               => 27
+          (key-binding "\M-b")
+               => backward-word
+          ?\C-x                               ; The print representation
+               => 24                          ; of a character.
+          (setq meta-prefix-char 24)
+               => 24      
+          (key-binding "\M-b")
+               => switch-to-buffer            ; Now, typing `M-b' is
+                                              ; like typing `C-x b'.
+          
+          (setq meta-prefix-char 27)          ; Avoid confusion!
+               => 27                          ; Restore the default value!
+
+ 
+
+File: elisp,  Node: Prefix Keys,  Next: Global and Local Keymaps,  Prev: Functions for Key Lookup,  Up: Keymaps
+
+Prefix Keys
+===========
+
+   A "prefix key" has an associated keymap which defines what to do
+with key sequences that start with the prefix key.  For example,
+`ctl-x-map' is the keymap used for characters following the prefix
+key `C-x'.  Here is a list of the standard prefix keys of Emacs and
+their keymaps:
+
+   * `ctl-x-map' is the variable name for the map used for characters
+     that follow `C-x'.  This map is also the function definition of
+     `Control-X-prefix'.
+
+   * `ctl-x-4-map' used is for characters that follow `C-x 4'.
+
+   * `esc-map' is used for characters that follow ESC.  Thus, the
+     global definitions of all Meta characters are actually found
+     here.  This map is also the function definition of `ESC-prefix'.
+
+   * `help-map' is used for characters that follow `C-h'.
+
+   * `mode-specific-map' is for characters that follow `C-c'.  This
+     map is not actually mode specific; its name was chosen to be
+     informative for the user in `C-h b' (`display-bindings'), where
+     it describes the main use of the `C-c' prefix key.
+
+   The binding of a prefix key is the keymap to use for looking up
+the characters that follow the prefix key.  (It may instead be a
+symbol whose function definition is a keymap.  The effect is the
+same, but the symbol serves as a name for the prefix key.)  Thus, the
+binding of `C-x' is the symbol `Control-X-prefix', whose function
+definition is the keymap for `C-x' commands.  This keymap is also the
+value of `ctl-x-map'.
+
+   Prefix key definitions of this sort can appear in either the
+global map or a local map.  The definitions of `C-c', `C-x', `C-h'
+and ESC as prefix keys appear in the global map, so these prefix keys
+are always available.  Major modes can locally redefine a key as a
+prefix by putting a prefix key definition for it in the local map.
+
+   If a key is defined as a prefix in both the local map and the
+global, the two definitions are effectively merged: the commands
+defined in the local map's prefix definition take priority; those not
+defined there are taken from the global map.
+
+   In the following example, `C-p' is made a prefix key in the local
+keymap (so that `C-p' is identical to `C-x').  Then the binding for
+`C-p C-f' is the function `find-file', just like `C-x C-f'.  The key
+sequence `C-p 6' is not found in either the local map or global map.
+
+     (use-local-map (make-sparse-keymap))
+         => nil
+     (local-set-key "\C-p" ctl-x-map)
+         => nil
+     (key-binding "\C-p\C-f")
+         => find-file
+     
+     (key-binding "\C-p6")
+         => nil
+
+ * Function: define-prefix-command SYMBOL
+     This function defines SYMBOL as a prefix command: it creates a
+     full keymap and stores it as SYMBOL's function definition. 
+     Storing the symbol as the binding of a key makes the key a
+     prefix key which has a name.  This function returns SYMBOL.
+
+     It is convenient to store the keymap as the value of a variable
+     as well.  In version 19, this function stores the keymap in both
+     the function definition and value of SYMBOL.  However, in
+     version 18, only the function definition of SYMBOL is set, not
+     the value.
+
+
+
+File: elisp,  Node: Global and Local Keymaps,  Next: Changing Key Bindings,  Prev: Prefix Keys,  Up: Keymaps
+
+Global and Local Keymaps
+========================
+
+   The "global keymap" holds the bindings of keys that are defined
+regardless of the current buffer, such as `C-f'.  The variable
+`global-map' holds this keymap.
+
+   Each buffer may have another keymap, its "local keymap", which may
+contain new or overriding definitions for keys.  Each buffer records
+which local keymap is used with it.
+
+   Both the global and local keymaps are used to determine what
+command to execute when a key is entered.  The key lookup proceeds as
+described earlier (*note Key Lookup::.), but Emacs *first* searches
+for the key in the local map; if Emacs does not find a local
+definition, Emacs then searches the global map.
+
+   Since every buffer that uses the same major mode normally uses the
+very same local keymap, it may appear as if the keymap is local to
+the mode.  A change to the local keymap of a buffer (using
+`local-set-key', for example) will be seen also in the other buffers
+that share that keymap.
+
+   The local keymaps that are used for Lisp mode, C mode, and several
+other major modes exist even if they have not yet been used.  These
+local maps are the values of the variables `lisp-mode-map',
+`c-mode-map', and so on.  For most other modes, which are less
+frequently used, the local keymap is constructed only when the mode
+is used for the first time in a session.
+
+   The minibuffer has local keymaps, too; they contain various
+completion and exit commands.  *Note Minibuffers::.
+
+   *Note Standard Keymaps::, for a list of standard keymaps.
+
+ * Variable: global-map
+     This variable contains the default global keymap that maps Emacs
+     keyboard input to commands.  Normally this keymap is the global
+     keymap.  The default global keymap is a full keymap that binds
+     `self-insert-command' to all of the printing characters.
+
+ * Function: current-global-map
+     This function returns the current global keymap.  Normally, this
+     is the same as the value of the `global-map'.
+
+          (current-global-map)
+          => [set-mark-command beginning-of-line ... delete-backward-char]
+
+ * Function: current-local-map
+     This function returns the current buffer's local keymap, or
+     `nil' if it has none.  In the following example, the keymap for
+     the `*scratch*' buffer (using Lisp Interaction mode) is a sparse
+     keymap in which the entry for ESC, ASCII code 27, is another
+     sparse keymap.
+
+          (current-local-map)
+          => (keymap 
+              (10 . eval-print-last-sexp) 
+              (9 . lisp-indent-line) 
+              (127 . backward-delete-char-untabify) 
+              (27 keymap 
+                  (24 . eval-defun) 
+                  (17 . indent-sexp)))
+
+ * Function: use-global-map KEYMAP
+     This function makes KEYMAP the new current global keymap.  The
+     KEYMAP map must be a full keymap (a vector of length 128).  It
+     returns `nil'.
+
+     It is very unusual to change the global keymap.
+
+ * Function: use-local-map KEYMAP
+     This function makes KEYMAP the new current local keymap of the
+     current buffer.  If KEYMAP is `nil', then there will be no local
+     keymap.  It returns `nil'.  Most major modes use this function.
+
+ * Function: key-binding KEY
+     This function returns the definition for KEY in the current
+     keymaps trying the current buffer's local map and then the
+     global map.  The result is `nil' if KEY is undefined in the
+     keymaps.
+
+     An error is signaled if KEY is not a string.
+
+          (key-binding "\C-x\C-f")
+              => find-file
+
+ * Function: local-key-binding KEY
+     This function returns the definition for KEY in the current
+     local keymap, or `nil' if it is undefined there.
+
+ * Function: global-key-binding KEY
+     This function returns the definition for command KEY in the
+     current global keymap, or `nil' if it is undefined there.
+
+
+
+File: elisp,  Node: Changing Key Bindings,  Next: Key Binding Commands,  Prev: Global and Local Keymaps,  Up: Keymaps
+
+Changing Key Bindings
+=====================
+
+   The way to rebind a key is to change its entry in a keymap.  You
+can change the global keymap, so that the change is effective in all
+buffers (except those that override the global definition with a
+local one).  Or you can change the current buffer's local map, which
+usually affects all buffers using the same major mode.  The
+`global-set-key' and `local-set-key' functions are convenient
+interfaces for these operations.  Or you can change bindings in any
+map by specifying it explicitly in `define-key'.
+
+   People often use `global-set-key' in their `.emacs' file for
+simple customization.  For example,
+
+     (global-set-key "\C-x\C-\\" 'next-line)
+
+redefines `C-x C-\' to move down a line.
+
+   In writing the string for the key sequence to rebind, it is useful
+to use the special escape sequences for control and meta characters
+(*note String Type::.).  In a string, the syntax `\C-' means that the
+following character is a control character and `\M-' means that the
+following character is a META character.  Thus, the string `"\M-x"'
+is read as containing a single `M-x', `"\C-f"' is read as containing
+a single `C-f', and `"\M-\C-x"' and `"\C-\M-x"' are both read as
+containing a single `C-M-x'.
+
+   For the functions below, an error is signaled if KEYMAP is not a
+keymap or if KEY is not a string representing a key sequence.
+
+ * Function: define-key KEYMAP KEY DEFINITION
+     This function sets the binding for KEY in KEYMAP.  (If KEY is
+     more than one character long, the change is actually made in
+     another keymap reached from KEYMAP.)  The argument DEFINITION
+     can be any Lisp object, but only certain types are meaningful. 
+     (For a list of meaningful types, see *Note Key Lookup::.) The
+     value returned by `define-key' is DEFINITION.
+
+     Every prefix of KEY must be a prefix key (i.e., bound to a
+     keymap) or undefined; otherwise an error is signaled (with data
+     `(error "Key sequence KEY uses invalid prefix characters")'). 
+     If some prefix of KEY is undefined, then `define-key' defines it
+     as a prefix key so that the rest of KEY may be defined as
+     specified.
+
+     In the following example, a sparse keymap is created and a
+     number of bindings are added to it.
+
+          (setq map (make-sparse-keymap))
+              => (keymap)
+          (define-key map "\C-f" 'forward-char)
+              => forward-char
+          map
+              => (keymap (6 . forward-char))
+
+             ;; Build sparse submap for `C-x' and bind `f' in that.
+          (define-key map "\C-xf" 'forward-word)
+              => forward-word
+
+          map
+          => (keymap 
+              (24 keymap                ; `C-x'
+                  (102 . forward-word)) ;      `f'
+              (6 . forward-char))       ; `C-f'
+          
+          ;; Bind `C-p' to the `ctl-x-map'.
+          (define-key map "\C-p" ctl-x-map)
+          => [nil ...  find-file ... backward-kill-sentence] ; `ctl-x-map'
+          
+          ;; Bind `C-f' to `foo' in the `ctl-x-map'.
+          (define-key map "\C-p\C-f" 'foo)
+          => 'foo
+          map
+          => (keymap     ; Note `foo' in `ctl-x-map'.
+              (16 . [nil ...  foo ... backward-kill-sentence])
+              (24 keymap 
+                  (102 . forward-word))
+              (6 . forward-char))
+
+     Note that storing a new binding for `C-p C-f' actually works by
+     changing an entry in `ctl-x-map', and this has the effect of
+     changing the bindings of both `C-p C-f' and `C-x C-f' in the
+     default global map.
+
+ * Function: substitute-key-definition OLDDEF NEWDEF KEYMAP
+     This function replaces OLDDEF with NEWDEF for any keys in KEYMAP
+     that were bound to OLDDEF.  In other words, OLDDEF is replaced
+     with NEWDEF wherever it appears.  It returns `nil'.
+
+     Prefix keymaps that appear within KEYMAP are not checked
+     recursively for keys bound to OLDDEF; they are not changed at all.
+     Perhaps it would be better to check nested keymaps recursively.
+
+          (setq map '(keymap 
+                      (?1 . olddef-1) 
+                      (?2 . olddef-2) 
+                      (?3 . olddef-1)))
+          => (keymap (49 . olddef-1) (50 . olddef-2) (51 . olddef-1))
+          
+          (substitute-key-definition 'olddef-1 'newdef map)
+          => nil
+          map
+          => (keymap (49 . newdef) (50 . olddef-2) (51 . newdef))
+          
+          ;; The following will redefine `C-x C-f', if you do it in an
+          ;; Emacs with standard bindings.
+          
+          (substitute-key-definition 
+           'find-file 'find-file-read-only (current-global-map))
+
+ * Function: suppress-keymap KEYMAP &optional NODIGITS
+     This function changes the contents of the full keymap KEYMAP by
+     replacing the self-insertion commands for numbers with the
+     `digit-argument' function, unless NODIGITS is non-`nil', and by
+     replacing the functions for the rest of the printing characters
+     with `undefined'.  This means that ordinary insertion of text is
+     impossible in a buffer with a local keymap on which
+     `suppress-keymap' has been called.
+
+     `suppress-keymap' returns `nil'.
+
+     The `suppress-keymap' function does not make it impossible to
+     modify a buffer, as it does not suppress commands such as `yank'
+     and `quote-insert'.  To prevent any modification of a buffer,
+     make it read-only (*note Read Only Buffers::.).
+
+     Since this function modifies KEYMAP, you would normally use it
+     on a newly created keymap.  Operating on an existing keymap that
+     is used for some other purpose is likely to cause trouble; for
+     example, suppressing `global-map' would make it impossible to
+     use most of Emacs.
+
+     Most often, `suppress-keymap' is used for initializing local
+     keymaps of modes such as Rmail and Dired where insertion of text
+     is not desirable and the buffer is read-only.  Here is an
+     example taken from the file `emacs/lisp/dired.el', showing how
+     the local keymap for Dired mode is set up:
+
+            ...
+            (setq dired-mode-map (make-keymap))
+            (suppress-keymap dired-mode-map)
+            (define-key dired-mode-map "r" 'dired-rename-file)
+            (define-key dired-mode-map "\C-d" 'dired-flag-file-deleted)
+            (define-key dired-mode-map "d" 'dired-flag-file-deleted)
+            (define-key dired-mode-map "v" 'dired-view-file)
+            (define-key dired-mode-map "e" 'dired-find-file)
+            (define-key dired-mode-map "f" 'dired-find-file)
+            ...
+
+ 
+
+File: elisp,  Node: Key Binding Commands,  Next: Scanning Keymaps,  Prev: Changing Key Bindings,  Up: Keymaps
+
+Commands for Binding Keys
+=========================
+
+   This section describes some convenient interactive interfaces for
+changing key bindings.  They work by calling `define-key'.
+
+ * Command: global-set-key KEY DEFINITION
+     This function sets the binding of KEY in the current global map
+     to DEFINITION.
+
+          (global-set-key KEY DEFINITION)
+          ==
+          (define-key (current-global-map) KEY DEFINITION)
+
+ * Command: global-unset-key KEY
+     This function removes the binding of KEY from the current global
+     map.
+
+     One use of this function is in preparation for defining a longer
+     key which uses it implicitly as a prefix--which would not be
+     allowed otherwise.  For example:
+
+          (global-unset-key "\C-l")
+              => nil
+          (global-set-key "\C-l\C-l" 'redraw-display)
+              => nil
+
+     This function is implemented simply using `define-key':
+
+          (global-unset-key KEY)
+          ==
+          (define-key (current-global-map) KEY nil)
+
+ * Command: local-set-key KEY DEFINITION
+     This function sets the binding of KEY in the current local
+     keymap to DEFINITION.
+
+          (local-set-key KEY DEFINITION)
+          ==
+          (define-key (current-local-map) KEY DEFINITION)
+
+ * Command: local-unset-key KEY
+     This function removes the binding of KEY from the current local
+     map.
+
+          (local-unset-key KEY)
+          ==
+          (define-key (current-local-map) KEY nil)
+
+
+
+File: elisp,  Node: Scanning Keymaps,  Prev: Key Binding Commands,  Up: Keymaps
+
+Scanning Keymaps
+================
+
+   This section describes functions used to scan all the current
+keymaps for the sake of printing help information.
+
+ * Function: accessible-keymaps KEYMAP
+     This function returns a list of all the keymaps that can be
+     accessed (via prefix keys) from KEYMAP.  The list returned is an
+     association list with elements of the form `(KEY . MAP)', where
+     KEY is a prefix whose definition in KEYMAP is MAP.
+
+     The elements of the alist are ordered so that the KEY increases
+     in length.  The first element is always `("" . KEYMAP)', because
+     the specified keymap is accessible from itself with a prefix of
+     no characters.
+
+     In the example below, the returned alist indicates that the key
+     ESC, which is displayed as `"^["', is a prefix key whose
+     definition is the sparse keymap `(keymap (83 . center-paragraph)
+     (115 . foo))'.
+
+          (accessible-keymaps (current-local-map))
+          =>(("" keymap 
+                (27 keymap   ; Note this keymap for ESC is repeated below.
+                    (83 . center-paragraph)
+                    (115 . center-line))
+                (9 . tab-to-tab-stop))
+          
+             ("^[" keymap 
+              (83 . center-paragraph) 
+              (115 . foo)))
+
+     In the following example, `C-h' is a prefix key that uses a
+     sparse keymap starting `(118 . describe-variable) ...'.  Another
+     prefix, `C-x 4', uses the full keymap beginning `[nil ...]'
+     (which happens to be `ctl-x-4-map').
+
+          (accessible-keymaps (current-global-map))
+          => (("" . [set-mark-command beginning-of-line ... 
+                        delete-backward-char])
+              ("^C" keymap (13 . x-flush-mouse-queue))
+              ("^H" keymap (118 . describe-variable) ... (8 . help-for-help))
+              ("^X" . [x-flush-mouse-queue  ... backward-kill-sentence])
+              ("^[" . [mark-sexp backward-sexp ... backward-kill-word])
+              ("^X4" . [nil ... find-file-other-window nil ... nil nil]))
+
+ * Function: where-is-internal COMMAND &optional KEYMAP FIRSTONLY
+     This function returns a list of key sequences (of any length)
+     that are bound to COMMAND in KEYMAP and the global keymap.  The
+     argument COMMAND can be any object; it is compared with all
+     keymap entries using `eq'.  If KEYMAP is not supplied, then the
+     global map alone is used.
+
+     If FIRSTONLY is non-`nil', then the value is a single string
+     representing the first key sequence found, rather than a list of
+     all possible key sequences.
+
+     This function is used by `where-is' (*note : (emacs)Help.).
+
+          (where-is-internal 'describe-function)
+              => ("\^hf" "\^hd")
+
+ * Command: describe-bindings
+     This function creates a listing of all defined keys, and their
+     definitions.  The listing is put in a buffer named `*Help*',
+     which is then displayed in a window.
+
+     A meta character is shown as ESC followed by the corresponding
+     non-meta character.  Control characters are indicated with `C-'.
+
+     When several consecutive characters have the same definition,
+     they are shown together, as `FIRSTCHAR..LASTCHAR'.  In this
+     instance, you need to know the ASCII codes to understand which
+     characters this means.  For example, in the default global map,
+     the characters `SPC .. ~' are described by a single line.  SPC
+     is ASCII 32, `~' is ASCII 126, and the characters between them
+     include all the normal printing characters, (e.g., letters,
+     digits, punctuation, etc.); all these characters are bound to
+     `self-insert-command'.
+
+
+
+File: elisp,  Node: Modes,  Next: Documentation,  Prev: Keymaps,  Up: Top
+
+Major and Minor Modes
+*********************
+
+   A "mode" is a set of definitions that customize Emacs and can be
+turned on and off while you edit.  There are two varieties of modes:
+"major modes", which are mutually exclusive and used for editing
+particular kinds of text, and "minor modes", which provide features
+that may be enabled individually.
+
+   This chapter covers both major and minor modes, the way they are
+indicated in the mode line, and how they run hooks supplied by the
+user.  Related topics such as keymaps and syntax tables are covered
+in separate chapters.  (*Note Keymaps::, and *Note Syntax Tables::.)
+
+* Menu:
+
+* Major Modes::        Defining major modes.
+* Minor Modes::        Defining minor modes.
+* Mode Line Format::   Customizing the text that appears in the mode line.
+* Hooks::              How to use hooks; how to write code that provides hooks.
+
+ 
+
+File: elisp,  Node: Major Modes,  Next: Minor Modes,  Prev: Modes,  Up: Modes
+
+Major Modes
+===========
+
+   Major modes specialize Emacs for editing particular kinds of text.
+Each buffer has only one major mode at a time.
+
+   The least specialized major mode is called "Fundamental mode". 
+This mode has no mode-specific definitions or variable settings, so
+each Emacs command behaves in its default manner, and each option is
+in its default state.  All other major modes redefine various keys
+and options.  For example, Lisp Interaction mode provides special key
+bindings for LFD (`eval-print-last-sexp'), TAB (`lisp-indent-line'),
+and other keys.
+
+   When you need to write several editing commands to help you
+perform a specialized editing task, creating a new major mode is
+usually a good idea.  In practice, writing a major mode is easy (in
+sharp contrast to writing a minor mode, which is often difficult).
+
+   If the new mode is similar to an old one, it is often unwise to
+modify the old one to serve two purposes, since it may become harder
+to use and maintain.  Instead, copy and rename an existing major mode
+definition and alter it for its new function.  For example, Rmail
+Edit mode, which is in `emacs/lisp/rmailedit.el', is a major mode
+that is very similar to Text mode except that it provides three
+additional commands.  Its definition is distinct from that of Text
+mode, but was derived from it.
+
+   Rmail Edit mode is an example of a case where one piece of text is
+put temporarily into a different major mode so it can be edited in a
+different way (with ordinary Emacs commands rather than Rmail).  In
+such cases, the temporary major mode usually has a command to switch
+back to the buffer's usual mode (Rmail mode, in this case).  You
+might be tempted to present the temporary redefinitions inside a
+recursive edit and restore the usual ones when the user exits; but
+this is a bad idea because it constrains the user's options when it
+is done in more than one buffer: recursive edits must be exited
+most-recently-entered first.  Using alternative major modes avoids
+this limitation.  *Note Recursive Editing::.
+
+   The standard GNU Emacs Lisp library directory contains the code
+for several major modes, in files including `text-mode.el',
+`texinfo.el', `lisp-mode.el', `c-mode.el', and `rmail.el'.  You can
+look at these libraries to see how modes are written.  Text mode is
+perhaps the simplest major mode aside from Fundamental mode.  Rmail
+mode is a rather complicated, full-featured mode.
+
+* Menu:
+
+* Major Mode Conventions::  Coding conventions for keymaps, etc.
+* Example Major Modes::     Text mode and Lisp modes.
+* Auto Major Mode::         How Emacs chooses the major mode automatically.
+* Mode Help::               Finding out how to use a mode.
+
+ 
+
+File: elisp,  Node: Major Mode Conventions,  Next: Example Major Modes,  Prev: Major Modes,  Up: Major Modes
+
+Major Mode Conventions
+----------------------
+
+   The code for existing major modes follows various coding
+conventions, including conventions for local keymap and syntax table
+initialization, global names, and hooks.  Please keep these
+conventions in mind when you create a new major mode:
+
+   * Define a command whose name ends in `-mode', with no arguments,
+     that switches to the new mode in the current buffer.  This
+     command should set up the keymap, syntax table, and local
+     variables in an existing buffer without changing the buffer's
+     text.
+
+   * Write a documentation string for this command which describes
+     the special commands available in this mode.  `C-h m'
+     (`describe-mode') will print this.
+
+     The documentation string may include the special documentation
+     substrings, `\[COMMAND]', `\{KEYMAP}', and `\<KEYMAP>', that
+     enable the documentation to adapt automatically to the user's
+     own key bindings.  The `describe-mode' function replaces these
+     special documentation substrings with their current meanings. 
+     *Note Accessing Documentation::.
+
+   * The major mode command should set the variable `major-mode' to
+     the major mode command symbol.  This is how `describe-mode'
+     discovers which documentation to print.
+
+   * The major mode command should set the variable `mode-name' to
+     the "pretty" name of the mode, as a string.  This appears in the
+     mode line.
+
+   * Since all global names are in the same name space, all the
+     global variables, constants, and functions that are part of the
+     mode should have names that start with the major mode name (or
+     with an abbreviation of it if the name is long).
+
+   * The major mode should usually have its own keymap, which is used
+     as the local keymap in all buffers in that mode.  The major mode
+     function should call `use-local-map' to install this local map. 
+     *Note Global and Local Keymaps::, for more information.
+
+     This keymap should be kept in a global variable named
+     `MODENAME-mode-map'.  This variable is usually set up when the
+     library that defines the mode is loaded.  Use `defvar' to set
+     the variable, so that it is not reinitialized if it already has
+     a value.  (Such reinitialization could discard customizations
+     made by the user.)
+
+   * The mode may have its own syntax table or may share one with
+     other related modes.  If it has its own syntax table, it should
+     store this in a variable named `MODENAME-mode-syntax-table'. 
+     The reasons for this are the same as for using a keymap
+     variable.  *Note Syntax Tables::.
+
+   * The mode may have its own abbrev table or may share one with
+     other related modes.  If it has its own abbrev table, it should
+     store this in a variable named `MODENAME-mode-abbrev-table'. 
+     *Note Abbrev Tables::.
+
+   * To give a variable a buffer-local binding, use
+     `make-local-variable' in the major mode command, not
+     `make-variable-buffer-local'.  The latter function would make
+     the variable local to every buffer in which it is subsequently
+     set, which would affect buffers that do not use this mode.  It
+     is undesirable for a mode to have such global effects.  *Note
+     Buffer-Local Variables::.
+
+   * If hooks are appropriate for the mode, the major mode command
+     should run the hooks after completing all other initialization
+     so the user may further customize any of the settings.  *Note
+     Hooks::.
+
+   * If this mode is appropriate only for specially-prepared text,
+     then the major mode command symbol should have a property named
+     `mode-class' with value `special', put on as follows:
+
+          (put 'funny-mode 'mode-class 'special)
+
+     This tells Emacs that new buffers created while the current
+     buffer has Funny mode should not inherit Funny mode.  Modes such
+     as Dired, Rmail, and Buffer List use this feature.
+
+   * If it is desirable that Emacs use the new mode by default after
+     visiting files with certain recognizable names, add an element
+     to `auto-mode-alist' to select the mode for those file names. 
+     If you define the mode command to autoload, you should add this
+     element at the same time.  Otherwise, it is sufficient to add
+     the element in the file that contains the mode definition. 
+     *Note Auto Major Mode::.
+
+   * In the documentation, you should provide a sample `autoload'
+     form and a sample `auto-mode-alist' addition that users can
+     include in their `.emacs' files.
+
+   * The top level forms in the file defining the mode should be
+     written so that they may be evaluated more than once without
+     adverse consequences.  Even if you never load the file more than
+     once, someone else will.
+
+
+
+File: elisp,  Node: Example Major Modes,  Next: Auto Major Mode,  Prev: Major Mode Conventions,  Up: Major Modes
+
+Major Mode Examples
+-------------------
+
+   Text mode is perhaps the simplest mode besides Fundamental mode. 
+Here are excerpts from  `text-mode.el' that illustrate many of the
+conventions listed above:
+
+     ;; Create mode-specific tables.
+     (defvar text-mode-syntax-table nil 
+       "Syntax table used while in text mode.")
+     
+     (if text-mode-syntax-table
+         ()              ; Do not change the table if it is already set up.
+       (setq text-mode-syntax-table (make-syntax-table))
+       (set-syntax-table text-mode-syntax-table)
+       (modify-syntax-entry ?\" ".   " text-mode-syntax-table)
+       (modify-syntax-entry ?\\ ".   " text-mode-syntax-table)
+       (modify-syntax-entry ?' "w   " text-mode-syntax-table))
+     
+     (defvar text-mode-abbrev-table nil
+       "Abbrev table used while in text mode.")
+     (define-abbrev-table 'text-mode-abbrev-table ())
+     
+     (defvar text-mode-map nil "")   ; Create a mode-specific keymap.
+     
+     (if text-mode-map
+         ()              ; Do not change the keymap if it is already set up.
+       (setq text-mode-map (make-sparse-keymap))
+       (define-key text-mode-map "\t" 'tab-to-tab-stop)
+       (define-key text-mode-map "\es" 'center-line)
+       (define-key text-mode-map "\eS" 'center-paragraph))
+
+   Here is the complete major mode function definition for Text mode:
+
+     (defun text-mode ()
+       "Major mode for editing text intended for humans to read. 
+      Special commands: \\{text-mode-map}
+     Turning on text-mode calls the value of the variable text-mode-hook,
+     if that value is non-nil."
+       (interactive)
+       (kill-all-local-variables)
+       (use-local-map text-mode-map)     ; This provides the local keymap.
+       (setq mode-name "Text")           ; This name goes into the mode line.
+       (setq major-mode 'text-mode)      ; This is how `describe-mode'
+                                         ;     finds the doc string to print.
+       (setq local-abbrev-table text-mode-abbrev-table)
+       (set-syntax-table text-mode-syntax-table)
+       (run-hooks 'text-mode-hook))      ; Finally, this permits the user to
+                                         ;     customize the mode with a hook.
+
+    The three Lisp modes (Lisp mode, Emacs Lisp mode, and Lisp
+Interaction mode) have more features than Text mode and the code is
+correspondingly more complicated.  Here are excerpts from
+`lisp-mode.el' that illustrate how these modes are written.
+
+     ;; Create mode-specific table variables.
+     (defvar lisp-mode-syntax-table nil "")  
+     (defvar emacs-lisp-mode-syntax-table nil "")
+     (defvar lisp-mode-abbrev-table nil "")
+     
+     (if (not emacs-lisp-mode-syntax-table) ; Do not change the table
+                                            ; if it is already set.
+         (let ((i 0))
+           (setq emacs-lisp-mode-syntax-table (make-syntax-table))
+     
+           ;; Set syntax of chars up to 0 to class of chars that are
+           ;; part of symbol names but not words.
+           ;; (The number 0 is `48' in the ASCII character set.)
+           (while (< i ?0) 
+             (modify-syntax-entry i "_   " emacs-lisp-mode-syntax-table)
+             (setq i (1+ i)))
+           ...
+           ;; Set the syntax for other characters.
+           (modify-syntax-entry ?  "    " emacs-lisp-mode-syntax-table)
+           (modify-syntax-entry ?\t "    " emacs-lisp-mode-syntax-table)
+           ...
+           (modify-syntax-entry ?\( "()  " emacs-lisp-mode-syntax-table)
+           (modify-syntax-entry ?\) ")(  " emacs-lisp-mode-syntax-table)
+           ...))
+     ;; Create an abbrev table for lisp-mode.
+     (define-abbrev-table 'lisp-mode-abbrev-table ())
+
+   Much code is shared among the three Lisp modes; the code is all in
+one library.  The following function sets various variables; it is
+called by each of the major Lisp mode functions:
+
+     (defun lisp-mode-variables (lisp-syntax)
+       ;; The `lisp-syntax' argument is `nil' in Emacs Lisp mode,
+       ;; and `t' in the other two Lisp modes.
+       (cond (lisp-syntax
+              (if (not lisp-mode-syntax-table)
+                  ;; The Emacs Lisp mode syntax table always exists, but
+                  ;; the Lisp Mode syntax table is created the first time a
+                  ;; mode that needs it is called.  This is to save space.
+                  (progn (setq lisp-mode-syntax-table
+                            (copy-syntax-table emacs-lisp-mode-syntax-table))
+                         ;; Change some entries for Lisp mode.
+                         (modify-syntax-entry ?\| "\"   "
+                                              lisp-mode-syntax-table)
+                         (modify-syntax-entry ?\[ "_   "
+                                              lisp-mode-syntax-table)
+                         (modify-syntax-entry ?\] "_   "
+                                              lisp-mode-syntax-table)))
+
+        (set-syntax-table lisp-mode-syntax-table)))
+       (setq local-abbrev-table lisp-mode-abbrev-table)
+       ...)
+
+   Functions such as `forward-word' use the value of the
+`paragraph-start' variable.  Since Lisp code is different from
+ordinary text, the `paragraph-start' variable needs to be set
+specially to handle Lisp.  Also, comments are indented in a special
+fashion in Lisp and the Lisp modes need their own mode-specific
+`comment-indent-hook'.  The code to set these variables is the rest
+of `lisp-mode-variables'.
+
+       (make-local-variable 'paragraph-start)
+       (setq paragraph-start (concat "^$\\|" page-delimiter))
+       ...
+       (make-local-variable 'comment-indent-hook)
+       (setq comment-indent-hook 'lisp-comment-indent))
+
+   Each of the different Lisp modes has a slightly different keymap. 
+For example, Lisp mode binds `C-c C-l' to `run-lisp', but the other
+Lisp modes do not.  However, all Lisp modes have some commands in
+common.  The following function adds these common commands to a given
+keymap.
+
+     (defun lisp-mode-commands (map)
+       (define-key map "\e\C-q" 'indent-sexp)
+       (define-key map "\177" 'backward-delete-char-untabify)
+       (define-key map "\t" 'lisp-indent-line))
+
+   Here is an example of using `lisp-mode-commands' to initialize a
+keymap, as part of the code for Emacs Lisp mode.  First `defvar' is
+used to declare a mode-specific keymap variable.  Then `boundp' tests
+whether the `emacs-lisp-mode-map' variable has a value (is not void).
+If the variable does have a value, we do not change it.  This lets
+the user customize the keymap if he or she so wishes.  Otherwise, we
+initialize it to a new sparse keymap and install the default key
+bindings.
+
+     (defvar emacs-lisp-mode-map () "") 
+     
+     (if emacs-lisp-mode-map
+         ()
+       (setq emacs-lisp-mode-map (make-sparse-keymap))
+       (define-key emacs-lisp-mode-map "\e\C-x" 'eval-defun)
+       (lisp-mode-commands emacs-lisp-mode-map))
+
+   Finally, here is the complete major mode function definition for
+Emacs Lisp mode.
+
+     (defun emacs-lisp-mode ()
+       "Major mode for editing Lisp code to run in Emacs.
+     Commands:
+     Delete converts tabs to spaces as it moves back.
+     Blank lines separate paragraphs.  Semicolons start comments.
+     \\{emacs-lisp-mode-map}
+     Entry to this mode calls the value of emacs-lisp-mode-hook
+     if that value is non-nil."
+       (interactive)
+       (kill-all-local-variables)
+       (use-local-map emacs-lisp-mode-map)    ; This provides the local keymap.
+       (set-syntax-table emacs-lisp-mode-syntax-table)
+       (setq major-mode 'emacs-lisp-mode)     ; This is how `describe-mode'
+                                              ;   finds out what to describe.
+       (setq mode-name "Emacs-Lisp")          ; This goes into the mode line.
+       (lisp-mode-variables nil)              ; This define various variables.
+       (run-hooks 'emacs-lisp-mode-hook))     ; This permits the user to use a
+                                              ;   hook to customize the mode.
+
+ 
+
+File: elisp,  Node: Auto Major Mode,  Next: Mode Help,  Prev: Example Major Modes,  Up: Major Modes
+
+How Emacs Chooses a Major Mode Automatically
+--------------------------------------------
+
+   Based on information in the file name or in the file itself, Emacs
+automatically selects a major mode for the new buffer when a file is
+visited.
+
+ * Command: fundamental-mode
+     Fundamental mode is a major mode that is not specialized for
+     anything in particular.  Other major modes are defined in effect
+     by comparison with this one--their definitions say what to
+     change, starting from Fundamental mode.  The `fundamental-mode'
+     function does *not* run any hooks, so it is not readily
+     customizable.
+
+ * Command: normal-mode &optional FIND-FILE
+     This function establishes the proper major mode and local
+     variable bindings for the current buffer.  First it calls
+     `set-auto-mode', then it runs `hack-local-variables' to parse,
+     and bind or evaluate as appropriate, any local variables.
+
+     If the FIND-FILE argument to `normal-mode' is non-`nil',
+     `normal-mode' assumes that the `find-file' function is calling
+     it.  In this case, if `inhibit-local-variables' is non-`nil', it
+     asks for confirmation before processing a local variables list. 
+     If you run `normal-mode' yourself, the argument FIND-FILE is
+     normally `nil', so confirmation is not requested.
+
+     `normal-mode' uses `condition-case' around the call to the major
+     mode function, so errors are caught and reported as a `File mode
+     specification error',  followed by the original error message.
+
+ * Function: set-auto-mode
+     This function selects the major mode that is appropriate for the
+     current buffer.  It may base its decision on the value of the
+     `-*-' line, on the visited file name (using `auto-mode-alist'),
+     or on the value of a local variable).  However, this function
+     does not look for the `mode:' local variable near the end of a
+     file; the `hack-local-variables' function does that.  *Note :
+     (emacs)Choosing Modes.
+
+ * User Option: default-major-mode
+     This variable holds the default major mode for new buffers.  The
+     standard value is `fundamental-mode'.
+
+     If the value of `default-major-mode' is `nil', Emacs uses the
+     (previously) current buffer's major mode for major mode of a new
+     buffer.  However, if the major mode symbol has a `mode-class'
+     property with value `special', then it is not used for new
+     buffers; Fundamental mode is used instead.  The modes that have
+     this property are those such as Dired and Rmail that are useful
+     only with text that has been specially prepared.
+
+ * Variable: initial-major-mode
+     The value of this variable determines the major mode of the
+     initial `*scratch*' buffer.  The value should be a symbol that
+     is a major mode command name.  The default value is
+     `lisp-interaction-mode'.
+
+ * Variable: auto-mode-alist
+     This variable contains an association list of file name patterns
+     (regular expressions; *note Regular Expressions::.) and
+     corresponding major mode functions.  Usually, the file name
+     patterns test for suffixes, such as `.el' and `.c', but this
+     need not be the case.  Each element of the alist looks like
+     `(REGEXP .  MODE-FUNCTION)'.
+
+     For example,
+
+          (("^/tmp/fol/" . text-mode)
+           ("\\.texinfo$" . texinfo-mode)
+           ("\\.texi$" . texinfo-mode)
+           ("\\.el$" . emacs-lisp-mode)
+           ("\\.c$" . c-mode) 
+           ("\\.h$" . c-mode)
+           ...)
+
+     When you visit a file whose *full* path name matches a REGEXP,
+     `set-auto-mode' calls the corresponding MODE-FUNCTION.  This
+     feature enables Emacs to select the proper major mode for most
+     files.
+
+     Here is an example of how to prepend several pattern pairs to an
+     existing `auto-mode-alist'.  (You might use this sort of
+     expression in your `.emacs' file.)
+
+          (setq auto-mode-alist
+            (append 
+             '(("/\\.[^/]*$" . fundamental-mode)  ; Filename starts with a dot.
+               ("[^\\./]*$" . fundamental-mode)   ; Filename has no dot.
+               ("\\.C$" . c++-mode))
+             auto-mode-alist))
+
+ * Function: hack-local-variables &optional FORCE
+     This function parses, and binds or evaluates as appropriate, any
+     local variables for the current buffer.
+
+     If the variable `inhibit-local-variables' is non-`nil', and
+     FORCE is `nil', then the user is asked for confirmation if the
+     buffer does contain local variable specifications.  A non-`nil'
+     value of FORCE is passed by `normal-mode' when it is called
+     explicitly by the user.
+
+     *Note : (emacs)File variables, for the syntax of the local
+     variables section of a file.
+
+ * User Option: inhibit-local-variables
+     When this variable is non-`nil', `hack-local-variables' asks the
+     user for confirmation before obeying a file's local-variables
+     list.
+
+
+
+File: elisp,  Node: Mode Help,  Prev: Auto Major Mode,  Up: Major Modes
+
+Getting Help about a Major Mode
+-------------------------------
+
+   The `describe-mode' function is used to provide information about
+major modes.  It is normally called with `C-h m'.  The
+`describe-mode' function uses the value of `major-mode', which is why
+every major mode function needs to set the `major-mode' variable.
+
+ * Command: describe-mode
+     This function displays the documentation of the current major
+     mode.
+
+     The `describe-mode' function calls the `documentation' function
+     using the value of `major-mode' as an argument.  Thus, it
+     displays the documentation string of the major mode function. 
+     (*Note Accessing Documentation::.)
+
+ * Variable: major-mode
+     This variable holds the symbol for the current buffer's major
+     mode.  This symbol should be the name of the function that is
+     called to initialize the mode.  The `describe-mode' function
+     uses the documentation string of this symbol as the
+     documentation of the major mode.
+
+

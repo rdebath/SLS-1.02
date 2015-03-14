@@ -1,0 +1,864 @@
+.\" @(#)man/man8/smail.an	1.8 8/2/92 03:27:19
+.de pP
+.if n .sp 1
+.if t .sp .4
+..
+.TH SMAIL X_MAN8_EXT_X "31 January 1988" "Local"
+.SH NAME
+smail, sendmail, mailq, runq, rmail, rsmtp, smtpd, newaliases \- mail delivery system
+.SH SYNOPSIS
+.B smail
+.RI "[ " flags " ] " address ...
+.br
+.B "X_SMAIL_NAME_X"
+.RI "[ " flags " ] " address " ..."
+.br
+.B mailq
+.br
+.B runq
+.br
+.B rmail
+.I address ...
+.br
+.B rsmtp
+.br
+.B smtpd
+.br
+.B newaliases
+.SH DESCRIPTION
+.I Smail
+is a program used for receiving and delivering mail.
+Its job is to take mail from sources on the local or
+on remote hosts and deliver to the appropriate destinations.
+This may be
+either on remote hosts or on the local machine.
+It is not intended to be a user interface for reading and
+submitting mail.
+See
+.IR mailx (1)
+on System V,
+.IR Mail (1)
+on BSD
+systems,
+or
+.IR mail (1)
+on other systems
+for information on user interfaces.
+.PP
+Smail is invoked under a wide variety of names,
+which serve to isolate some of its major uses:
+receiving local mail,
+receiving remote mail,
+attempting delivery of undelivered mail
+and displaying information about undelivered mail.
+.SH OPTIONS
+All of these commands accept the same set of flags,
+differing mainly in their default
+mode of operation.
+Two exceptions are the
+.I rmail
+and
+.I rsmtp
+commands which support only a subset
+of the possible flags.
+These two commands are intended to be
+used from remote hosts through remote execution over UUCP
+(see
+.IR uux (1))
+and are thus limited in how much they can do.
+.PP
+The flags which are recognized by smail are:
+.TP
+.B \-bc
+Display the file
+.IR COPYING ,
+distributed with the source,
+which details your rights and restrictions
+for distributing this software.
+.TP
+.B \-bd
+Listen for connection requests on a socket bound in
+the internet domain.
+When a connection occurs,
+conduct an SMTP (Simple Mail Transfer Protocol)
+conversation with the peer process.
+Listening will only occur
+if BSD style internet networking functionality is available.
+.TP
+.B \-bm
+Deliver mail to the recipient addresses.
+This is the default mode of operation if invoked as
+.IR sendmail ,
+.IR smail ,
+.I rmail
+or
+.IR send-mail .
+.TP
+.B \-bp
+List information about the messages currently in
+smail's input spool directories.
+This is the default mode of operation if invoked as
+.IR mailq .
+With the
+.B \-v
+or
+.B \-d
+flag, a per-message transaction log is displayed for each message
+which shows what has happened to the message so far.
+.TP
+.B \-bi
+Initialize the aliases file, or a YP aliases file.  The specific
+behavior of this command depends upon whether an aliases file is
+specified in the command with \fB\-oA\fP \fIfile\fP.  If such an
+aliases file is specified, the file specifies input that will be used
+to build a DBM database with the same basename.  The resulting DBM
+database is intended to be usable as a YP database.  If smail was
+compiled with the \fBsdbm\fP package, distributed with smail, then the
+resulting database will \fInot\fP be usable by YP.  The DBM database
+is rebuilt by calling \fBmkdbm\fP (see
+.IR mkdbm (X_MAN8_EXT_X))
+with the \fB\-y\fP option.
+.IP
+If an aliases file was not specified with \fB\-oA\fP, then the system
+default aliases file is rebuilt by calling the \fBmkaliases\fP program
+(see
+.IR mkaliases (X_MAN8_EXT_X)
+for more information).
+.IP
+Both the \fBmkdbm\fP and \fBmkaliases\fP programs are executed from
+the directory indicated by the \fBsmail_util_dir\fP attribute (by
+default \fIX_UTIL_BIN_DIR_X\fP).
+.TP
+.B \-bP
+Take the addresses given on the command line as
+.I config
+file variables
+(see
+.IR smail (X_MAN5_EXT_X)
+for more information)
+and write the values for each variable on the standard output.
+References to variables,
+such as
+.I hostnames
+or
+.I uucp_name
+which may be computed at run time,
+will yield the values that smail would compute
+normally.
+For example, on my workstation,
+the command:
+.pP
+.in +.5i
+smail -bP hostnames max_message_size
+.in -.5i
+.pP
+produces the output:
+.pP
+.in +.5i
+futatsu.uts.amdahl.com:futatsu.amdahl.com
+102400
+.in -.5i
+.pP
+With the
+.B \-v
+or
+.B \-d
+flag the variable names are displayed as well, so that the command:
+.pP
+.in +.5i
+smail -bP -v max_message_size
+.in -.5i
+.pP
+produces the output:
+.pP
+.in +.5i
+max_message_size=102400
+.in -.5i
+.pP
+In addition to other config file variables, the name
+.I primary_name
+will output the primary (or canonical) name for the local host which will
+be used by smail, and
+.I config_file
+will output the name of the primary configuration file.
+Also, the name
+.I help
+will produce a verbose listing of all variables associated with their
+type, one variable per line, and the name
+.I all
+will produce a verbose listing of all variables along with their values.
+It is equivalent to
+.I "smail -bP -v"
+followed by a list of the names of all configuration variables.
+.TP
+.B \-bR
+Enter the hostile mail domain of giant mail messages,
+and RFC standard scrolls.
+Attempt to make it down to protocol level 26 and back.
+.TP
+.B \-bS
+Read SMTP commands on standard input,
+but do not produce SMTP replies on standard output.
+All failures are reported by return mail,
+rather than through reply codes.
+This is suitable for setting up a
+batched form of SMTP between machines over a remote execution
+service like
+UUCP.
+This is the default mode of operation if invoked as
+.IR rsmtp .
+.TP
+.B \-bs
+Read SMTP
+commands on standard input
+and produce SMTP replies on standard output.
+The currently implemented SMTP commands are
+.BR "HELO" ,
+.BR "MAIL FROM" ,
+.BR "RCPT TO" ,
+.BR "DATA" ,
+.BR "RSET" ,
+.BR "NOOP" ,
+.BR "VRFY" ,
+.BR "EXPN"
+and
+.BR "QUIT" .
+This is the default mode of operation if
+invoked as
+.IR smtpd .
+For compatibility with some implementations of
+.IR inetd (8N),
+if
+.I smtpd
+is started with no standard output,
+standard input will be
+.IR dup (2)'d
+to standard output.
+.TP
+.B \-bt
+Enter address test mode.
+Read addresses on standard input
+and produce the parse results and
+host routing/resolving information
+on standard output.
+This is primarily useful for debugging
+smail or debugging new smail routers.
+.TP
+.B \-bv
+Verify a list of addresses by producing
+the list of addresses produced by aliasing and forwarding
+expansions and by host routing or resolving.
+Addresses which cannot be resolved are also displayed,
+along with the reasons why.
+.TP
+\fB\-C\fP \fIfilename\fP or \fB-oC\fP \fIfilename\fP
+Sets the pathname of the primary config file to use in reading
+global attribute values.  If specified, then smail
+sets the effective uid and gid back to the real uid
+and gid,
+to avoid problems when
+installations allow smail
+to be set uid to the superuser.
+If the filename is
+.B \-
+then no primary config file is read.
+This should only be used for debugging purposes.
+.TP
+\fB\-d\fP\fI[number]\fP or \fB\-v\fP\fI[number]\fP
+turn on debugging.  If a number is given, set the
+debugging level to that value, otherwise the debugging
+level is set to 1.
+No white space is allowed before the optional number.
+There is no differentiation between use of
+.B \-d
+and
+.BR \-v .
+.TP
+\fB\-D\fP \fIfile\fP
+Redirect debugging output to the indicated file.  Normally, debugging
+output will disable background delivery because programs should not
+continue to write to standard error after the mail process exits.
+However, if a debug output file is specified, then background delivery
+can occur.
+.TP
+\fB\-em\fP or \fB\-oem\fP
+Mail errors back to the sender (default).
+.TP
+\fB\-ee\fP or \fB\-oee\fP
+These forms refer to a berkenet error processing
+style which is not supported.
+If used, errors will be mailed back to the sender.
+.TP
+\fB\-ep\fP or \fB\-oep\fP
+Write errors to the standard error output.
+.TP
+\fB\-eq\fP or \fB\-oeq\fP
+Do not send notification of errors to the sender.
+This only works for mail delivered locally.  Errors encountered
+on remote hosts mail still result in returned mail.
+Supply a
+.B "Precedence: junk"
+header field to set this behavior on local
+.I and
+remote hosts.
+.TP
+\fB\-ew\fP or \fB\-oew\fP
+Write errors to the sender's terminal using the
+.IR write (1)
+command, if he is logged in.  Otherwise, mail errors
+back to the sender.  (This is currently not supported and
+is treated in the same manner as
+.IR \-oem )
+.TP
+\fB\-F\fP \fIfullname\fP
+Explicitly set the full name of the sender for incoming mail,
+used only if the operation mode is reception of a single mail message
+on standard input.
+.TP
+\fB\-f\fP \fIsender\fP or \fB\-r\fP \fIsender\fP
+Explicitly set the sender address for incoming mail,
+used only if the operation mode is reception of a single mail message
+on standard input.
+.TP
+.BI \-h " number"
+Sets the
+.I hopcount
+for a single message.
+If this is not specified,
+the hop count is computed from the number of
+.B Received:
+fields in the message header.
+The hopcount is used for a primitive form of infinite
+loop detection:
+a sufficiently large hop count
+will cause mail to be rejected.
+.TP
+\fB\-I\fP or \fB\-oI\fP
+Use the hidden dot algorithm in reading the message.
+Lines with one or more dots at the beginning have the
+leading dot removed, while a line containing only a
+single dot ends the input message.
+This is always set for messages received using
+SMTP.
+.TP
+\fB\-i\fP or \fB\-oi\fP
+Do not allow a single `.' to end an incoming message.
+Otherwise, a dot on a line by itself will end a message.
+This is the default if smail is invoked as
+.IR rmail .
+.TP
+\fB\-m\fP or \fB\-om\fI
+Allow retention of the sender as a recipient for
+alias and mailing list expansions that include the sender.
+If this is
+.I Not
+set,
+the sender will not receive a copy of the message only
+as a result of being in an alias or mailing list.
+.TP
+.B \-N
+Disable delivery of this message.
+All other processing is performed,
+and transports are expected to go through most of the steps involved
+in delivery.
+This is useful for debugging smail when you do not actually wish to
+have messages delivered.
+.TP
+.B \-n
+Do not perform alias processing.
+This only prevents expansion of entries in alias files.
+Mailing list files and forward files may still be expanded.
+.TP
+.B \-odb
+Deliver mail in background, if mail delivery is to be
+performed.  Background delivery is not currently supported
+in the SMTP modes; foreground delivery is used instead.
+.TP
+.B \-odf
+Deliver mail in foreground, if mail delivery is to be performed.
+.TP
+.BI \-oD " filename"
+Sets the pathname of the director file.
+This overrides the default name of the director file
+as well as any name set in a config file.
+If specified, then smail
+sets the effective uid and gid back to the real uid
+and gid,
+to avoid problems when
+installations allow smail
+to be set uid to the superuser.
+If the filename is
+.B \-
+then no director file is read.
+This should only be used for debugging purposes.
+.TP
+.BI \-oE " filename"
+Sets the pathname of the delivery retry control file.
+This overrides the default name of the retry file
+as well as any name set in a config file.
+If specified, then smail
+sets the effective uid and gid back to the real uid
+and gid,
+to avoid problems when
+installations allows smail
+to be set uid to the superuser (the normal case).
+If the filename is
+.B \-
+then no retry file is read.
+This should only be used for debugging purposes.
+.TP
+.BI \-oL " directory name"
+Sets the pathname of the smail library directory.
+This overrides the default value of
+.I smail_lib_dir
+compiled into the smail binary, as well as any name set in a config
+file.  This string may be used to locate configuration files, such as the
+director, router and transport files, alias and path files, and
+mailing list directories.
+.TP
+.BI \-oQ " filename"
+Sets the pathname of the hostname qualification file.
+This overrides the default name of the qualify file
+as well as any name set in a config file.
+If specified, then smail
+sets the effective uid and gid back to the real uid
+and gid,
+to avoid problems when
+installations allows smail
+to be set uid to the superuser (the normal case).
+If the filename is
+.B \-
+then no qualify file is read.
+This should only be used for debugging purposes.
+.TP
+.BI \-oR " filename"
+Sets the pathname of the router file.
+This overrides the default name of the router file
+as well as any name set in a config file.
+If specified, then smail
+sets the effective uid and gid back to the real uid
+and gid,
+to avoid problems when
+installations allows smail
+to be set uid to the superuser (the normal case).
+If the filename is
+.B \-
+then no router file is read.
+This should only be used for debugging purposes.
+.TP
+.BI \-oT " filename"
+Sets the pathname of the transport file.
+This overrides the default name of the transport file
+as well as any name set in a config file.
+If specified, then smail
+sets the effective uid and gid back to the real uid
+and gid,
+to avoid problems when
+installations allow smail
+to be set uid to the superuser.
+If the filename is
+.B \-
+then no transport file is read.
+This should only be used for debugging purposes.
+.TP
+\fB\-Q\fP or \fB\-odq\fP
+Spool incoming messages but do not actually perform delivery
+until a later queue.
+This mode of operation is somewhat more efficient in terms
+of CPU usage,
+though it does
+slow down the flow of mail.
+.TP
+.BI \-q [interval]
+Cause smail to process its input spool directory.
+If an interval is given,
+smail will repeatedly check its input spool directory,
+sleeping for the given interval between checks.
+The interval is in seconds, though it can be defined
+as a sequence of numbers with suffixes of
+`s' for seconds, `m' for minutes,
+`h' for hours, `d' for days, `w' for weeks and
+`y' for years.
+For example,
+.B \-q2h30m
+specifies an interval of two hours and 30 minutes.
+This flag is useful in conjunction with the
+.B \-bd
+mode of operation and will cause the
+daemon process to wake up on these
+intervals and perform queue processing.
+Performing a single queue run is the default mode
+of operation if smail is invoked as
+.IR runq .
+.TP
+.B \-t
+Extract addresses from the
+.BR To: ,
+.BR Cc:
+and
+.BR Bcc:
+fields of the message header.
+This is useful for user agents that do not wish
+to compute the recipient addresses themselves.
+In this mode,
+any addresses given on the command line are
+addresses that explicitly will
+.I NOT
+receive mail,
+even as a result of aliasing or forwarding expansions.
+This option is ignored unless smail is in the mode set
+by the
+.B \-bm
+flag (which is the default mode).
+.TP
+\fB\-V\fP or \fB\-bV\fP
+Print the
+.I smail
+version on the standard output.
+.TP
+.B \-oU
+Report memory usage when smail exits.
+.TP
+\fB\-oX\fP \fImail-service\fP
+Set the TCP/IP service name or port number to be used for listening
+for SMTP requests.  This can used in conjunction with the \fB\-bd\fP
+mode to define alternate debugging versions of the smail SMTP listening
+daemon, which may be useful in testing a new installation.
+.TP
+\fB\-oMs\fP \fIsender_host\fP
+Specify the name of the system that send the mail message.  This value
+can be included in expansion strings through the variable
+\fB$sender_host\fP.
+.TP
+\fB\-oMr\fP \fIsender_proto\fP
+Specify the protocol that was used by the sending host to deliver the
+mail message.  This value can be included in expansion strings through
+the variable \fB$sender_proto\fP.
+.SH NORMAL USAGE
+Under normal usage,
+one smail daemon exists which receives requests from
+remote hosts and processes the input spool directory at
+intervals.
+Such a daemon can be started from /etc/rc with a command such as
+.pP
+.in +.5i
+smail \-bd \-q1h
+.in -.5i
+.pP
+which will cause queue runs at one hour intervals.
+.PP
+New mail can be submitted from user agents
+by calling smail directly and passing a message on standard
+input.
+Mailers such as BSD
+.IR Mail (1)
+and some System V
+.IR mailx (1)
+programs
+submit mail by invoking smail with a command such as
+.pP
+.in +.5i
+smail \-em \-i recipient-address ...
+.in -.5i
+.pP
+Because smail also works correctly if invoked as
+.I sendmail
+it is common to install smail as
+.I /usr/lib/sendmail
+so that existing binaries on BSD systems,
+or other systems that current run sendmail,
+do not need to be modified to run smail instead.
+.PP
+Some user agents,
+such as GNU Emacs may wish to have smail decipher
+the recipient list from the header.
+These programs may invoke smail
+with a command such as
+.pP
+.in +.5i
+smail \-em \-t \-i
+.in -.5i
+.PP
+To receive mail over UUCP,
+.I smail
+can be invoked directly from
+.I uuxqt
+as
+.I /bin/rmail.
+Alternately,
+.I /bin/rmail
+can be another program that invokes
+smail directly as
+.pP
+.in +.5i
+smail \-em \-i \-fsender-address recipient address ...
+.in -.5i
+.pP
+It is common for the System V based
+.I /bin/rmail
+program to perform delivery by itself,
+resulting in mail bypassing
+.I smail
+altogether.
+Such systems should replace
+.I /bin/rmail
+with a copy of
+.I smail
+or modify
+.I /bin/rmail
+so that it executes a copy of
+.I smail
+with the arguments as given above.
+
+.TP \w'NOTE:'u+2n
+NOTE:
+In the future,
+a separate program may be distributed with
+smail to serve the function of rmail
+at a lower cost.
+This program will only write the input
+spool file,
+while allowing a smail daemon to process
+messages at a later time.
+This will save the cost of a complete
+.IR exec (2)
+of smail for each incoming message.
+.PP
+An alternative method of receiving mail
+over UUCP is through the
+.I rsmtp
+command,
+which receives batched SMTP requests.
+This can be used between two
+sites running smail to gain many of
+the benefits of the SMTP protocol,
+such as the ability to use recipient addresses
+which UUX cannot correctly pass to a remote
+rmail program.
+For example, addresses containing quotes or
+spaces cannot be expected to pass correctly
+over an uux/rmail link.
+However a uux/rsmtp link can handle such cases.
+.SH SENDMAIL COMPATIBILITY
+Smail was designed to be a plug-in replacement
+for the BSD
+.I sendmail
+program,
+in that external programs can
+call smail in the same
+manner that they previously called
+.I sendmail
+and expect similar results.
+However,
+smail is completely different internally
+and has entirely different configuration
+files.
+As a result,
+the
+.B \-o
+option to smail only sets a few
+configuration parameters which were
+felt to be commonly used by other
+programs.
+Also, for convenience, some new
+(upper case only) parameters are defined only in smail.
+Attempts to set other options using
+this flag are ignored.
+See the
+.B OPTIONS
+section for the complete list
+of supported
+.B \-o
+options.
+.PP
+Because
+.I smail
+can be called
+in a manner very similar to
+.I sendmail
+it is common to install smail as
+.I /usr/lib/sendmail
+so that no other program need be modified to
+use the new mailer.
+Thus,
+once properly configured,
+smail can be installed into a current sendmail-based environment,
+including an environment without access to source,
+with minimal effort.
+.SH "SMAIL UNDER SYSTEM V"
+The easiest way to install smail on a System V host is to install
+it as
+.IR /bin/rmail .
+An alternative is cause
+.IR mailx (1)
+to call
+.I /usr/lib/sendmail
+by changine the
+.IR mailx (1)
+configuration file
+.I /usr/lib/mailx/mailx.rc
+to include a line such as:
+.pP
+.in +.5i
+sendmail=/usr/lib/sendmail
+.in -.5i
+.pP
+.PP
+System V's
+.IR mail (1)
+command attempts to perform delivery by itself.
+Use of
+.IR mail (1)
+to send mail should thus be discouraged
+unless
+.IR mail (1)
+is modified to call
+.I smail
+to perform delivery.
+.SH FILES
+For many sites, the compiled in configuration of
+.I smail
+is sufficient and thus no configuration files are needed.
+The following files and directories are from
+the default smail configuration:
+
+.PD .2v
+.TP 2.5i
+.I "X_LIB_DIR_X/config"
+Optional general smail configuration.
+This file can override compiled-in
+configuration.
+.TP 2.5i
+.I "X_LIB_DIR_X/qualify"
+Optional hostname qualification configuration file.
+.TP 2.5i
+.I "X_LIB_DIR_X/directors"
+Optional configuration for smail directors,
+i.e., configured methods for resolving
+local addresses.
+This file replaces the compiled-in
+director configuration.
+.TP 2.5i
+.I "X_LIB_DIR_X/routers"
+Optional configuration for smail routers,
+i.e., configured methods for resolving
+or routing to remote hosts.
+This file replaces the compiled-in
+router configuration.
+.TP 2.5i
+.I "X_LIB_DIR_X/transports"
+Optional configuration for smail transports;
+i.e., configured methods of mail delivery.
+This file replaces the compiled-in
+transport configuration.
+.TP 2.5i
+.I "X_LIB_DIR_X/retry"
+Optional delivery retry configuration file;
+i.e., minimum time between retries,
+and maximum time to retry before giving up.
+.PP
+The following files are commonly used to locally redirect mail and
+to give paths to remote sites.
+.PP
+.TP 2.5i
+.I "X_LIB_DIR_X/aliases"
+A file of aliases for local addresses.
+.TP 2.5i
+.I "X_LIB_DIR_X/paths"
+A file of paths to remote hosts.
+.TP 2.5i
+.I "X_LIB_DIR_X/lists"
+A directory of mailing list files.
+.TP 2.5i
+.I "X_MAILBOX_DIR_X"
+The directory for user mailbox files.
+.TP 2.5i
+.I ~\&/.forward
+Lists of forwarding addresses for
+local users.
+.PP
+The
+.I smail
+mailer typically uses the following directories for working storage,
+and to hold incoming mail messages.
+.PP
+.TP 2.5i
+.I "/usr/spool/smail"
+The top of the spool directory hierarchy.
+.TP 2.5i
+.I "/usr/spool/smail/input"
+Smail's spool directory for incoming
+messages.
+.TP 2.5i
+.I "/usr/spool/smail/error"
+A directory for messages which failed for some reason
+that the site administrator should investigate.
+.TP 2.5i
+.I "/usr/spool/smail/msglog"
+A directory of transaction logs
+for individual messages.
+.TP 2.5i
+.I "/usr/spool/smail/lock"
+A directory used in smail input spool files.
+.PP
+The following files log the activity of the
+.I smail
+mailer.
+The system administrator should check and truncate these
+files from time.
+.PP
+.TP 2.5i
+.I "/usr/spool/smail/log/logfile"
+A log of smail transactions.
+.TP 2.5i
+.I "/usr/spool/smail/log/paniclog"
+A log of configuration or system errors encountered by smail.
+.PD
+.SH DIAGNOSTICS
+Exits with 0 if no errors, non\-0 otherwise.  See
+.I /usr/include/sysexits.h
+or
+.I "src/exitcodes.h"
+in the smail source for the list of possible exit codes.
+.PP
+If the
+.I \-bd
+option was used, then
+.I "bind() failed: Address already in use"
+implies that another process is already listening on the SMTP socket.
+.SH "SEE ALSO"
+.IR binmail (1),
+.IR mailx (1)
+under System V,
+.IR Mail (1)
+under BSD,
+.IR pathto (X_MAN1_EXT_X),
+.IR smail (X_MAN5_EXT_X),
+.IR "Smail Administration and Installation Guide" ,
+.IR "Smail Design Document", 
+DARPA Internet Requests for Comments,
+RFC821, RFC822 and RFC976.
+.SH BUGS
+Many mail bugs are not smail bugs.
+Smail can't help it if remote sites trash your mail messages.
+.PP
+If you find any bugs, please mail a description to the address
+.I smail-bugs@veritas.com,
+along with any code fixes that you may have.
+.PP
+Setting the input spool directory processing interval to a period of more than
+2147483647 seconds is silly and will result in an incorrectly
+calculated processing interval.
+.PP
+Route-addrs on protocol level 1 are too strong.
+.SH COPYRIGHT
+Copyright(C)1987, 1988 Ronald S. Karr and Landon Curt Noll
+.br
+Copyright(C)1992 Ronald S. Karr
+.br
+See a file COPYING,
+distributed with the source code,
+or type
+.I "smail -bc"
+for distribution rights and restrictions
+associated with this software.

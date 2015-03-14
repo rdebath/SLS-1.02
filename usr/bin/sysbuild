@@ -1,0 +1,334 @@
+#
+DISTTREE=/usr1/dist
+
+BASEDEV=/dev/fd0H1440
+BASEDEV2=/dev/fd1h1200
+#BASEDEV=/dev/fd0h1200
+#BASEDEV2=/dev/fd1H1440
+DEV=$BASEDEV
+DOFORMAT=0
+BLKSZ=15k
+COUNT=80
+IMAGES="a1 a2 a3 a4 b1 b2 b3 b4 b5 b6 b7 c1 c2 c3 d1 d2 s1 t1 t2 t3 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10"
+
+while [ 0 ]; do
+	if [ $# -gt 1 -a "$1" = "-instdev" ]; then
+		DEV=$2
+		shift 2
+	elif [ $# -gt 0 -a "$1" = "-format" ]; then
+		DOFORMAT=1;
+		shift
+	else
+		break;
+	fi
+done;
+
+# See if any files in dist tree are newer and if so, copy to dist disk 
+# and then get new images back to hard drive.
+function image() {
+	for i in $IMAGES; do 
+		if [ "$i" = "a1" ]; then
+			continue;
+		fi
+		NEWER="cp"
+		for j in $i/*.taz; do
+			if [ "$j" -ot "/install/installed/`basename $j .taz`" ]; then 
+NEWER="$NEWER $j"
+				break;
+			fi
+			if [ "$j" -nt "image/$i" ]; then
+NEWER="$NEWER $j"
+				break;
+			fi
+		done
+		if [ "$NEWER" != "cp" ]; then
+			if [ $i = a2 ]; then
+				mkfs /dev/fd0 1200
+				mount -t minix $DEV /user;
+			else
+				mformat a:
+				mount -t msdos $DEV /user;
+			fi
+			cp -a $i/* /user
+#			for k in 1 2 3; do
+#				echo -n "insert disk$i in $DEV and hit enter"
+#				read ans;
+#				if [ "$i" = a2 ]; then
+#					mount -t minix $DEV /user;
+#				else
+#					mount -t msdos $DEV /user;
+#				fi
+#				if [ -f /user/disk$i ]; then
+#					break;
+#				fi;
+#				echo "error: perhaps you inserted the wrong disk?"
+#				umount $DEV > /dev/null
+#			done;
+#			echo $NEWER /user
+#			$NEWER /user
+			umount $DEV
+			echo "updated disk $i"
+			dd if=$DEV of=image$1/$i bs=8k;
+		fi;
+	done
+}
+
+function newimages() {
+	for i in $IMAGES; do 
+		if [ "$i" = "a1" ]; then
+			continue;
+		else
+			echo "put floppy in for $i"
+			read ans; 
+			mformat a:
+			mount -t msdos $DEV /user;
+		fi
+		cp -a $i/* /user
+		umount $DEV > /dev/null
+		dd if=$DEV of=newimage/$i bs=8k
+		echo "updated disk $i"
+	done
+}
+
+# cut a new set of distribution disks.
+function disks() {
+
+	echo  "starting generation of a distribution disk set."
+	FORMAT=""
+	if [ $DEV = $BASEDEV ]; then
+		pushd image > /dev/null;
+	else
+		pushd image3 > /dev/null;
+	fi
+	for i in $IMAGES; do 
+		if [ "$1" = "both" ]; then
+			makedisk $i $BASEDEV y  &&
+			makedisk $i $BASEDEV2;
+		else
+			makedisk $i $DEV y;
+		fi
+		if [ $? = 1 ]; then
+			return
+		fi
+	done
+	popd > /dev/null;
+	echo "done"
+}
+
+function makedisk() {
+	local NUMOFDISK=$1
+	local MDEV=$2
+	local DOPRMPT=$3;
+	for j in 1 2 3 4 5 6; do
+		if [ "$DOPRMPT" != "" ]; then
+			echo -n ""
+			echo -n "insert disk $NUMOFDISK in $MDEV and hit enter, or quit/format/skip (q/f/s)"
+			read ans;
+		else
+			echo "doing disk $NUMOFDISK in $MDEV "
+		fi
+		if [ "$ans" = "q" -o "$ans" = "Q" ]; then
+			return 1;
+		elif [ "$ans" = "s" -o "$ans" = "S" ]; then
+			return 2;
+		fi
+		if [ $DOFORMAT = 1 -o "$ans" = "F" -o "$ans" = "f" ]; then
+			fdformat $MDEV >& /dev/null;
+			if [ $? != 0 ]; then
+				echo -n "**********ERROR: format disk failed "
+				DOPRMPT="y"
+				continue;
+			fi
+		fi
+		dd  bs=$BLKSZ of=$MDEV if=$NUMOFDISK >& /dev/null;
+		if [ $? = 0 ]; then
+			sync; fdflush $MDEV
+			dd bs=$BLKSZ if=$MDEV count=$COUNT 2> /dev/null | cmp -s $NUMOFDISK 
+			if [ $? = 0 ]; then
+				break;
+			else
+				DOPRMPT="y"
+				echo -n "**********ERROR: compare data failed "
+			fi
+		else
+			DOPRMPT="y"
+			echo -n "**********ERROR: copy to disk failed,"
+		fi;
+		if [ $j != 6 ]; then
+			echo " trying again ..."
+		else
+			DOPRMPT="y"
+			echo "disk $NUMOFDISK could not be copied"
+			sleep 1
+			echo -n ""
+			sleep 1
+			echo -n ""
+			return 1;
+		fi
+	done;
+	return 0
+}
+
+#
+# update changes in distribution tree if /install/installed/pkgname has changed.
+function tree() {
+	for i in $IMAGES;  do
+		if [ -d $i ]; then
+			cd $i;
+			for j in *.taz; do
+				if [ $j -ot /install/installed/`basename $j .taz` ]; then 
+					echo updating $j ...;
+					sysinstall -extract `basename $j .taz`
+				fi; 
+			done
+		cd ..;
+		fi;
+	done
+}
+
+#
+ROOTFSSIZE=650
+function getroot() {  # Get the root.fs from the boot floppy 
+	dd if=$DEV of=root.fs count=$ROOTFSSIZE bs=1k skip=512
+}
+
+#
+function putroot() {  # Put the root.fs to the boot floppy a1
+	dd of=$DEV if=root.fs count=$ROOTFSSIZE bs=1k seek=512
+}
+
+function getflop() {  # Get the root.fs from the temporary floppy
+	dd if=$DEV of=root.fs count=$ROOTFSSIZE bs=1k
+}
+
+function putflop() {  # Put the root.fs on a temporary floppy for manipulation.
+	dd of=$DEV if=root.fs count=$ROOTFSSIZE bs=1k
+}
+
+function splittaz()
+{
+	declare -i numargs=0;
+	declare -i argcount;
+	while [ $numargs != $# ]; do
+		numargs=$numargs+1;
+		argcount=0;
+		catcmd="cat ";
+		for argn in $*; do
+			catcmd="$catcmd $argn";
+			argcount=$argcount+1;
+			if [ $argcount = $numargs ]; then
+				break;
+			fi
+		done
+		$catcmd | tar -tzf - | sed "/\/$/d" > salist.$numargs
+	done
+	numargs=0;
+	echo -n "" > sdlist.1;
+	while [ $numargs != $# ]; do
+		numargs=$numargs+1;
+		tail -1 salist.$numargs > sblist.$numargs;
+		cat sdlist.1 sblist.$numargs > sdlist.2
+		comm -23 salist.$numargs sdlist.2 > sclist.$numargs;
+		cat sclist.$numargs sblist.$numargs >> sdlist.1
+	done
+	cat sblist.* > slist;
+}
+
+function BuildDiskFiles()
+{
+	for i in [a-z][0-9]*; do 
+		if [ -d $i ]; then 
+			(cd $i;  
+			echo -n "" > disk$i;
+			for j in *.tgz; do
+				fgrep "`basename $j .tgz`:" ../master >>  disk$i;
+                                if [ $? != 0 ]; then
+					echo "$j not found in master"
+				fi
+			done
+			for j in *.tar; do
+				if [ "$j" = "*.tar" ]; then
+					break;
+				fi
+				fgrep "`basename $j .tar`:" ../master >>  disk$i;
+                                if [ $? != 0 ]; then
+					echo "$j not found in master"
+				fi
+			done)
+		fi
+	done
+}
+
+function BuildMasterFile()
+{
+	(for i in [a-z][0-9]*; do 
+		if [ -d $i ]; then 
+#			(cd $i && ls * | sed "/^disk/d" | sed "/^install.end/d" ) 
+			(cd $i && cat disk[a-z][0-9]* )
+		fi
+	done ) | sort 
+}
+
+pushd $DISTTREE > /dev/null;
+if [ $# = 1 -a "$1" = "-putroot" ]; then
+	putroot;
+elif [ $# = 1 -a "$1" = "-getroot" ]; then
+	getroot;
+elif [ $# = 1 -a "$1" = "-putflop" ]; then
+	putflop;
+elif [ $# = 1 -a "$1" = "-getflop" ]; then
+	getflop;
+elif [ $# = 1 -a "$1" = "-tree" ]; then
+	tree;
+elif [ $# = 1 -a "$1" = "-disks" ]; then
+	disks
+elif [ $# = 1 -a "$1" = "-disks3" ]; then
+	DEV=$BASEDEV2
+#	BLOCKSIZE=18k
+#	COUNT=67
+	disks
+elif [ $# = 1 -a "$1" = "-disksboth" ]; then
+	disks both
+elif [ $# = 1 -a "$1" = "-newimages" ]; then
+	newimages
+elif [ $# = 1 -a "$1" = "-image" ]; then
+	image
+elif [ $# = 1 -a "$1" = "-image3" ]; then
+	image 3
+elif [ "$1" = "-catdisks" ]; then
+	for i in /install/disks/$2*; do 
+		cat $i | sed "s/^/`basename $i`         /"; 
+	done
+elif [ $# = 1 -a "$1" = "-listdisk" ]; then
+	MNTDIR=/user
+	DISKNAME=$MNTDIR/disk*;
+	if [ -f $DISKNAME ]; then
+		DISKNAME=`basename $DISKNAME`
+		(echo -n "" > $INSTROOT/install/disks/$DISKNAME
+		for i in $MNTDIR/*; do
+			echo "`basename $i`  	`filesize $i`" 
+		done)  | tee  $INSTROOT/install/disks/$DISKNAME
+	fi
+elif [ $# = 2 -a "$1" = "-split" ]; then
+	popd > /dev/null
+	mkdir tmp || exit -1;
+	cat $2 | ( cd tmp;  split -b 1170k)
+	cat $2 | ( cd tmp; tar -xplzf - )
+	cd tmp
+	splittaz x??
+	declare -i argcount=1;
+	for nam in sclist.* slist; do
+		tar -cplzf `basename $2 .taz`$argcount.taz -T $nam
+		argcount=$argcount+1;
+	done
+	rm -f s?list.[0-9] slist x??;
+	cd ..
+	exit 0;
+elif [ "$1" = "-masterfiles" ]; then
+	BuildMasterFile
+elif [ "$1" = "-diskfiles" ]; then
+	BuildDiskFiles
+else
+	echo 'usage: sysbuild [-instdev /dev/fd??] -[tree|disks|disks3|image|image3|putroot|getroot]'
+fi
+popd > /dev/null;

@@ -1,0 +1,1082 @@
+*** t/newgrp.c	Sun Oct 11 07:20:37 1992
+--- newgrp.c	Fri Dec  4 14:02:56 1992
+***************
+*** 77,83 ****
+  
+  char	*name;
+  char	*group;
+! int	gid;
+  int	cflag;
+  
+  char	*Prog;
+--- 77,83 ----
+  
+  char	*name;
+  char	*group;
+! gid_t	gid;
+  int	cflag;
+  
+  char	*Prog;
+***************
+*** 157,168 ****
+  	 * login group.
+  	 */
+  
+! 	pwd = getpwuid (getuid ());
+  
+  	if (! (name = getlogin ()) || strcmp (name, pwd->pw_name) != 0)
+  		name = pwd->pw_name;
+  
+! 	if (! (pwd = getpwnam (name))) {
+  		fprintf (stderr, "unknown user: %s\n", name);
+  #ifdef	USE_SYSLOG
+  		syslog (LOG_WARN, "unknown user `%s', uid `%d'\n",
+--- 157,168 ----
+  	 * login group.
+  	 */
+  
+! 	pwd = getpwuid( getuid());
+  
+  	if (! (name = getlogin ()) || strcmp (name, pwd->pw_name) != 0)
+  		name = pwd->pw_name;
+  
+! 	if ( !(pwd = getpwnam (name))){
+  		fprintf (stderr, "unknown user: %s\n", name);
+  #ifdef	USE_SYSLOG
+  		syslog (LOG_WARN, "unknown user `%s', uid `%d'\n",
+***************
+*** 254,260 ****
+  	 * group id's are set.
+  	 */
+  
+! 	ngroups = getgroups (groups);
+  #endif
+  
+  	/*
+--- 254,262 ----
+  	 * group id's are set.
+  	 */
+  
+! 	ngroups = getgroups (0,0);
+! 	if (ngroups>0)
+! 		getgroups (ngroups, groups);
+  #endif
+  
+  	/*
+*** t/passwd.c	Mon Oct 12 17:35:17 1992
+--- passwd.c	Sat Dec  5 11:34:26 1992
+***************
+*** 69,75 ****
+  #ifdef	HAVE_RLIMIT
+  #include <sys/resource.h>
+  
+! struct	rlimit	rlimit_fsize = { RLIM_INFINITY, RLIM_INFINIT };
+  #endif
+  
+  /*
+--- 69,75 ----
+  #ifdef	HAVE_RLIMIT
+  #include <sys/resource.h>
+  
+! struct	rlimit	rlimit_fsize = { RLIM_INFINITY, RLIM_INFINITY };
+  #endif
+  
+  /*
+*** t/shadow.c	Sun Oct 11 07:19:42 1992
+--- shadow.c	Fri Dec  4 13:08:34 1992
+***************
+*** 125,131 ****
+  	if (i == (FIELDS-1))
+  		fields[i++] = cp;
+  
+! 	if (*cp || (i != FIELDS && i != OFIELDS))
+  		return 0;
+  
+  	spwd.sp_namp = fields[0];
+--- 125,131 ----
+  	if (i == (FIELDS-1))
+  		fields[i++] = cp;
+  
+! 	if ((cp && *cp) || (i != FIELDS && i != OFIELDS))
+  		return 0;
+  
+  	spwd.sp_namp = fields[0];
+*** t/gshadow.c	Sun Oct 11 07:16:35 1992
+--- gshadow.c	Fri Dec  4 12:50:53 1992
+***************
+*** 129,146 ****
+  	long	atol ();
+  	int	i;
+  
+! 	strncpy (sgrbuf, string, (int) sizeof sgrbuf - 1);
+! 	sgrbuf[sizeof sgrbuf - 1] = '\0';
+  
+  	if (cp = strrchr (sgrbuf, '\n'))
+  		*cp = '\0';
+  
+! 	for (cp = sgrbuf, i = 0;i < FIELDS && cp;i++) {
+  		fields[i] = cp;
+  		if (cp = strchr (cp, ':'))
+  			*cp++ = '\0';
+  	}
+! 	if (*cp || i != FIELDS)
+  		return 0;
+  
+  	sgroup.sg_name = fields[0];
+--- 129,146 ----
+  	long	atol ();
+  	int	i;
+  
+! 	strncpy (sgrbuf, string, (int) sizeof(sgrbuf)- 1);
+! 	sgrbuf[sizeof(sgrbuf)- 1] = '\0';
+  
+  	if (cp = strrchr (sgrbuf, '\n'))
+  		*cp = '\0';
+  
+! 	for (cp = sgrbuf, i = 0;(i < FIELDS) && cp;i++) {
+  		fields[i] = cp;
+  		if (cp = strchr (cp, ':'))
+  			*cp++ = '\0';
+  	}
+! 	if ((cp && *cp) || (i != FIELDS))
+  		return 0;
+  
+  	sgroup.sg_name = fields[0];
+*** t/gpmain.c	Mon Oct 12 17:35:38 1992
+--- gpmain.c	Fri Dec  4 12:13:33 1992
+***************
+*** 178,184 ****
+  	struct	sgrp	*getsgnam ();
+  #endif
+  	struct	passwd	*pw = 0;
+- 	struct	passwd	*getpwuid ();
+  	struct	passwd	*getpwnam ();
+  
+  	/*
+--- 178,183 ----
+*** t/grent.c	Sun Oct 11 07:19:17 1992
+--- grent.c	Fri Dec  4 11:10:18 1992
+***************
+*** 264,270 ****
+   */
+  
+  struct	group	*getgrgid (gid)
+! int	gid;
+  {
+  	struct	group	*grp;
+  #ifdef NDBM
+--- 264,270 ----
+   */
+  
+  struct	group	*getgrgid (gid)
+! gid_t	gid;
+  {
+  	struct	group	*grp;
+  #ifdef NDBM
+*** t/id.c	Sun Oct 11 07:19:17 1992
+--- id.c	Fri Dec  4 08:55:34 1992
+***************
+*** 44,60 ****
+  	int	id;
+  #if NGROUPS > 0
+  #if NGROUPS > 100
+! 	int	*groups;
+  #else
+! 	int	groups[NGROUPS];
+  #endif
+  	int	ngroups;
+  	int	aflg = 0;
+  #endif
+! 	struct	passwd	*pw,
+! 			*getpwuid();
+! 	struct	group	*gr,
+! 			*getgrgid();
+  
+  #if NGROUPS > 0
+  	/*
+--- 44,58 ----
+  	int	id;
+  #if NGROUPS > 0
+  #if NGROUPS > 100
+! 	gid_t	*groups;
+  #else
+! 	gid_t	groups[NGROUPS];
+  #endif
+  	int	ngroups;
+  	int	aflg = 0;
+  #endif
+! 	struct	passwd	*pw;
+! 	struct	group	*gr;
+  
+  #if NGROUPS > 0
+  	/*
+***************
+*** 144,150 ****
+  				putchar (',');
+  
+  			if (gr = getgrgid (groups[i]))
+! 				printf ("%d(%s)", groups[i], gr->gr_name);
+  			else
+  				printf ("%d", groups[i]);
+  		}
+--- 142,148 ----
+  				putchar (',');
+  
+  			if (gr = getgrgid (groups[i]))
+! 				printf ("%d(%s)", (int)(groups[i]), gr->gr_name);
+  			else
+  				printf ("%d", groups[i]);
+  		}
+*** t/groupmod.c	Mon Oct 12 17:35:40 1992
+--- groupmod.c	Fri Dec  4 08:52:56 1992
+***************
+*** 37,44 ****
+  
+  char	group_name[BUFSIZ];
+  char	group_newname[BUFSIZ];
+! int	group_id;
+! int	group_newid;
+  
+  char	*Prog;
+  
+--- 37,44 ----
+  
+  char	group_name[BUFSIZ];
+  char	group_newname[BUFSIZ];
+! gid_t	group_id;
+! gid_t	group_newid;
+  
+  char	*Prog;
+  
+*** t/newusers.c	Sun Oct 11 07:17:45 1992
+--- newusers.c	Fri Dec  4 08:49:50 1992
+***************
+*** 96,102 ****
+  add_group (name, gid, ngid)
+  char	*name;
+  char	*gid;
+! int	*ngid;
+  {
+  	struct	passwd	*pwd;
+  	struct	group	*grp;
+--- 96,102 ----
+  add_group (name, gid, ngid)
+  char	*name;
+  char	*gid;
+! gid_t	*ngid;
+  {
+  	struct	passwd	*pwd;
+  	struct	group	*grp;
+***************
+*** 208,215 ****
+  add_user (name, uid, nuid, gid)
+  char	*name;
+  char	*uid;
+! int	*nuid;
+! int	gid;
+  {
+  	struct	passwd	*pwd;
+  	struct	passwd	pwent;
+--- 208,215 ----
+  add_user (name, uid, nuid, gid)
+  char	*name;
+  char	*uid;
+! gid_t	*nuid;
+! gid_t	gid;
+  {
+  	struct	passwd	*pwd;
+  	struct	passwd	pwent;
+*** t/copydir.c	Mon Oct 12 17:35:02 1992
+--- copydir.c	Fri Dec  4 08:43:52 1992
+***************
+*** 132,141 ****
+  copy_tree (src_root, dst_root, uid, gid, ouid, ogid)
+  char	*src_root;
+  char	*dst_root;
+! int	uid;
+! int	gid;
+! int	ouid;
+! int	ogid;
+  {
+  	char	src_name[BUFSIZ];
+  	char	dst_name[BUFSIZ];
+--- 132,141 ----
+  copy_tree (src_root, dst_root, uid, gid, ouid, ogid)
+  char	*src_root;
+  char	*dst_root;
+! uid_t	uid;
+! gid_t	gid;
+! uid_t	ouid;
+! gid_t	ogid;
+  {
+  	char	src_name[BUFSIZ];
+  	char	dst_name[BUFSIZ];
+*** t/config.h	Sun Nov 15 22:49:29 1992
+--- config.h	Sun Dec  6 09:22:14 1992
+***************
+*** 44,50 ****
+   * if you disable SHADOWPWD.
+   */
+  
+! /* #define	SHADOWGRP /**/
+  
+  /*
+   * Define DOUBLESIZE to use 16 character passwords
+--- 44,50 ----
+   * if you disable SHADOWPWD.
+   */
+  
+! #define	SHADOWGRP
+  
+  /*
+   * Define DOUBLESIZE to use 16 character passwords
+***************
+*** 71,77 ****
+   * Define USE_SYSLOG if you want to have SYSLOG functions included in your code.
+   */
+  
+! /* #define	USE_SYSLOG */
+  
+  /*
+   * Enable RLOGIN to support the "-r" and "-h" options.
+--- 71,77 ----
+   * Define USE_SYSLOG if you want to have SYSLOG functions included in your code.
+   */
+  
+! #define	USE_SYSLOG
+  
+  /*
+   * Enable RLOGIN to support the "-r" and "-h" options.
+***************
+*** 79,85 ****
+   */
+  
+  #define RLOGIN
+! #undef UT_HOST
+  
+  /*
+   * Define the "success" code from ruserok().  Most modern systems use 0
+--- 79,85 ----
+   */
+  
+  #define RLOGIN
+! #define UT_HOST
+  
+  /*
+   * Define the "success" code from ruserok().  Most modern systems use 0
+***************
+*** 101,108 ****
+   * Various system environment definitions.
+   */
+  
+! #define	HAVE_ULIMIT	/* Define if your UNIX supports ulimit()	*/
+! #undef	HAVE_RLIMIT	/* Define if your UNIX supports setrlimit()     */
+  #undef	GETPWENT	/* Define if you want my GETPWENT(3) routines	*/
+  #undef	GETGRENT	/* Define if you want my GETGRENT(3) routines	*/
+  #define	NEED_AL64	/* Define if library does not include a64l()	*/
+--- 101,108 ----
+   * Various system environment definitions.
+   */
+  
+! #undef	HAVE_ULIMIT	/* Define if your UNIX supports ulimit()	*/
+! #define	HAVE_RLIMIT	/* Define if your UNIX supports setrlimit()     */
+  #undef	GETPWENT	/* Define if you want my GETPWENT(3) routines	*/
+  #undef	GETGRENT	/* Define if you want my GETGRENT(3) routines	*/
+  #define	NEED_AL64	/* Define if library does not include a64l()	*/
+*** t/syslog.c	Sat Dec  5 10:50:44 1992
+--- syslog.c	Thu Dec  3 21:52:21 1992
+***************
+*** 0 ****
+--- 1,226 ----
++ /*
++  * Copyright (c) 1983, 1988 Regents of the University of California.
++  * All rights reserved.
++  *
++  * Redistribution and use in source and binary forms are permitted
++  * provided that the above copyright notice and this paragraph are
++  * duplicated in all such forms and that any documentation,
++  * advertising materials, and other materials related to such
++  * distribution and use acknowledge that the software was developed
++  * by the University of California, Berkeley.  The name of the
++  * University may not be used to endorse or promote products derived
++  * from this software without specific prior written permission.
++  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
++  * IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
++  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
++  */
++ 
++ #if defined(LIBC_SCCS) && !defined(lint)
++ static char sccsid[] = "@(#)syslog.c	5.16 (Berkeley) 6/27/88";
++ #endif /* LIBC_SCCS and not lint */
++ 
++ /*
++  * SYSLOG -- print message on log file
++  *
++  * This routine looks a lot like printf, except that it
++  * outputs to the log file instead of the standard output.
++  * Also:
++  *	adds a timestamp,
++  *	prints the module name in front of the message,
++  *	has some other formatting types (or will sometime),
++  *	adds a newline on the end of the message.
++  *
++  * The output of this routine is intended to be read by /etc/syslogd.
++  *
++  * Author: Eric Allman
++  * Modified to use UNIX domain IPC by Ralph Campbell
++  */
++ 
++ #include <sys/types.h>
++ #include <sys/socket.h>
++ #include <sys/file.h>
++ #include <sys/signal.h>
++ #include <sys/syslog.h>
++ #include <stdarg.h>
++ #include <stdio.h>
++ #include <stdlib.h>
++ #include <netdb.h>
++ #include <strings.h>
++ #ifdef linux
++ #include <signal.h>
++ #else
++ #include <sigvec.h>
++ #endif
++ #include <unistd.h>
++ 
++ #define	MAXLINE	1024			/* max message size */
++ 
++ #define IMPORTANT 	LOG_ERR
++ 
++ static char	logname[] = "/dev/log";
++ static char	ctty[] = "/dev/console";
++ 
++ static int	LogFile = -1;		/* fd for log */
++ static int	connected;		/* have done connect */
++ static int	LogStat	= 0;		/* status bits, set by openlog() */
++ static char	*LogTag = "syslog";	/* string to tag the entry with */
++ static int	LogMask = 0xff;		/* mask of priorities to be logged */
++ static int	LogFacility = LOG_USER;	/* default facility code */
++ 
++ static struct sockaddr SyslogAddr;	/* AF_UNIX address of local logger */
++ /*
++ extern	int errno, sys_nerr;
++ #ifndef linux
++ extern	char *sys_errlist[];
++ #endif
++ */
++ /*
++  * OPENLOG -- open system log
++  */
++ 
++ void
++ openlog(ident, logstat, logfac)
++ 	char *ident;
++ 	int logstat, logfac;
++ {
++ 	if (ident != NULL)
++ 		LogTag = ident;
++ 	LogStat = logstat;
++ 	if (logfac != 0 && (logfac &~ LOG_FACMASK) == 0)
++ 		LogFacility = logfac;
++ 	if (LogFile == -1) {
++ 		SyslogAddr.sa_family = AF_UNIX;
++ 		strncpy(SyslogAddr.sa_data, logname, sizeof SyslogAddr.sa_data);
++ 		if (LogStat & LOG_NDELAY) {
++ 			LogFile = socket(AF_UNIX, SOCK_DGRAM, 0);
++ 			fcntl(LogFile, F_SETFD, 1);
++ 		}
++ 	}
++ 	if (LogFile != -1 && !connected &&
++ 	    connect(LogFile, &SyslogAddr, sizeof(SyslogAddr)) != -1)
++ 		connected = 1;
++ }
++ 
++ void
++ syslog(int pri, char *fmt, ...)
++ {
++ 	char buf[MAXLINE + 1], outline[MAXLINE + 1];
++ 	register char *b, *f, *o;
++ 	register int c;
++ 	long now;
++ 	int pid, olderrno = errno;
++ 	va_list args;
++ 
++ 	va_start (args, fmt);
++ 	/* see if we should just throw out this message */
++ 	if ((unsigned) LOG_FAC(pri) >= LOG_NFACILITIES ||
++ 	    LOG_MASK(LOG_PRI(pri)) == 0 ||
++ 	    (pri &~ (LOG_PRIMASK|LOG_FACMASK)) != 0)
++ 		return;
++ 	if (LogFile < 0 || !connected)
++ 		openlog(LogTag, LogStat | LOG_NDELAY, 0);
++ 
++ 	/* set default facility if none specified */
++ 	if ((pri & LOG_FACMASK) == 0)
++ 		pri |= LogFacility;
++ 
++ 	/* build the message */
++ 	o = outline;
++ 	(void)sprintf(o, "<%d>", pri);
++ 	o += strlen(o);
++ 	time(&now);
++ 	(void)sprintf(o, "%.15s ", ctime(&now) + 4);
++ 	o += strlen(o);
++ 	if (LogTag) {
++ 		strcpy(o, LogTag);
++ 		o += strlen(o);
++ 	}
++ 	if (LogStat & LOG_PID) {
++ 		(void)sprintf(o, "[%d]", getpid());
++ 		o += strlen(o);
++ 	}
++ 	if (LogTag) {
++ 		strcpy(o, ": ");
++ 		o += 2;
++ 	}
++ 
++ 	b = buf;
++ 	f = fmt;
++ 	while ((c = *f++) != '\0' && c != '\n' && b < &buf[MAXLINE]) {
++ 		if (c != '%') {
++ 			*b++ = c;
++ 			continue;
++ 		}
++ 		if ((c = *f++) != 'm') {
++ 			*b++ = '%';
++ 			*b++ = c;
++ 			continue;
++ 		}
++ 		if ((unsigned)olderrno > sys_nerr)
++ 			(void)sprintf(b, "error %d", olderrno);
++ 		else
++ 			strcpy(b, sys_errlist[olderrno]);
++ 		b += strlen(b);
++ 	}
++ 	*b++ = '\n';
++ 	*b = '\0';
++ 	(void)vsprintf(o, buf, args);
++ 	c = strlen(outline);
++ 	if (c > MAXLINE)
++ 		c = MAXLINE;
++ 
++ 	/* output the message to the local logger */
++ 	if (send(LogFile, outline, c, 0) >= 0)
++ 		return;
++ 	if (!(LogStat & LOG_CONS))
++ 		return;
++ 
++ 	/* output the message to the console */
++ 	pid = vfork();
++ 	if (pid == -1)
++ 		return;
++ 	if (pid == 0) {
++ 		int fd;
++ 
++ 		signal(SIGALRM, SIG_DFL);
++ 		sigsetmask(sigblock(0L) & ~sigmask(SIGALRM));
++ 		alarm(5);
++ 		fd = open(ctty, O_WRONLY);
++ 		alarm(0);
++ 		strcat(o, "\r");
++ 		o = index(outline, '>') + 1;
++ 		write(fd, o, c + 1 - (o - outline));
++ 		close(fd);
++ 		_exit(0);
++ 	}
++ 
++ 	if (!(LogStat & LOG_NOWAIT))
++ 		while ((c = wait((int *)0)) > 0 && c != pid)
++ 			;
++ }
++ 
++ /*
++  * CLOSELOG -- close the system log
++  */
++ void
++ closelog(void)
++ {
++ 	(void) close(LogFile);
++ 	LogFile = -1;
++ 	connected = 0;
++ }
++ 
++ /*
++  * SETLOGMASK -- set the log mask level
++  */
++ int
++ setlogmask(pmask)
++ 	int pmask;
++ {
++ 	int omask;
++ 
++ 	omask = LogMask;
++ 	if (pmask != 0)
++ 		LogMask = pmask;
++ 	return (omask);
++ }
+*** t/Makefile	Mon Nov 16 02:14:15 1992
+--- Makefile	Sat Dec  5 11:08:21 1992
+***************
+*** 39,44 ****
+--- 39,45 ----
+  # NDIR = -lx
+  NDIR =
+  
++ LIBSHADDEP=libshadow.a
+  # Pick your favorite C compiler and tags command
+  CC = gcc
+  TAGS = ctags
+***************
+*** 76,82 ****
+  # CFLAGS = -O -M3 -g $(OS) -I$(DEST_INCLUDE_DIR)
+  # LIBS = -lcrypt -lndbm
+  # LIBS = -lcrypt -ldbm
+! LDFLAGS = -s
+  LTFLAGS = 
+  
+  # Flags for normal machines
+--- 77,83 ----
+  # CFLAGS = -O -M3 -g $(OS) -I$(DEST_INCLUDE_DIR)
+  # LIBS = -lcrypt -lndbm
+  # LIBS = -lcrypt -ldbm
+! LDFLAGS = -s -N
+  LTFLAGS = 
+  
+  # Flags for normal machines
+***************
+*** 117,134 ****
+  
+  LOBJS = lmain.o login.o env.o valid.o setup.o shell.o age.o \
+  	utmp.o sub.o mail.o motd.o log.o ttytype.o failure.o \
+! 	tz.o console.o hushed.o
+  
+  LSRCS = lmain.c login.c env.c valid.c setup.c shell.c age.c \
+  	utmp.c sub.c mail.c motd.c log.c ttytype.c failure.c \
+! 	tz.c console.c hushed.c
+  
+  SOBJS = smain.o env.o entry.o susetup.o shell.o \
+! 	sub.o mail.o motd.o sulog.o age.o tz.o hushed.o
+  
+  SSRCS = smain.c env.c entry.c setup.c shell.c \
+  	pwent.c sub.c mail.c motd.c sulog.c shadow.c age.c pwpack.c rad64.c \
+! 	tz.c hushed.c
+  
+  POBJS = passwd.o obscure.o
+  PSRCS = passwd.c obscure.c
+--- 118,135 ----
+  
+  LOBJS = lmain.o login.o env.o valid.o setup.o shell.o age.o \
+  	utmp.o sub.o mail.o motd.o log.o ttytype.o failure.o \
+! 	tz.o console.o hushed.o 
+  
+  LSRCS = lmain.c login.c env.c valid.c setup.c shell.c age.c \
+  	utmp.c sub.c mail.c motd.c log.c ttytype.c failure.c \
+! 	tz.c console.c hushed.c 
+  
+  SOBJS = smain.o env.o entry.o susetup.o shell.o \
+! 	sub.o mail.o motd.o sulog.o age.o tz.o hushed.o 
+  
+  SSRCS = smain.c env.c entry.c setup.c shell.c \
+  	pwent.c sub.c mail.c motd.c sulog.c shadow.c age.c pwpack.c rad64.c \
+! 	tz.c hushed.c 
+  
+  POBJS = passwd.o obscure.o
+  PSRCS = passwd.c obscure.c
+***************
+*** 179,187 ****
+  	spdbm.c dpmain.c gshadow.c gsdbm.c gspack.c sgroupio.c useradd.c \
+  	userdel.c patchlevel.h usermod.c copydir.c mkrmdir.c groupadd.c \
+  	groupdel.c groupmod.c tz.c console.c hushed.c getdef.c scologin.c \
+! 	logoutd.c groups.c pwauth.c
+  
+! FILES1 = README patchlevel.h newgrp.c Makefile config.h pwunconv.c obscure.c \
+  	age.c id.c
+  
+  FILES2 = passwd.c port.c lmain.c sulogin.c pwpack.c dialup.c
+--- 180,189 ----
+  	spdbm.c dpmain.c gshadow.c gsdbm.c gspack.c sgroupio.c useradd.c \
+  	userdel.c patchlevel.h usermod.c copydir.c mkrmdir.c groupadd.c \
+  	groupdel.c groupmod.c tz.c console.c hushed.c getdef.c scologin.c \
+! 	logoutd.c groups.c pwauth.c 
+  
+! #FILES1 = README patchlevel.h newgrp.c Makefile config.h pwunconv.c obscure.c \
+! FILES1 = README patchlevel.h newgrp.c config.h pwunconv.c obscure.c \
+  	age.c id.c
+  
+  FILES2 = passwd.c port.c lmain.c sulogin.c pwpack.c dialup.c
+***************
+*** 228,234 ****
+  
+  all:	$(BINS) $(DOCS)
+  
+! .PRECIOUS: libshadow.a
+  
+  libshadow.a: \
+  	libshadow.a(dialchk.o) \
+--- 230,236 ----
+  
+  all:	$(BINS) $(DOCS)
+  
+! #.PRECIOUS: libshadow.a
+  
+  libshadow.a: \
+  	libshadow.a(dialchk.o) \
+***************
+*** 254,259 ****
+--- 256,262 ----
+  	libshadow.a(spdbm.o) \
+  	libshadow.a(shadow.o) \
+  	libshadow.a(shadowio.o) \
++ 	libshadow.a(syslog.o) \
+  	libshadow.a(sppack.o)
+  	$(RANLIB) libshadow.a
+  
+***************
+*** 286,292 ****
+  		chage id scologin /bin)
+  	-(cd save ; cp dialup.h shadow.h pwd.h $(DEST_INCLUDE_DIR) )
+  
+! install: all
+  	strip $(BINS)
+  	cp login $(LOGINDIR)/login
+  	cp mkpasswd pwconv pwunconv sulogin chpasswd newusers \
+--- 289,295 ----
+  		chage id scologin /bin)
+  	-(cd save ; cp dialup.h shadow.h pwd.h $(DEST_INCLUDE_DIR) )
+  
+! install:
+  	strip $(BINS)
+  	cp login $(LOGINDIR)/login
+  	cp mkpasswd pwconv pwunconv sulogin chpasswd newusers \
+***************
+*** 366,408 ****
+  login.lint: $(LSRCS)
+  	$(LINT) $(LINTFLAGS) $(LSRCS) > login.lint
+  
+! su:	$(SOBJS) libshadow.a
+  	$(CC) -o su $(LDFLAGS) $(SOBJS) libshadow.a $(LIBS)
+  
+  su.lint:	$(SSRCS)
+  	$(LINT) $(LINTFLAGS) -DSU $(SSRCS) > su.lint
+  
+! passwd:	$(POBJS) libshadow.a
+  	$(CC) -o passwd $(LDFLAGS) $(POBJS) libshadow.a $(LIBS)
+  
+  passwd.lint: $(PSRCS)
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(PSRCS) > passwd.lint
+  
+! gpasswd: $(GPOBJS) libshadow.a
+  	$(CC) -o gpasswd $(LDFLAGS) $(GPOBJS) libshadow.a $(LIBS)
+  
+  gpasswd.lint: $(GPSRCS)
+  	$(LINT) $(LINTFLAGS) $(GPSRCS) > gpasswd.lint
+  
+! dpasswd: $(DPOBJS) libshadow.a
+  	$(CC) -o dpasswd $(LDFLAGS) $(DPOBJS) libshadow.a $(LIBS)
+  
+  dpasswd.lint: $(DPSRCS)
+  	$(LINT) $(LINTFLAGS) $(DPSRCS) > dpasswd.lint
+  
+! pwconv:	$(PWOBJS) libshadow.a config.h
+  	$(CC) -o pwconv $(LDFLAGS) $(PWOBJS) libshadow.a $(LIBS)
+  
+  pwconv.lint: $(PWSRCS) config.h
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(PWSRCS) > pwconv.lint
+  
+! pwunconv: $(PWUNOBJS) libshadow.a config.h
+  	$(CC) -o pwunconv $(LDFLAGS) $(PWUNOBJS) libshadow.a $(LIBS)
+  
+  pwunconv.lint: $(PWUNSRCS)
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(PWUNSRCS) > pwunconv.lint
+  
+! sulogin: $(SULOGOBJS) libshadow.a
+  	$(CC) -o sulogin $(LDFLAGS) $(SULOGOBJS) libshadow.a $(LIBS)
+  
+  sulogin.lint: $(SULOGSRCS)
+--- 369,411 ----
+  login.lint: $(LSRCS)
+  	$(LINT) $(LINTFLAGS) $(LSRCS) > login.lint
+  
+! su:	$(SOBJS) $(LIBSHADDEP)
+  	$(CC) -o su $(LDFLAGS) $(SOBJS) libshadow.a $(LIBS)
+  
+  su.lint:	$(SSRCS)
+  	$(LINT) $(LINTFLAGS) -DSU $(SSRCS) > su.lint
+  
+! passwd:	$(POBJS) $(LIBSHADDEP)
+  	$(CC) -o passwd $(LDFLAGS) $(POBJS) libshadow.a $(LIBS)
+  
+  passwd.lint: $(PSRCS)
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(PSRCS) > passwd.lint
+  
+! gpasswd: $(GPOBJS) $(LIBSHADDEP)
+  	$(CC) -o gpasswd $(LDFLAGS) $(GPOBJS) libshadow.a $(LIBS)
+  
+  gpasswd.lint: $(GPSRCS)
+  	$(LINT) $(LINTFLAGS) $(GPSRCS) > gpasswd.lint
+  
+! dpasswd: $(DPOBJS) $(LIBSHADDEP)
+  	$(CC) -o dpasswd $(LDFLAGS) $(DPOBJS) libshadow.a $(LIBS)
+  
+  dpasswd.lint: $(DPSRCS)
+  	$(LINT) $(LINTFLAGS) $(DPSRCS) > dpasswd.lint
+  
+! pwconv:	$(PWOBJS) $(LIBSHADDEP) config.h
+  	$(CC) -o pwconv $(LDFLAGS) $(PWOBJS) libshadow.a $(LIBS)
+  
+  pwconv.lint: $(PWSRCS) config.h
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(PWSRCS) > pwconv.lint
+  
+! pwunconv: $(PWUNOBJS) $(LIBSHADDEP) config.h
+  	$(CC) -o pwunconv $(LDFLAGS) $(PWUNOBJS) libshadow.a $(LIBS)
+  
+  pwunconv.lint: $(PWUNSRCS)
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(PWUNSRCS) > pwunconv.lint
+  
+! sulogin: $(SULOGOBJS) $(LIBSHADDEP)
+  	$(CC) -o sulogin $(LDFLAGS) $(SULOGOBJS) libshadow.a $(LIBS)
+  
+  sulogin.lint: $(SULOGSRCS)
+***************
+*** 414,426 ****
+  faillog.lint: faillog.c faillog.h config.h
+  	$(LINT) $(LINTFLAGS) faillog.c > faillog.lint
+  
+! mkpasswd: $(MKPWDOBJS) libshadow.a
+  	$(CC) -o mkpasswd $(LDFLAGS) $(MKPWDOBJS) libshadow.a $(LIBS)
+  
+  mkpasswd.lint: $(MKPWDSRCS)
+  	$(LINT) $(LINTFLAGS) $(MKPWDSRCS) > mkpasswd.lint
+  
+! newgrp: $(NGOBJS) libshadow.a
+  	$(CC) -o newgrp $(LDFLAGS) $(NGOBJS) libshadow.a $(LIBS)
+  
+  newgrp.lint: $(NGSRCS)
+--- 417,429 ----
+  faillog.lint: faillog.c faillog.h config.h
+  	$(LINT) $(LINTFLAGS) faillog.c > faillog.lint
+  
+! mkpasswd: $(MKPWDOBJS) $(LIBSHADDEP)
+  	$(CC) -o mkpasswd $(LDFLAGS) $(MKPWDOBJS) libshadow.a $(LIBS)
+  
+  mkpasswd.lint: $(MKPWDSRCS)
+  	$(LINT) $(LINTFLAGS) $(MKPWDSRCS) > mkpasswd.lint
+  
+! newgrp: $(NGOBJS) $(LIBSHADDEP)
+  	$(CC) -o newgrp $(LDFLAGS) $(NGOBJS) libshadow.a $(LIBS)
+  
+  newgrp.lint: $(NGSRCS)
+***************
+*** 427,480 ****
+  	$(LINT) $(LINTFLAGS) $(NGSRCS) > newgrp.lint
+  
+  sg:	newgrp
+  	ln newgrp sg
+  
+  sg.lint: newgrp.lint
+  	ln newgrp.lint sg.lint
+  
+! chfn:	$(CHFNOBJS) libshadow.a
+  	$(CC) -o chfn $(LDFLAGS) $(CHFNOBJS) libshadow.a $(LIBS)
+  
+  chfn.lint:	$(CHFNSRCS)
+  	$(LINT) $(LINTFLAGS) $(CHFNSRCS) > chfn.lint
+  
+! chsh:	$(CHSHOBJS) libshadow.a
+  	$(CC) -o chsh $(LDFLAGS) $(CHSHOBJS) libshadow.a $(LIBS)
+  
+  chsh.lint: $(CHSHSRCS)
+  	$(LINT) $(LINTFLAGS) $(CHSHSRCS) > chsh.lint
+  
+! chage:	$(CHAGEOBJS) libshadow.a
+  	$(CC) -o chage $(LDFLAGS) $(CHAGEOBJS) libshadow.a $(LIBS)
+  
+  chage.lint: $(CHAGESRCS)
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(CHAGESRCS) > chage.lint
+  
+! chpasswd: $(CHPASSOBJS) libshadow.a
+  	$(CC) -o chpasswd $(LDFLAGS) $(CHPASSOBJS) libshadow.a $(LIBS)
+  
+  chpasswd.lint: $(CHPASSSRCS)
+  	$(LINT) $(LINTFLAGS) $(CHPASSSRCS) > chpasswd.lint
+  
+! newusers: newusers.o libshadow.a
+  	$(CC) -o newusers $(LDFLAGS) newusers.o libshadow.a $(LIBS)
+  
+  newusers.lint: newusers.c
+  	$(LINT) $(LINTFLAGS) newusers.c > newusers.lint
+  	
+! id: id.o libshadow.a
+  	$(CC) -o id $(LDFLAGS) id.o libshadow.a $(LIBS)
+  
+  id.lint: id.c
+  	$(LINT) $(LINTFLAGS) id.c > id.lint
+  
+! groups: groups.o libshadow.a
+  	$(CC) -o groups $(LDFLAGS) groups.o libshadow.a $(LIBS)
+  
+  groups.lint: groups.c
+  	$(LINT) $(LINTFLAGS) groups.c > groups.lint
+  
+! useradd: useradd.o copydir.o mkrmdir.o libshadow.a
+  	$(CC) -o useradd $(LDFLAGS) useradd.o copydir.o mkrmdir.o \
+  		libshadow.a $(LIBS) $(NDIR)
+  
+--- 430,484 ----
+  	$(LINT) $(LINTFLAGS) $(NGSRCS) > newgrp.lint
+  
+  sg:	newgrp
++ 	/bin/rm -f sg
+  	ln newgrp sg
+  
+  sg.lint: newgrp.lint
+  	ln newgrp.lint sg.lint
+  
+! chfn:	$(CHFNOBJS) $(LIBSHADDEP)
+  	$(CC) -o chfn $(LDFLAGS) $(CHFNOBJS) libshadow.a $(LIBS)
+  
+  chfn.lint:	$(CHFNSRCS)
+  	$(LINT) $(LINTFLAGS) $(CHFNSRCS) > chfn.lint
+  
+! chsh:	$(CHSHOBJS) $(LIBSHADDEP)
+  	$(CC) -o chsh $(LDFLAGS) $(CHSHOBJS) libshadow.a $(LIBS)
+  
+  chsh.lint: $(CHSHSRCS)
+  	$(LINT) $(LINTFLAGS) $(CHSHSRCS) > chsh.lint
+  
+! chage:	$(CHAGEOBJS) $(LIBSHADDEP)
+  	$(CC) -o chage $(LDFLAGS) $(CHAGEOBJS) libshadow.a $(LIBS)
+  
+  chage.lint: $(CHAGESRCS)
+  	$(LINT) $(LINTFLAGS) -DPASSWD $(CHAGESRCS) > chage.lint
+  
+! chpasswd: $(CHPASSOBJS) $(LIBSHADDEP)
+  	$(CC) -o chpasswd $(LDFLAGS) $(CHPASSOBJS) libshadow.a $(LIBS)
+  
+  chpasswd.lint: $(CHPASSSRCS)
+  	$(LINT) $(LINTFLAGS) $(CHPASSSRCS) > chpasswd.lint
+  
+! newusers: newusers.o $(LIBSHADDEP)
+  	$(CC) -o newusers $(LDFLAGS) newusers.o libshadow.a $(LIBS)
+  
+  newusers.lint: newusers.c
+  	$(LINT) $(LINTFLAGS) newusers.c > newusers.lint
+  	
+! id: id.o $(LIBSHADDEP)
+  	$(CC) -o id $(LDFLAGS) id.o libshadow.a $(LIBS)
+  
+  id.lint: id.c
+  	$(LINT) $(LINTFLAGS) id.c > id.lint
+  
+! groups: groups.o $(LIBSHADDEP)
+  	$(CC) -o groups $(LDFLAGS) groups.o libshadow.a $(LIBS)
+  
+  groups.lint: groups.c
+  	$(LINT) $(LINTFLAGS) groups.c > groups.lint
+  
+! useradd: useradd.o copydir.o mkrmdir.o $(LIBSHADDEP)
+  	$(CC) -o useradd $(LDFLAGS) useradd.o copydir.o mkrmdir.o \
+  		libshadow.a $(LIBS) $(NDIR)
+  
+***************
+*** 481,487 ****
+  useradd.lint: useradd.c copydir.c mkrmdir.c
+  	$(LINT) $(LINTFLAGS) useradd.c copydir.c mkrmdir.c > useradd.lint
+  
+! userdel: userdel.o copydir.o mkrmdir.o libshadow.a
+  	$(CC) -o userdel $(LDFLAGS) userdel.o copydir.o mkrmdir.o \
+  		libshadow.a $(LIBS) $(NDIR)
+  
+--- 485,491 ----
+  useradd.lint: useradd.c copydir.c mkrmdir.c
+  	$(LINT) $(LINTFLAGS) useradd.c copydir.c mkrmdir.c > useradd.lint
+  
+! userdel: userdel.o copydir.o mkrmdir.o $(LIBSHADDEP)
+  	$(CC) -o userdel $(LDFLAGS) userdel.o copydir.o mkrmdir.o \
+  		libshadow.a $(LIBS) $(NDIR)
+  
+***************
+*** 488,494 ****
+  userdel.lint: userdel.c copydir.c mkrmdir.c
+  	$(LINT) $(LINTFLAGS) userdel.c copydir.c mkrmdir.c > userdel.lint
+  
+! usermod: usermod.o copydir.o mkrmdir.o libshadow.a
+  	$(CC) -o usermod $(LDFLAGS) usermod.o copydir.o mkrmdir.o \
+  		libshadow.a $(LIBS) $(NDIR)
+  
+--- 492,498 ----
+  userdel.lint: userdel.c copydir.c mkrmdir.c
+  	$(LINT) $(LINTFLAGS) userdel.c copydir.c mkrmdir.c > userdel.lint
+  
+! usermod: usermod.o copydir.o mkrmdir.o $(LIBSHADDEP)
+  	$(CC) -o usermod $(LDFLAGS) usermod.o copydir.o mkrmdir.o \
+  		libshadow.a $(LIBS) $(NDIR)
+  
+***************
+*** 495,513 ****
+  usermod.lint: usermod.c copydir.c mkrmdir.c
+  	$(LINT) $(LINTFLAGS) usermod.c copydir.c mkrmdir.c > usermod.lint
+  
+! groupadd: groupadd.o libshadow.a
+  	$(CC) -o groupadd $(LDFLAGS) groupadd.o libshadow.a $(LIBS)
+  
+  groupadd.lint: groupadd.c
+  	$(LINT) $(LINTFLAGS) groupadd.c > groupadd.lint
+  
+! groupdel: groupdel.o libshadow.a
+  	$(CC) -o groupdel $(LDFLAGS) groupdel.o libshadow.a $(LIBS)
+  
+  groupdel.lint: groupdel.c
+  	$(LINT) $(LINTFLAGS) groupdel.c > groupdel.lint
+  
+! groupmod: groupmod.o libshadow.a
+  	$(CC) -o groupmod $(LDFLAGS) groupmod.o libshadow.a $(LIBS)
+  
+  groupmod.lint: groupmod.c
+--- 499,517 ----
+  usermod.lint: usermod.c copydir.c mkrmdir.c
+  	$(LINT) $(LINTFLAGS) usermod.c copydir.c mkrmdir.c > usermod.lint
+  
+! groupadd: groupadd.o $(LIBSHADDEP)
+  	$(CC) -o groupadd $(LDFLAGS) groupadd.o libshadow.a $(LIBS)
+  
+  groupadd.lint: groupadd.c
+  	$(LINT) $(LINTFLAGS) groupadd.c > groupadd.lint
+  
+! groupdel: groupdel.o $(LIBSHADDEP)
+  	$(CC) -o groupdel $(LDFLAGS) groupdel.o libshadow.a $(LIBS)
+  
+  groupdel.lint: groupdel.c
+  	$(LINT) $(LINTFLAGS) groupdel.c > groupdel.lint
+  
+! groupmod: groupmod.o $(LIBSHADDEP)
+  	$(CC) -o groupmod $(LDFLAGS) groupmod.o libshadow.a $(LIBS)
+  
+  groupmod.lint: groupmod.c
+***************
+*** 519,525 ****
+  pwd.h: pwd.h.m4
+  	m4 $(OS) < pwd.h.m4 > pwd.h
+  
+! logoutd: logoutd.o libshadow.a
+  	$(CC) -o logoutd $(LDFLAGS) logoutd.o libshadow.a
+  
+  logoutd.lint: logoutd.c
+--- 523,529 ----
+  pwd.h: pwd.h.m4
+  	m4 $(OS) < pwd.h.m4 > pwd.h
+  
+! logoutd: logoutd.o $(LIBSHADDEP)
+  	$(CC) -o logoutd $(LDFLAGS) logoutd.o libshadow.a
+  
+  logoutd.lint: logoutd.c
+***************
+*** 594,599 ****
+--- 598,604 ----
+  libshadow.a(encrypt.o): config.h
+  libshadow.a(port.o): port.h
+  libshadow.a(rad64.o): config.h
++ libshadow.a(syslog.o): 
+  
+  clean:
+  	-rm -f susetup.c *.o a.out core npasswd nshadow *.pag *.dir pwd.h

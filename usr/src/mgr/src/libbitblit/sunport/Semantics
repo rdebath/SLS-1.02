@@ -1,0 +1,318 @@
+Cases:
+
+                no src   1-bit src   8-bit src
+                ------   ---------   ---------
+
+1-bit dst         1         2          3
+
+8-bit dst         4         5          6
+
+-------------------------------------------------------------------------------
+
+function components:   raster-operation
+                       foreground color 
+                       background color
+
+-------------------------------------------------------------------------------
+
+raster functions:      ( by src/~src pairs)
+
+      ~0                1111
+       0                0000
+
+       DST              1010
+      ~DST              0101
+
+       SRC              1100
+      ~SRC              0011
+
+       SRC |  DST       1110
+      ~SRC |  DST       1011
+
+       SRC | ~DST       1101
+      ~SRC | ~DST       0111
+
+       SRC &  DST       1000
+       SRC & ~DST       0100
+
+      ~SRC &  DST       0010
+      ~SRC & ~DST       0001
+ 
+       SRC ^  DST       0110
+      ~SRC ^  DST       1001
+
+-------------------------------------------------------------------------------
+raster functions:      ( arbitrarily by numerical value)
+
+       0                0000
+      ~SRC & ~DST       0001
+      ~SRC &  DST       0010
+      ~SRC              0011
+       SRC & ~DST       0100
+      ~DST              0101
+       SRC ^  DST       0110
+      ~SRC | ~DST       0111
+       SRC &  DST       1000
+      ~SRC ^  DST       1001
+       DST              1010
+      ~SRC |  DST       1011
+       SRC              1100
+       SRC | ~DST       1101
+       SRC |  DST       1110
+      ~0                1111
+
+-------------------------------------------------------------------------------
+raster functions:      ( by src grouping II)
+
+      ~0                1111  No source involved
+       0                0000
+       DST              1010
+      ~DST              0101
+
+       SRC              1100  Source
+       SRC |  DST       1110
+       SRC | ~DST       1101
+       SRC &  DST       1000
+       SRC & ~DST       0100
+       SRC ^  DST       0110
+
+      ~SRC              0011 ~Source
+      ~SRC |  DST       1011
+      ~SRC | ~DST       0111
+      ~SRC &  DST       0010
+      ~SRC & ~DST       0001
+      ~SRC ^  DST       1001
+
+-------------------------------------------------------------------------------
+
+raster functions:      ( by inverse functions)
+
+      ~0                1111
+       0                0000
+
+       DST              1010
+      ~DST              0101
+
+       SRC              1100
+      ~SRC              0011
+
+       SRC |  DST       1110
+      ~SRC | ~DST       0111
+
+      ~SRC |  DST       1011
+       SRC | ~DST       1101
+
+       SRC &  DST       1000
+      ~SRC & ~DST       0001
+
+       SRC & ~DST       0100
+      ~SRC &  DST       0010
+
+       SRC ^  DST       0110
+      ~SRC ^  DST       1001
+-------------------------------------------------------------------------------
+
+The goal is to impose  a consistent set of semantics on: blit(src,dst,func)
+where "src" and "dst" are bitmaps, and have either 1 bit pixels, 8 bit pixels
+or are NULL, and "func" is the set of binary operations to perform pixel by
+on corresponding elements of "src" and "dst", such that 
+   dst <- func(src,dst)
+We start by describing a consistent (and well known) set of semantics for 1 bit
+pixels, and then extend the semantics to 8 bit pixels in such a way that
+applications can be ignorant of the underlying pixel size.
+
+After that we'll invent a mechanism for mapping color onto multi-bit
+pixels in a consistant manner.
+-------------------------------------------------------------------------------
+					Various combinations of arguments
+
+                no src   1-bit src   8-bit src
+1-bit dst         1         2          3
+8-bit dst         4         5          6
+
+-------------------------------------------------------------------------------
+1) 1 bit dst, no source
+  	Only the 4 functions with no SRC, apply: 
+      ~0        set
+       0      	 clear
+       DST      no-op
+      ~DST      invert
+   For the rest of the functions, one can assume either a source of all
+   0's or a source of all 1's.  The rest of the cases fold as follows,
+	when 0 or 1 is substituded for SRC.
+		 function         source 0's                 source 1's (~0)
+
+       SRC                  0                         ~0
+       SRC |  DST           DST                       ~0
+       SRC | ~DST          ~DST                       ~0
+       SRC &  DST           0                          DST
+       SRC & ~DST           0                         ~DST
+       SRC ^  DST           DST                       ~DST
+      ~SRC                 ~0                          0
+      ~SRC |  DST          ~0                          DST
+      ~SRC | ~DST          ~0                         ~DST
+      ~SRC &  DST           DST                        0
+      ~SRC & ~DST          ~DST                        0
+      ~SRC ^  DST          ~DST                        DST
+
+-------------------------------------------------------------------------------
+2) 1 bit dst, 1 bit source
+	The 16 functions apply on a pixel by pixel basis.  The only question is:
+   whats "on", 1 or 0.  To convert from "1 is on" to "0 is on" and
+   visa-versa, in each of the 16 functions, replace both the SRC and
+   the DST with its complement, to generate the following function mappings:
+
+      ~0            <==>   0          +
+       DST          <==>  ~DST
+       SRC          <==>  ~SRC
+       SRC |  DST   <==>  ~SRC | ~DST
+      ~SRC |  DST   <==>   SRC | ~DST
+       SRC &  DST   <==>  ~SRC & ~DST
+       SRC & ~DST   <==>  ~SRC &  DST
+       SRC ^  DST   <==>   SRC ^  DST *
+      ~SRC ^  DST   <==>  ~SRC ^  DST *
+
+   * The 2 "^" functions are invarient under this transformation
+   + One could argue that these 2 should be invarient as well.
+       0 == DST & ~DST or SRC & ~SRC or  SRC ^ SRC or  DST ^ DST
+      ~0 == DST | ~DST or SRC | ~SRC or ~SRC ^ SRC or ~DST ^ DST
+     Then every binary combination of SRC, ~SRC, DST, and ~DST is combined
+     with each of &, |, and ^.  All of these functions are invarient
+     when both DST and SRC are negated.  These functions are usually
+     labeled "set" and "clear".  Under this transfor the labels exchange
+	  places, which is equivalent to exchanging the functions, sort of.
+
+-------------------------------------------------------------------------------
+3) 1 bit dst, 8 bit source.
+   This ones hard, because it depends upon the meaning associated with the
+   "value" for the 8 bit source.  Possiblilities:
+
+   In the general case, there are 2^512 different functions that can be
+   performed between a 1 bit dst and a 8 bit source, consisting of all 
+   possible source mappings for each DST=1 combined with all possible
+   source mappings when DST=0.  Its would be difficult, and probably
+   not useful to enumerate all of the possiblilites, so we need to 
+   pick a subset.  (That is 2^(x+y) where x is the number of distinct values
+   a SRC pixel can have, and y is the number of distinct values the
+   DST pixel can have.)
+   2^(8+1) = 134078079299425970995740249982058461274793658205923933777235614
+			4372176403007354697680187429816690342769003185818648605085375388281
+			1946569946433649006084096
+
+   Since we just went to all of this trouble characterizing the 16
+   functions for 1 x 1 bit combinations, one strategy, that preserves all of
+	the above semantics involves mapping the 8 bit source
+   pixels to one bit pixels, then applying one of the 16 functions.
+   In addition to the 16 function codes, we also have 2 8-bit values,
+   the "forground color" and the "background color" that we need for
+   1->8 stuff.
+
+	When do we want to do this anyway:
+   -) when we have 8 bit images and we are running on a monochrome display.
+   -) we have 8 bits everywhere, but we wish to do 1 bit stuff for some
+      intermediate calculations.
+
+   1 Assume 256 grey values, and dither to 1 bit, using fg, and/or bg
+     to control the contrast/brightness.  For color, map the colors to
+     intensity (grey) values first.  This is good for arbitrary color/gray
+     images of real objects, where std techniques are used to render using
+     the best reasonable approximation in 1 bit.
+
+   2 Use fg as a plane mask; use the 1st "on" bit and pick a single
+     plane from the source.  When each plane is used to hold a separate
+     set of objects, as is a text plane, an annotation plane, etc,
+     Then this technique is used to select the plane of interest.
+
+   3 do thesholding.  Everything != bg is on, else off.  In this notion,
+     objects are drawn on a background (e.g. the background color) in
+     various foreground colors.  We can distinguish the background from
+     the forground.
+
+   Pick 3, 'cause it matches the model for our intended use, a window
+   system, and the notion of "background color" is already avaliable.
+   We can map (2) to (3) by doing a NULL src to 8 bit operation to mask off
+   all of the unwanted planes, then set the BG color to zero.
+
+	As for 1, by the time we're at this level, we don't know about colors,
+   we just have 8 bit values.  It would be presumptuous to impose a
+   color scheme here.  Instead we will let the dithering happen at the
+   application level.  There are widely availiable programs for doing
+   this conversion.
+
+-------------------------------------------------------------------------------
+4) no source, 8 bit dst
+
+	Unlike (1) above, we have lots of possible functions.  So we choose a few
+   (guess which 16).  For 1-bit DSTs it makes sense to choose a 1 bit SRC,
+	and pick from the possible values.  Here we do the same, by specifying
+   a foreground color, and a background color.  An infinite supply of the
+	fg color is used for SRC, whereas an infinite supply of bg color is used
+   for ~SRC.  The operators then act on a bit by bit basis.  The functions
+	are:
+
+      ~0
+       0
+       DST
+      ~DST
+
+       FG
+       FG |  DST
+       FG | ~DST
+       FG &  DST
+       FG & ~DST
+       FG ^  DST
+
+       BG
+       BG |  DST
+       BG | ~DST
+       BG &  DST
+       BG & ~DST
+       BG ^  DST
+	BG has replaced ~SRC and fg has replaced SRC.  This gives us good 
+   interoperability with 1 bit and 8 bit systems.  We use SRC to set
+   pixels, and ~SRC to clear pixels.  By choosing appropriate FG and BG
+   colors, we map B&W into an arbitrary pair of colors. As for the first 2
+   operations, 0 and ~0, they should logically set the destination to
+   0 and 0xff respectively.  Its not clear if this is actually useful, as
+   it is redundant with SRC and ~SRC with the FG and BG colors chosen
+	appropriately.  Unfortunatley, in the 1-bit case, there are only two
+   colors, 0 and ~0, so these 2 functions entirely cover the color space.
+   Applications written for monochrome that use 0 and ~0 won't work as 
+   expected in color, with b&w mapped to 2 arbitrary colors.  For this
+   reason, it might be wise to map 0->~SRC and ~0 to SRC, so apps can be
+   totally color blind.
+
+-------------------------------------------------------------------------------
+5) 1 bit source, 8 bit dst
+
+	Here we'll logically convert the 1-bit source to an 8 bit source, 
+	then do the 8->8 bitwise combination of our favorite 16 operations.
+   Every '1' in the src gets turned into FG color, and every '0' gets
+   turned into a BG color.  If FG == BG then we've degenerated into a
+   case 4), 8 bit DST, but no source.  This is probably not what the user
+   wanted to do, although it could be a valid specific instance of of
+   a more genereal case mechanism.  What we could do, to protect the
+   usr's from themselves is:  if FG==BG, set BG=~FG in hopes that
+   something useful will result.
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+Other Window systems systems semantics:
+  
+X 1->1 and 8->8.
+   Different clipping scheme
+  1->8.
+   Semantically the same, but must use different function calls
+  8->1
+   Not supported
+  0->1 and 0->8
+   Partial support, use of SRC function only.
+
+SUNTOOLS (pixrect)
+  1->1 and 8->8
+	Same, potentially different clipping scheme
+  1->8
+   Only one color allowed, so FG is always "0" (BROKEN)
+  0->1, 0->8 ????
+
+

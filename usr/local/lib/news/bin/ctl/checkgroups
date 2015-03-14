@@ -1,0 +1,78 @@
+#! /bin/sh
+# checkgroups - check active file for missing or extra newsgroups.
+#	stdin must a checkgroups news article, sends mail to $NEWSMASTER
+#	after updating $nl/newsgroups from $nl/localgroups
+# based on v1.4 of 9/4/84
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+# generate newsgroups from localgroups & beheaded stdin (checkgroups article).
+# appending to newsgroups instead of overwriting is a hack,
+# but is about the best we can do until checkgroups is defined.
+(cat $NEWSCTL/localgroups; sed '1,/^$/d') >>$NEWSCTL/newsgroups
+# backup newsgroups, then strip duplicates
+cp $NEWSCTL/newsgroups $NEWSCTL/newsgroups.bac || exit 1
+sort -u -o $NEWSCTL/newsgroups $NEWSCTL/newsgroups.bac
+
+# locate our subscription list
+me="`newshostname`"
+gngppat=`awk -f $NEWSBIN/relay/canonsys.awk $NEWSCTL/sys |
+	egrep "^($me|ME):" |
+	awk -F: '
+{
+	fields = split($2, field2, "/")	# split ngs/dists
+	print field2[1]			# print only ngs
+	exit
+}' `
+
+# generate list of approved newsgroups from $nl/newsgroups
+(echo junk; echo control; sed 's/[ \	].*//' $NEWSCTL/newsgroups |
+	egrep "^([^.]*\.|general)") | gngp -a "$gngppat" | sort -u >/tmp/$$a
+
+# generate list of locally-present newsgroups from $nl/active
+egrep "^([^.]*\.|general|junk|control)" $NEWSCTL/active | sed 's/ .*//' |
+	sort -u >/tmp/$$b
+
+# compare 'em & note differences
+comm -13 /tmp/$$a /tmp/$$b >/tmp/$$remove
+comm -23 /tmp/$$a /tmp/$$b >/tmp/$$add
+
+if test -s /tmp/$$remove; then
+	echo "The following newsgroups are not valid and should be removed."
+	sed "s/^/	/" /tmp/$$remove
+	echo ""
+	echo "You can do this by executing the commands:"
+	sed "s;.*;	 $NEWSBIN/maint/delgroup &;" /tmp/$$remove
+	echo ""
+fi 2>&1 >/tmp/$$out
+
+if test -s /tmp/$$add; then
+	echo "The following newsgroups were missing." # "and were added."
+	sed "s/^/	/" /tmp/$$add
+	echo ""
+
+#	for i in `cat /tmp/$$add`
+#	do
+# *** "Subject: cmsg " is a hideous botch of a kludge-hack; avoid it!
+#		inews -h <<!
+#Control: newgroup $i
+#Newsgroups: control
+#Subject: newgroup $i
+#Distribution: general
+#
+#Create $i locally.
+#!
+#	done
+
+fi 2>&1 >>/tmp/$$out
+
+if test -s /tmp/$$out; then
+	(echo "Subject: Problems with your active file"; echo "";
+	 cat /tmp/$$out) | mail $NEWSMASTER
+fi
+
+rm -f /tmp/$$*		# clean up temporaries

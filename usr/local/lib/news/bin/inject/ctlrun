@@ -1,0 +1,23 @@
+#! /bin/sh
+# ctlrun - run the control messages in control again
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+# export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN/ctl:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+cd $NEWSCTL
+newslock sys LOCK || exit 1
+
+cd $NEWSARTS/control
+
+for file in *
+do
+	# cancel, ihave and sendme are internal to relaynews and use < > metachars.
+	canonhdr $file | 
+		sed -n 's;^Control:[	 ]*;'$NEWSBIN/ctl/';p' |
+		egrep -v '/(cancel|ihave|sendme) ' >/tmp/ctl$$
+	sh -x /tmp/ctl$$ <$file
+done
+
+rm -f /tmp/ctl$$ $NEWSCTL/LOCK

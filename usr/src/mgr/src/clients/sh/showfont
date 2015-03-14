@@ -1,0 +1,121 @@
+#!/bin/sh
+#                        Copyright (c) 1987 Bellcore
+#                            All Rights Reserved
+#       Permission is granted to copy or use this program, EXCEPT that it
+#       may not be sold for profit, the copyright notice must be reproduced
+#       on copies, and credit should be given to Bellcore where it is due.
+#       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+
+#	$Header: showfont,v 4.1 88/06/21 14:01:39 bianchi Exp $
+#	$Source: /tmp/mgrsrc/demo/sh/RCS/showfont,v $
+
+#	show all of the fonts
+
+usage="Usage:  `basename $0` [ -s'string' ] [ -c ] [ -i ] [ -number ] [ font-files ... ]
+Show the fonts found in the given fonts-files.
+-s'string'	Change the string used as the example of the font.
+-c	Show current font.
+-i	Show internal fonts, by number.
+"
+
+ESC=
+string='abcdefghijklmnopqrstuvwxyz
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+1234567890 !@#$%^&*()_+|~ -=\`
+{}[] :";'\'' <>? ,./'
+
+if [ $TERM != mgr ]
+then
+	echo "$0 only works on mgr terminals"
+	exit 1
+fi
+
+if [ $# -lt 1 ]
+then
+	echo >&2 "${usage}"
+	exit 255
+fi
+
+trap 'exit' 1 2 15
+trap 'stty echo' 0
+
+stty -echo
+
+#	get current font info.
+echo "${ESC}3I"
+read charwide charhigh curnum curname
+
+trap '
+	len=`expr ${curname} : ".*"`
+	echo "${ESC}${curnum},${len}F${curname}"
+	echo "${ESC}${curnum}F"
+	stty echo
+	' 0
+
+while [ -n "$1" ]
+do
+	case $1 in
+	-c )
+		echo "${ESC}0FCurrent font ${curnum}, ${curname}${ESC}${curnum}F
+${string}
+"
+		;;
+	-i )
+		echo ${ESC}0F${ESC}3I
+		read charwide charhigh num name
+		echo "${ESC}0FFont ${num} ${name} ${ESC}${num}F
+${string}
+${ESC}0F"
+
+		count=1
+		while	echo ${ESC}${count}F${ESC}3I
+			read charwide charhigh num name
+			test ${num} != 0
+		do
+			echo "${ESC}0FFont ${num} ${name} ${ESC}${num}F
+${string}
+${ESC}${curnum}F"
+			count=`expr ${count} + 1`
+		done
+		;;
+	-s?* )
+		string=`expr "$1" : '-s\(.*\)'`
+		;;
+	-[0-9] | -[0-9][0-9] )
+		argnum=`expr $1 : '-\(.*\)'`
+		echo ${ESC}${argnum}F${ESC}3I
+		read charwide charhigh num name
+		if [ ${argnum} -ne ${num} ]
+		then
+			echo >&2 "$0:  No font ${argnum} available."
+		else
+			echo "${ESC}0FFont ${num} ${name} ${ESC}${num}F
+${string}
+${ESC}${curnum}F"
+		fi
+		;;
+	-[0-9]* )
+		echo >&2 "$0:  Illegal option argument.  '$1'
+	-number is limited to 2 digits."
+		echo >&2 "${usage}"
+		exit 255
+		;;
+	-* )
+		echo >&2 "$0:  Illegal option argument.  '$1'"
+		echo >&2 "${usage}"
+		exit 255
+		;;
+	* )
+		break
+	esac
+	shift
+done
+
+for file 
+do
+	len=`expr ${file} : '.*'`
+	echo "${ESC}${curnum},${len}F${file}"
+	echo "${ESC}0F(font ${file})${ESC}${curnum}F
+${string}
+${ESC}0F"
+done

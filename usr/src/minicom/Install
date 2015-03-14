@@ -1,0 +1,90 @@
+    Installation of Minicom.
+
+Edit the Makefile to choose your C-compiler and CFLAGS. Entries
+for a lot of systems are already defined, you only have to
+uncomment them.
+Now edit "config.h". Change the definitions at the top to the
+directories where you want to install the executables and files.
+If everything is allright, you can type "make" and "minicom", "keyserv"
+and "runscript" will be compiled.
+If you have gotten this far, it is time to install the executables.
+
+If you want minicom & consorts to live in /usr/local/bin and 
+/usr/local/etc, you can just type "make install". Otherwise you have to:
+
+1. Copy "minicom" to a bin directory (eg /usr/local/bin).
+   chown it to root and install it set-uid. (chmod 4755 minicom)
+2. Copy "runscript" to the place defined in "minicom.h".
+3. Do this with "keyserv" too.
+   Don't install "runscript" and/or "keyserv" setuid root!
+4. Edit the "minicom.users" file (in the directory as defined in
+   "minicom.h") to add users who may use minicom. If you don't
+   install "minicom.users" everybody may use minicom!
+5  Minicom has been installed.
+
+Configuration.
+
+Probably most defaults are not good enough for your system.
+So type (still as root) "minicom -s". This will not initialize
+minicom but brings you directly into the configuration menu.
+See "Manual.mnc" for details.
+
+Graphics.
+
+Minix-PC can display all IBM characters. Other Minixes cannot do this,
+so by default they are emulated. However, if your screen can display
+special characters it is possible to change your /etc/termcap so
+that the box-drawing characters are used by Minicom. For Minix-PC, add
+the next lines to your minix termcap entry:
+
+	:gA=\311:gB=\315:gC=\273:gD=\310:gE=\272:gF=\274:gG=\332:\
+	:gH=\304:gI=\277:gJ=\300:gK=\263:gL=\331:gM=\307:gN=\266:\
+	:gO=\209:gP=\207:gQ=\198:gR=\181:gS=\210:gT=\208:gU=\206:\
+	:gV=\197:gW=\215:gX=\216:gY=\176:gZ=\178:
+
+(Don't forget to add a backslash at the end of the original entry!)
+
+Minicom does not need this termcap information, but it looks a lot nicer.
+The termcap entries for these graphic characters were made up
+by Fred van Kempen I believe, and minicom only uses gA-gL.
+These are the IBM box-drawing characters, their coding is:
+
+     double lined single lined meaning               ASCII equivalent
+          gA           gG      upper-left corner          +
+          gB           gH      horizontal line            -
+          gC           gI      upper-right corner         +
+          gD           gJ      lower-left corner          +
+          gE           gK      vertical line              |
+          gF           gL      lower-right corner.        +
+
+
+x/y/z modem.
+
+It is possible to use rz/sz from Minicom, but the newest versions
+don't use stdin/stdout and stderr , so you'll have to patch them.
+The Minix versions of rz/sz work ok, so no worries.
+
+Security.
+
+For those of you who never trust a program running as root, it is
+possible to run minicom setgid UUCP. This is not entirely trivial,
+so the default is to run as root anyway. To enable minicom running
+as group uucp, the following steps, under Minix, must be taken:
+- Recompile minicom with the '-D_SECURE' flag added to CFLAGS in Makefile.
+- Install minicom setuid root, setgid uucp like this:
+
+-r-sr-sr-x  1 minicom  uucp        85636 May  7 19:43 minicom*
+
+- If you use ungetty, make it setuid root, group uucp like this:
+
+-r-sr-xr--  3 root     uucp        14698 Mar 10 21:07 /etc/getty*
+
+- Make the lockfiles directory, /usr/spool/uucp, writable for group uucp.
+
+When minicom starts up, it opens the modem device (that's why it has
+to be setuid root) and then it sets its effective uid to its real uid.
+Then only the setgid bit stays honoured, so that minicom runs setgid uucp.
+There is one major disadvantage: all files created by the minicom for
+the user (~/.dialdir and ~/.minirc.*) will have the group 'uucp'. I can't
+see major problems with this, but I don't really like it.
+(When oh when will Minix have a 'saved uid' and seteuid()....).

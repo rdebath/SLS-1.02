@@ -1,0 +1,131 @@
+# Makefile for Autoconf.
+# Copyright (C) 1992, 1993 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+#### Start of system configuration section. ####
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+MAKEINFO = makeinfo
+
+prefix = /usr/local
+exec_prefix = $(prefix)
+
+# Directory in which to install autoconf script.
+bindir = $(exec_prefix)/bin
+
+# Directory in which to install m4 files.
+datadir = $(prefix)/lib
+
+# Directory in which to install documentation info files.
+infodir = $(prefix)/info
+
+#### End of system configuration section. ####
+
+SHELL = /bin/sh
+
+DISTFILES = README Makefile.in INSTALL NEWS COPYING ChangeLog \
+autoconf.texi autoconf.info* standards.texi make-stds.texi standards.info* \
+texinfo.tex acconfig.h autoconf.sh acgeneral.m4 acspecific.m4 \
+configure autoconf.in autoheader.sh
+
+all: autoconf autoheader autoconf.info standards.info
+
+autoconf: autoconf.sh
+	rm -f $@
+	sed s,@datadir@,$(datadir),g $(srcdir)/autoconf.sh > $@ && chmod +x $@
+autoheader: autoheader.sh
+	rm -f $@
+	sed s,@datadir@,$(datadir),g $(srcdir)/autoheader.sh > $@ && chmod +x $@
+
+configure: autoconf.conf
+	rm -f $(srcdir)/configure
+	ln $(srcdir)/autoconf.conf $(srcdir)/configure
+
+Makefile: Makefile.in
+	sh config.status
+
+# Special rule for non-GNU makes.
+autoconf.conf: autoconf.in acgeneral.m4 acspecific.m4
+	m4 $(srcdir)/acgeneral.m4 $(srcdir)/acspecific.m4 $(srcdir)/autoconf.in > $(srcdir)/autoconf.conf
+	chmod +x $(srcdir)/autoconf.conf
+
+# GNU make rules to produce current foo.conf and foo.h files from all the
+# foo.in files in the current directory.
+# Don't use := because non-GNU makes reject it.
+infiles = $(wildcard [a-z]*.in)
+confs: $(infiles:.in=.conf)
+heads: $(infiles:.in=.h)
+
+# GNU make rule to make a .conf file from a .in file in the current directory.
+%.conf: %.in acgeneral.m4 acspecific.m4
+	m4 $(srcdir)/acgeneral.m4 $(srcdir)/acspecific.m4 $< > $@ && chmod +x $@
+
+%.info: %.texi
+	$(MAKEINFO) $< --no-split --output=$@
+
+check:
+
+install: autoconf autoheader acgeneral.m4 acspecific.m4 autoconf.info \
+standards.info acconfig.h
+	$(INSTALL_PROGRAM) autoconf $(bindir)/autoconf
+	$(INSTALL_PROGRAM) autoheader $(bindir)/autoheader
+	test -d $(datadir) || mkdir $(datadir)
+	$(INSTALL_DATA) $(srcdir)/acgeneral.m4 $(datadir)/acgeneral.m4
+	$(INSTALL_DATA) $(srcdir)/acspecific.m4 $(datadir)/acspecific.m4
+	$(INSTALL_DATA) $(srcdir)/acconfig.h $(datadir)/acconfig.h
+	test ! -r $(srcdir)/aclocal.m4 || $(INSTALL_DATA) $(srcdir)/aclocal.m4 $(datadir)/aclocal.m4
+	test -d $(infodir) || mkdir $(infodir)
+	$(INSTALL_DATA) $(srcdir)/autoconf.info $(infodir)/autoconf.info
+	$(INSTALL_DATA) $(srcdir)/standards.info $(infodir)/standards.info
+
+uninstall:
+	rm -f $(bindir)/autoconf $(bindir)/autoheader
+	cd $(datadir); rm -f acgeneral.m4 acspecific.m4 aclocal.m4 acconfig.h
+	-rmdir $(datadir)
+	cd $(infodir); rm -f autoconf.info standards.info
+
+clean:
+	rm -f *.conf autoconf autoheader
+	rm -f *.aux *.cp *.cps *.dvi *.fn *.fns *.ky *.kys *.log
+	rm -f *.pg *.pgs *.toc *.tp *.tps *.vr *.vrs
+
+mostlyclean: clean
+
+distclean: clean
+	rm -f Makefile config.status
+
+realclean: distclean
+	rm -f TAGS *.info*
+
+TAGS:
+	etags *.m4 *.sh [a-z]*.in *.texi
+
+dist: $(DISTFILES)
+	echo autoconf-`sed -e '/define(AC_ACVERSION,/!d' -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q acgeneral.m4` > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`
+	-ln $(DISTFILES) `cat .fname`
+	cp -p standards.texi make-stds.texi `cat .fname`
+	tar chZf `cat .fname`.tar.Z `cat .fname`
+	rm -rf `cat .fname` .fname
+
+# Prevent GNU make v3 from overflowing arg limit on SysV.
+.NOEXPORT:

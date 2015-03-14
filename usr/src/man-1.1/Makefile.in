@@ -1,0 +1,139 @@
+#
+# Master Makefile for man, manpath, apropos, whatis, and makewhatis
+#
+# Copyright (c) 1990, 1991, John W. Eaton.
+#
+# You may distribute under the terms of the GNU General Public
+# License as specified in the README file that comes with the man 1.0
+# distribution.  
+#
+# John W. Eaton
+# jwe@che.utexas.edu
+# Department of Chemical Engineering
+# The University of Texas at Austin
+# Austin, Texas  78712
+
+SHELL = /bin/sh
+
+#### Start of system configuration section. ####
+
+# If you modify these values, you should also modify the corresponding
+# portions of config.h.in.
+
+srcdir = @srcdir@
+@VPATH@
+
+CC = @CC@
+
+pager = @pager@
+man_install_flags = @man_install_flags@
+
+DEFS = @DEFS@
+
+CDEBUG = -g
+CFLAGS = $(CDEBUG) -I. $(DEFS)
+LDFLAGS = -g
+
+# Where to install the executables.
+bindir = @bindir@
+# Where to put manpath.config
+libdir = @libdir@
+manpath_config_file = @config_file@
+
+# Where to put the manual pages.
+mandir = @mandir@
+# Extension (not including `.') for the installed manual page filenames.
+manext = @manext@
+
+LIBOBJS = @LIBOBJS@
+
+#### End of system configuration section. ####
+
+all: man manpath apropos whatis makewhatis manpages
+
+manpath: manpath.c config.h manpath.h gripes.o util.o $(LIBOBJS)
+	$(CC) $(CFLAGS) -DMAIN -o manpath manpath.c gripes.o util.o \
+	$(LIBOBJS) $(LIBS)
+
+man: man.c config.h gripes.h manpath.c manpath.h gripes.o glob.o \
+	util.o $(LIBOBJS)
+	$(CC) $(CFLAGS) -o man man.c manpath.c gripes.o glob.o util.o \
+	$(LIBOBJS) $(LIBS)
+
+gripes.o: gripes.h
+util.o: gripes.h
+
+apropos: apropos.sh
+	sed -e 's,%libdir%,@libdir@,' -e 's,%bindir%,@bindir@,' \
+	    -e 's,%pager%,@pager@,' \
+		apropos.sh > apropos
+
+whatis: whatis.sh
+	sed -e 's,%libdir%,@libdir@,' -e 's,%bindir%,@bindir@,' \
+	    -e 's,%pager%,@pager@,' \
+		whatis.sh > whatis
+
+makewhatis: makewhatis.sh
+	sed -e 's/%sections%/@sections@/' makewhatis.sh > makewhatis
+
+install: all install.man apropos whatis makewhatis
+	install -c $(man_install_flags) man @man@
+	install -c -m 755 manpath @manpath@
+	install -c -m 755 apropos @apropos@
+	install -c -m 755 whatis @whatis@
+	install -c -m 754 makewhatis @makewhatis@
+	install -c -m 644 manpath.config @config_file@
+
+manpages: man.$(manext) manpath.$(manext) apropos.$(manext) whatis.$(manext) 
+
+man.$(manext): man.man
+	sed -e 's,%libdir%,@libdir@,' -e 's,%bindir%,@bindir@,' \
+	    -e 's,%pager%,@pager@,' -e 's,%troff%,@troff@,' \
+	    -e 's,%manpath_config_file%,@config_file@,' \
+	man.man > man.$(manext)
+
+manpath.$(manext): manpath.man
+	sed -e 's,%libdir%,@libdir@,' -e 's,%bindir%,@bindir@,' \
+	    -e 's,%pager%,@pager@,' -e 's,%troff%,@troff@,' \
+	    -e 's,%manpath_config_file%,@config_file@,' \
+	manpath.man > manpath.$(manext)
+
+apropos.$(manext): apropos.man
+	sed -e 's,%libdir%,@libdir@,' -e 's,%bindir%,@bindir@,' \
+	    -e 's,%pager%,@pager@,' -e 's,%troff%,@troff@,' \
+	    -e 's,%manpath_config_file%,@config_file@,' \
+	apropos.man > apropos.$(manext)
+
+whatis.$(manext): whatis.man
+	sed -e 's,%libdir%,@libdir@,' -e 's,%bindir%,@bindir@,' \
+	    -e 's,%pager%,@pager@,' -e 's,%troff%,@troff@,' \
+	    -e 's,%manpath_config_file%,@config_file@,' \
+	whatis.man > whatis.$(manext)
+
+install.man:
+	install -c -m 644 man.$(manext) $(mandir)/man.$(manext)
+	install -c -m 644 manpath.$(manext) $(mandir)/manpath.$(manext)
+	install -c -m 644 apropos.$(manext) $(mandir)/apropos.$(manext)
+	install -c -m 644 whatis.$(manext) $(mandir)/whatis.$(manext)
+
+DISTFILES = COPYING Makefile.in README TODO apropos.man apropos.sh \
+	config.h.in configure glob.c gripes.c gripes.h makewhatis.sh \
+	man.c man.man manpath.c manpath.config manpath.h manpath.man \
+	ndir.h strdup.c util.c version.h whatis.man whatis.sh
+
+dist:
+	echo man-`sed -e '/version[]/!d' -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q < version.h` > .fname
+	rm -rf `cat .fname`
+	mkdir `cat .fname`
+	ln $(DISTFILES) `cat .fname`
+	tar chZf `cat .fname`.tar.Z `cat .fname`
+	rm -rf `cat .fname` .fname
+	
+clean:
+	rm -f *.o *~ core
+
+spotless: clean
+	rm -f manpath man apropos whatis makewhatis
+	rm -f man.$(manext) manpath.$(manext)
+	rm -f apropos.$(manext) whatis.$(manext)
+	rm -f Makefile config.status config.h

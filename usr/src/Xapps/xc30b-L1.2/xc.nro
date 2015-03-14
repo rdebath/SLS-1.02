@@ -1,0 +1,1193 @@
+.ds ]V patchlevel 3.0 JPRadley 6 June 1991
+.tm
+.tm xc.nro \*(]V
+.tm
+.tm If this isn't preprocessed by 'tbl' and postprocessed by 'col',
+.tm well, my dear, really, why waste your time and mine?
+.tm
+.TH XC L
+.SH Name
+xc \- communications program 
+.SH Syntax
+.B xc
+.RB [ -l device]
+.RB [ -s script]
+.RB [ -t ]
+.SH Description
+.B Xc
+calls out over a serial port to another computer. It can manage an interactive
+session or be called from
+.BR cron (C).
+It has various means for transferring files between computers, and can be
+partially or totally under the control of scripts.
+
+.B Xc
+starts up by reading the file 
+.IR .xc ,
+which is sought for in this order: in "XC_PATH", in the current directory,
+in your
+.I HOME
+directory, or in a default directory defined at compile time. This startup
+file may contain any of the valid
+.I SET
+commands described below. 
+.B Xc
+then displays the current settings, and presents an
+.I XC>
+prompt, unless either the \fB-t\fR or \fB-s\fR option was present.
+.SS \fIOptions\fR
+.TP 9
+.BI -l device
+Use the specified 
+.IR device ,
+which need not be the full pathname, e.g. "/dev/tty1A" or "tty1A" are
+equally acceptable.
+The line could either be directly connected to another computer, or have a
+modem on it. In either case,
+.B Xc
+attempts to suspend a
+.BR getty (M)
+process that might be on that line, and then use the
+.BR uucp (C)
+.I LCK..file
+mechanism to lock the line.
+.TP
+.BI -s script
+Execute the specified
+.I script
+after program startup.
+.TP
+.B -t
+Go directly to terminal mode. The default is to go to command mode on program
+startup. This option is incompatible with the 
+.B -s
+option.
+.SS \fIEnvironment\fR
+If the environment contains a variable called "MODEM", then the value
+of that variable will be the default device. As with the
+.B -l
+flag, this need not be the
+full pathname. To set such a variable, in the Bourne shell, you might say:
+.IP
+MODEM=tty01; export MODEM
+.P
+or, in the C shell,
+.IP
+setenv MODEM tty01
+.P
+If the environment contains a variable called "BYEttyxx", where "ttyxx"
+stands for the basename of the modem line selected either by the MODEM
+variable or by the "-l" command option, then the value of that variable
+will be sent to the modem when the program terminates. This is useful
+for setting the modem back to some preselected state. Example:
+.IP
+BYEtty01=ATZ ; export BYEtty01
+.P
+Whatever string is contained in the "Byexxxxx" variable will be
+followed by a carriage-return/newline pair, also sent to the modem.
+
+Newer modems can be preset to revert to a predetermined state when the
+DTR signal of the computer is dropped, and so would not need to avail
+themselves of this feature.
+
+The environment may contain a variable called "XC_PATH", consisting
+of colon separated absolute paths to directories. If this variable is set to,
+say, "/usr/joe/xc:/usr/lib/xc", then those two directories are the
+first places searched for any scripts.
+
+.SS \fICommand Mode\fR
+The following commands are available at the
+.I <XC>
+command prompt:
+
+.TS
+tab(@);
+l2 lw(48) .
+\fBc\fR@T{
+Initiate CIS B-Plus File Transfer. This command is used for
+both uploading and downloading from CompuServe.
+T}
+
+\fBd\fR@T{
+Enter the dial directory. Returns to the \fIXC>\fR
+prompt if exited without dialing, but returns to terminal mode after
+dialing or running a script.
+T}
+
+\fBs \fIfile\fR@T{
+Execute \fIfile\fR, which contains appropriate \fBxc\fR
+script commands. Returns to terminal mode when the script is complete.
+T}
+
+\fBrb \fIfile\fR@(XMODEM binary receive)
+\fBrt \fIfile\fR@T{
+(XMODEM text receive) Receive \fIfile\fR from the remote system.
+T}
+
+\fBsb \fIfile\fR@(XMODEM binary send)
+\fBst \fIfile\fR@T{
+(XMODEM text send) Transmit \fIfile\fR to the remote system.
+T}
+
+\fBset \fR[\fIoptions\fR]@T{
+Display or set the transmission parameters used by \fBxc\fR. See below.
+T}
+
+\fBt\fR@Enter terminal mode.
+
+\fBx@
+q@
+exit\fR@Exit program. Return to invoking program/shell.
+
+\fBh\fR@Hang-up the modem.
+
+.TE
+.P
+[Note: a compile-time option can disable the following three options to
+prevent any access to shells or other programs outside of
+.BR xc .]
+
+.TS
+tab(@);
+l1 lw(48) .
+\fB!\fI cmd\fR@T{
+Execute the specified command as a child process. If \fIcmd\fR is omitted,
+execute a local interactive shell. (A space is required between the \fB!\fR
+and the command.)
+T}
+
+\fB!!\fR@Re-execute the last shell command string. 
+
+\fB$\fR@T{
+Execute a shell command with stdin and stdout redirected to the
+modem port. This effectively puts the computer into a "host" mode.
+T}
+
+\fB%p \fIlocal_name\fR@T{
+[\fIremote_name\fR] Transmit (put) a file to a remote Unix system. This command
+uses standard Unix utilities on the other end. \fIRemote_name\fR defaults to
+the same pathname as \fIlocal_name\fR if not otherwise specified.
+T}
+
+\fB%t \fIremote_name\fR@T{
+[\fIlocal_name\fR] Receive (take) a file from a remote Unix system. This
+command uses standard Unix utilities on the other end. \fILocal_name\fR
+defaults to the same pathname as \fIremote_name\fR if not otherwise specified.
+T}
+
+\fB?\fR@
+\fBhelp\fR@T{
+Displays a brief summary of \fBxc\fR commands, the SET options, and
+terminal-escape commands.
+T}
+.TE
+.SS \fIUsing the SET Command\fR
+The
+.I SET
+command is used to display and set/reset
+.BR xc 's
+tunable parameters. Any of these commands may be placed in the
+.I .xc
+file which is read upon starting up
+.BR xc .
+
+Used alone,
+.I SET
+displays
+.BR xc 's
+current parameters.
+
+The following parameters can be set (note that except in the case of
+.IR name s,
+these commands are case-insensitive):
+.nf
+
+set 7bit     on|off
+set auto     on|off
+set bps      \fIvalue\fR
+set cfile    \fIname\fR
+set cis      on|off
+set cr       on|off
+set halfdplx on|off
+set nl       on|off
+set pfile    \fIname\fR
+set purge    on|off
+set xoff     on|off
+.fi
+.TP 9
+7bit
+Modem high-bit masking. All characters received from the modem are masked so
+their values are between 0 and 127. This is useful for remote systems that
+transmit parity characters (the parity is ignored). If this option is set
+"off", received characters are not masked.
+.TP
+auto
+Sets the auto-capture feature. When entering terminal mode, capturing to the
+current capture file commences without the necessity to manually toggle it.
+.TP
+bps
+Set the desired bits/second rate. Supported bps rates are 300, 1200, 2400,
+4800, 9600, (and if included at compile time, 19200 and 38400).
+.TP
+cfile
+Set the name of the capture file to
+.IR name .
+.TP
+cis
+Set CompuServe <ENQ> file transfer requests. An "on" value specifies that when
+in terminal mode, an <ENQ> character will perform an automatic CIS B-Plus
+protocol transfer. This parameter should be set "off" when not connected to
+CompuServe, as phone line noise may cause a bogus file transfer request.
+.TP
+cr
+In uploads using B+ Protocol, setting this option "on" will insert a
+carriage-return after each newline in an ASCII file. If you expect your ASCII
+upload to be captured by DOS users, it is best to set cr "on". If your ASCII
+upload is meant strictly for Unix users, then you may set cr "off".
+The B+ Protocol implementation used by
+.B
+xc
+will always strip end-of-line carriage-returns from incoming ASCII files.
+.TP
+halfdplx
+Sets the half-duplex flag. If this flag is set, then all characters typed at
+the keyboard while in terminal mode will be echoed to the screen as well as
+sent to the modem line. Useful for remote systems that don't echo characters.
+.TP
+nl
+If this option is set "on", then newlines are sent as
+carriage-returns. If this option is set "off", then newlines are sent as
+newlines (carriage-returns are in any case always sent as carriage-returns.)
+This option applies to input from the keyboard, or from a disk file using the
+"MY_ESC f" facility or a script "type" command. (See below.)
+This option has no effect on built-in XMODEM or B+ Protocol transmissions,
+and has no effect on incoming data.
+.TP
+pfile
+Set the name of the phone directory to
+.IR name .
+.TP
+purge
+Set Bad Telephone Line Purge mode. If "on", removes spurious characters
+received through the phone line due to noise before listening for an
+acknowledgement. This increases the amount of time spent transmitting each
+block, but can improve throughput overall by reducing the number of block
+retransmissions.
+.TP
+xoff
+Set XON/XOFF flow control flag. If "on", the program will honor the XOFF
+control character and wait until an XON character is received before
+transmitting any more information. If "off", the program will ignore
+XOFF/XON requests.
+.SS \fITerminal Mode\fR
+In terminal mode, all characters typed at the keyboard are sent to the
+modem, except that newline characters (0x0A) are translated to
+carriage-returns (0x0D) when you have "set nl 'on'"; all characters received
+from the modem are displayed on the local terminal screen,
+
+MY_ESC is a key that will, when typed in terminal mode, introduce an
+.B xc
+"escape" command. The default definition for MY_ESC is ASCII 01, or Control-A;
+it may be changed at compile time by altering its definition in the xc.h
+header file. Don't confuse MY_ESC with the <ESCAPE> key.
+
+When the MY_ESC key is typed in terminal mode, the program will examine the
+next key pressed. If it is a special command function, that function will
+be performed; otherwise, the second character is sent to the modem. Thus,
+to send a MY_ESC character through the modem, it is necessary to press the
+key TWICE.
+.sp 1
+.TS
+tab(@) ;
+l2 l2 l .
+Command@Function@Description
+
+MY_ESC b@BREAK@T{
+Send a BREAK signal (a sustained null).
+T}
+
+MY_ESC d@Dial@Display the phone directory.
+
+MY_ESC f@File@T{
+Send a file through the modem (ASCII transfer).
+T}
+
+MY_ESC s@Script@T{
+\fBXc\fR will request the name of a script to execute.
+T}
+
+MY_ESC h@Hangup@T{
+Tell the modem to go on-hook.
+T}
+
+MY_ESC t@Toggle@T{
+Toggle the capture file. If the file is not open, it is opened in APPEND mode
+(text receive accumulates at the end of the file). If the file is already open,
+it is closed, instead.
+T}
+
+MY_ESC x@eXit@Exit terminal mode back to \fIXC>\fR command mode.
+
+MY_ESC q@Quit@Quit \fBxc\fR altogether.
+.TE
+.SS \fIPhonelist\fR
+.B Xc
+looks for a
+.I .phonelist
+file in the following order: in the current directory, in your home directory
+as defined by the $HOME environment variable, or in the LIBDIR as defined
+at compile time in
+.I xc.h.
+However in command mode, any filename can be substituted, using the SET PFILE
+command, so long as as it has the following characteristics:
+
+It is ASCII text (lines of text separated by newlines).
+
+The first field of data in each line (after any whitespace and up to the next
+occurence of whitespace) is assumed to be a phone number in a valid format for
+the modem being used.
+
+Descriptive text may follow the phone number. Spaces may be included in this
+text, but a <TAB> must terminate this text.
+
+The following three definitions may then follow in any order:
+.TP 12
+BITS=x
+(x=7|8) Set the terminal mode mask to 7/8 bits.
+.TP
+BPS=nnnn
+(n=300|1200|2400|4800|9600|19200|38400) Set the bits/second rate to the
+specified value.
+.TP
+SCRIPT=file
+Immediately after sending the autodial string, execute the script file
+specified. (Note that the specified filename is CASE SENSITIVE!)
+.P
+The following definition, if used, must be the LAST field on the line.
+
+PREFIX=xxxxxxxx (e.g., PREFIX=ATs110=0s111=0)
+
+The PREFIX="string" allows you send your modem a different setup string for
+each situation (default: no special setup). This is helpful for MNP and Telebit
+modems which require special attention for contacting non-MNP modems and other
+Telebits.
+.SS \fIScripts\fR
+The
+.B xc
+script language is intended to be closely similar to the Unix Bourne shell
+language. Unfortunately, it isn't identical to the Bourne shell, so it has
+the same problem that the
+.IR awk (C)
+program does for those experienced in the C language: an
+.I awk
+script LOOKS like C, but it isn't, really; and in the same way, an
+.B xc
+script LOOKS like a Bourne shell script, but isn't. So the operation of the
+Bourne shell, if you're familiar with it, is useful as an analogy in
+understanding the
+.B xc
+script language, but only as an analogy.
+
+An
+.B xc
+script consists of lists of commands. Commands are set off from each other
+within a list by either a newline ('\n') or a semicolon (;), as is the case
+with the Bourne shell. The semicolon and the newline have identical effect as
+command separators, so (anticipating a bit here) you could say either
+
+.nf
+    if counter morethan 5
+    then
+       transmit "bye^M"
+       quit
+    endif
+or
+    if counter morethan 5; then transmit "bye^M"; quit; endif
+
+.fi
+and the result will be the same either way. The newline and the semicolon
+are treated the same way as in the Bourne shell, except that a newline cannot
+be quoted so as to remove its interpretation as a command terminator (in
+other words, a quoted string cannot contain a newline).
+
+Commands are composed of
+.IR word s
+separated by spaces or tab characters, and a
+.I word
+can be one of the following:
+.TP 3
+*
+One of the
+.B xc
+script language keywords, which are listed below, with appropriate explanations;
+.TP
+*
+A number, meaning a sequence consisting only of digits, with
+an optional leading minus sign to indicate a negative number;
+.TP
+*
+A literal string of characters surrounded by double-quotation marks ('"'); such
+a string can be no longer than 80 characters. A double-quotation mark can be
+imbedded within the string by preceding it with a backslash ('\"'); when the
+string is interpreted, the backslash is disregarded and the double-quotation
+mark is treated as part of the string. Mismatched quotation marks result in a
+syntax error.
+.TP
+*
+The name of a user variable, which can have either a string or a numeric value.
+The name of a user variable must begin with an alphabetic character.
+.TP
+*
+The name of a shell environment variable, preceded by a dollar sign ('$'). The
+.B xc
+script language examines the Unix environment for the specified variable and,
+if such a variable exists, substitutes the value of that variable. The result
+is treated as if it were a quoted literal string, and, therefore, should not be
+more than 80 characters long, or else it will be truncated to its first 80
+characters. Similarly, such an environment variable should not contain a
+newline.
+.TP
+*
+An expression surrounded by back-quotation marks ('`'). This sort of expression
+operates similarly to the Bourne shell's command-substitution mechanism: the
+contents of the back-quotes are passed to the Bourne shell, and the standard
+output of the back-quoted command is treated as if it were a quoted literal
+string. Therefore, the command's output should not be more than 80 characters
+long, nor contain a newline. Also, the contents of the back-quotes cannot be
+longer than 80 characters, nor contain a newline.
+.TP
+*
+An expression introduced by a pound-sign (or number-sign: '#'), which is
+treated as a comment. All characters from the '#' until the end of the
+physical line are ignored. This comment mechanism is the same as in the
+Bourne shell.
+.P
+Quoted literal strings (and the two other mechanisms that act like quoted
+literal strings, shell environment variables and back-quoted shell commands)
+may be up to 80 characters long. All other words must be no longer than 8
+characters, and are treated case-independently (which is to say, uppercase
+is the same as lowercase); note, though, that the names of shell environment
+variables are case-dependent (uppercase must match uppercase and lowercase
+must match lowercase), because they are case-dependent in the shell.
+
+Any word not recognizable within the foregoing categories is treated as the
+name of a new user variable. Such a word, if longer than 8 characters, is
+considered to be a syntax error.
+
+User variables are created with the 'assign' script keyword, and may have
+either numeric or string values. The type of a user variable is determined
+by how it's created; if it's assigned to a string, it's a string variable,
+and if it's assigned to a number, it's a numeric variable. The value of any
+user variable can be changed with another 'assign' command, and numeric
+variables can be changed to string variables and vice-versa. Shell
+environment variables cannot be changed within an
+.B xc
+script, but the value of a shell environment variable can be assigned to a user
+variable, and the value of the user variable can thereafter be changed.
+
+Scripts are contained in ASCII text disk files, one script to a file. A
+script can invoke another script as a subroutine with the 'call' keyword; up
+to 5 scripts can be nested in this way at any single time.
+
+With all this said, the following list of
+.B xc
+script language commands should be comprehensible. The format "<something>"
+means that a token, or word-type, of the "something" type is meant rather than
+the literal sequence 'something'.
+.SS\fIScript Language Commands\fR
+Note that all the commands are case-insensitive!
+.TP 4
+.I affirm
+Syntax: affirm
+
+Reads a string from the terminal, and returns TRUE if the string begins with
+\'y' or 'Y'; otherwise, returns FALSE.  Used in evaluating conditional
+expressions. The string must be terminated by a newline or carriage-return.
+
+Example:
+
+    echo -n "Continue (y/n)? "
+    if affirm
+    then
+        continue
+    else
+        break
+    endif
+.TP
+.I assign
+Syntax: assign <varname> eq <number>
+        assign <varname> eq "string"
+        assign <varname1> eq <varname2>
+        assign <varname> eq <script-command>
+
+Assigns to user variable <varname> the value following "eq"; if that value is a
+number, then <varname> becomes a numeric user variable; if that value is a
+string, then <varname> becomes a string user variable. If <varname> does not
+already exist as a user variable, it is created. Variable space is allocated
+dynamically, but running out of memory space for variables is unlikely. All
+variables are global across scripts that run at the same time via the 'call'
+keyword, and all variables vanish when a script, called directly from
+.B xc
+as opposed to called from another script, exits. In other words, variable
+values are not static except during 'call' execution. Variable names cannot be
+longer than 8 characters. Successive 'assigns' are permissible, and the type of
+the variable changes according to the type of the value following "eq". A user
+variable is destroyed with the 'unassign' keyword.
+
+If a variable is assigned the value of a script command, then it becomes a
+numeric variable with value TRUE or FALSE, depending on the status returned by
+the script command. If a variable is assigned the value of a back-quoted
+command, it becomes a string variable with the value of the first 80 characters
+of the back-quoted command. If a variable is assigned equal to an environment
+variable, it becomes a string variable with the value of the first 80
+characters of the value of the environment variable.
+
+Examples:
+
+    assign numvar eq 5
+    assign strvar eq "This variable is a string"
+    assign mydir eq $HOME
+    assign numvar2 eq numvar
+    assign strvar2 eq strvar
+    assign numvar eq true
+    assign today eq `date`; echo "today is " today
+.TP
+.I auto
+Syntax: set auto "on"
+        set auto "off"
+
+Turns the auto-capture feature on or off. This has no effect while the script
+is running, but determines whether capturing to the current capture file will
+begin as soon as terminal mode is entered.
+.TP
+.I beep
+Syntax: beep
+
+Sends a Control-G to the terminal. Useful for alerting the user that some event
+has occurred, for example a CONNECT after a lengthy redialing session.
+.TP
+.I break
+Syntax: break
+
+Exits from the immediately enclosing 'while' loop. Identical to the C-language
+\'break', and to the Bourne shell 'break' except that the
+.B xc
+script language 'break' does not take a numeric argument. Don't confuse this
+with the script keyword 'xmitbrk', which sends a BREAK signal to the modem port.
+.TP
+.I call
+Syntax: call "scriptname"
+
+Suspends execution of the current script, and attempts to load and run the
+specified scriptname. The scriptname must be a quoted literal string. There is
+no
+.B xc
+analogue of the Bourne shell "exec" command; all subscripts in
+.B xc
+are treated as sub-routines. All variables are global across subscripts, so if
+a subscript changes the value of a variable, then that change will remain in
+effect after return to the parent script. Shell environment variables cannot be
+changed by any
+.B xc
+script.
+.TP
+.I capture
+Syntax: capture "on"
+        capture "off"
+
+Turns the file-capture function on or off. Note that the arguments must be
+quoted literal strings. Note also that when the script exits into terminal
+mode, the file-capture function is turned off. If you have 'set auto "on"',
+then you will begin capturing immediately upon entering, or returning to,
+terminal mode. If not, then you must manually type "MY_ESC T" to start
+capturing when entering terminal mode.
+.TP
+.I continue
+Syntax: continue
+
+Resumes execution at the top of the immediately enclosing 'while' loop.
+Identical to the C language 'continue' instruction, and to the Bourne shell 
+\'continue' command except that no numeric argument is accepted.
+.TP
+.I debug
+Syntax: debug "on"
+        debug "off"
+
+If the 'debug' option is on, then
+.B xc
+will make many parenthetical comments about what it's doing while it runs the
+script. These comments can sometimes be helpful in debugging script logic. Note
+that the argument must be a quoted literal string.
+.TP
+.I decr
+Syntax: decr <numeric-variable>
+
+Decrements the value of the specified numeric user variable by 1. Useful in
+controlling loop execution. If the specified variable isn't numeric, or doesn't
+exist, a syntax error results.
+.TP
+.I dial
+Syntax: dial "number-string"
+
+Dials the specified number, using modem-command strings defined in xc.h.
+.TP
+.I echo
+Syntax: echo "string" <variable> ...
+        echo -n "string" <variable> ...
+
+This command sends its arguments to the user's terminal. The number of
+arguments is optional, except that the total result may not exceed 80
+characters. Variables and back-quoted shell commands are expanded as necessary.
+
+If the "-n" switch is present, then no carriage-return/newline sequence is
+appended to the output.
+
+Examples:
+
+    echo "The time and date are now " `date`
+    echo "My terminal type is " $TERM
+    echo "My terminal type is " $TERM " today."
+
+Note that whitespace isn't echoed unless it's part of a quoted literal string.
+.TP
+.I exit
+Syntax: exit
+
+Terminates execution of the current script. If a script reaches its end, it
+exits automatically, so 'exit' is useful mainly to terminate a script
+prematurely.
+.TP
+.I false
+Syntax: false
+
+Same as the Unix 'false' command. Does nothing, but returns a FALSE status
+value. Useful within conditional expressions.
+
+Example:
+
+    if waitfor "CONNECT" 30 eq false
+    then
+        quit
+    endif
+
+Note that above example could be rewritten using the negating modifier "!":
+
+    if ! waitfor "CONNECT" 30
+    then
+        quit
+    endif
+
+and note too that the "!" must be separated from its argument by whitespace.
+.TP
+.I file
+Syntax: file <script-command>
+
+The standard output of the specified script command is sent to the current
+capture file. If the "capture" option is not set, then an error message is
+displayed, but script execution continues.
+
+Examples:
+
+    file echo "--------- CUT HERE ----------"
+
+Sends the output of the 'echo' command to the current capture file, provided
+that the "capture" option is now "on".
+
+    file echo `date`
+
+Sends a timestamp to the current capture file, provided that the "capture"
+option is now "on". The same thing could have been done with
+
+   file shell "date"
+
+.TP
+.I hangup
+Syntax: hangup
+
+Tells the modem to go on-hook.
+
+.TP
+.I if\ \ 
+Syntax: if <list1>; then <list2>; [ else <list3>; ] endif
+
+If <list1> evaluates as TRUE, performs <list2>; otherwise, if <list3> is
+specified, performs <list3>; then resumes execution immediately following 
+\'endif'. To accommodate those whose minds wander while writing scripts, 'fi'
+is an acceptable synonym for 'endif'.
+
+Each list may consist of any number of script commands separated by semicolons
+or newlines. The value of <list1> is determined by inclusively OR'ing the value
+of each directive in the list, so that if any of the directives in <list1>
+evaluates as TRUE, then so will <list1>. <list1> is performed in its entirety
+regardless of the value of any of its component commands.
+
+The keywords 'then', 'else', and 'endif' (or 'fi') must be immediately preceded
+by command separators, either a semicolon or a newline, just as is the case in
+the Bourne shell.
+
+For conditional evaluation in 'if' and 'while' constructions, the following
+comparators are available in addition to the script directives mentioned
+elsewhere:
+
+    <varname1> eq "string"
+    <varname1> eq <number>
+    <varname1> eq <varname2>
+    <varname1>
+    "string"
+
+evaluates as TRUE if the value of user variable <varname1> is the same as that
+of a specified string or numeric constant or of a specified second variable
+name. If the variable name <varname1> is not followed by anything else, then
+the expression evaluates as TRUE if the variable is numeric and has a non-zero
+value, or if the variable is a string variable and has a non-zero length;
+otherwise, the expression evaluates as FALSE. Comparing a string variable to a
+numeric variable, or vice-versa, causes a syntax error.
+
+If a conditional expression consists only of a quoted literal string, the
+expression evaluates as TRUE if the string's length is non-zero, and otherwise
+evaluates to FALSE. Because environment variables and back-quoted shell
+commands are treated as if their output/value were quoted literal strings, this
+allows direct testing of a shell command or of an environment for non-zero
+length. Nonexistent environment variables are treated as if they exist with the
+value "" (a string of zero length).
+
+    <varname1> neq "string"
+    <varname1> neq <number>
+    <varname1> neq <varname2>
+
+evaluates as TRUE if the value of user variable <varname1> is not equal to that
+of a specified string or numeric constant or of a specified second variable
+name. Comparing a string variable to a numeric variable, or vice-versa, causes
+a syntax error.
+
+    <varname1> lessthan "string"
+    <varname1> lessthan <number>
+    <varname1> lessthan <varname2>
+
+evaluates as TRUE if the value of user variable <varname1> is less than that of
+a specified string or numeric constant or of a specified second variable name.
+String variables are compared lexically according to ASCII value.
+
+    <varname1> morethan "string"
+    <varname1> morethan <number>
+    <varname1> morethan <varname2>
+
+operates identically to 'lessthan', except in reverse.
+
+The value of any conditional expression may be negated by preceding it with an
+exclamation point followed by a space or tab.
+
+Examples:
+
+    if counter eq 0; then break; endif;
+    if var1 eq var2; then echo "identical"; endif
+    if counter morethan 20; then break; endif;
+    if counter lessthan 0; then break; endif;
+    if ! counter; then echo "counter is " counter; endif
+
+To perform a list if any of a set of conditions exist:
+
+    if counter morethan 5;
+        counter eq brkvalue;    # a second comparator
+    then break;
+    endif;
+
+i.e., perform the 'break' directive if the value of numeric user
+variable 'counter' is greater than the numeric constant 5, or if the value
+of 'counter' is equal to that of the user numeric variable 'brkvalue'.
+.TP
+.I incr
+Syntax: incr <numeric-variable>
+
+Increments the value of the specified numeric user variable by 1. The
+opposite of 'decr'.
+.TP
+.I linked
+Syntax: linked
+
+\'linked' is a pseudo-function that evaluates as TRUE if the current script has
+been invoked from the dialing directory, and as FALSE otherwise.
+
+Example:
+
+    if ! linked; then
+        dial "5551212"
+    endif
+.TP
+.I pause
+Syntax: pause <number>
+
+Suspends execution for the specified <number> of SECONDS. Identical to Unix
+"sleep."
+.TP
+.I pipe
+Syntax: pipe "<shell-command>"
+
+The standard input and standard output of the specified shell command are
+connected to the modem port, and the command is executed. This is the
+equivalent of the command mode "$" command.
+
+Examples:
+
+    pipe "echo \\"\\177\\""
+
+sends a DELETE character to the modem.
+
+    pipe "rz"
+
+performs a file receive via ZMODEM, assuming that Chuck Forsberg's 'rz/sz'
+programs reside on your system.
+
+.TP
+.I portname
+Syntax: portname
+
+This isn't a command, but a synonym for the current modem terminal device,
+treated as if it were a quoted string. Useful if modems of differing types are
+attached to different terminal lines and need different dialing or
+initialization sequences. To compare the value of 'portname' to some other
+string, you must first assign a user variable equal to 'portname'.
+
+Examples:
+
+    assign myport eq portname
+    if myport eq "/dev/tty01"
+    then
+        transmit "AT&E0^M"
+    endif
+.TP
+.I quit
+Syntax: quit
+
+Exits the script and terminates
+.B xc
+entirely. Any LCKfile will be removed if possible and the
+user's terminal will be restored to the state it was in when
+.B xc
+was invoked.
+.TP
+.I read
+Syntax: read <variable-name>
+
+Takes a string from the user's keyboard and places it into the specified user
+variable. Any previous value of the specified variable is discarded.
+.TP
+.I redial
+Syntax: redial
+
+Redials the number most recently dialed with the 'dial' command.
+.TP
+.I seen
+Syntax: seen "string" <number>
+
+Evaluates as TRUE if "string" has occurred within the last <number> characters
+received during the most recent 'waitfor' command. Only up to 1024 characters
+are remembered at any one time during 'waitfor' processing. If no <number> is
+specified, then all the characters received during the most recent 'waitfor'
+command are examined, up to a maximum of 1024. The 'seen' buffer is reset at
+the beginning of each 'waitfor' command. This is useful to tell whether which
+of several strings has been received.
+
+Example:
+
+    if waitfor "string1" 20
+    then
+        echo "Received 'string1'."
+    else
+        if seen "string2"
+        then
+            echo "Received 'string2' instead."
+        endif
+     endif
+
+.TP
+.I set\ 
+Syntax: set
+.RB < xc -set-option>
+<value>
+
+This command is the same as the command-mode
+.B xc
+\'set' command, such as "set bps 1200", "set cis on", and so forth, except that
+a string <value> must be enclosed within double-quotation marks.
+
+Examples:
+
+    set cis "on"
+    set cfile "newfilename"
+    set auto "on"
+    set bps 2400
+.TP
+.I shell
+Syntax: shell "<shell-command>"
+
+The shell command enclosed within the double-quotation marks is executed. This
+is similar to the
+.B xc
+command-mode "!" command. Remember that if the shell command contains
+double-quotation marks, they must be escaped with backslashes.
+.TP
+.I timeout
+Syntax: timeout <number>
+
+If <number> is greater than zero, starts a timer which will cause the MOST
+DEEPLY NESTED script to exit when <number> of MINUTES expire. If <number> is
+zero, then any pending timeout is cancelled. If <number> is negative, nothing
+happens.
+
+Expiration of the specified timeout causes the most deeply nested script to
+exit, not to terminate
+.BR xc .
+To cause the program to quit if a timeout expires, use a subscript.
+
+Example:
+
+    'script1' contains:
+
+        call "script2"
+        if expired
+        then
+            quit
+        endif
+        # more commands
+
+
+    'script2' contains:
+
+        assign expired eq 1
+        timeout 5           # limit of 5 minutes
+        while ! waitfor "login:" 30
+        do
+            xmitbrk
+        done
+        assign expired eq 0
+        exit
+
+When 'script2' exits, the numeric variable 'expired' will be set to 1 if
+\'script2' timed out, and will be 0 otherwise. 'script1' can act on this
+information accordingly.
+.TP
+.I transmit
+Syntax: transmit "string"
+
+Sends a string to the modem. The string is sent with brief pauses between
+characters, to accommodate modems that cannot accept rapid command input, and
+within the string, any alphabetic character preceded by a caret (^) is
+translated to the corresponding Control-character.
+
+Example:
+
+    transmit "ATDT 5551212^M"
+
+sends the string "ATDT 5551212" to the modem, followed by a carriage-return
+character.
+.TP
+.I true
+Syntax: true
+
+Does nothing, but always evaluates as TRUE. Useful in conditional
+expressions. The opposite of 'false'.
+.TP
+.I tty
+Syntax: tty "on"
+        tty "off"
+
+Ordinarily, during script execution, characters received from the modem port
+are echoed to the user's terminal screen. This happens only during 'waitfor'
+and 'type' execution, so it may be a bit choppy. This echoing can be turned
+off with
+
+    tty "off"
+
+and turned back on with
+
+    tty "on"
+
+Note that "on" and "off" must be enclosed in quotation marks.
+.TP
+.I type
+Syntax: type "<filename>"
+
+Sends the specified ASCII file to the modem port. This is the same as the
+.B xc
+terminal-mode "send ASCII file" escape.
+.TP
+.I unassign
+Syntax: unassign <variablename>
+
+Erases the specified user variable. The variable may be either numeric or
+string type. The variable name must not be enclosed in quotation marks, because
+variable names are considered to be
+.B xc
+script keywords, and not literal strings.
+.TP
+.I waitfor
+Syntax: waitfor "string" <number>
+
+Scans input from the modem port for an occurrence of the specified string,
+which must be enclosed in quotation marks. The scanning continues for the
+specified <number> of SECONDS or until the specified string is identified in
+the modem input stream, whichever comes first. This command evaluates as TRUE
+if the specified string is found, and as FALSE if the specified <number> of
+SECONDS elapses and the string isn't found within that time. The default time,
+if no <number> is specified, is roughly 30 seconds.
+
+String matching is performed on a case-insensitive basis.
+Within the string, any alphabetic character preceded by a caret (^) is
+translated to the corresponding Control-character.
+
+Examples:
+
+    assign counter eq 1
+    while ! waitfor "login:" 15
+    do
+        xmitbrk; incr counter; if counter morethan 5
+        then
+            quit
+        endif
+    done
+
+If in a CompuServe Forum the "prompt character" has been set by the user to
+be a backspace, this test will log off if the main prompt is not seen in the
+next sixty seconds:
+
+    if ! waitfor "forum !^H" 60
+    then
+        transmit "bye^M"; quit
+    endif
+
+If the 'cis' option has been set to "on", either in the
+.I .xc
+startup script, or by a direct 'set' command from command mode, or with
+
+    set cis "on"
+
+within a current script, and if during 'waitfor' processing a CIS B-Plus
+protocol file transfer request is received, then the B-Plus protocol transfer
+is performed, the <number> argument is reset to its original value, and
+\'waitfor' processing continues. This allows automatic B-Plus protocol file
+transfers from within a script.
+.TP
+.I while
+Syntax: while <list1>; do <list2>; done
+
+Operates similarly to the 'if' command, except that <list2> is executed
+repeatedly so long as <list1> evaluates as TRUE. All the conditional
+comparators and rules for comparisons that apply for the 'if' command also
+apply to 'while'. (Note that 'while' loops can be nested within 'if' commands
+and vice-versa.)
+.TP
+.I xmitbrk
+Syntax: xmitbrk
+
+Sends a BREAK signal to the modem port.
+.SS \fIFile Transfers\fR
+When transferring files using the XMODEM protocol, the file mode is specified
+in the upload/download command. A TEXT mode transfer enables translation of the
+transmitted or received file to support CP/M and MS-DOS end-of-line characters.
+When transmitting a file using TEXT mode, all newlines are converted to
+carriage-return/newline sequences. When receiving a file using TEXT mode, all
+carriage-return/newline sequences are converted to just a newline. A BINARY mode
+transfer transmits the file "as is" without any such conversion.
+
+When transferring files using CompuServe B-Plus protocol, the format of the
+file is specified by the host. An ASCII mode will force
+.B xc
+to perform TEXT mode translation; a BINARY mode will not do any translation.
+This means that, in either direction, a BINARY mode will send bytes "as is",
+whereas in ASCII mode, an incoming file will always be stripped of end-of-line
+carriage-returns, while an ASCII file being uploaded may or may not have
+carriage-returns added after each newline, depending on the "on" or "off"
+setting of the "cr" option.
+
+When using either the "%t" (take) command, an XMODEM receive command, or a
+CompuServe B-Plus download command,
+.B xc
+will check if the file name you specify already exists on your system, and ask
+for an OK to overwrite the file, or for an alternative name. In the CompuServe
+case, there will also be an option to "Resume" a download. If the CRC checksum
+of the bytes that you already have in the file matches CompuServe's Checksum on
+the the same initial bytes in its version of the file, file transfer will
+proceed from that point onwards. This saves connect time when a very large
+download has been interrupted during a prior session.
+
+Script-driven file transfers using the Compuserve B-Plus protocol are more or
+less built into the
+.B xc
+script language, since during 'waitfor' processing, a file transfer request
+from the modem port will trigger a B-Plus transfer if the "cis" mode is set.
+The difficulty in performing such transfers isn't in the transfer itself, but
+rather in the maneuvering required to get into position to transfer the correct
+file, and is something that probably only experienced script writers should
+wrestle with. However, if we assume that in the midst of a script, you've
+reached a point where you can issue a "download" command to Compuserve, for
+instance a "Disposition" prompt during a File Library "BROWSE" command, and you
+want to download the present file, which is "XCALL.C" on Compuserve, and
+"xcall.c" does not exist in your current working directory, you'd use the
+following sequence of script commands to do it:
+
+    set cis on       # can't do auto file B-Plus transfer otherwise
+    transmit "dow^M"
+    pause 2          # wait for CIS to display protocol menu
+    transmit "6^M"   # B-Plus is number 6 on that menu
+    transmit "xcall.c^M"  # "file name for your computer:"
+    waitfor "Disposition"
+
+During the final "waitfor" processing, the Compuserve ENQ character will
+be recognized and the transfer will proceed automatically. Then 'waitfor'
+will continue waiting for the "Disposition" prompt, after which your script
+can proceed. The same sort of thing can be done with file uploads, but once
+again, the difficulty isn't with the transfer, but rather with setting things
+up so that the transfer will be requested at the correct place.
+
+For XMODEM, YMODEM, and ZMODEM transfers via scripts, there's no mechanism
+built into the
+.B xc
+script language to use the built-in, 128-byte-packet XMODEM in
+.BR xc .
+Instead, we strongly recommend that you obtain Chuck Forsberg's excellent,
+public-domain utility called "RZSZ", which can handle XMODEM, XMODEM-1K,
+YMODEM, and ZMODEM transfers and which can be used from within
+.B xc
+with the 'pipe' command, or from command mode with the "$" command.
+.SH Exit Codes
+.TP
+.B 0
+Successful, uneventful completion.
+.TP
+.B 1
+Error in command-line arguments.
+.TP
+.B 2
+Failure in forking to execute a command or run a shell.
+.TP
+.B 3
+No modem port specified on the command line, or contained in the environment
+variable MODEM.
+.TP
+.B 4
+Inability to create a LCK..file for the specified port.
+.TP
+.B 5
+Inability to open the specified port.
+.TP
+.B 6
+No environment variable TERM has been set.
+.TP
+.B 7
+There's no entry for the current TERM setting in /etc/termcap.
+.TP
+.B 8
+Problem caused by the 'ungetty' program.
+.SH Note
+By virtue of a restriction previously placed upon all code derivative from
+.BR xcomm ", the "xc
+code and associated files may not be sold by anyone to anyone, nor incorporated
+into any product that is not also free. It's OK to transfer them for free.
+.SH Authors
+This manual page was written by Fred Buck (1989) and Jean\-Pierre Radley
+(1990, 1991).
+.B Xc
+itself is the product of many synergistic wise minds. See the README document.
+.SH Version
+This edition of the manual reflects \*(]V.

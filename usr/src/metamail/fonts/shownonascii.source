@@ -1,0 +1,44 @@
+#!/bin/csh -f
+set MYFONTDIR=/u/nsb/lib/fonts
+
+set CHARSET=$1
+shift
+if ("$1" == "-e") then
+    shift
+    set CMD="$*"
+    set RIGHTTERMCMD="$*"
+else
+    set CMD="more $* /dev/null"
+    set RIGHTTERMCMD="more $*"
+endif
+if ($?MM_CHARSET) then
+    if ($MM_CHARSET == $CHARSET) then
+	$RIGHTTERMCMD
+	exit
+    endif
+endif
+if (! -d $MYFONTDIR) then
+    echo This message contains non-ASCII text, but the $CHARSET font
+    echo has not yet been installed on this machine.  What follows
+    echo "may be partially unreadable, but the English (ASCII) parts"
+    echo "should still be readable."
+    cat $*
+    exit 0
+endif
+
+if (! $?DISPLAY) then
+    echo This message contains non-ASCII text, which can only be displayed
+    echo properly if you are running X11.  What follows
+    echo "may be partially unreadable, but the English (ASCII) parts"
+    echo "should still be readable."
+    cat $*
+    exit 0
+endif
+xset +fp $MYFONTDIR
+echo Running xterm to display text in $CHARSET, please wait...
+unsetenv MM_NOTTTY
+
+# The following line might work better on IBM RT and other machines that 
+#      think it smart inhibit 8 bit chars in xterms.
+# xterm -fn $CHARSET -tm litout -e $CMD
+xterm -fn $CHARSET -e $CMD

@@ -1,0 +1,157 @@
+*** Imakefile.orig	Thu Feb  1 06:55:17 1990
+--- Imakefile	Thu Dec 13 00:37:11 1990
+***************
+*** 3,9 ****
+  #endif
+  
+! DEFINES = ExtensionDefines
+! INCLUDES = -I$(TOP) -I$(TOP)/X11
+! SYS_LIBRARIES = -lm
+  DEPLIBS = $(DEPXTOOLLIB) $(DEPXMULIB) $(DEPEXTENSIONLIB) $(DEPXLIB)
+  LOCAL_LIBRARIES = $(XTOOLLIB) $(XMULIB) $(EXTENSIONLIB) $(XLIB)
+--- 3,9 ----
+  #endif
+  
+! DEFINES = ExtensionDefines -DSUNOS4_1
+! INCLUDES = -I$(TOP) -I$(TOP)/X11 -I/usr/demo/SOUND
+! SYS_LIBRARIES = -L/usr/demo/SOUND -laudio -lm
+  DEPLIBS = $(DEPXTOOLLIB) $(DEPXMULIB) $(DEPEXTENSIONLIB) $(DEPXLIB)
+  LOCAL_LIBRARIES = $(XTOOLLIB) $(XMULIB) $(EXTENSIONLIB) $(XLIB)
+*** libsst.h.orig	Thu Feb  1 06:52:25 1990
+--- libsst.h	Wed Dec 12 01:35:12 1990
+***************
+*** 12,16 ****
+--- 12,24 ----
+  
+  #include <sys/ioctl.h>
++ #ifdef SUNOS4_1
++ #define AUDIO_4_0_3_COMPAT
++ #define AUDIO_CHIP
++ #include <sbusdev/audio_79C30.h>
++ #include <multimedia/libaudio.h>
++ #include <multimedia/audio_device.h>
++ #else
+  #include <sbusdev/audioreg.h>
++ #endif
+  #include <sun/audioio.h>
+  
+*** play.c.orig	Thu Feb  1 06:52:16 1990
+--- play.c	Thu Dec 13 00:24:59 1990
+***************
+*** 43,46 ****
+--- 43,78 ----
+  	return( 1 );
+      }
++ #ifdef SUNOS4_1
++     {
++     int err;
++     Audio_hdr Dev_hdr;
++     Audio_hdr File_hdr;
++ 
++     err = audio_get_play_config( sst_fd, &Dev_hdr );
++ 
++     if ( err != AUDIO_SUCCESS )
++     {
++ 	perror( "Not a valid audio device" );
++ 	return( 1 );
++     }
++ 
++     err = audio_read_filehdr( file_fd, &File_hdr, (char *) NULL, 0 );
++ 
++     if ( err != AUDIO_SUCCESS )
++     {
++ 	perror( "Not a valid audio file" );
++ 	return( 1 );
++     }
++ 
++     /* Shameless pilfered from /usr/demo/SOUND/play.c */
++     if ( audio_cmp_hdr(&Dev_hdr, &File_hdr) != 0 ) {
++ 	if ( audio_drain( sst_fd, FALSE) != AUDIO_SUCCESS) {
++ 	    perror( "draining audio device" );
++ 	    return( 1 );
++ 	}
++     /* Fancy code to reconfigure audio device for given file header omitted */
++     }
++     }
++ #endif
+      
+      for ( ; ; )
+***************
+*** 75,78 ****
+--- 107,116 ----
+      
+      close(file_fd);
++ #ifdef SUNOS4_1
++     if ( audio_drain( sst_fd, FALSE) != AUDIO_SUCCESS) {
++ 	perror( "draining audio device" );
++ 	return( 1 );
++     }
++ #endif
+      sst_close( sst_fd );
+      (void) signal( SIGHUP, sighup_handler );
+*** oclock.c.orig	Thu Apr 12 09:50:03 1990
+--- oclock.c	Thu Dec 13 01:38:09 1990
+***************
+*** 14,17 ****
+--- 14,18 ----
+  
+  extern void exit();
++ static void quit();
+  
+  /* Command line options table.  Only resources are entered here...there is a
+***************
+*** 20,23 ****
+--- 21,30 ----
+  /* Exit with message describing command line format */
+  
++ static XtActionsRec xclock_actions[] = {
++     { "quit",   quit },
++ };
++ 
++ static Atom wm_delete_window;
++ 
+  void usage()
+  {
+***************
+*** 74,77 ****
+--- 81,93 ----
+      if (argc != 1) usage();
+  
++     XtAddActions (xclock_actions, XtNumber(xclock_actions));
++ 
++     /*
++      * This is a hack so that f.delete will do something useful in this
++      * single-window application.
++      */
++     XtOverrideTranslations(toplevel,
++                     XtParseTranslationTable ("<Message>WM_PROTOCOLS: quit()"));
++ 
+      i = 0;
+      XtSetArg (arg[i], XtNiconPixmap, 
+***************
+*** 89,92 ****
+--- 105,128 ----
+      clock = XtCreateManagedWidget ("clock", clockWidgetClass, toplevel, NULL, 0);
+      XtRealizeWidget (toplevel);
++     wm_delete_window = XInternAtom (XtDisplay(toplevel), "WM_DELETE_WINDOW",
++                                     False);
++     (void) XSetWMProtocols (XtDisplay(toplevel), XtWindow(toplevel),
++                             &wm_delete_window, 1);
+      XtMainLoop();
+  }
++ 
++ static void quit (w, event, params, num_params)
++     Widget w;
++     XEvent *event;
++     String *params;
++     Cardinal *num_params;
++ {
++     if (event->type == ClientMessage &&
++         event->xclient.data.l[0] != wm_delete_window) {
++         XBell (XtDisplay(w), 0);
++         return;
++     }
++     XCloseDisplay (XtDisplay(w));
++     exit (0);
++ }
++ 

@@ -1,0 +1,1334 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Stream Type,  Next: Keymap Type,  Prev: Process Type,  Up: Editing Types
+
+Stream Type
+-----------
+
+   A "stream" is an object that can be used as a source or sink for
+characters--either to supply characters for input or to accept them
+as output.  Many different types can be used this way: markers,
+buffers, strings, and functions.  Most often, input streams
+(character sources) obtain characters from the keyboard, a buffer, or
+a file, and output streams (character sinks) send characters to a
+buffer, such as a `*Help*' buffer, or to the echo area.
+
+   The object `nil', in addition to its other meanings, may be used
+as a stream.  It stands for the value of the variable
+`standard-input' or `standard-output'.  Also, the object `t' as a
+stream specifies input using the minibuffer (*note Minibuffers::.) or
+output in the echo area (*note The Echo Area::.).
+
+   Streams have no special printed representation or read syntax, and
+print as whatever primitive type they are.
+
+   *Note Streams::, for a description of various functions related to
+streams, including various parsing and printing functions.
+
+
+
+File: elisp,  Node: Keymap Type,  Next: Syntax Table Type,  Prev: Stream Type,  Up: Editing Types
+
+Keymap Type
+-----------
+
+   A "keymap" maps keys typed by the user to functions.  This mapping
+controls how the user's command input is executed.  Emacs defines two
+kinds of keymaps: "full keymaps", which are vectors of 128 elements,
+and "sparse keymaps", which are association lists whose first element
+is the symbol `keymap'.
+
+   *Note Keymaps::, for information about creating keymaps, handling
+prefix keys, local as well as global keymaps, and changing key
+bindings.
+
+
+
+File: elisp,  Node: Syntax Table Type,  Prev: Keymap Type,  Up: Editing Types
+
+Syntax Table Type
+-----------------
+
+   A "syntax table" is a vector of 256 integers.  Each element of the
+vector defines how one character is interpreted when it appears in a
+buffer.  For example, in C mode (*note Major Modes::.), the `+'
+character is punctuation, but in Lisp mode it is a valid character in
+a symbol.  These different interpretations are effected by changing
+the syntax table entry for `+', i.e., at index 43.
+
+   Syntax tables are only used for scanning text in buffers, not for
+reading Lisp expressions.  The table the Lisp interpreter uses to
+read expressions is built into the Emacs source code and cannot be
+changed; thus, to change the list delimiters to be `{' and `}'
+instead of `(' and `)' would be impossible.
+
+   *Note Syntax Tables::, for details about syntax classes and how to
+make and modify syntax tables.
+
+
+
+File: elisp,  Node: Type Predicates,  Next: Equality Predicates,  Prev: Editing Types,  Up: Types of Lisp Object
+
+Type Predicates
+===============
+
+   The Emacs Lisp interpreter itself does not perform type checking
+on the actual arguments passed to functions when they are called.  It
+could not do otherwise, since variables in Lisp are not declared to
+be of a certain type, as they are in other programming languages.  It
+is therefore up to the individual function to test whether each
+actual argument belongs to a type that can be used by the function.
+
+   All built-in functions do check the types of their actual
+arguments when appropriate and signal a `wrong-type-argument' error
+if an argument is of the wrong type.  For example, here is what
+happens if you pass an argument to `+' which it cannot handle:
+
+     (+ 2 'a)
+          error--> Wrong type argument: integer-or-marker-p, a
+
+   Many functions, called "type predicates", are provided to test
+whether an object is a member of a given type.  (Following a
+convention of long standing, the names of most Emacs Lisp predicates
+end in `p'.)
+
+   Here is a table of predefined type predicates, in alphabetical
+order, with references to further information.
+
+`atom'
+     *note atom: List-related Predicates.
+
+`arrayp'
+     *note arrayp: Array Functions.
+
+`bufferp'
+     *note bufferp: Buffer Basics.
+
+`char-or-string-p'
+     *note char-or-string-p: Predicates for Strings.
+
+`consp'
+     *note consp: List-related Predicates.
+
+`integer-or-marker-p'
+     *note integer-or-marker-p: Predicates on Markers.
+
+`integerp'
+     *note integerp: Predicates on Numbers.
+
+`keymapp'
+     *note keymapp: Creating Keymaps.
+
+`listp'
+     *note listp: List-related Predicates.
+
+`markerp'
+     *note markerp: Predicates on Markers.
+
+`natnump'
+     *note natnump: Predicates on Numbers.
+
+`nlistp'
+     *note nlistp: List-related Predicates.
+
+`processp'
+     *note processp: Processes.
+
+`sequencep'
+     *note sequencep: Sequence Functions.
+
+`stringp'
+     *note stringp: Predicates for Strings.
+
+`subrp'
+     *note subrp: Function Cells.
+
+`symbolp'
+     *note symbolp: Symbols.
+
+`syntax-table-p'
+     *note syntax-table-p: Syntax Tables.
+
+`user-variable-p'
+     *note user-variable-p: Defining Variables.
+
+`vectorp'
+     *note vectorp: Vectors.
+
+`windowp'
+     *note windowp: Basic Windows.
+
+
+
+File: elisp,  Node: Equality Predicates,  Prev: Type Predicates,  Up: Types of Lisp Object
+
+Equality Predicates
+===================
+
+   Here we describe two functions that test for equality between any
+two objects.  Other functions test equality between objects of
+specific types, e.g., strings.  See the appropriate chapter
+describing the data type for these predicates.
+
+ * Function: eq OBJECT1 OBJECT2
+     This function returns `t' if OBJECT1 and OBJECT2 are the same
+     object, `nil' otherwise.  The "same object" means that a change
+     in one will be reflected by the same change in the other.
+
+     `eq' will be true if OBJECT1 and OBJECT2 are numbers with the
+     same value.  Also, since symbol names are normally unique, if
+     the arguments are symbols with the same name, they are `eq'. 
+     For other types (e.g., lists, vectors, strings), two arguments
+     with the same contents or elements are not necessarily `eq' to
+     each other: they are `eq' only if they are the same object.
+
+     (The `make-symbol' function returns an uninterned symbol that is
+     not interned in the standard `obarray'.  When uninterned symbols
+     are in use, symbol names are no longer unique.  Distinct symbols
+     with the same name are not `eq'.  *Note Creating Symbols::.)
+
+          (eq 'foo 'foo)
+               => t
+          
+          (eq 456 456)
+               => t
+          
+          (eq "asdf" "asdf")
+               => nil
+          
+          (eq '(1 (2 (3))) '(1 (2 (3))))
+               => nil
+          
+          (eq [(1 2) 3] [(1 2) 3])
+               => nil
+          
+          (eq (point-marker) (point-marker))
+               => nil
+
+ * Function: equal OBJECT1 OBJECT2
+     This function returns `t' if OBJECT1 and OBJECT2 have equal
+     components, `nil' otherwise.  Whereas `eq' tests if its
+     arguments are the same object, `equal' looks inside nonidentical
+     arguments to see if their elements are the same.  So, if two
+     objects are `eq', they are `equal', but the converse is not
+     always true.
+
+          (equal 'foo 'foo)
+               => t
+          
+          (equal 456 456)
+               => t
+          
+          (equal "asdf" "asdf")
+               => t
+          (eq "asdf" "asdf")
+               => nil
+          
+          (equal '(1 (2 (3))) '(1 (2 (3))))
+               => t
+          (eq '(1 (2 (3))) '(1 (2 (3))))
+               => nil
+          
+          (equal [(1 2) 3] [(1 2) 3])
+               => t
+          (eq [(1 2) 3] [(1 2) 3])
+               => nil
+          
+          (equal (point-marker) (point-marker))
+               => t
+
+             (eq (point-marker) (point-marker))
+               => nil
+
+     Comparison of strings is case-sensitive.
+
+          (equal "asdf" "ASDF")
+               => nil
+
+   The test for equality is implemented recursively, and circular
+lists may therefore cause infinite recursion (leading to an error).
+
+
+
+File: elisp,  Node: Numbers,  Next: Strings and Characters,  Prev: Types of Lisp Object,  Up: Top
+
+Numbers
+*******
+
+   Integers are the only kind of number in version 18 Emacs Lisp. 
+These are whole numbers such as -3, 0, 7, 13, and 511.
+
+   In version 19, there is a compile time option to support floating
+point numbers, which are represented internally as the C type `double'.
+A floating point number is a number with a fractional part, such as
+-4.5, 0.0, or 2.71828.  A floating point number can be expressed in
+an exponential notation as well: thus, 1.5e2 equals 150; in this
+example, `e2' stands for ten to the second power, and is multiplied
+by 1.5.
+
+* Menu:
+
+* Number Basics::             Representation and range of numbers.
+* Predicates on Numbers::     Testing for numbers.
+* Comparison of Numbers::     Equality and inequality predicates.
+* Arithmetic Operations::     How to add, subtract, multiply and divide.
+* Bitwise Operations::        Logical and, or, not, shifting.
+* Random Numbers::            Obtaining random integers, predictable or not.
+
+ 
+
+File: elisp,  Node: Number Basics,  Next: Predicates on Numbers,  Prev: Numbers,  Up: Numbers
+
+Number Basics
+=============
+
+   The range of values for an integer depends on the machine.  The
+range is -8388608 to 8388607 (24 bits; i.e.,
+
+   -2**23
+
+   to
+
+   2**23 - 1
+
+   ) on most machines, but on others it is -16777216 to 16777215 (25
+bits), or -33554432 to 33554431 (26 bits).  All of the examples shown
+below assume an integer has 24 bits.
+
+   The Lisp reader reads numbers as a sequence of digits with an
+optional sign.
+
+     1                ; The integer 1.
+     +1               ; Also the integer 1.
+     -1               ; The integer -1.
+     16777217         ; Also the integer 1, due to overflow.
+     0                ; The number 0.
+     -0               ; The number 0.
+     1.               ; Invalid syntax.
+
+    To understand how various functions work on integers, especially
+the bitwise operators (*note Bitwise Operations::.), it is often
+helpful to view the numbers in their binary form.
+
+   In 24 bit binary, the decimal integer 5 looks like this:
+
+     0000 0000  0000 0000  0000 0101
+
+(We have inserted spaces between groups of 4 bits, and two spaces
+between groups of 8 bits, to make the binary integer easier to read.)
+
+   The integer -1 looks like this:
+
+     1111 1111  1111 1111  1111 1111
+
+-1 is represented as 24 ones.  (This is called "two's complement"
+notation.)
+
+   The negative integer, -5, is creating by subtracting 4 from -1. 
+In binary, the decimal integer 4 is 100.  Consequently, -5 looks like
+this:
+
+     1111 1111  1111 1111  1111 1011
+
+   In this implementation, the largest 24 bit binary integer is the
+decimal integer 8,388,607.  In binary, this number looks like this:
+
+     0111 1111  1111 1111  1111 1111
+
+   Since the arithmetic functions do not check whether integers go
+outside their range, when you add 1 to 8,388,607, the value is
+negative integer -8,388,608:
+
+     (+ 1 8388607)
+          => -8388608
+          => 1000 0000  0000 0000  0000 0000
+
+   Many of the following functions accept markers for arguments as
+well as integers.  (*Note Markers::.)  More precisely, the actual
+parameters to such functions may be either integers or markers, which
+is why we often give these parameters the name MARKER-OR-INT.  When
+the actual parameter is a marker, the position value of the marker is
+used and the buffer of the marker is ignored.
+
+
+
+File: elisp,  Node: Predicates on Numbers,  Next: Comparison of Numbers,  Prev: Number Basics,  Up: Numbers
+
+Type Predicates for Numbers
+===========================
+
+   The functions in this section test whether the argument is a
+number or whether it is a certain sort of number.  `integerp' and
+`natnump' can take any type of Lisp object as argument (the
+predicates would not be of much use otherwise); but the `zerop'
+predicate requires an integer as its argument.
+
+ * Function: integerp OBJECT
+     This predicate tests whether its argument is an integer (a whole
+     number) and returns `t' if so, `nil' otherwise.
+
+ * Function: natnump OBJECT
+     The `natnump' predicate (whose name comes from the phrase
+     "natural-number-p") tests to see whether its argument is a
+     nonnegative integer, and returns `t' if so, `nil' otherwise.  0
+     is considered non-negative.
+
+     Markers are not converted to integers, hence `natnump' of a
+     marker is always `nil'.
+
+     People have pointed out that this function is misnamed, because
+     the term "natural number" is usually understood as excluding
+     zero.  We are open to suggestions for a better name to use in
+     version 19.
+
+ * Function: zerop INTEGER
+     This predicate tests whether its argument is zero, and returns
+     `t' if so, `nil' otherwise.  These two forms are equivalent:
+     `(zerop x) == (= x 0)'.
+
+
+
+File: elisp,  Node: Comparison of Numbers,  Next: Arithmetic Operations,  Prev: Predicates on Numbers,  Up: Numbers
+
+Comparison of Numbers
+=====================
+
+   The integer type is implemented by storing the value in the
+"pointer part" of a Lisp object (which, on typical target machines,
+has 24 bits of pointer, 7 bits of type and 1 bit for the garbage
+collector).  Because of this, the function `eq' will return `t' for
+two integers with the same value.  *Note Equality Predicates::.
+
+     Common Lisp note: because of the way numbers are implemented in
+     Common Lisp, you generally need to use ``='' to test for
+     equality between numbers.  However, GNU Emacs Lisp does not need
+     very large integers; as a consequence, it is possible to
+     restrict them to the size of a single word, allowing `eq' to be
+     used.
+
+ * Function: = MARKER-OR-INT1 MARKER-OR-INT2
+     This function tests whether its arguments are the same number,
+     and returns `t' if so, `nil' otherwise.
+
+ * Function: /= MARKER-OR-INT1 MARKER-OR-INT2
+     This function tests whether its arguments are not the same
+     number, and returns `t' if so, `nil' otherwise.
+
+ * Function: < MARKER-OR-INT1 MARKER-OR-INT2
+     This function tests whether its first argument is strictly less
+     than its second argument.  It returns `t' if so, `nil' otherwise.
+
+ * Function: <= MARKER-OR-INT1 MARKER-OR-INT2
+     This function tests whether its first argument is less than or
+     equal to its second argument.  It returns `t' if so, `nil'
+     otherwise.
+
+ * Function: > MARKER-OR-INT1 MARKER-OR-INT2
+     This function tests whether its first argument is strictly
+     greater than its second argument.  It returns `t' if so, `nil'
+     otherwise.
+
+ * Function: >= MARKER-OR-INT1 MARKER-OR-INT2
+     This function tests whether its first argument is greater than
+     or equal to its second argument.  It returns `t' if so, `nil'
+     otherwise.
+
+ * Function: max MARKER-OR-INT &rest MARKERS-OR-INTS
+     This function returns the largest of its arguments.
+
+          (max 20)
+               => 20
+          (max 1 2)
+               => 2
+          (max 1 3 2)
+               => 3
+
+ * Function: min MARKER-OR-INT &rest MARKERS-OR-INTS
+     This function returns the smallest of its arguments.
+
+
+
+File: elisp,  Node: Arithmetic Operations,  Next: Bitwise Operations,  Prev: Comparison of Numbers,  Up: Numbers
+
+Arithmetic Operations
+=====================
+
+   Emacs Lisp provides the traditional four arithmetic operations:
+addition, subtraction, multiplication, and division.  A remainder
+function supplements the (integer) division function.  In addition,
+as a convenience, incrementing and decrementing functions are provided.
+
+   It is important to note that in GNU Emacs Lisp, arithmetic
+functions do not check for overflow.  Thus `(1+ 8388607)' may equal
+-8388608, depending on your hardware.
+
+ * Function: 1+ MARKER-OR-INT
+     This function adds one to MARKER-OR-INT.
+
+ * Function: 1- MARKER-OR-INT
+     This function subtracts one from MARKER-OR-INT.
+
+ * Function: + &rest MARKERS-OR-INTS
+     This function adds its arguments together.  When given no
+     arguments, `+' returns 0.  It does not check for overflow.
+
+          (+)
+               => 0
+          (+ 1)
+               => 1
+          (+ 1 2 3 4)
+               => 10
+
+ * Function: - &optional MARKER-OR-INT &rest OTHER-MARKERS-OR-INTS
+     The `-' function serves two purposes: negation and subtraction. 
+     When `-' has a single argument, the value is the negative of the
+     argument.  When there are multiple arguments, each of the
+     OTHER-MARKERS-OR-INTS is subtracted from MARKER-OR-INT,
+     cumulatively.  If there are no arguments, the result is 0.  This
+     function does not check for overflow.
+
+          (- 10 1 2 3 4)
+               => 0
+          (- 10)
+               => -10
+          (-)
+               => 0
+
+ * Function: * &rest MARKERS-OR-INTEGERS
+     This function multiplies its arguments together, and returns the
+     product.  When given no arguments, `*' returns 1.  It does not
+     check for overflow.
+
+          (*)
+               => 1
+          (* 1)
+               => 1
+          (* 1 2 3 4)
+               => 24
+
+ * Function: / DIVIDEND DIVISOR &rest DIVISORS
+     This function divides DIVIDEND by DIVISORS and returns the
+     quotient.  If there are additional arguments DIVISORS, then
+     DIVIDEND is divided by each divisor in turn.    Each argument
+     may be an integer or a marker.
+
+     The result is normally rounded towars zero after each division,
+     but some machines may round differently with negative arguments.
+     This is because the Lisp function `/' is implemented using the C
+     division operator, which has the same possibility for
+     machine-dependent rounding.  In practice, all known machines
+     round in the standard fashion.
+
+     If you divide by 0, an `arith-error' error is signaled.  (*Note
+     Errors::.)
+
+          (/ 6 2)
+               => 3
+          (/ 5 2)
+               => 2
+          (/ 25 3 2)
+               => 4
+          (/ -17 6)
+               => -2          ; (Could be -3 on some machines.)
+
+ * Function: % DIVIDEND DIVISOR
+     This function returns the value of DIVIDEND modulo DIVISOR; in
+     other words, the integer remainder after division of DIVIDEND by
+     DIVISOR.  The sign of the result is the sign of DIVIDEND.  The
+     sign of DIVISOR is ignored.  The arguments must be integers.
+
+     For negative arguments, the value is in principle
+     machine-dependent since the quotient is; but in practice, all
+     known machines behave alike.
+
+     An `arith-error' results if DIVISOR is 0.
+
+          (% 9 4)
+               => 1
+          (% -9 4)
+               => -1
+          (% 9 -4)
+               => 1
+          (% -9 -4)
+               => -1
+
+     For any two numbers DIVIDEND and DIVISOR,
+
+          (+ (% DIVIDEND DIVISOR)
+             (* (/ DIVIDEND DIVISOR) DIVISOR))
+
+     always equals DIVIDEND.
+
+
+
+File: elisp,  Node: Bitwise Operations,  Next: Random Numbers,  Prev: Arithmetic Operations,  Up: Numbers
+
+Bitwise Operations on Integers
+==============================
+
+   In a computer, an integer is represented as a binary number, a
+sequence of "bits" (digits which are either zero or one).  A bitwise
+operation acts on the individual bits of such a sequence.  For
+example, "shifting" moves the whole sequence left or right one or
+more places, reproducing the same pattern "moved over".
+
+   The bitwise operations in Emacs Lisp apply only to integers.
+
+ * Function: lsh INTEGER1 COUNT
+     `lsh', which is an abbreviation for "logical shift", shifts the
+     bits in INTEGER1 to the left COUNT places, or to the right if
+     COUNT is negative.  If COUNT is negative, `lsh' shifts zeros
+     into the most-significant bit, producing a positive result even
+     if INTEGER1 is negative.  Contrast this with `ash', below.
+
+     Thus, the decimal number 5 is the binary number 00000101. 
+     Shifted once to the left, with a zero put in the one's place,
+     the number becomes 00001010, decimal 10.
+
+     Here are two examples of shifting the pattern of bits one place
+     to the left.  Since the contents of the rightmost place has been
+     moved one place to the left, a value has to be inserted into the
+     rightmost place.  With `lsh', a zero is placed into the
+     rightmost place.  (These examples show only the low-order eight
+     bits of the binary pattern; the rest are all zero.)
+
+          (lsh 5 1)
+               => 10
+          
+          00000101 => 00001010     ; Decimal 5 becomes decimal 10.
+          
+          (lsh 7 1)
+               => 14
+          
+          00000111 => 00001110     ; Decimal 7 becomes decimal 14.
+
+      As the examples illustrate, shifting the pattern of bits one
+     place to the left produces a number that is twice the value of
+     the previous number.
+
+     Note, however that functions do not check for overflow, and a
+     returned value may be negative (and in any case, no more than a
+     24 bit value) when an integer is sufficiently left shifted.  For
+     example:
+
+          (lsh 8388607 1)          ; left shift
+               => -2
+
+     In binary, in the 24 bit implementation,
+
+          0111 1111  1111 1111  1111 1111         ; Decimal 8,388,607
+
+     becomes
+
+          1111 1111  1111 1111  1111 1110         ; Decimal -2
+
+     Shifting the pattern of bits two places to the left produces
+     results like this (with 8-bit binary numbers):
+
+          (lsh 3 2)
+               => 12
+          
+          00000011 => 00001100       ; Decimal 3 becomes decimal 12.
+
+      On the other hand, shifting the pattern of bits one place to the
+     right looks like this:
+
+          (lsh 6 -1)
+               => 3
+          
+          00000110 => 00000011       ; Decimal 6 becomes decimal 3.
+          
+          (lsh 5 -1)
+               => 2
+          
+          00000101 => 00000010       ; Decimal 5 becomes decimal 2.
+
+      As the example illustrates, shifting the pattern of bits one
+     place to the right divides the value of the binary number by
+     two, rounding downward.
+
+ * Function: ash INTEGER1 COUNT
+     `ash' ("arithmetic shift") shifts the bits in INTEGER1 to the
+     left COUNT places, or to the right if COUNT is negative.
+
+     `ash' gives the same results as `lsh' except when INTEGER1 and
+     COUNT are both negative.  In that case, `ash' puts a one in the
+     leftmost position, while `lsh' puts a zero in the leftmost
+     position.
+
+     Thus, with `ash', shifting the pattern of bits one place to the
+     right looks like this:
+
+          (ash -6 -1)
+               => -3            ; Decimal -6 becomes decimal -3.
+          
+          1111 1111  1111 1111  1111 1010
+               => 
+          1111 1111  1111 1111  1111 1101
+
+     In contrast, shifting the pattern of bits one place to the right
+     with `lsh' looks like this:
+
+          (lsh -6 -1)
+               => 8388605       ; Decimal -6 becomes decimal 8,388,605.
+          
+          1111 1111  1111 1111  1111 1010
+               => 
+          0111 1111  1111 1111  1111 1101
+
+     In this case, the 1 in the leftmost position is shifted one
+     place to the right, and a zero is shifted into the leftmost
+     position.
+
+     Here are other examples:
+
+                                 ;               24-bit binary values
+          
+          (lsh 5 2)              ;   5  =  0000 0000  0000 0000  0000 0101
+               => 20             ;  20  =  0000 0000  0000 0000  0001 0100
+          (ash 5 2)
+               => 20
+          (lsh -5 2)             ;  -5  =  1111 1111  1111 1111  1111 1011
+               => -20            ; -20  =  1111 1111  1111 1111  1110 1100
+          (ash -5 2)
+               => -20
+          
+          (lsh 5 -2)             ;   5  =  0000 0000  0000 0000  0000 0101
+               => 1              ;   1  =  0000 0000  0000 0000  0000 0001
+          (ash 5 -2)
+               => 1
+          (lsh -5 -2)            ;  -5  =  1111 1111  1111 1111  1111 1011
+               => 4194302        ;         0011 1111  1111 1111  1111 1110
+          (ash -5 -2)            ;  -5  =  1111 1111  1111 1111  1111 1011
+               => -2             ;  -2  =  1111 1111  1111 1111  1111 1110
+
+ * Function: logand &rest MARKERS-OR-INTS
+     This function returns the "logical and" of the arguments: the
+     Nth bit is set in the result if, and only if, the Nth bit is set
+     in all the arguments.  ("Set" means that the value of the bit is
+     1 rather than 0.)
+
+     For example, using 4-bit binary numbers, the "logical and" of 13
+     and 12 is 12: 1101 combined with 1100 produces 1100.
+
+     In both the binary numbers, the leftmost two bits are set (i.e.,
+     they are 1's), so the leftmost two bits of the returned value
+     are set.  However, for the rightmost two bits, each is zero in
+     at least one of the arguments, so the rightmost two bits of the
+     returned value are 0's.
+
+     Therefore,
+
+          (logand 13 12)
+               => 12
+
+     If `logand' is not passed any argument, it returns a value of
+     -1.  This number is an identity element for `logand' because its
+     binary representation consists entirely of ones.  If `logand' is
+     passed just one argument, it returns that argument.
+
+                                 ;                24-bit binary values
+          
+          (logand 14 13)         ; 14  =  0000 0000  0000 0000  0000 1110
+                                 ; 13  =  0000 0000  0000 0000  0000 1101
+               => 12             ; 12  =  0000 0000  0000 0000  0000 1100
+          
+          (logand 14 13 4)       ; 14  =  0000 0000  0000 0000  0000 1110
+                                 ; 13  =  0000 0000  0000 0000  0000 1101
+                                 ;  4  =  0000 0000  0000 0000  0000 0100
+               => 4              ;  4  =  0000 0000  0000 0000  0000 0100
+          
+          (logand)
+               => -1             ; -1  =  1111 1111  1111 1111  1111 1111
+
+ * Function: logior &rest MARKERS-OR-INTS
+     This function returns the "inclusive or" of its arguments: the
+     Nth bit is set in the result if, and only if, the Nth bit is set
+     in at least one of the arguments.  If there are no arguments,
+     the result is zero, which is an identity element for this
+     operation.  If `logior' is passed just one argument, it returns
+     that argument.
+
+                                 ;               24-bit binary values
+          
+          (logior 12 5)          ; 12  =  0000 0000  0000 0000  0000 1100
+                                 ;  5  =  0000 0000  0000 0000  0000 0101
+               => 13             ; 13  =  0000 0000  0000 0000  0000 1101
+          
+          (logior 12 5 7)        ; 12  =  0000 0000  0000 0000  0000 1100
+                                 ;  5  =  0000 0000  0000 0000  0000 0101
+                                 ;  7  =  0000 0000  0000 0000  0000 0111
+               => 15             ; 15  =  0000 0000  0000 0000  0000 1111
+
+ * Function: logxor &rest MARKERS-OR-INTS
+     This function returns the "exclusive or" of its arguments: the
+     Nth bit is set in the result if, and only if, the Nth bit is set
+     in an odd number of the arguments.  If there are no arguments,
+     the result is 0.  If `logxor' is passed just one argument, it
+     returns that argument.
+
+                                 ;               24-bit binary values
+          
+          (logxor 12 5)          ; 12  =  0000 0000  0000 0000  0000 1100
+                                 ;  5  =  0000 0000  0000 0000  0000 0101
+               => 9              ;  9  =  0000 0000  0000 0000  0000 1001
+          
+          (logxor 12 5 7)        ; 12  =  0000 0000  0000 0000  0000 1100
+                                 ;  5  =  0000 0000  0000 0000  0000 0101
+                                 ;  7  =  0000 0000  0000 0000  0000 0111
+               => 14             ; 14  =  0000 0000  0000 0000  0000 1110
+
+ * Function: lognot INTEGER
+     This function returns the logical complement of its argument:
+     the Nth bit is one in the result if, and only if, the Nth bit is
+     zero in INTEGER, and vice-versa.
+
+          (lognot 5)             ;  5  =  0000 0000  0000 0000  0000 0101
+               => -6             ; -6  =  1111 1111  1111 1111  1111 1010
+
+
+
+File: elisp,  Node: Random Numbers,  Prev: Bitwise Operations,  Up: Numbers
+
+Random Numbers
+==============
+
+ * Function: random &optional FLAG
+     This function returns a pseudo-random number of type integer. 
+     When called more than once, this function returns a series of
+     pseudo-random numbers.
+
+     In a computer, a series of a pseudo-random numbers is generated
+     in a deterministic fashion.  The numbers are not truly random,
+     but they have certain properties that mimic a random series. 
+     For example, all possible values occur equally often in a
+     pseudo-random series.
+
+     In Emacs, pseudo-random numbers are generated from a "seed"
+     number.  If the `random' function starts with the same seed, it
+     generates the same sequence of numbers.  Emacs always starts
+     with the same seed value, so the sequence of values of `random'
+     is actually the same in each Emacs run!  For example, in one
+     operating system, the first call to `(random)' after you start
+     Emacs always returns -1457731, and the second one always returns
+     -7692030.  This is helpful for debugging.
+
+     If you want different random numbers, execute `(random t)'. 
+     This chooses a new seed based on the current time of day and on
+     Emacs' process ID number.
+
+     On some machines, any integer representable in Lisp may be the
+     result of `random'.  On other machines, the result can never be
+     larger than a certain maximum or less than a certain (negative)
+     minimum.
+
+
+
+File: elisp,  Node: Strings and Characters,  Next: Lists,  Prev: Numbers,  Up: Top
+
+Strings and Characters
+**********************
+
+   A string in Emacs Lisp is an array that contains an ordered
+sequence of characters.  Strings are used as names of symbols,
+buffers, and files, to send messages to users, to hold text being
+copied between buffers, and for many other purposes.  Because strings
+are so important, many functions are provided expressly for
+manipulating them.  Emacs Lisp programs use strings more often than
+individual characters.
+
+* Menu:
+
+* Intro to Strings::          Basic properties of strings and characters.
+* Predicates for Strings::    Testing whether an object is a string or char.
+* Creating Strings::          Functions to allocate new strings.
+* Text Comparison::           Comparing characters or strings.
+* String Conversion::         Converting characters or strings and vice versa.
+* Formatting Strings::        `format': Emacs's analog of `printf'.
+* Character Case::            Case conversion functions.
+
+ 
+
+File: elisp,  Node: Intro to Strings,  Next: Predicates for Strings,  Prev: Strings and Characters,  Up: Strings and Characters
+
+Introduction to Strings and Characters
+======================================
+
+   Characters are represented in Emacs Lisp as integers; whether an
+integer was intended as a character or not is determined only by how
+it is used.  Strings in Emacs Lisp are arrays that contain an ordered
+sequence of characters.
+
+   The length of a string (like any array) is fixed and independent
+of the string contents, and cannot be altered.  Strings in Lisp are
+*not* terminated by a distinguished character code.  (By contrast,
+strings in C are terminated by a character with ASCII code 0.) This
+means that any character, including the null character (ASCII code
+0), is a valid element of a string.
+
+   Since strings are considered arrays, you can operate on them with
+the general array functions.  (*Note Sequences Arrays Vectors::.) 
+For example, you can access or change individual characters in a
+string using the functions `aref' and `aset' (*note Array
+Functions::.).
+
+   Each character in a string is stored in a single byte.  Therefore,
+numbers not in the range 0 to 255 are truncated when stored into a
+string.  This means that a string takes up much less memory than a
+vector of the same length.
+
+   *Note Text::, for information about functions that display strings
+or copy them into buffers.  *Note Character Type::, and *Note String
+Type::, for information about the syntax of characters and strings.
+
+
+
+File: elisp,  Node: Predicates for Strings,  Next: Creating Strings,  Prev: Intro to Strings,  Up: Strings and Characters
+
+The Predicates for Strings
+==========================
+
+   For more information about general sequence and array predicates,
+see *Note Sequences Arrays Vectors::, and *Note Arrays::.
+
+ * Function: stringp OBJECT
+     This function returns `t' if OBJECT is a string, `nil' otherwise.
+
+ * Function: char-or-string-p OBJECT
+     This function returns `t' if OBJECT is a string or a character
+     (i.e., an integer), `nil' otherwise.
+
+
+
+File: elisp,  Node: Creating Strings,  Next: Text Comparison,  Prev: Predicates for Strings,  Up: Strings and Characters
+
+Creating Strings
+================
+
+   The following functions create strings, either from scratch, or by
+putting strings together, or by taking them apart.
+
+ * Function: make-string COUNT CHARACTER
+     This function returns a string made up of COUNT repetitions of
+     CHARACTER.  If COUNT is negative, an error is signaled.
+
+          (make-string 5 ?x)
+               => "xxxxx"
+          (make-string 0 ?x)
+               => ""
+
+     Other functions to compare with this one include
+     `char-to-string' (*note String Conversion::.), `make-vector'
+     (*note Vectors::.), and `make-list' (*note Building Lists::.).
+
+ * Function: substring STRING START &optional END
+     This function returns a new string which consists of those
+     characters from STRING in the range from (and including) the
+     character at the index START up to (but excluding) the character
+     at the index END.  The first character is at index zero.
+
+          (substring "abcdefg" 0 3)
+               => "abc"
+
+     Here the index for `a' is 0, the index for `b' is 1, and the
+     index for `c' is 2.  Thus, three letters, `abc', are copied from
+     the full string.  The index 3 marks the character position up to
+     which the substring is copied.  The character whose index is 3
+     is actually the fourth character in the string.
+
+     A negative number counts from the end of the string, so that -1
+     signifies the index of the last character of the string.  For
+     example:
+
+          (substring "abcdefg" -3 -1)
+               => "ef"
+
+     In this example, the index for `e' is -3, the index for `f' is
+     -2, and the index for `g' is -1.  Therefore, `e' and `f' are
+     included, and `g' is excluded.
+
+     When `nil' is used as an index, it falls after the last
+     character in the string.  Thus:
+
+          (substring "abcdefg" -3 nil)
+               => "efg"
+
+     Omitting the argument END is equivalent to specifying `nil'.  It
+     follows that `(substring STRING 0)' returns a copy of all of
+     STRING.
+
+          (substring "abcdefg" 0)
+               => "abcdefg"
+
+     But we recommend `copy-sequence' for this purpose.
+
+     A `wrong-type-argument' error is signaled if either START or END
+     are non-integers.  An `args-out-of-range' error is signaled if
+     START indicates a character following END, or if either integer
+     is out of range for STRING.
+
+     Contrast this function with `buffer-substring' (*note Buffer
+     Contents::.), which returns a string containing a portion of the
+     text in the current buffer.  The beginning of a string is at
+     index 0, but the beginning of a buffer is at index 1.
+
+ * Function: concat &rest SEQUENCES
+     This function returns a new string consisting of the characters
+     in the arguments passed to it.  The arguments may be strings,
+     lists of numbers, or vectors of numbers; they are not themselves
+     changed.  If no arguments are passed to `concat', it returns an
+     empty string.
+
+          (concat "abc" "-def")
+               => "abc-def"
+          (concat "abc" (list 120 (+ 256 121)) [122])
+               => "abcxyz"
+          (concat "The " "quick brown " "fox.")
+               => "The quick brown fox."
+          (concat)
+               => ""
+
+     The second example above shows how characters stored in strings
+     are taken modulo 256.  In other words, each character in the
+     string is stored in one byte.
+
+     The `concat' function always constructs a new string that is not
+     `eq' to any existing string.
+
+     When an argument is an integer (not a sequence of integers), it
+     is converted to a string of digits making up the decimal printed
+     representation of the integer.  This special case exists for
+     compatibility with Mocklisp, and we don't recommend you take
+     advantage of it.  If you want to convert an integer in this way,
+     use `format' (*note Formatting Strings::.) or `int-to-string'
+     (*note String Conversion::.).
+
+          (concat 137)
+               => "137"
+          (concat 54 321)
+               => "54321"
+
+     For information about other concatenation functions, see
+     `mapconcat' in *Note Mapping Functions::, `vconcat' in *Note
+     Vectors::, and `append' in *Note Building Lists::.
+
+
+
+File: elisp,  Node: Text Comparison,  Next: String Conversion,  Prev: Creating Strings,  Up: Strings and Characters
+
+Comparison of Characters and Strings
+====================================
+
+ * Function: char-equal CHARACTER1 CHARACTER2
+     This function returns `t' if the arguments represent the same
+     character, `nil' otherwise.  This is done by comparing two
+     integers modulo 256.
+
+          (char-equal ?x ?x)
+               => t
+          (char-to-string (+ 256 ?x))
+               => "x"
+          (char-equal ?x  (+ 256 ?x))
+               => t
+
+ * Function: string= STRING1 STRING2
+     This function returns `t' if the characters of the two strings
+     match exactly; case is significant.
+
+          (string= "abc" "abc")
+               => t
+          (string= "abc" "ABC")
+               => nil
+          (string= "ab" "ABC")
+               => nil
+
+ * Function: string-equal STRING1 STRING2
+     `string-equal' is another name for `string='.
+
+ * Function: string< STRING1 STRING2
+     This function compares two strings a character at a time.  First
+     it scans both the strings at once to find the first pair of
+     corresponding characters that do not match.  If the lesser
+     character of those two is the character from STRING1, then
+     STRING1 is less, and this function returns `t'.  If the lesser
+     character is the one from STRING2, then STRING1 is greater, and
+     this function returns `nil'.  If the two strings match entirely,
+     the value is `nil'.
+
+     Pairs of characters are compared by their ASCII codes.  Keep in
+     mind that lower case letters have higher numeric values in the
+     ASCII character set than their upper case counterparts; numbers
+     and many punctuation characters have a lower numeric value than
+     upper case letters.
+
+          (string< "abc" "abd")
+               => t
+          (string< "abd" "abc")
+               => nil
+          (string< "123" "abc")
+               => t
+
+     When the strings have different lengths, and they match up to
+     the length of STRING1, then the result is `t'.  If they match up
+     to the length of STRING2, the result is `nil'.  A string without
+     any characters in it is the smallest possible string.
+
+          (string< "" "abc")
+               => t
+          (string< "ab" "abc")
+               => t
+          (string< "abc" "")
+               => nil
+          (string< "abc" "ab")
+               => nil
+          (string< "" "")
+               => nil
+
+ * Function: string-lessp STRING1 STRING2
+     `string-lessp' is another name for `string<'.
+
+
+
+File: elisp,  Node: String Conversion,  Next: Formatting Strings,  Prev: Text Comparison,  Up: Strings and Characters
+
+Conversion of Characters and Strings
+====================================
+
+   Characters and strings may be converted into each other and into
+integers.  `format' and `prin1-to-string' (*note Output Functions::.)
+may also be used to convert Lisp objects into strings. 
+`read-from-string' (*note Input Functions::.) may be used to
+"convert" a string representation of a Lisp object into an object.
+
+   *Note Documentation::, for a description of the functions
+`single-key-description' and `text-char-description', which return a
+string representing the Emacs standard notation of the argument
+character.  These functions are used primarily for printing help
+messages.
+
+ * Function: char-to-string CHARACTER
+     This function returns a new string with a length of one character.
+     The value of CHARACTER, modulo 256, is used to initialize the
+     element of the string.
+
+     This function is similar to `make-string' with an integer
+     argument of 1.  (*Note Creating Strings::.)  This conversion can
+     also be done with `format' using the `%c' format specification. 
+     (*Note Formatting Strings::.)
+
+          (char-to-string ?x)
+               => "x"
+          (char-to-string (+ 256 ?x))
+               => "x"
+          (make-string 1 ?x)
+               => "x"
+
+ * Function: string-to-char STRING
+     This function returns the first character in STRING.  If the
+     string is empty, the function returns 0.  The value is also 0
+     when the first character of STRING is the null character, ASCII
+     code 0.
+
+          (string-to-char "ABC")
+               => 65
+          (string-to-char "xyz")
+               => 120
+          (string-to-char "")
+               => 0
+          (string-to-char "\000")
+               => 0
+
+     This function may be eliminated in version 19 if it does not
+     seem useful enough to retain.
+
+ * Function: int-to-string INTEGER
+     This function returns a string consisting of the digits of
+     INTEGER, base ten.  When passed a positive integer as an
+     argument, this function returns an unsigned string.  When passed
+     a negative integer, the function returns a string with a leading
+     minus sign.
+
+          (int-to-string 256)
+               => "256"
+          (int-to-string -23)
+               => "-23"
+
+     See also the function `format' in *Note Formatting Strings::.
+
+ * Function: string-to-int STRING
+     This function returns the integer value of the characters in
+     STRING, read as a number in base ten.
+
+     The string is read starting from (and including) the first
+     character, and it is read until a non-digit is encountered.  If
+     the first character is not a digit or a minus sign, this
+     function returns 0.
+
+          (string-to-int "256")
+               => 256
+          (string-to-int "25 is a perfect square.")
+               => 25
+          (string-to-int "X256")
+               => 0
+          (string-to-int "-4")
+               => -4
+
+
+
+File: elisp,  Node: Formatting Strings,  Next: Character Case,  Prev: String Conversion,  Up: Strings and Characters
+
+Formatting Strings
+==================
+
+   "Formatting" means constructing a string by substitution of
+computed values at various places in a constant string.  This string
+controls how the other values are printed as well as where they
+appear; it is called a "format string".
+
+   Formatting is often useful for computing messages to be displayed.
+In fact, the functions `message' and `error' provide the same
+formatting feature described here; they differ from `format' only in
+how they use the result of formatting.
+
+ * Function: format STRING &rest OBJECTS
+     This function returns a new string that is made by copying
+     STRING and then replacing any format specification  in the copy
+     with encodings of the corresponding OBJECTS.  The arguments
+     OBJECTS are the computed values to be formatted.
+
+   A format specification is a sequence of characters beginning with
+a `%'.  Thus, if there is a `%d' in STRING, the `format' function
+replaces it with the printed representation of one of the values to
+be formatted (one of the arguments OBJECTS).  For example:
+
+     (format "The value of fill-column is %d." fill-column)
+          => "The value of fill-column is 72."
+
+   If STRING contains more than one format specification, the format
+specifications are matched in order with successive values from
+OBJECTS.  Thus, the first format specification in STRING is matched
+with the first such value, the second format specification is matched
+with the second such value, and so on.  Any extra format
+specifications (those for which there are no corresponding values)
+cause unpredictable behavior.  Any extra values to be formatted will
+be ignored.
+
+   Certain format specifications require values of particular types. 
+However, no error is signaled if the value actually supplied fails to
+have the expected type.  Instead, meaningless text is likely to be
+output.
+
+   Here is a table of the characters that can follow `%' to make up a
+format specification:
+
+`s'
+     Replace the specification with the printed representation of the
+     object.  If there is no corresponding object, the empty string
+     is used.
+
+`o'
+     Replace the specification with the base-eight representation of
+     an integer.
+
+`d'
+     Replace the specification with the base-ten representation of an
+     integer.
+
+`x'
+     Replace the specification with the base-sixteen representation
+     of an integer.
+
+`c'
+     Replace the specification with the character which is the value
+     given.
+
+`%'
+     A single `%' is placed in the string.  This format specification
+     is unusual in that it does not use a value.  For example,
+     `(format "%% %d" 30)' returns `"% 30"'.
+
+   Any other format character results in an `Invalid format
+operation' error.
+
+   Here are several examples:
+
+     (format "The name of this buffer is %s." (buffer-name))
+          => "The name of this buffer is strings.texi."
+     
+     (format "The buffer object prints as %s." (current-buffer))
+          => "The buffer object prints as #<buffer strings.texi>."
+     
+     (format "The octal value of 18 is %o, and the hex value is %x."
+             18 18)
+          => "The octal value of 18 is 22, and the hex value is 12."
+
+   All the specification characters allow an optional numeric prefix
+between the `%' and the character.  The optional numeric prefix
+defines the minimum width for the object.  If the printed
+representation of the object contains fewer characters than this,
+then it is padded.  The padding is on the left if the prefix is
+positive (or starts with zero) and on the right if the prefix is
+negative.  The padding character is normally a space, but if the
+numeric prefix starts with a zero, zeros are used for padding.
+
+     (format "%06d will be padded on the left with zeros" 123)
+          => "000123 will be padded on the left with zeros"
+     
+     (format "%-6d will be padded on the right" 123)
+          => "123    will be padded on the right"
+
+   No matter what the prefix, nothing in the printed representation
+will be truncated.  This allows the programmer to specify minimum
+spacing without knowing how many characters there are in the object's
+printed representation.
+
+   In the following three examples, `%7s' specifies a minimum width
+of 7.  In the first case, the string inserted in place of `%7s' has
+only 3 letters, so 4 blank spaces are inserted for padding.  In the
+second case, the string `"specification"' is 13 letters wide but is
+not truncated.  In the third case, the padding is on the right. 
+(This does not work in version 18, but does work in version 19.)
+
+     (format "The word `%7s' actually has %d letters in it." "foo" 
+             (length "foo"))
+          => "The word `    foo' actually has 3 letters in it."  
+     
+     (format "The word `%7s' actually has %d letters in it."
+             "specification" 
+             (length "specification")) 
+          => "The word `specification' actually has 13 letters in it."  
+     
+     (format "The word `%-7s' actually has %d letters in it." "foo" 
+             (length "foo"))
+          => "The word `foo    ' actually has 3 letters in it."  
+     ;; `%-7s' fails to work in version 18, but does work in version 19.
+     ;; In version 18, padding is not inserted.
+
+ 

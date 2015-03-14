@@ -1,0 +1,103 @@
+diff -c /e/linux/kernel/blk_drv/scsi/scsi.c linux/kernel/blk_drv/scsi/scsi.c
+*** /e/linux/kernel/blk_drv/scsi/scsi.c	Tue Feb  9 21:07:58 1993
+--- linux/kernel/blk_drv/scsi/scsi.c	Wed Feb 17 17:40:07 1993
+***************
+*** 250,255 ****
+--- 251,257 ----
+  		      access_count = 0;
+  		    scsi_devices[NR_SCSI_DEVICES].
+  		      busy = 0;
++ 		    scsi_devices[NR_SCSI_DEVICES].sector512 = 1;
+  /* 
+   *	Currently, all sequential devices are assumed to be tapes,
+   *	all random devices disk, with the appropriate read only 
+***************
+*** 266,271 ****
+--- 268,274 ----
+  		      case TYPE_WORM :
+  		      case TYPE_ROM :
+  			scsi_devices[NR_SCSI_DEVICES].writeable = 0;
++ 			scsi_devices[NR_SCSI_DEVICES].sector512 = 0;
+  			break;
+  			default :
+  			  type = -1;
+***************
+*** 289,298 ****
+  				 host_nr , dev, lun); 
+  			  if(NR_SR != -1) ++MAX_SR;
+  			  break;
+  			case TYPE_DISK:
+  			case TYPE_MOD:
+  			  printk("Detected scsi disk sd%d at scsi%d, id %d, lun %d\n", MAX_SD,
+  				 host_nr , dev, lun); 
+  			  if(NR_SD != -1) ++MAX_SD;
+  			  break;
+  			default:
+--- 292,310 ----
+  				 host_nr , dev, lun); 
+  			  if(NR_SR != -1) ++MAX_SR;
+  			  break;
+  			case TYPE_DISK:
+  			case TYPE_MOD:
+  			  printk("Detected scsi disk sd%d at scsi%d, id %d, lun %d\n", MAX_SD,
+  				 host_nr , dev, lun); 
++ 			  if (!strncmp(scsi_result+8,"TOSHIBA",7)) { /*KTS*/
++ 			    scsi_devices[NR_SCSI_DEVICES].removable = 1;
++ 			    printk("DETECTED scsi CD-ROM sr%d at scsi%d, id %d, lun %d\n"
++ 				   ,MAX_SR, host_nr, dev, lun); 
++ 			    scsi_devices[NR_SCSI_DEVICES].type = TYPE_ROM;
++ 			    scsi_devices[NR_SCSI_DEVICES].sector512 = 1;
++ 			    if(NR_SR != -1) ++MAX_SR;
++ 			    break;
++ 			  }
+  			  if(NR_SD != -1) ++MAX_SD;
+  			  break;
+  			default:
+diff -c /e/linux/kernel/blk_drv/scsi/scsi.h linux/kernel/blk_drv/scsi/scsi.h
+*** /e/linux/kernel/blk_drv/scsi/scsi.h	Sat Dec 12 02:05:33 1992
+--- linux/kernel/blk_drv/scsi/scsi.h	Wed Feb 17 17:37:47 1993
+***************
+*** 258,263 ****
+--- 258,264 ----
+  	unsigned random:1;
+  	unsigned changed:1;	/* Data invalid due to media change */
+  	unsigned busy:1;	/* Used to prevent races */
++ 	unsigned sector512:1;   /* sector size 512 for SGI CD-ROM */
+  } Scsi_Device;
+  /*
+  	Use these to separate status msg and our bytes
+diff -c /e/linux/kernel/blk_drv/scsi/sr.c linux/kernel/blk_drv/scsi/sr.c
+*** /e/linux/kernel/blk_drv/scsi/sr.c	Fri Jan  1 22:47:08 1993
+--- linux/kernel/blk_drv/scsi/sr.c	Wed Feb 17 17:41:50 1993
+***************
+*** 542,549 ****
+--- 542,553 ----
+  	    }
+  	};
+  
+  	block = block >> 2; /* These are the sectors that the cdrom uses */
+  	realcount = (this_count + 3) / 4;
++ 	if (scsi_CDs[dev].sector_size < 2048) {
++ 	  block     *= 2048 / scsi_CDs[dev].sector_size;
++ 	  realcount *= 2048 / scsi_CDs[dev].sector_size;
++ 	}
+  
+  	if (((realcount > 0xff) || (block > 0x1fffff)) && scsi_CDs[dev].ten) 
+  		{
+***************
+*** 611,617 ****
+  	for (i = 0; i < NR_SR; ++i)
+  		{
+  		scsi_CDs[i].capacity = 0x1fffff;
+! 		scsi_CDs[i].sector_size = 2048;
+  		scsi_CDs[i].use = 1;
+  		scsi_CDs[i].ten = 1;
+  		scsi_CDs[i].remap = 1;
+--- 618,624 ----
+  	for (i = 0; i < NR_SR; ++i)
+  		{
+  		scsi_CDs[i].capacity = 0x1fffff;
+! 		scsi_CDs[i].sector_size = (scsi_CDs[i].device->sector512 ? 512 : 2048);
+  		scsi_CDs[i].use = 1;
+  		scsi_CDs[i].ten = 1;
+  		scsi_CDs[i].remap = 1;

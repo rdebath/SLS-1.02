@@ -1,0 +1,172 @@
+#
+# Script to set up and customise users system.
+
+function setupmodem()
+{
+	echo "do you have a modem (y/n)?"
+	read ans;
+	if [ "$ans" = "Y" -o "$ans" = "y" ]; then
+		while [ "$MODEM" = "" ]; do
+			echo "1 - Com1 (/dev/cua0)" 
+			echo "2 - Com2 (/dev/cua1)" 
+			echo "3 - Com3 (/dev/cua2)" 
+			echo "4 - Com4 (/dev/cua3)" 
+			echo ""
+			echo "Your modem is on which com port (1/2/3/4)"
+			read ans;
+			case $ans in
+			1) MODEM=cua0 ;;
+			2) MODEM=cua1 ;;
+			3) MODEM=cua2 ;;
+			4) MODEM=cua3 ;;
+			*) echo "invalid com port" ;;
+			esac
+		done
+		(cd dev; ln -sf $MODEM modem)
+#		if [ ! -f etc/default/uugetty.modem ]; then
+#			cp -a etc/default/uugetty.ttyS1 etc/default/uugetty.modem
+#			echo "ALTLOCK=$MODEM" >> etc/default/uugetty.modem;
+#		fi
+	fi
+}
+
+function setupmouse()
+{
+	echo "do you have a mouse (y/n)?"
+	read ans;
+	if [ "$ans" = "Y" -o "$ans" = "y" ]; then
+		while [ "$MOUSE" = "" ]; do
+			echo "1 - Logitech BusMouse"
+			echo "2 - PS2 Bus Mouse"
+			echo "3 - Microsoft Bus Mouse"
+			echo "4 - ATI XL Bus Mouse"
+			echo "5 - Microsoft Serial Mouse"
+			echo "6 - Logitech Serial Mouse"
+			echo "7 - MouseSystems Serial Mouse"
+			echo "8 - MM Serial Mouse"
+			echo ""
+			echo "What type of mouse do you have (1-8)"
+			read ans;
+			case $ans in
+			1) MOUSE=bmouselogitec ;;
+			2) MOUSE=ps2aux ;;
+			3) MOUSE=bmousems ;;
+			4) MOUSE=bmouseatixl ;;
+			5|6|7|8) MOUSE=serial ;;
+			*) echo "invalid mouse type" ;;
+			esac
+		done
+		while [ "$MOUSE" = "serial" ]; do
+			echo "1 - Com1 (/dev/cua0)" 
+			echo "2 - Com2 (/dev/cua1)" 
+			echo "3 - Com3 (/dev/cua2)" 
+			echo "4 - Com4 (/dev/cua3)" 
+			echo ""
+			echo "Your mouse is on which com port (1/2/3/4)"
+			read ans;
+			case $ans in
+			1) MOUSE=cua0 ;;
+			2) MOUSE=cua1 ;;
+			3) MOUSE=cua2 ;;
+			4) MOUSE=cua3 ;;
+			esac
+		done
+		if [ "$MOUSE" = "$MODEM" ]; then
+			echo "warning: mouse device $MOUSE is on the same device as the modem";
+		else
+			(cd dev; ln -sf $MOUSE mouse )
+			return 0;
+		fi
+	fi
+}
+
+setuphostname()
+{
+	if [ ! -d etc/rc.net ]; then
+		return 0;
+	fi
+	echo -n "Current host name is `cat etc/host`.  Enter new hostname: "
+	read ans;
+	if [ "$ans" != "" ]; then
+		echo $ans > etc/host
+		echo "Hostname set.  Remember to edit /etc/hosts for ip stuff".
+	fi
+	echo "order hosts" > etc/host.conf
+	echo -n "Enter domain name, or just hit enter if not networked (eg: softlanding.com):"
+	read ans;
+	if [ "$ans" = "" ]; then
+		return 0;
+	else
+		echo $ans > etc/domain
+	fi
+	echo -n "Do you wish this host to be a name server? (y/n): "
+	read ans;
+	if [ "$ans" != "y" ]; then
+		read ans;
+		echo "Domainname set.  running /etc/hostcvt.build to configure DNS".
+		( cd etc; hostcvt.build );
+		echo "order bind hosts" > etc/host.conf
+		return 0;
+	else
+		echo "enter ip number of nameserver host"
+		read ipnum;
+		echo "enter domain name of nameserver host"
+		read nsdom;
+		echo "domain $nsdom" > etc/resolv.conf
+		echo "nameserver $ipnum" >> etc/resolv.conf
+	fi
+}
+
+function setuplilo()
+{
+	ROOTDEVICE=`grep ROOTDEV etc/hwconfig | cut -c9-20`
+	VGAMODE=`grep VGAMODE etc/hwconfig | cut -c9-20`
+	case $VGAMODE in
+		-3) VGAMODE=ask;;
+		-2) VGAMODE=extended;;
+		-1) VGAMODE=normal;;
+	esac;
+	ROOTDISK=`echo $ROOTDEVICE | cut -b 1-8`
+	(sed "/ROOTDEV/s+ROOTDEV+$ROOTDEVICE+" | sed "/VGAMODE/s/VGAMODE/$VGAMODE/" | 
+		sed "/ROOTDISK/s+ROOTDISK+$ROOTDISK+" ) < etc/lilo/config.in > etc/lilo/config
+	dd if=$ROOTDISK of=etc/lilo/bootsave bs=512 count=1 &> /dev/null
+	echo ""
+	echo "Now you must decide if you wish to be able to boot from the hard drive."
+	echo "If there is nothing else on your harddrive(s), it can't hurt to do it now"
+	echo 'If not done now, you can always do it later with "/etc/lilo/install".'
+	echo "Do you wish to have LILO run now to setup booting from your hard drive? (y/n)"
+	read ans;
+	if [ "$ans" = "y" ]; then
+		(cd $ROOTDEV/etc/lilo; ./lilo -r $ROOTDEV -m /etc/lilo/map \
+			-C /etc/lilo/config)
+		echo "harddrive now setup for booting"
+	fi
+}
+
+function setupfloppy()
+{
+	FLOPPYA=`grep FLOPPYA etc/hwconfig | cut -c9-20`
+	if [ "/dev/fd0H1440" = "$FLOPPYA"  ]; then
+		FLOPPYB=/dev/fd1h1200;
+	else
+		FLOPPYB=/dev/fd1H1440;
+	fi
+}
+
+ROOTDEV=/
+if [ "$1" = "-instroot" ]; then
+	ROOTDEV=$2;
+	shift 2;
+fi
+
+cd $ROOTDEV
+
+echo "/etc/syssetup: Configuring system to local defaults"
+setupmodem;
+setupmouse;
+setuplilo;
+#setuphostname;
+if [ "$1" = '-install' ]; then
+	etc/sysperms -instroot $ROOTDEV -install
+fi
+sync

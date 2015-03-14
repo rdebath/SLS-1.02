@@ -1,0 +1,61 @@
+XCOMM $Header: /home/x_cvs/mit/fonts/server/Imakefile,v 1.3 1992/08/25 08:56:07 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.14 91/09/08 14:13:39 rws Exp $
+#undef ServerDefines
+#include <Server.tmpl>
+#define	IHaveSubdirs
+
+#define PassCDebugFlags 'CDEBUGFLAGS=$(CDEBUGFLAGS)' 'CC=$(CC)' 'CCOPTIONS=$(CCOPTIONS)' 'ANSICCOPTIONS=$(ANSICCOPTIONS)'
+
+CC = ServerCcCmd
+CCOPTIONS = ServerCCOptions
+STD_DEFINES = ServerDefines
+CDEBUGFLAGS = ServerCDebugFlags
+
+OSDIR = os
+OSLIB = $(OSDIR)/libos.a
+DIFSDIR = difs
+DIFSLIB = $(DIFSDIR)/libdifs.a
+FONTLIBDIR = $(FONTSRC)/lib/font
+FONTLIB = $(FONTLIBDIR)/libfont.a $(RENDERERLIBS)
+SYSLIBS =
+#if defined(HPArchitecture) || defined(i386SVR3Architecture)
+BSDEMUL = $(LIBSRC)/Berk/Berklib.o
+#endif
+
+FSDIRS = $(OSDIR) $(DIFSDIR) $(PCFDIRS)
+FSLIBS = $(DIFSLIB) $(FONTLIB) $(DIFSLIB) $(OSLIB) $(BSDEMUL)
+#ifdef MacIIArchitecture
+MFSDIRS = MacFS
+#endif
+
+SUBDIRS = $(FSDIRS) $(MFSDIRS)
+
+FSLIBDIR = $(LIBDIR)/fs
+FSERRORS = $(FSLIBDIR)/fs-errors
+DEFAULTFONTPATH = DefaultFontPath
+SITE_CONFIG = -DDEFAULTFONTPATH=$(DEFAULTFONTPATH) -DFSERRORS=$(FSERRORS)
+
+all:: fs config $(MFSDIRS)
+
+ServerTarget(fs,$(FSDIRS),NullParameter,$(FSLIBS),$(SYSLIBS))
+
+CppFileTarget(config,config.cpp,$(SITE_CONFIG),$(ICONFIGFILES))
+
+InstallProgram(fs,$(BINDIR))
+
+InstallManPage(fs,$(MANDIR))
+
+#if InstallFSConfig
+InstallNonExecFile(config,$(FSLIBDIR))
+#endif
+
+DependSubdirs($(SUBDIRS))
+
+$(SUBDIRS):	FRC
+	@cd $@; echo "making $@" ;	\
+	$(MAKE) $(MFLAGS) PassCDebugFlags all
+
+clean::
+	$(RM) fs
+
+FRC:

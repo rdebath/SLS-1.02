@@ -1,0 +1,53 @@
+#! /bin/sh
+# Incoming-news spooling.
+# We ignore arguments -- it looks tempting to put "$*" after cat and
+# newsspool, but there are security problems.
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/input:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+# check space, assuming a pretty large batch (no cheap way to find real size)
+counter=1
+while test " `spacefor 250000 incoming`" -le 0
+do
+	sleep 300
+	if test " $counter" -gt 1111		# four tries is plenty
+	then
+		# oh no! -- nothing we can do, really...
+		cat >/dev/null
+		echo incoming news discarded due to space shortage |
+							mail "$NEWSMASTER"
+		echo incoming news discarded due to space shortage >&2
+		exit 1
+	fi
+	if test ! -f $NEWSCTL/rnews.stall
+	then
+		counter="1$counter"
+	fi
+done
+
+# spool it
+if test -f $NEWSCTL/rnews.immed
+then
+	opt=-i
+else
+	opt=
+fi
+if newsspool $opt >/tmp/ngripe.$$ 2>&1
+then
+	rm -f /tmp/ngripe.$$
+	exit 0
+else
+	# there really isn't any way to save the data if newsspool fails,
+	# not without causing other problems
+	(
+		echo newsspool failed!!!
+		cat /tmp/ngripe.$$
+	) | mail "$NEWSMASTER"
+	cat /tmp/ngripe.$$ >&2
+	rm -f /tmp/ngripe.$$
+	exit 1
+fi

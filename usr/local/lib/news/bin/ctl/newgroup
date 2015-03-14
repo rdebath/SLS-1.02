@@ -1,0 +1,66 @@
+#! /bin/sh
+# newgroup group flag - create group (4-field version: B-2.10.3+ compatible)
+#	subject to our sys file group pattern
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN/relay:$NEWSBIN:$NEWSPATH ; export PATH # include mkpdir
+umask $NEWSUMASK
+
+hdr=/tmp/nc$$
+
+trap "rm -f $hdr; exit 0" 0
+canonhdr >$hdr
+
+# unapproved ctl msg? then quit
+grep -s '^Approved:' $hdr >/dev/null || { rm -f $hdr; exit 0; }
+
+SENDER="`grep '^Sender:' $hdr | sed 's/^[^:]*: *//'`"
+case "$SENDER" in
+"")	SENDER="`grep '^From:' $hdr | sed 's/^[^:]*: *//' `" ;;
+esac
+
+case "$1" in
+*[\	\ ]*)
+	cat <<! |
+$0: $SENDER tried to create newsgroup \`$1' but it contains whitespace,
+$0: and so was refused.
+!
+		mail $NEWSMASTER
+	exit 0
+	;;
+esac
+
+# escape egrep metacharacters.  In theory one could add " ' ` \ to the list.
+egreppat="^(` echo "$1" | sed -e 's/[.+*()|[]/\\\\&/g' -e 's/,/|/g' `) "
+if egrep "$egreppat" $NEWSCTL/active >/dev/null; then	# group exists?
+	export SENDER
+	chamod "$1" "$2" 		# change moderated flag if needed
+	exit
+fi
+
+me="`newshostname`"
+gngppat=`awk -f $NEWSBIN/relay/canonsys.awk $NEWSCTL/sys |
+	egrep "^($me|ME):" |
+	awk -F: '
+{
+	fields = split($2, field2, "/")	# split ngs/dists
+	print field2[1]			# print only ngs
+	exit
+}' `
+
+if gngp -a "$gngppat" >/dev/null <<!
+$1
+!
+then			# no group in active, but sys file likes it: make it
+	case "$2" in
+	moderated)	flag=m ;;
+	*)		flag=y ;;
+	esac
+	echo "$1 0000000000 0000000001 $flag" >>$NEWSCTL/active
+	(echo "$1 `getdate now` $SENDER" >>$NEWSCTL/active.times)  # rn hook
+	# make the directory since rn will bitch if it's missing
+	mkpdir $NEWSARTS/`echo $1 | tr . / `
+	echo "newsgroup $1 was created by $SENDER." | mail $NEWSMASTER
+fi

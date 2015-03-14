@@ -1,0 +1,187 @@
+#!/bin/csh -f
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+# 
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# appear in all copies, and that the name of Bellcore not be 
+# used in advertising or publicity pertaining to this 
+# material without the specific, prior written permission 
+# of an authorized representative of Bellcore.  BELLCORE 
+# MAKES NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+# First, figure out which machine to play it on!
+set thishost=`hostname`
+
+# Note that there are some special lines in here that only work at Bellcore,
+# Specifically involving phone playback from the machine "greenbush".
+# Everything should work fine at other sites, though
+set AUDIOBINDIR=/u/andrew/phone-sau/bin
+set AUDIOPHONEHOST=greenbush
+set AUDIOPHONEHOSTLONG=greenbush.bellcore.com
+set AUDIOLOGMAIL=andrew@thumper.bellcore.com
+set ORG="Bellcore"
+if ($1 == "-p") then
+    set AUDIOPHONE=$2
+    shift
+    shift
+endif
+if ($1 == "-s") then
+    set AUDIOSPEAKERFORCE = 1
+    shift
+endif
+if ($?AUDIOPHONE || $?AUDIOPHONEFORCE) then
+    goto playphone
+endif
+if (! -d $AUDIOBINDIR) then
+    set AUDIOSPEAKERFORCE=1
+endif
+	
+if (! $?AUDIOSPEAKERFORCE && ! $?AUDIOPHONEFORCE) then
+    if ($?MM_NOTTTY) then
+	if ($MM_NOTTTY == 1) then
+	    setenv MM_NOTTTY 0
+	    xterm -e showaudio $*
+	    exit 0
+	endif
+    endif
+choosehardware:
+    echo This program can display audio on the speakers of some workstations, 
+    echo "or (at some sites) it can call you on the telephone.  Please choose one:"
+    echo ""
+    echo "1 -- Use the computer's speaker"
+    echo "2 -- Call me on the telephone"
+    echo ""
+    echo -n "Which do you prefer (1 or 2)? "
+    set ans=$<
+    if ($ans == 2)  then
+	echo "OK, we'll use the telephone..."
+	set AUDIOPHONEFORCE=1
+	echo "In the future, you can avoid this question by setting the environment variable"
+	echo "AUDIOPHONEFORCE to 1"
+	goto playphone
+    else if ($ans == 1) then
+    	echo "OK, Attempting to play the audio using your computer's speaker.."
+    	set AUDIOSPEAKERFORCE=1
+	echo "In the future, you can avoid this question by setting the environment variable"
+	echo "AUDIOSPEAKERFORCE to 1"
+    else
+	echo "That is NOT one of your choices."
+	goto choosehardware
+    endif
+endif
+
+if ($1 == "-") then
+    set STDINPUT=1
+    shift
+endif
+
+set audiohost=$thishost
+if ($?DISPLAY) then
+    set audiohost=`echo $DISPLAY | sed -e 's/:.*//'`
+    if ($audiohost == "unix") set audiohost=$thishost
+    if ($audiohost == "") set audiohost=$thishost
+endif
+if ($?AUDIOHOST) then
+	set audiohost=$AUDIOHOST
+endif
+
+if ($audiohost != $thishost) then
+    echo Sending audio to $audiohost...
+    if ($?MMS_AUDIO) then
+        if ($?STDINPUT) then
+            cat | mms -host $audiohost "show audio/basic" -
+        else
+            cat $* | mms -host $audiohost "show audio/basic" -
+        endif
+        exit 0
+    endif
+
+# The next two lines are very inefficient, but not everyone has their path right for an rsh
+    pushd ~ >& /dev/null
+    set thisprog=`which showaudio`
+    popd >& /dev/null
+    if ($?STDINPUT) then
+        cat | rsh $audiohost $thisprog -s -
+    else
+        cat $* | rsh $audiohost $thisprog  -s -
+    endif
+    exit 0
+endif
+
+if (-f /usr/sbin/sfplay) then
+    if ($#argv >= 1) then
+	exec /usr/sbin/sfplay -i mu-law chan 1 rate 8000 end $*
+    else
+	cat > /tmp/audio.$$
+	/usr/sbin/sfplay -i mu-law chan 1 rate 8000 end /tmp/audio.$$
+	rm /tmp/audio.$$
+	exit 0
+    endif
+else if (-d /usr/sony) then
+    set dev=/dev/sb0
+else
+    set dev=/dev/audio
+endif
+
+if (-w $dev) then
+echo Playing audio on $thishost using $dev, one moment please...
+if ($#argv >= 1) then
+        cat $* > $dev
+else
+        cat > $dev
+endif
+exit 0
+endif
+
+playphone:
+if (-d $AUDIOBINDIR) then
+              set thisprog=`which showaudio`
+	if (! $?AUDIOPHONE) then
+	    if ($?MM_NOTTTY) then
+		if ($MM_NOTTTY == 1) then
+		    setenv MM_NOTTTY 0
+		    xterm -e $thisprog $*
+		    exit 0
+		endif
+	    endif
+	    echo This message contains audio, which can be sent to your telephone.
+	    echo Please enter the telephone number at which you would like to hear this
+	    echo -n "audio message as you would dial it from INSIDE ${ORG}:  "
+	    set AUDIOPHONE=$<
+	endif
+	if ($thishost == $AUDIOPHONEHOST || $thishost == $AUDIOPHONEHOSTLONG) then
+	    echo Calling Phone number $AUDIOPHONE
+	    echo "You MUST SAY HELLO when you answer the phone, or you will not hear the message."
+	    mail -s "showaudio: `whoami` called $AUDIOPHONE" $AUDIOLOGMAIL < /dev/null
+	    if ($?STDINPUT) then
+	        cat $AUDIOBINDIR/../GREET.au $* - | $AUDIOBINDIR/play -\# $AUDIOPHONE -
+	    else
+	        cat $AUDIOBINDIR/../GREET.au $* | $AUDIOBINDIR/play -\# $AUDIOPHONE -
+	    endif
+	    echo All done
+	    exit 0
+	else
+	    echo Trying to rsh to $AUDIOPHONEHOST to send audio via telephone
+	    cat $* | rsh $AUDIOPHONEHOST $thisprog -p $AUDIOPHONE -
+	    exit 0
+	endif
+endif
+echo ""
+echo This message contains an audio mesage, which can not currently be
+echo played on this type of workstation.   If you log into an appropriate 
+echo "machine (currently a SPARCstations or Sony News workstation)"
+echo and read this message there, you should be able to hear the audio
+echo message.  
+echo ""
+echo -n "Do you want to write the audio out to a file [y] ? "
+set ANS=$<
+if ("$ANS" =~ n* ||  "$ANS" =~ N* ) exit 0
+echo -n "File name:"
+set fname=$<
+cp $1 $fname
+if ($status == 0) echo Wrote file $fname
+exit 0
+

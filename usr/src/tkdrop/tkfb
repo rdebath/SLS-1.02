@@ -1,0 +1,859 @@
+#!/usr/bin/wish -f
+# $Id: tkfb,v 2.0 1993/01/14 23:27:41 schwartz Exp $
+# Copyright (C) 1993 by Scott Schwartz <schwartz@cs.psu.edu>
+
+
+# Things that you might want to change
+
+# Options never work straight.  A "*Font" in .Xdefaults overrides specific 
+# requests here, unless we make the priority higher than "startupFile". 
+# feh.
+
+# option add "Tk*Tkfb*font" \
+#   "-bitstream-charter-medium-r-normal-*-*-100-*-*-*-*-iso8859-1" userDefault
+# 
+# option add "Tk*Tkfb*Listbox.font" \
+#   "-bitstream-charter-medium-r-normal-*-*-100-*-*-*-*-iso8859-1" userDefault
+# 
+# option add "Tk*Tkfb*DragDropToken*Font" \
+#   "-bitstream-charter-medium-i-normal-*-*-120-*-*-*-*-iso8859-1" userDefault
+
+# no argv0?
+proc ME {} {return tkfb}
+
+set update_interval 10000
+
+if [catch {set EDITOR $env(EDITOR)}] { set EDITOR vi }
+
+# SunOS 4.1.1 /bin/ls doesn't return status.
+if [file exists "/usr/5bin/ls"] { set LS /usr/5bin/ls } { set LS /bin/ls }
+
+
+# utilities
+
+proc false {args} {return 0}
+proc say {s} { puts stdout $s }
+proc err {s} { puts stderr "tkfb: $s" }
+proc assert {b} { if {!$b} { error assertion } }
+
+proc execute {s} {
+    exec $s < /dev/null &
+    exec /bin/true
+}
+
+proc edit {s} {
+    global EDITOR
+    exec xterm -e $EDITOR $s &
+    exec /bin/true
+}
+
+proc reify {s} {
+    exec tkreify $s &
+}
+
+proc copy {from to} {
+    if [catch {exec cp $from $to} rc] {
+      return $rc
+    }
+   return ""
+}
+
+proc squish_spaces {s} {
+    regsub -all {[ 	]+} $s { } s
+    return $s
+}
+
+set _symnum 0
+proc gensym {} { 
+    global _symnum
+    set _symnum [expr "$_symnum + 1"]
+    return "g$_symnum"
+}
+
+proc last {a} { upvar $a aa; return [lindex $aa [expr "[llength $aa]-1"]] }
+
+
+# Automounter oriented damage control: stat returns random times
+# on automounted mountpoints.  Way to go, Sun!
+
+set auto_mountpoints [exec awk {/ignore/ {print $2}} /etc/mtab]
+proc isamountpoint {p} {
+    global auto_mountpoints
+    return [expr "[lsearch $auto_mountpoints $p] != -1"]
+}
+
+
+# utilities for directory paths
+
+# tidy working directory - nuke automounter bs
+proc twd {} {
+    set p [pwd]
+    regsub {^/(tmp_mnt|auto)/} $p {/} p 
+    regsub {^/export/home/} $p {/home/} p 
+    return $p
+}
+
+# ls -ld for one file, with the filename trimmed
+
+proc ls_info {e} {
+    global ENAME ETYPE EMODE EOWNER ESIZE EGROUP
+    set t [lindex $e $ETYPE]
+    if {$t == "unlink" || $t == "link"} {
+	set t "link [file readlink [lindex $e $ENAME]]"
+    }
+    return [format "%s owner %d group %d mode %o size %u" \
+	    $t \
+	    [lindex $e $EOWNER] \
+	    [lindex $e $EGROUP] \
+	    [expr "[lindex $e $EMODE]&07777"] [lindex $e $ESIZE]]
+}
+
+# make absolute and remove duplicate and trailing slashes and redundant dots
+
+proc tidypath {p} {
+    if {$p == ""} {
+      set p "/"
+    } else {
+      if {[regexp {(^[^/])|(^\.$)} $p]} { set p [pwd]/$p } else { set p "/$p" }
+    }
+    regsub -all {/\.(/|$)} $p {/} p
+    regsub -all {//*} $p {/} p
+    regsub -all {([^/])/$} $p {\1} p
+    return $p
+}
+
+# read a directory and return the contents as a list.  
+# if the path isn't a directory, return {}
+
+proc readdir {p} {
+    global LS
+    set dir {}
+    if {![file isdirectory $p]} {
+	return {}
+    }
+    if [catch {exec $LS -a $p} rc] {
+	err $rc
+    } else {
+	foreach dirent $rc {
+	    if {$dirent != "." && $dirent != ".."} {lappend dir "$dirent"}
+	}
+    }
+    return $dir
+}
+
+# given a path and a list of entries, stat all the files and return
+# some of that info.
+
+set amap(blockSpecial) "#"
+set amap(characterSpecial) "^"
+set amap(directory) "/"
+set amap(err) "?"
+set amap(fifo) "|"
+set amap(file) " "
+set amap(link) "@"
+set amap(socket) "="
+set amap(unlink) "@"
+
+set SNAME 0
+set STYPE 1
+set SOWNER 2
+set SMODE 3
+set STIME 4
+
+proc dirstats {path nents} {
+    global amap
+    upvar $nents ents
+    set stats {}
+ 
+    if [catch {cd $path} rc] {
+	err $rc
+    } else {
+	foreach e $ents {
+	    if {[set rc [xstat $e st]] != ""} {
+		err $rc
+		lappend stats [list $e "?" 0 0 0]
+	    } else {
+		set t $amap($st(type))
+		if {$t == " " && $st(mode)&0111} {
+		    set t "*"
+		}
+		lappend stats \
+		    [list $e $t $st(uid) $st(mode) $st(mtime)]
+	    }
+	}
+    }
+    cd /
+    return $stats
+}
+
+proc utime {p} {
+    if {[set rc [xstat $p s]] != ""} {
+	err $rc
+	return 0
+    } else {
+	return $s(mtime)
+    }
+}
+
+# things in an elaboration
+
+set ENAME 0
+set EFILES 1
+set ESTATS 2
+set ETIME 3
+set ETYPE 4
+set EMODE 5
+set EOWNER 6
+set ESIZE 7
+set EGROUP 8
+proc elaboration {p d s c t m o z g} {return [list $p $d $s $c $t $m $o $z $g]}
+proc e_valid {e} {global ETYPE; return [expr {"[lindex $e $ETYPE]" != "err"}]}
+
+proc xstat {p st} {
+    upvar $st s
+
+    if [catch {file stat $p s} rc1] {
+	if [catch {file lstat $p s} rc2] {
+	    return $rc2
+	} else {
+	    set s(type) "unlink"
+	}
+    }
+    return ""
+}
+
+proc xlstat {p st} {
+    upvar $st s
+    if [catch {file lstat $p s} rc2] {
+        return $rc2
+    } else {
+        set s(type) "unlink"
+    }
+    return ""
+}
+
+proc elaborate_dir {p} {
+    if {[set rc [xstat $p st]] != ""} {
+	err $rc 
+	return [elaboration $p {} {} 0 "err" 0 0 0 0]
+    }
+
+    if {"$st(type)" == "directory"} {
+	set d [readdir $p]
+	return [elaboration $p $d [dirstats $p d] \
+		$st(mtime) $st(type) $st(mode) $st(uid) $st(size) $st(gid)]
+    } else {
+	return [elaboration $p {} {} \
+		$st(mtime) $st(type) $st(mode) $st(uid) $st(size) $st(gid)]
+    }
+}
+
+proc elaborate_dir_partially {p} {
+    if {[set rc [xstat $p st]] != ""} {
+	err $rc
+	return [elaboration $p {} {} 0 "err" 0 0 0 0]
+    } else {
+	return [elaboration $p {} {} \
+		$st(mtime) $st(type) $st(mode) $st(uid) $st(size) $st(gid)]
+    }
+}
+
+proc elaborate_dir_somewhat {p} {
+    if {[set rc [xstat $p st]] != ""} {
+	err $rc 
+	return [elaboration $p {} {} 0 "err" 0 0 0 0]
+    }
+
+    if {"$st(type)" == "directory"} {
+	set d [readdir $p]
+	return [elaboration $p $d {} \
+		$st(mtime) $st(type) $st(mode) $st(uid) $st(size) $st(gid)]
+    } else {
+	return [elaboration $p {} {} \
+		$st(mtime) $st(type) $st(mode) $st(uid) $st(size) $st(gid)]
+    }
+}
+
+# turn /a/b/c into {/ /a /a/b /a/b/c}
+
+proc partial_paths_of {p} {
+    # assert $p == [tidypath $p]
+    if {$p == "/" || $p == "" || $p == "."} {
+	return "/"
+    } else {
+	set t [partial_paths_of [file dirname $p]]
+	return [lappend t $p] 
+    }
+}
+
+# turn /a/b into 
+#  { /    { ... } time
+#    /a   { ... } time
+#    /a/b { ... } time
+#  }
+proc elaborate_path {path} {
+    set epl {}
+    foreach p [partial_paths_of [tidypath $path]] {
+	set e [elaborate_dir $p]
+	if {[e_valid $e]} {
+	    lappend epl $e
+	} else {
+	    break
+	}
+    }
+    return $epl
+}
+
+proc extend_epl {epln f} {
+    global ENAME
+    upvar $epln epl
+    set p [lindex [last epl] $ENAME]
+    set e [elaborate_dir [tidypath $p/$f]]
+    if {[e_valid $e]} {
+	lappend epl $e
+    }
+}
+
+proc extend_epl_partially {epln f} {
+    global ENAME
+    upvar $epln epl
+    set p [lindex [last epl] $ENAME]
+    # set e [elaborate_dir_partially [tidypath $p/$f]]
+    # XXX - XXX
+    set e [elaborate_dir_somewhat [tidypath $p/$f]]
+    # Note: append even if not valid
+    lappend epl $e
+}
+
+
+# current state
+
+# current elaborated path list
+set _cepl {}
+# offset in path list at which to begin display
+set _offset 0
+# currently allocated panes
+set _panelist {}
+# topmost visible entry in the directory listing for each path component
+set _dlistbase(0) 0
+
+proc currentpath {} {
+    global _cepl ENAME
+    return [lindex [last _cepl] $ENAME]
+}
+
+
+# pane creation and maintainance
+
+proc mkpane {w} {
+    set wb $w.[gensym]
+
+    frame $wb
+    pack append $w $wb {left expand fill}
+
+    button $wb.label -relief sunken -text "" -command "select_pane_label $wb"
+    scrollbar $wb.scroll -relief sunken -command "pane_set_yview $wb" 
+    listbox $wb.list -yscroll "$wb.scroll set" -relief sunken \
+	-geometry 20x20 -exportselection false
+    pack append $wb \
+	$wb.label {top fillx} \
+	$wb.list {right expand fill} \
+	$wb.scroll {left filly}
+
+    # tk_listboxSingleSelect $wb.list
+
+    return $wb
+}
+
+bind Listbox <ButtonRelease-1> {select_pane_item [file rootname %W]}
+bind Listbox <Double-Button-1> {invoke_pane_item [file rootname %W]}
+
+bind Listbox <Left>  {shift_panes -1}
+bind Listbox <Right> {shift_panes 1}
+
+bind Listbox <Up>    {scroll_pane [file rootname %W] -1 line}
+bind Listbox <F29>   {scroll_pane [file rootname %W] -1 page} 
+bind Listbox <Prior> {scroll_pane [file rootname %W] -1 page} 
+bind Listbox <F27>   {scroll_pane [file rootname %W] -1 all} 
+bind Listbox <Home>  {scroll_pane [file rootname %W] -1 all} 
+
+bind Listbox <Down>  {scroll_pane [file rootname %W] 1 line}
+bind Listbox <F35>   {scroll_pane [file rootname %W] 1 page} 
+bind Listbox <Next>  {scroll_pane [file rootname %W] 1 page} 
+bind Listbox <F33>   {scroll_pane [file rootname %W] 1 all} 
+bind Listbox <End>   {scroll_pane [file rootname %W] 1 all} 
+
+bind Listbox <Any-Key> {scroll_pane_for_key [file rootname %W] %A %K}
+
+proc pane_set_yview {p y} {
+    global _dlistbase
+    $p.list yview $y
+    set _dlistbase([epl_from_pane $p]) $y
+}
+
+proc scroll_pane {p n i} {
+    scan "[$p.scroll get]" "%d %d %d %d" t w f l
+    case $i in {
+     line  { pane_set_yview $p [expr "$f + $n"] }
+     page  { pane_set_yview $p [expr "$f + $n*$w"] }
+     hpage { pane_set_yview $p [expr "$f + $n*$w/2"] }
+     all   { pane_set_yview $p [expr "($n>0)*($t-$w)"] }
+    }
+}
+
+proc scroll_pane_for_key {w a k} {
+    global EFILES _cepl
+    set e [lindex $_cepl [epl_from_pane $w]]
+    if {[set s [lsearch [lindex $e $EFILES] "$a*"]] != -1} {
+      pane_set_yview $w $s
+    }
+}
+
+proc compute_stat_from_pane {e f} {
+    global _cepl ESTATS
+    if {[$f.list size] > 0 && [$f.list curselection] != {}} {
+        return [lindex [lindex [lindex $_cepl $e] $ESTATS] \
+			[lindex [$f.list curselection] 0]]
+    } else {
+        return ""
+    }
+}
+
+proc invoke_pane_item {f} {
+    global SNAME STYPE
+
+    if {[$f.list size] == 0} { return }
+    set e [epl_from_pane $f]
+    set st [compute_stat_from_pane $e $f]
+    set s [lindex $st $SNAME]
+
+    if {"[lindex $st $STYPE]" == "/"} {
+	# If it is a directory, then ignore it
+    } else {
+	set s [path_of_pane_item $f $s]
+	if [file executable $s] {
+	    execute $s
+	} else {
+	    edit $s
+	}
+    }
+}
+
+proc select_pane_item {f} {
+    global _cepl _panelist SNAME ENAME STYPE
+
+    if {[$f.list size] == 0} { return }
+    look_busy
+    update idletasks
+    
+    set e [epl_from_pane $f]
+    truncate_cepl_after $e
+    set st [compute_stat_from_pane $e $f]
+    if {$st == {}} { error "select_pane_item no selection" }
+    set fn [lindex $st $SNAME]
+    append_stub_to_cepl $fn
+    set_entry [lindex [last _cepl] $ENAME]
+    msg [ls_info [last _cepl]]
+    if {$f == [last _panelist]} {shift_panes 1; update idletasks}
+    redisplay
+    if {[lindex $st $STYPE] == "/"} {replace_stub_in_cepl $fn}
+    redisplay
+    look_ready
+}
+
+proc select_pane_label {p} {
+    global _cepl ENAME
+    truncate_cepl_after [epl_from_pane $p]
+    set_entry [lindex [last _cepl] $ENAME]
+    msg [ls_info [last _cepl]]
+    redisplay
+}
+
+proc clearpane {f} {
+    $f.list delete 0 end
+    $f.label config -text "" -state disabled
+    drag&drop source $f.label -button 3 -tokencmd false -sendcmd false
+}
+
+proc clearallpanes {} {
+    global _panelist
+    foreach p $_panelist { clearpane $p }
+}
+
+proc newpane {} {
+    global _panelist
+    lappend _panelist [set f [mkpane .tkfb.f]]
+    return $f
+}
+
+proc freepanes {} {
+    global _panelist
+    foreach b $_panelist { pack unpack $b; destroy $b }
+    set _panelist {}
+}
+
+proc setpane {p el m i} {
+    global _dlistbase SNAME STYPE ENAME EFILES ESTATS
+
+    set path [lindex $el $ENAME]
+    if {[set t [file tail $path]] == ""} { set t / }
+
+    $p.label config -text $t -state normal
+    drag&drop source $p.label -button 3 \
+	-tokencmd "package_path $path" -sendcmd "send_path $path"
+
+    drag&drop source $p.list -button 3 \
+	-tokencmd "pane_path $p" -sendcmd {send_path $_dd_path}
+
+    drag&drop target $p.label handler [list path "pane_drop $path"]
+    drag&drop target $p.list  handler [list path "pane_drop $path"]
+
+    if {[lindex $el $ESTATS] == {}} {
+        foreach s [lindex $el $EFILES] {
+	    $p.list insert end "$s  "
+        }
+    } {
+	foreach s [lindex $el $ESTATS] {
+	    $p.list insert end "[lindex $s $SNAME] [lindex $s $STYPE]"
+	}
+    }
+
+    if {[set s [lsearch [lindex $el $EFILES] $m]] != -1} {
+	$p.list select from $s
+    }
+}
+ 
+proc epl_from_pane {p} {
+    global _panelist _offset
+    set i [lsearch $_panelist $p]
+    if {$i == -1} {
+	return -1
+    } else {
+	return [expr "$i + $_offset"]
+    }
+}
+
+proc path_of_pane_item {p d} {
+    global _cepl ENAME
+    set i [epl_from_pane $p]
+    if {$i == -1} {
+	error {Can't find pane $p}
+    } else {
+	return [tidypath [lindex [lindex $_cepl $i] $ENAME]/$d]
+    }    
+}
+
+
+# display management
+
+set _busy_count 0
+
+proc look_busy {} {
+    # XXX - this really wants to be a mutex
+    global _busy_count _busy_cursor
+    if {!$_busy_count} {
+	.tkfb.f config -cursor watch
+	.tkfb.e config -cursor watch
+	# XXX - cheap way to discard events: send them to an inert window
+	# XXX - arrg!  kills d&d
+	#grab .o
+    }
+    incr _busy_count
+}
+
+proc look_ready {} {
+    global _busy_count
+    if {![incr _busy_count -1]} {
+      .tkfb.f config -cursor arrow
+      .tkfb.e config -cursor xterm
+      # XXX - arrg!  kills d&d
+      #grab none
+    }
+}
+
+proc shift_panes {i} { 
+    global _cepl _offset _panelist
+    set save $_offset
+    set max [expr "[llength $_cepl] - [llength $_panelist]"]
+    incr _offset $i 
+    if {$_offset > $max } { set _offset $max }
+    if {$_offset < 0} { set _offset 0 }    
+look_busy
+    redisplay
+look_ready
+    return [expr "$_offset-$save"]
+}
+
+proc reposition_pane {p i} {
+    global _dlistbase
+    if {![info exists _dlistbase($i)]} {
+      set _dlistbase($i) [expr "[lindex [$p.list curselection] 0]- 10"]
+    }
+    pane_set_yview $p $_dlistbase($i)
+}
+
+proc update_scrollbar {} {
+    global _cepl _panelist _offset
+    set nvis [llength $_panelist]
+    .tkfb.s set [llength $_cepl] $nvis $_offset [expr "$_offset+$nvis-1"]
+}
+
+proc set_path {path} {
+    global _cepl
+    if [file exists $path] {
+      # XXX - untidy way to keep entry, msg, and panes in sync
+      set_entry $path
+      update idletasks
+      set_cepl_from_path $path
+      msg [ls_info [last _cepl]]
+      update idletasks
+    }
+}
+
+proc display_path {path} {
+    global _offset _cepl
+    look_busy
+    set_path $path
+    set _offset [llength $_cepl]
+    shift_panes 0
+    look_ready
+    # implicit redisplay
+}
+
+proc redisplay {} {
+    global ENAME _cepl _panelist _offset
+    set i $_offset
+    set j $i; incr j
+    foreach p $_panelist {
+	clearpane $p
+	set ep [lindex $_cepl $i]
+	if {$ep != {}} {
+	    set m [file tail [lindex [lindex $_cepl $j] $ENAME]]
+	    setpane $p $ep $m $i
+	    reposition_pane $p $i
+	    incr i; incr j
+	}
+    }
+    update_scrollbar
+    update idletasks
+}
+
+proc reshape {} {
+    freepanes
+    # XXX - compute how many to use based on window size
+    for {set i 0} {$i < [num_panes]} {incr i} { newpane }
+    redisplay
+}
+
+set _npanes 5
+proc num_panes {} { global _npanes; return $_npanes; }
+proc set_num_panes {n} { global _npanes; set _npanes $n; }
+
+
+# cepl maintainance
+
+proc set_cepl_from_path {p} {
+    global _cepl _dlistbase
+    set _cepl [elaborate_path $p]
+}
+
+proc truncate_cepl_after {i} {
+    global _cepl _dlistbase
+    set n [expr "[llength $_cepl]-1"]
+    set _cepl [lrange $_cepl 0 $i]
+    # trim listbase correspondingly
+    for {} {$n > $i} {incr n -1} {
+        set _dlistbase($n) 0
+    }
+}
+
+proc append_stub_to_cepl {d} {
+    global _cepl
+    extend_epl_partially _cepl $d
+}
+
+proc replace_stub_in_cepl {d} {
+    global _cepl
+    truncate_cepl_after [expr "[llength $_cepl]-2"]
+    if {$d != "." && $d != ". /"} {
+	extend_epl _cepl $d
+    }
+}
+
+# check the times of dirs in cepl and reread if necessary
+
+proc refresh_cepl {} {
+    global _cepl ENAME ETIME EFILES
+    foreach ep $_cepl {
+	set path [lindex $ep $ENAME]
+        if {([isamountpoint $path] && 
+               [lindex $ep $EFILES] != [readdir $path]) ||
+	     [utime $path] != [lindex $ep $ETIME]} {
+	    # XXX - needlessly expensive
+	    # say "[lindex $ep $ENAME] dirty"
+	    set_path [currentpath]
+	    redisplay
+	    return
+	}
+    }
+}
+
+proc periodically_refresh_cepl {} {
+    global update_interval
+    look_busy
+    refresh_cepl
+    look_ready
+    after $update_interval periodically_refresh_cepl
+}
+
+
+# d&d interface
+
+set _dd_path {}
+
+proc receive_path {p} {
+    global _dd_path
+    set _dd_path $p
+}
+
+proc package_path {path win} {
+    set path [tidypath $path]
+    if {[winfo children $win] == ""} {
+	label $win.label -text ""
+	pack append $win $win.label top
+    }
+    $win.label config -text "path: $path"
+}
+
+proc send_path {path interp ddwin} {
+    if [catch { send $interp "receive_path $path" } rc] {
+        err "send_path_1: $rc"; error
+    }
+    if [catch { send $interp "drag&drop target $ddwin handle path" } rc] {
+        err "send_path_2: $rc"; error
+    }
+}
+
+proc pane_path {p win} {
+    global _cepl EFILES ENAME _dd_path
+    if [catch {
+        scan "[drag&drop location]" "%d %d" x y
+        set w [winfo containing $x $y]
+        set x [expr "$x - [winfo rootx $w]"]
+        set y [expr "$y - [winfo rooty $w]"]
+        set e [epl_from_pane $p]
+        if {$e < 0} {error "bad pane"};
+        set e [lindex $_cepl $e]
+        set d [lindex $e $ENAME]
+        set f [lindex $e $EFILES]
+        set _dd_path "[tidypath $d/[lindex $f [$w nearest $y]]]" 
+        package_path $_dd_path $win
+    } rc] {
+        err "pane_path: $rc"
+        error
+    }
+}
+
+proc pane_drop {dest} {
+    global _dd_path
+    set rc [copy $_dd_path $dest]
+    if {$rc == {}} {
+        refresh_cepl
+    } else {
+        err $rc
+	error "$rc"
+    }
+}
+
+proc catch_path {p} {
+    if ![file exists $p] {
+      err "No such file $p"
+      error "No such file $p"
+    }
+    after 1 "display_path $p"
+}
+
+
+# Entry point
+
+# grid is voodoo
+# wm grid . 100 20 20 20
+# wm minsize . 100 50
+
+wm withdraw .
+toplevel .tkfb -class Tkfb
+
+# menu
+
+frame .tkfb.m
+button .tkfb.m.quit -text "Quit" -command {destroy .; exit}
+button .tkfb.m.clone -text "Clone" -command {exec [ME] [currentpath] &}
+button .tkfb.m.reify -text "Reify" -command {reify [currentpath]}
+button .tkfb.m.exec -text "Exec" -command {execute [currentpath]}
+button .tkfb.m.edit -text "Edit" -command {edit [currentpath]}
+pack append .tkfb.m \
+    .tkfb.m.quit left .tkfb.m.clone left \
+    .tkfb.m.reify right .tkfb.m.exec right .tkfb.m.edit right
+
+# path as a string
+
+entry .tkfb.e -relief sunken
+
+proc set_entry {s} {
+    global _cepl
+    .tkfb.e delete 0 end
+    .tkfb.e insert 0 $s
+    .tkfb.e select clear
+    .tkfb.e select from 0
+    .tkfb.e select to end
+    # XXX - untidy
+    # msg [ls_info [last _cepl]]
+}
+
+proc get_entry {} {
+    return [.tkfb.e get]
+}
+
+bind .tkfb.e <Key-Return> {display_path [get_entry] }
+
+drag&drop source .tkfb.e -button 3 \
+    -tokencmd {package_path [get_entry]} \
+    -sendcmd {send_path [get_entry]}
+
+drag&drop target .tkfb.e handler {path {catch_path $_dd_path}}
+
+# scrollbar for panes
+
+scrollbar .tkfb.s -orient horiz -relief sunken -command "sbarshift "
+
+proc sbarshift {n} {
+    global _offset
+    shift_panes [expr "$n - $_offset"]
+}
+
+# one one of output 
+
+label .tkfb.o
+proc msg {s} { .tkfb.o config -text $s; update idletasks }
+
+# frame containing panes
+
+frame .tkfb.f
+
+pack append .tkfb \
+    .tkfb.m {top fillx} \
+    .tkfb.e {top fillx} \
+    .tkfb.o {top fillx} \
+    .tkfb.f {top expand fill} \
+    .tkfb.s {top fillx}
+
+if $argc>0 {set dir [lindex $argv 0]} else {set dir [twd]}
+# redirect stdio
+reshape
+display_path $dir
+periodically_refresh_cepl
+
+# 
+# Local Variables:
+# mode:tcl
+# End:

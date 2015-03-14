@@ -1,0 +1,70 @@
+#ident	"@(#)nameserver:xdaemon.rc	1.1"
+
+# Copyright 1988, 1989 AT&T, Inc.
+#
+# Permission to use, copy, modify, and distribute this software and its
+# documentation for any purpose and without fee is hereby granted, provided
+# that the above copyright notice appear in all copies and that both that
+# copyright notice and this permission notice appear in supporting
+# documentation, and that the name of AT&T not be used in advertising
+# or publicity pertaining to distribution of the software without specific,
+# written prior permission.  AT&T makes no representations about the
+# suitability of this software for any purpose.  It is provided "as is"
+# without express or implied warranty.
+#
+# AT&T DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL AT&T
+# BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+# OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN 
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+USAGE="usage: $0 start|stop"
+
+if [ $# -ge 1 ]; then
+  arg=$1
+else
+  echo $USAGE 1>&2
+  exit 2
+fi
+
+if [ ! -d /usr/bin ]; then
+  exit 2
+fi
+
+set `who -r`
+if [ $8 != "0" ]
+then
+  exit 2
+fi
+
+case $arg in
+  start)
+    for i in `/bin/find /usr/X/lib/net -type d ! -name net -print`
+    do
+      basename=`basename ${i}`
+      if [ -c "/dev/${basename}" ]; then
+        have_nets=T
+        break
+      fi
+    done
+
+    if [ "${have_nets}" ]; then
+      /usr/X/lib/xdaemon &
+    fi
+    ;;
+  stop)
+    daemons=`ps -e | grep 'xdaemon[ 	]*$' |
+             sed 's/^[ 	]*\([0-9][0-9]*\)[ 	].*/\1/'`
+    if [ "${daemons}" ]; then
+      kill -15 ${daemons} 2>/dev/null
+      sleep 10
+      kill -9 ${daemons} 2>/dev/null
+    fi
+    ;;
+  *)
+    echo $USAGE 1>&2
+    exit 2
+    ;;
+esac
+

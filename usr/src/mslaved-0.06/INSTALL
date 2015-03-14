@@ -1,0 +1,75 @@
+INSTALLING THE COMPUTATION SERVERS
+
+Edit the Makefile as necessary (there is no Imakefile for the server
+because it isn't an X11 program).  Read the instruction in the Makefile
+before deciding whether to change the line "CC=gcc" to "CC=cc" or not;
+it may or may not cause a large drop in performance.
+
+Using GCC together with an assembler other than GAS may cause problems
+on some machines; in this case you may need to edit the few lines of
+inline assembly in ms_real.c.
+
+Note that very old versions of GCC (< 1.36) probably won't work; all
+versions I have tried up to and including 1.35 either dump core or
+generate incorrect code when compiling mslaved.c.
+
+Run make.
+
+You have two options when it comes to starting the computation
+servers.  The recommended way is to have the "inetd" of each machine
+start a server on demand.  To do this, you need access to the root
+account.  The following steps should be performed on each server
+machine.
+
+1. Create the directory /usr/local/etc, if you don't have one already.
+
+2. Copy mslaved and mslavedc to /usr/local/etc.
+
+3. Add a line like the following to /etc/services (if you are running
+   Yellow Pages, you may need to do this on the central YP server):
+
+   mandelspawn	9359/udp	mandelbrot	# network mandelbrot
+
+4. Add a line like the following to /etc/inetd.conf:
+
+   mandelspawn dgram udp	wait	nobody  /usr/local/etc/mslaved mslaved
+
+   (The above instructions apply to 4.3BSD and should also work as such
+   with SunOS 4.0 and up.  Some older systems, such as SunOS versions
+   older than 4.0, may need different treatment in step 3 and/or 4.
+   In particular, they may use a file /etc/servers instead of
+   /etc/inetd.conf, with a slightly different syntax.)
+
+   (When installing under IRIX, inetd may get confused if the 
+   username "nobody" (UID -2) is used in /etc/inetd.conf, causing
+   it to log numerous error messages saying "can't set gid 65534".
+   If you have similar problems, use another username instead).
+
+   (Ultrix seems to have no username field at all in inetd.conf.
+   If this is the case for your system, then just leave out the "nobody").
+
+5. Send a hangup signal to inetd using "kill -1" to make it read the
+   changed /etc/inetd.conf.
+
+6. Install the man pages in the appropriate places
+
+If you don't have superuser privileges and cannot persuade someone who
+does to perform the above procedure, you can start your own
+computation servers manually before each MandelSpawn session.  The
+"enslave" shell script does this semi-automatically using information
+from your ".enslave", ".rhosts", and ".rhostile" files.  You don't
+need to kill the servers explicitly after the session, because they
+time out and die when they have been idle for 15 minutes.  For more
+info, se the enslave(1) man page.
+
+CAVEATS
+
+If "rsh" means "restricted shell" rather than "remote shell" when
+using the default path on your system, you need to edit the "RSH="
+line near the beginning of the "enslave" script.  Silicon Graphics
+IRIX users may also need to put "#undef TIOCNOTTY" before the "#ifdef
+TIOCNOTTY" line in mslavedc.c.
+
+
+See ../xms-0.06/INSTALL for information about installing the X11-based
+client.

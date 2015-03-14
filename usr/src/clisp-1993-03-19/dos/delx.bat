@@ -1,0 +1,30 @@
+REM deletes extra (unused) files of CLISP
+del target
+cd src
+del configure.*
+del makemake.*
+del unixconf.*
+del machine.*
+del ari68000.*
+del ari68020.*
+del arimips.*
+del arisparc.*
+del arihppa.*
+del arivax.*
+del amiga*.*
+del atari.*
+del unix.*
+del vms*.*
+del cc_sparc.*
+del sp68000.*
+del spmips.*
+del spsparc.*
+del alglobal.*
+del dbxtypes.*
+del socket.*
+cd readline
+del configure.*
+del examples\configure.*
+cd ..
+cd ..
+

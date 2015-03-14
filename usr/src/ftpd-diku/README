@@ -1,0 +1,114 @@
+SEMI-IMPORTANT RELEASE NOTES
+
+This is an INTERIM release of my modified FTP server.  Because work on
+the server has been stalled for a long time, and because lots of people
+seem to want to do the things this server DOES do, I'm releasing this
+version.  To the best of my knowledge, it works and has no major bugs.
+The features are all incremental, and with one exception, are
+completely compatible with existing FTP clients.  The exception is the
+multi-line messages the server will use to respond to many commands
+when some features are enabled, for example:
+
+	OLD STYLE FTP
+
+	ftp> cd /pub
+	220 CWD command successful.
+
+	THIS FTP
+
+	ftp> cd /pub
+    220-Please read the file README
+    220-  it was last modified on Thu Feb 21 10:35:09 1991 - 214 days ago
+	220 CWD command successful.
+
+Some of the older FTP clients, which do not conform to the FTP
+specifications, barf on these multi-line messages.  Multi-line messages
+can be disabled on a per-connection basis by using a dash (-) as the
+first character of the user's password.
+
+REALLY IMPORTANT RELEASE NOTES
+
+The next release of the FTP server is going to include some significant
+changes.  The most important one is that the logging format for file
+transfers is going to be completely different, and quite incompatible.
+There will probably *NOT* be any program provided to convert your old
+logfiles to the new format.
+
+SOME CAVEATS
+
+I've tested the server on a number of different machines around campus,
+and I believe that it can be made to work on most BSD-compatible
+systems with a minimal amount of work.  I welcome any and all bug
+reports you may have, but *PLEASE* do not send me any "foo system"
+compatibility patches.  The server isn't finished yet because I don't
+have time to work on it, so do you really think that I have time to
+integrate your patches for a system that I have no way to test them
+on?!
+
+INSTALLATION INSTRUCTIONS
+
+1.  make depend
+
+    (mkdep is in support/mkdep if you need it).
+
+    On some systems you may need to change the line that reads "cc -M $*"
+    to "cc -Em $*" to get mkdep to work -- even more bizarre changes
+    made be needed on other systems.  If you can't get mkdep to work
+    fairly easily, SKIP THIS STEP, it's not essential and you don't
+    need to bang your head on the wall at this early point in the
+    betatest.
+
+    [note: the make depend step is really only important if you are
+    making changes to the code and don't want to re-compile everything
+    every time.  If you cannot get make depend to work, just do a
+	"make clean all" in step 5.]
+
+2.  edit Makefile, changing variables as appropriate
+
+    BINDIR      where normal (user) binaries are stored
+    ETCDIR      where system binaries are stored
+    MANDIR      where manpages are stored
+    MISSINGOBJS what library routines your system is missing:
+                    one or more of: getusershell.o fnmatch.o strerror.o
+                                    strsep.o getgrent.o authuser.o
+
+    NOTE:   ftpd requires the latest Berkeley getgrent code.  If the linker
+            complains about setgroupent(), you must include getgrent.o as
+            part of MISSINGOBJS.  This code doesn't deal with hesiod serving
+            of groups, passwords, etc... only /etc/group.
+
+3.  edit pathnames.h to conform to your needs, edit support/paths.h as well
+
+4.  create an ftpaccess file if you want one (as a betatester you SHOULD)
+
+5.  make
+
+    If cc complains about strunames, typenames, modenames, ... being undefined
+    you need to install support/ftp.h as /usr/include/arpa/ftp.h (always make
+    a backup of the old ftp.h just in case!) and do the make again.  The new
+    ftp.h should be a compatible superset of your existing ftp.h, so you
+    shouldn't have problems with this replacement.
+
+6   make install
+
+7.  edit /etc/inetd.conf to point to the new ftpd
+
+8.  kill -1 `ps t"?" | grep inetd`
+
+9.  for the server to support creation of .tar.Z files of directories, you
+    need GNU tar installed [remember to put a copy in the anonymous ftp
+    hierarchy].  If you need a copy, it is available from
+    wuarchive.wustl.edu [128.252.135.4] in /gnu.
+
+10. copy /wherever/compress to ~ftp/bin/compress and put a link to
+    /wherever/compress in /bin.
+
+NOTES:  Some machines may not have a definition of pid_t; so if your compiler
+        complains about this you should add (in all the appropriate places)
+
+            typedef int pid_t;
+
+Chris Myers                                Internet: chris@wugate.wustl.edu
+Software Engineer                           UUCP: ...!uunet!wuarchive!chris
+Office of the Network Coordinator                BITNET: chris@wunet.bitnet
+Washington University in Saint Louis                 Phone: +1 314 935 7390

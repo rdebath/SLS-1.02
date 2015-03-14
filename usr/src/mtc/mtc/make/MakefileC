@@ -1,0 +1,109 @@
+BIN	= $(HOME)/bin
+LIB	= $(HOME)/lib
+OPT	= -O
+CC	= cc
+
+                # C library (reuse)
+REUSE	= ../../reuse/m2c
+
+                # C library
+CLIBS	= $(REUSE)/libreuse.a
+
+                # options for cc
+CFLAGS	= -w $(OPT) -I$(REUSE)
+
+                # options for mtc
+MFLAGS	= -c
+
+all	:
+
+install:	GetImports makemake $(BIN) $(LIB)/makemake
+	-if test $(LIB) = $(BIN); then echo error: BIN = LIB; false; else true; fi
+	sed 's;^LIB=.*;LIB=$(LIB)/makemake;' < makemake > $(BIN)/makemake
+	chmod a+rx $(BIN)/makemake
+	install -c -s -m 755 GetImports $(LIB)/makemake
+	install -c -m 644 Scanner.Tab $(LIB)/makemake
+	install -c -m 644 Parser.Tab $(LIB)/makemake
+	install -c -m 644 makemake.awk $(LIB)/makemake
+
+# installation directories
+
+$(BIN):
+	sh -c "if test ! -d $(BIN); then mkdir $(BIN); else true; fi"
+
+$(LIB):
+	sh -c "if test ! -d $(LIB); then mkdir $(LIB); else true; fi"
+
+$(LIB)/makemake:	$(LIB)
+	sh -c "if test ! -d $(LIB)/makemake; then mkdir $(LIB)/makemake; else true; fi"
+
+# swap all byte pairs of the file Scanner.Tab
+# reverse all BITSETs (long words) of the file Parser.Tab
+
+bin.conv:	convert
+	dd conv=swab < Scanner.Tab > .Scanner.Tab; mv .Scanner.Tab Scanner.Tab
+	dd conv=swab < Parser.Tab | convert > .Parser.Tab; mv .Parser.Tab Parser.Tab
+
+convert:	convert.o
+	$(CC) -o convert convert.o
+
+
+# HEAD
+
+sources	: Errors.h
+
+sources	: Errors.c
+Errors.o	: Errors.c Errors.h
+
+sources	: GetImports.c
+all	: GetImports
+GetImports.o	: GetImports.c
+GetImports.o	: Scanner.h
+GetImports.o	: Parser.h
+GetImports.o	: Errors.h
+
+sources	: Parser.h
+Parser.h	: Scanner.h
+
+sources	: Parser.c
+Parser.o	: Parser.c Parser.h
+Parser.o	: Errors.h
+Parser.o	: Scanner.h
+Parser.o	: Scanner.h
+Parser.o	: Errors.h
+
+sources	: Scanner.h
+
+sources	: Scanner.c
+Scanner.o	: Scanner.c Scanner.h
+Scanner.o	: Errors.h
+
+SYSTEM_.o	: SYSTEM_.c SYSTEM_.h
+
+GetImports	: $(SYSTEM)	\
+	GetImports.o	\
+	Errors.o	\
+	Parser.o	\
+	Scanner.o	\
+;	$(CC) $(CFLAGS) -o GetImports $(SYSTEM)	\
+	GetImports.o	\
+	Errors.o	\
+	Parser.o	\
+	Scanner.o	\
+	$(CLIBS)
+
+# TAIL
+
+clean	:
+	rm -f core *.o
+
+.SUFFIXES: .md .mi .h .c .o
+
+.mi.c:
+	mtc $(MFLAGS) $*.mi;
+
+.md.h:
+	mtc $(MFLAGS) $*.md;
+
+.c.o:
+	$(CC) $(CFLAGS) -c $*.c;

@@ -1,0 +1,1212 @@
+Info file elisp, produced by Makeinfo, -*- Text -*- from input file
+elisp.texi.
+
+   This file documents GNU Emacs Lisp.
+
+   This is edition 1.03 of the GNU Emacs Lisp Reference Manual,   for
+Emacs Version 18.
+
+   Published by the Free Software Foundation, 675 Massachusetts
+Avenue,  Cambridge, MA 02139 USA
+
+   Copyright (C) 1990 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+
+File: elisp,  Node: Disassembly,  Prev: Compilation Functions,  Up: Byte Compilation
+
+Disassembled Byte-Code
+======================
+
+   People do not write byte-code; that job is left to the byte
+compiler.  But we provide a disassembler to satisfy a cat-like
+curiosity.  The disassembler converts the byte-compiled code into
+humanly readable form.
+
+   The byte-code interpreter is implemented as a simple stack machine.
+Values get stored by being pushed onto the stack, and are popped off
+and manipulated, the results being pushed back onto the stack.  When
+a function returns, the top of the stack is popped and returned as
+the value of the function.
+
+   In addition to the stack, values used during byte-code execution
+can be stored in ordinary Lisp variables.  Variable values can be
+pushed onto the stack, and variables can be set by popping the stack.
+
+ * Command: disassemble OBJECT &optional STREAM
+     This function prints the disassembled code for OBJECT.  If
+     STREAM is supplied, then output goes there.  Otherwise, the
+     disassembled code is printed to the stream `standard-output'. 
+     The argument OBJECT can be a function name or a lambda expression.
+
+     As a special exception, if this function is used interactively,
+     it outputs to a buffer named `*Disassemble*'.
+
+   Here are two examples of using the `disassemble' function.  We
+have added explanatory comments to help you relate the byte-code to
+the Lisp source; these do not appear in the output of `disassemble'.
+
+        (defun factorial (integer)
+       "Compute factorial of an integer."
+       (if (= 1 integer) 1
+         (* integer (factorial (1- integer)))))
+          => factorial
+     
+     (factorial 4)
+          => 24
+     
+     (disassemble 'factorial)
+          -| byte-code for factorial:
+      doc: Compute factorial of an integer.
+      args: (integer)
+
+
+          0   constant 1              ; Push 1 onto stack.
+     
+     1   varref   integer        ; Get value of `integer' from the environment
+                                 ;     and push the value onto the stack.
+     
+     2   eqlsign                 ; Pop top two values off stack,
+                                 ;     compare them,
+                                 ;     and push result onto stack.
+     
+     3   goto-if-nil 10          ; Pop and test top of stack;
+                                 ;     if `nil', go to 10,
+                                 ;     else continue.
+     
+     6   constant 1              ; Push 1 onto top of stack.
+     
+     7   goto     17             ; Go to 17 (in this case, 1 will be
+                                 ;     returned by the function).
+     
+     10  constant *              ; Push symbol `*' onto stack.
+     
+     11  varref   integer        ; Push value of `integer' onto stack.
+     
+     12  constant factorial      ; Push `factorial' onto stack.
+     
+     13  varref   integer        ; Push value of `integer' onto stack.
+     
+     14  sub1                    ; Pop `integer', decrement value,
+                                 ;     push new value onto stack.
+     
+                             ; Stack now contains:
+                             ;     decremented value of `integer'
+                             ;     `factorial' 
+                             ;     value of `integer'
+                             ;     `*'
+     
+     15  call     1              ; Call function `factorial' using
+                                 ;     the first (i.e., the top) element
+                                 ;     of the stack as the argument;
+                                 ;     push returned value onto stack.
+     
+                             ; Stack now contains:
+                             ;        result of result of recursive
+                             ;             call to `factorial'
+                             ;        value of `integer'
+                             ;        `*'
+     
+     16  call     2              ; Using the first two (i.e., the top two)
+                                 ;     elements of the stack as arguments,
+                                 ;     call the function `*',
+                                 ;     pushing the result onto the stack.
+     
+     17  return                  ; Return the top element of the stack.
+     
+          => nil
+
+   The `silly-loop' function is somewhat more complex:
+
+     (defun silly-loop (n)
+       "Return time before and after N iterations of a loop."
+       (let ((t1 (current-time-string)))
+         (while (> (setq n (1- n)) 
+                   0))
+         (list t1 (current-time-string))))
+          => silly-loop
+     
+     (disassemble 'silly-loop)
+          -| byte-code for silly-loop:
+      doc: Return time before and after N iterations of a loop.
+      args: (n)
+     
+     0   constant current-time-string      ; Push `current-time-string'
+                                           ;     onto top of stack.
+     
+     1   call     0              ; Call `current-time-string' with no
+                                 ;     argument, pushing result onto stack.
+     
+     2   varbind  t1             ; Pop stack and bind `t1' to popped value.
+     
+     3   varref   n              ; Get value of `n' from the environment
+                                 ;     and push the value onto the stack.
+     
+     4   sub1                    ; Subtract 1 from top of stack.
+     
+     5   dup                     ; Duplicate the top of the stack;
+                                 ;     i.e. copy the top of the stack
+                                 ;     and push the copy onto the stack.
+     
+     6   varset   n              ; Pop the top of the stack,
+                                 ;     and bind `n' to the value.
+     
+                         ; In effect, the sequence `dup varset' copies
+                         ; the top of the stack into the value of `n'
+                         ; without popping it.
+     
+     7   constant 0              ; Push 0 onto stack.
+     
+     8   gtr                     ; Pop top two values off stack,
+                                 ;     test if N is greater than 0
+                                 ;     and push result onto stack.
+     
+     9   goto-if-nil-else-pop 17     ; Goto 17 if `n' > 0 else pop top of stack and continue
+                                     ;     (this exits the while loop).
+     
+     12  constant nil            ; Push `nil' onto stack
+                                 ;     (this is the body of the loop).
+     
+     13  discard                 ; Discard result of the body of the loop
+                                 ;     (a while loop is always evaluated
+                                 ;     for its side effects).
+     
+     14  goto     3              ; Jump back to beginning of while loop.
+     
+     17  discard                 ; Discard result of while loop
+                                 ;     by popping top of stack.
+     
+     18  varref   t1             ; Push value of `t1' onto stack.
+     
+     19  constant current-time-string      ; Push `current-time-string'
+                                           ;     onto top of stack.
+     
+     20  call     0              ; Call `current-time-string' again.
+     
+     21  list2                   ; Pop top two elements off stack,
+                                 ;     create a list of them,
+                                 ;     and push list onto stack.
+     
+     22  unbind   1              ; Unbind `t1' in local environment.
+     
+     23  return                  ; Return value of the top of stack.
+     
+          => nil
+
+
+
+File: elisp,  Node: Debugging,  Next: Streams,  Prev: Byte Compilation,  Up: Top
+
+Debugging Lisp Programs
+***********************
+
+   There are three ways to investigate a problem in an Emacs Lisp
+program, depending on what you are doing with the program when the
+problem appears.
+
+   * If the problem occurs when you run the program, you can use the
+     Lisp debugger to investigate what is happening during execution.
+
+   * If the problem is syntactic, so that Lisp cannot even read the
+     program, you can use the Emacs facilities for editing Lisp to
+     localize it.
+
+   * If the problem occurs when trying to compile the program with
+     the byte compiler, you need to know how to examine the
+     compiler's input buffer.
+
+* Menu:
+
+* Debugger::            How the Emacs Lisp debugger is implemented.
+* Syntax Errors::       How to find syntax errors.
+* Compilation Errors::  How to find errors that show up in byte compilation.
+
+    Another useful debugging tool is a dribble file.  When a dribble
+file is open, Emacs copies all keyboard input characters to that file.
+Afterward, you can examine the file to find out what input was used. 
+*Note Terminal Input::.
+
+   For debugging problems in terminal descriptions, the
+`open-termscript' function can be useful.  *Note Terminal Output::.
+
+
+
+File: elisp,  Node: Debugger,  Next: Syntax Errors,  Prev: Debugging,  Up: Debugging
+
+The Lisp Debugger
+=================
+
+   The "Lisp debugger" provides you with the ability to suspend
+evaluation of a form.  While evaluation is suspended (a state that is
+commonly known as a "break"), you may examine the run time stack,
+examine the values of local or global variables, or change those
+values.  Since a break is a recursive edit, all the usual editing
+facilities of Emacs are available; you can even run programs that
+will enter the debugger recursively.  *Note Recursive Editing::.
+
+* Menu:
+
+* Error Debugging::       Entering the debugger when an error happens.
+* Infinite Loops::	  Stopping and debugging a program that doesn't exit.
+* Function Debugging::    Entering it when a certain function is called.
+* Explicit Debug::        Entering it at a certain point in the program.
+* Using Debugger::        What the debugger does; what you see while in it.
+* Debugger Commands::     Commands used while in the debugger.
+* Invoking the Debugger:: How to call the function `debug'.
+* Internals of Debugger:: Subroutines of the debugger, and global variables.
+
+ 
+
+File: elisp,  Node: Error Debugging,  Next: Infinite Loops,  Prev: Debugger,  Up: Debugger
+
+Entering the Debugger When an Error Occurs
+------------------------------------------
+
+   The most important time to enter the debugger is when a Lisp error
+happens.  This allows you to investigate the immediate causes of the
+error.
+
+   However, entry to the debugger is not a normal consequence of an
+error.  Many commands frequently get Lisp errors when invoked in
+inappropriate contexts (such as `C-f' at the end of the buffer) and
+during ordinary editing it would be very unpleasant to enter the
+debugger each time this happens.  If you want errors to enter the
+debugger, set the variable `debug-on-error' to non-`nil'.
+
+ * User Option: debug-on-error
+     This variable determines whether the debugger is called when a
+     error is signaled and not handled.  If `debug-on-error' is
+     non-`nil', then the debugger is called when an error happens. 
+     Otherwise the debugger is not called for errors.
+
+
+
+File: elisp,  Node: Infinite Loops,  Next: Function Debugging,  Prev: Error Debugging,  Up: Debugger
+
+Debugging Infinite Loops
+========================
+
+   When a program loops infinitely and fails to return, your first
+problem is to stop the loop.  On most operating systems, you can do
+this with `C-g', which causes quit.  This works if you are not using
+X windows, and on Berkeley systems even if you are using X windows.
+
+   On other inferior operating systems, `C-g' does not work when
+using X windows.  This is because these systems do not allow Emacs to
+request a signal when input arrives from the X server.  There is
+nothing Emacs can do about this.
+
+   However, you can still stop a loop by sending Emacs the `SIGINT'
+signal.  To do this, go to a shell in another window, use `ps' to
+find out the PID of the Emacs process, and then type `kill -INT PID'.
+
+   Ordinary quitting gives no information about why the program was
+looping.  To get more information, you can set the variable
+`debug-on-quit' to non-`nil'.  Quitting with `C-g' is not considered
+an error, and `debug-on-error' has no effect on the handling of
+`C-g'.  `debug-on-quit' has no effect on errors.
+
+   Once you have the debugger running in the middle of the infinite
+loop, you can proceed from the debugger using the stepping commands. 
+If you step through the entire loop, you will probably get enough
+information to solve the problem.
+
+ * User Option: debug-on-quit
+     This variable determines whether the debugger is called when
+     `quit' is signaled and not handled.  If `debug-on-quit' is
+     non-`nil', then the debugger is called whenever you quit (that
+     is, type `C-g').  If `debug-on-quit' is `nil', then the debugger
+     is not called when you quit.  *Note Quitting::.
+
+
+
+File: elisp,  Node: Function Debugging,  Next: Explicit Debug,  Prev: Infinite Loops,  Up: Debugger
+
+Entering the Debugger when Some Function is Called
+--------------------------------------------------
+
+   To investigate a problem that happens in the middle of a program,
+one useful technique is to cause the debugger to be entered when a
+certain function is called.  You can do this to the function in which
+the problem occurs, and then step through the function, or you can do
+this to a function called shortly before the problem, step quickly
+over the call to that function, and then step through its caller.
+
+ * Command: debug-on-entry FUNCTION-NAME
+     This function requests FUNCTION-NAME to invoke the debugger each
+     time it is called.  It works by inserting the form `(debug
+     'debug)' into the function definition as the first form.
+
+     Any function defined as Lisp code may be set to break on entry,
+     regardless of whether it is interpreted code or compiled code. 
+     Even functions that are commands may be debugged--they will
+     enter the debugger when called inside a function, or when called
+     interactively.  Primitive functions (i.e., those written in C)
+     may not be debugged.
+
+     When `debug-on-entry' is called interactively, it prompts for
+     FUNCTION-NAME in the minibuffer.
+
+     If `debug-on-entry' is called more than once on the same
+     function, the second call does nothing.  `debug-on-entry'
+     returns FUNCTION-NAME.
+
+          (defun fact (n)
+            (if (zerop n) 1
+                (* n (fact (1- n)))))
+               => fact
+          (debug-on-entry 'fact)
+               => fact
+          (fact 3)
+               => 6
+          
+          ---------- Buffer: *Backtrace* ----------
+          Entering:
+          * fact(3)
+            eval-region(4870 4878 t)
+            byte-code("...")
+            eval-last-sexp(nil)
+            (let ...)
+            eval-insert-last-sexp(nil)
+          * call-interactively(eval-insert-last-sexp)
+          ---------- Buffer: *Backtrace* ----------
+          
+          (symbol-function 'fact)
+               => (lambda (n)
+                    (debug (quote debug))
+                    (if (zerop n) 1 (* n (fact (1- n)))))
+
+ * Command: cancel-debug-on-entry FUNCTION-NAME
+     This function undoes the effect of `debug-on-entry' on
+     FUNCTION-NAME.  When called interactively, it prompts for
+     FUNCTION-NAME in the minibuffer.
+
+     If `cancel-debug-on-entry' is called more than once on the same
+     function, the second call does nothing.  `cancel-debug-on-entry'
+     returns FUNCTION-NAME.
+
+
+
+File: elisp,  Node: Explicit Debug,  Next: Using Debugger,  Prev: Function Debugging,  Up: Debugger
+
+Explicit Entry to the Debugger
+------------------------------
+
+   You can cause the debugger to be called at a certain point in your
+program by writing the expression `(debug)' at that point.  To do
+this, visit the source file, insert the text `(debug)' at the proper
+place, and type `C-M-x'.  Be sure to undo this insertion before you
+save the file!
+
+   The place where you insert `(debug)' must be a place where an
+additional form can be evaluated and its value ignored.  (If the
+value isn't ignored, it will alter the execution of the program!) 
+Usually this means inside a `progn' or an implicit `progn' (*note
+Sequencing::.).
+
+
+
+File: elisp,  Node: Using Debugger,  Next: Debugger Commands,  Prev: Explicit Debug,  Up: Debugger
+
+Using the Debugger
+------------------
+
+   When the debugger is entered, it displays the previously selected
+buffer in one window and a buffer named `*Backtrace*' in another
+window.  The backtrace buffer contains one line for each level of
+Lisp function execution currently going on.  At the beginning of this
+buffer is a message describing the reason that the debugger was
+invoked (such as the error message and associated data, if it was
+invoked due to an error).
+
+   The backtrace buffer is read-only and uses a special major mode,
+Debugger mode, in which letters are defined as debugger commands. 
+The usual Emacs editing commands are available; thus, you can switch
+windows to examine the buffer that was being edited at the time of
+the error, switch buffers, visit files, or do any other sort of
+editing.  However, the debugger is a recursive editing level (*note
+Recursive Editing::.) and it is wise to go back to the backtrace
+buffer and exit the debugger (with the `q' command) when you you are
+finished with it.  Exiting the debugger gets out of the recursive
+edit and kills the backtrace buffer.
+
+   The contents of the backtrace buffer show you the functions that
+are executing and the arguments that were given to them.  It also
+allows you to specify a stack frame by moving point to the line
+describing that frame.  (A stack frame is the place where the Lisp
+interpreter records information about a particular invocation of a
+function.  The frame whose line point is on is considered the
+"current frame".) Some of the debugger commands operate on the
+current frame.
+
+   The debugger itself should always be run byte-compiled, since it
+makes assumptions about how many stack frames are used for the
+debugger itself.  These assumptions are false if the debugger is
+running interpreted.
+
+
+
+File: elisp,  Node: Debugger Commands,  Next: Invoking the Debugger,  Prev: Using Debugger,  Up: Debugger
+
+Debugger Commands
+-----------------
+
+   Inside the debugger (in Debugger mode), these special commands are
+available in addition to the usual cursor motion commands.  (Keep in
+mind that all the usual facilities of Emacs, such as switching
+windows or buffers, are still available.)
+
+   The most important use of debugger commands is for stepping
+through code, so that you can see how control flows.  The debugger
+can step through the control structures of an interpreted function,
+but cannot do so in a byte-compiled function.  If you would like to
+step through a byte-compiled function, replace it with an interpreted
+definition of the same function.  (To do this, visit the source file
+for the function and type `C-M-x' on its definition.)
+
+`c'
+     Exit the debugger and continue execution.  When continuing is
+     possible, it resumes execution of the program as if the debugger
+     had never been entered (aside from the effect of any variables
+     or data structures you may have changed while inside the
+     debugger).
+
+     Continuing is possible after entry to the debugger due to
+     function entry or exit, explicit invocation, quitting or certain
+     errors.  Most errors cannot be continued; trying to continue an
+     unsuitable error causes the same error to occur again.
+
+`d'
+     Continue execution, but enter the debugger the next time any
+     Lisp function is called.  This allows you to step through the
+     subexpressions of an expression, seeing what values the
+     subexpressions compute, and what else they do.
+
+     The stack frame made for the function call which enters the
+     debugger in this way will be flagged automatically so that the
+     debugger will be called again when the frame is exited.  You can
+     use the `u' command to cancel this flag.
+
+`b'
+     Flag the current frame so that the debugger will be entered when
+     the frame is exited.  Frames flagged in this way are marked with
+     stars in the backtrace buffer.
+
+`u'
+     Don't enter the debugger when the current frame is exited.  This
+     cancels a `b' command on that frame.
+
+`e'
+     Read a Lisp expression in the minibuffer, evaluate it, and print
+     the value in the echo area.  This is the same as the command
+     `M-ESC', except that `e' is not normally disabled like `M-ESC'.
+
+`q'
+     Terminate the program being debugged; return to top-level Emacs
+     command execution.
+
+     If the debugger was entered due to a `C-g' but you really want
+     to quit, and not debug, use the `q' command.
+
+`r'
+     Return a value from the debugger.  The value is computed by
+     reading an expression with the minibuffer and evaluating it.
+
+     The `r' command makes a difference when the debugger was invoked
+     due to exit from a Lisp call frame (as requested with `b'); then
+     the value specified in the `r' command is used as the value of
+     that frame.
+
+     The `r' also matters in certain cases of errors.  For example,
+     `wrong-type-argument' errors will use the debugger's return
+     value instead of the invalid argument; `no-catch' errors will
+     use the debugger value as a throw tag instead of the tag that
+     was not found.  If an error was signaled by calling the Lisp
+     function `signal', the debugger's return value is returned as
+     the value of `signal'.
+
+
+
+File: elisp,  Node: Invoking the Debugger,  Next: Internals of Debugger,  Prev: Debugger Commands,  Up: Debugger
+
+Invoking the Debugger
+---------------------
+
+   Here we describe fully the function used to invoke the debugger.
+
+ * Function: debug &rest DEBUGGER-ARGS
+     This function enters the debugger.  It switches buffers to a
+     buffer named `*Backtrace*' (or `*Backtrace*<2>' if it is the
+     second recursive entry to the debugger, etc.), and fills it with
+     information about the stack of Lisp function calls.  It then
+     enters a recursive edit, leaving that buffer in Debugger mode
+     and displayed in the selected window.
+
+     Debugger mode provides a `c' command which operates by exiting
+     the recursive edit, switching back to the previous buffer, and
+     returning to whatever called `debug'.  The `r' command also
+     returns from `debug'.  These are the only ways the function
+     `debug' can return to its caller.
+
+     If the first of the DEBUGGER-ARGS passed to `debug' is `nil' (or
+     if it is not one of the following special values), then the rest
+     of the arguments to `debug' are printed at the top of the
+     `*Backtrace*' buffer.  This mechanism is used to display a
+     message to the user.
+
+     However, if the first argument passed to `debug' is one of the
+     following special values, then it has special significance. 
+     Normally, these values are passed to `debug' only by the
+     internals of Emacs and the debugger, and not by programmers
+     calling `debug'.
+
+     The special values are:
+
+    `lambda'
+          When the first argument is `lambda', the debugger displays
+          `Entering:' as a line of text at the top of the buffer. 
+          This means that a function is being entered when
+          `debug-on-next-call' is non-`nil'.
+
+    `debug'
+          When the first argument is `debug', the debugger displays
+          `Entering:' just as in the `lambda' case.  However, `debug'
+          as the argument indicates that the reason for entering the
+          debugger is that a function set to debug on entry is being
+          entered.
+
+          In addition, `debug' as the first argument directs the
+          debugger to mark the function that called `debug' so that
+          it will invoke the debugger when exited.  (When `lambda' is
+          the first argument, the debugger does not do this, because
+          it has already been done by the interpreter.)
+
+    `t'
+          When the first argument is `t', the debugger displays
+          `Beginning evaluation of function call form:' as the top
+          line in the buffer, to indicate that it was entered due to
+          the evaluation of a list form at a time when
+          `debug-on-next-call' is non-`nil'.
+
+    `exit'
+          When the first argument is `exit', it indicates the exit of
+          a stack frame previously marked to invoke the debugger on
+          exit.  The debugger displays `Return value:' on the top
+          line of the buffer, followed by the value being returned
+          from the frame.
+
+    `error'
+          When the first argument is `error', the debugger indicates
+          that it is being entered because an error or `quit' was
+          signaled and not handled, by displaying `Signaling:'
+          followed by the error signaled and any arguments to
+          `signal'.  For example,
+
+               (let ((debug-on-error t))
+                    (/ 1 0))
+               
+               ---------- Buffer: *Backtrace* ----------
+               Signaling: (arith-error)
+                 /(1 0)
+               ...
+
+           If an error was signaled, presumably the variable
+          `debug-on-error' is non-`nil'.  If `quit' was signaled,
+          then presumably the variable `debug-on-quit' is non-`nil'.
+
+    `nil'
+          Use `nil' as the first of the DEBUGGER-ARGS when you want
+          to enter the debugger explicitly.  The rest of the
+          DEBUGGER-ARGS are printed on the top line of the buffer. 
+          You can use this feature to display messages--for example,
+          to remind yourself of the conditions under which `debug' is
+          called.
+
+
+
+File: elisp,  Node: Internals of Debugger,  Prev: Invoking the Debugger,  Up: Debugger
+
+Internals of the Debugger
+-------------------------
+
+   This section describes functions and variables used internally by
+the debugger.
+
+ * Variable: debugger
+     The value of this variable is the function to call to invoke the
+     debugger.  Its value must be a function of any number of
+     arguments (or, more typically, the name of a function). 
+     Presumably this function will enter some kind of debugger.  The
+     default value of the variable is `debug'.
+
+     The first argument that Lisp hands to the function indicates why
+     it was called.  The convention for arguments is detailed in the
+     description of `debug'.
+
+ * Command: backtrace
+     This function prints a trace of Lisp function calls currently
+     active.  This is the function used by `debug' to fill up the
+     `*Backtrace*' buffer.  It is written in C, since it must have
+     access to the stack to determine which function calls are
+     active.  The return value is always `nil'.
+
+     In the following example, `backtrace' is called explicitly in a
+     Lisp expression.  When the expression is evaluated, the
+     backtrace is printed to the stream `standard-output': in this
+     case, to the buffer `backtrace-output'.  Each line of the
+     backtrace represents one function call.  If the arguments of the
+     function call are all known, they are displayed; if they are
+     being computed, that fact is stated.  The arguments of special
+     forms are elided.
+
+          (with-output-to-temp-buffer "backtrace-output"
+            (let ((var 1))
+              (save-excursion
+                (setq var (eval '(progn
+                                   (1+ var)
+                                   (list 'testing (backtrace))))))))
+          
+               => nil
+          ----------- Buffer: backtrace-output ------------
+            backtrace()
+            (list ...computing arguments...)
+            (progn ...)
+            eval((progn (1+ var) (list (quote testing) (backtrace))))
+            (setq ...)
+            (save-excursion ...)
+            (let ...)
+            (with-output-to-temp-buffer ...)
+            eval-region(1973 2142 #<buffer *scratch*>)
+            byte-code("...  for eval-print-last-sexp ...")
+            eval-print-last-sexp(nil)
+          * call-interactively(eval-print-last-sexp)
+          ----------- Buffer: backtrace-output ------------
+
+ * User Option: stack-trace-on-error
+     This variable controls whether Lisp automatically displays a
+     backtrace buffer after every error that is not handled.  A quit
+     signal counts as an error for this variable.  If it is non-`nil'
+     then a backtrace is shown in a pop-up buffer named `*Backtrace*'
+     on every error.  If it is `nil', then a backtrace is not shown.
+
+     When a backtrace is shown, that buffer is not selected.  If
+     either `debug-on-quit' or `debug-on-error' is also non-`nil',
+     then a backtrace is shown in one buffer, and the debugger is
+     popped up in another buffer with its own backtrace.
+
+     We consider this feature to be obsolete and superseded by the
+     debugger itself.
+
+ * Variable: debug-on-next-call
+     This variable determines whether the debugger is called before
+     the next `eval', `apply' or `funcall'.  It is automatically
+     reset to `nil' when the debugger is entered.
+
+     The `d' command in the debugger works by setting this variable.
+
+ * Function: backtrace-debug LEVEL FLAG
+     This function sets the debug-on-exit flag of the eval frame
+     LEVEL levels down to FLAG.  If FLAG is non-`nil', this will
+     cause the debugger to be entered when that frame exits.
+
+     The debug-on-exit flag is an entry in the stack frame of a
+     function call.  This flag is examined on every exit from a
+     function.
+
+     Normally, this function is only called by the debugger.
+
+
+
+File: elisp,  Node: Syntax Errors,  Next: Compilation Errors,  Prev: Debugger,  Up: Debugging
+
+Debugging Invalid Lisp Syntax
+=============================
+
+   It is easy to make a syntax error in an Emacs Lisp program by
+omitting a parenthesis.  The Lisp reader will detect an error, but
+cannot say where the real problem is.  For example, if a close
+parenthesis is omitted, the reader will detect an imbalance at the
+end of the file, but it cannot tell anything about where the close
+parenthesis should have been.  However, you can use the following
+techniques to figure out where.
+
+   If the problem is not simply an imbalance of parentheses, a useful
+technique is to try `C-M-e' at the beginning of each defun, and see
+if it goes to the place where that defun appears to end.  If it does
+not, there is a problem in that defun.
+
+   However, unmatched parentheses are the most common syntax errors
+in Lisp, and we can give further advice for those cases.
+
+* Menu:
+
+* Excess Open::     How to find a spurious open paren or missing close.
+* Excess Close::    How to find a spurious close paren or missing open.
+
+ 
+
+File: elisp,  Node: Excess Open,  Next: Excess Close,  Prev: Syntax Errors,  Up: Syntax Errors
+
+Excess Open Parentheses
+-----------------------
+
+   The first step is to find the defun that is unbalanced.  If there
+is an excess open parenthesis, the way to do this is to insert a
+close parenthesis at the end of the file and type `C-M-b'
+(`backward-sexp').  This will move you to the beginning of the defun
+that is unbalanced.  (Then type `C-SPC C-_ C-u C-SPC' to set the mark
+there, undo the insertion of the close parenthesis, and finally
+return to the mark.)
+
+   The next step is to determine precisely what is wrong.  There is
+no way to be sure of this except to study the program, but often the
+existing indentation is a clue to where the parentheses should have
+been.  The easiest way to use this clue is to reindent with `C-M-q'
+and see what moves.
+
+   Before you do this, make sure the defun has enough close
+parentheses.  Otherwise, `C-M-q' will get an error, or will reindent
+all the rest of the file until the end.  So move to the end of the
+defun and insert a close parenthesis there.  Don't use `C-M-e' to
+move there, since that too will fail to work until the defun is
+balanced.
+
+   Then go to the beginning of the defun and type `C-M-q'.  Usually
+all the lines from a certain point to the end of the function will
+shift to the right.  There is probably a missing close parenthesis,
+or a superfluous open parenthesis, near that point.  (However, don't
+assume this is true; study the code to make sure.)  Once you have
+found the discrepancy, undo the `C-M-q', since the old indentation is
+probably appropriate to the intended parentheses.
+
+   After you think you have fixed the problem, use `C-M-q' again.  It
+should not change anything, if the problem is really fixed.
+
+
+
+File: elisp,  Node: Excess Close,  Prev: Excess Open,  Up: Syntax Errors
+
+Excess Close Parentheses
+------------------------
+
+   To deal with an excess close parenthesis, first insert an open
+parenthesis at the beginning of the file and type `C-M-f' to find the
+end of the unbalanced defun.  (Then type `C-SPC C-_ C-u C-SPC' to set
+the mark there, undo the insertion of the open parenthesis, and
+finally return to the mark.)
+
+   Then find the actual matching close parenthesis by typing `C-M-f'
+at the beginning of the defun.  This will leave you somewhere short
+of the place where the defun ought to end.  It is possible that you
+will find a spurious close parenthesis in that vicinity.
+
+   If you don't see a problem at that point, the next thing to do is
+to type `C-M-q' at the beginning of the defun.  A range of lines will
+probably shift left; if so, the missing open parenthesis or spurious
+close parenthesis is probably near the first of those lines. 
+(However, don't assume this is true; study the code to make sure.) 
+Once you have found the discrepancy, undo the `C-M-q', since the old
+indentation is probably appropriate to the intended parentheses.
+
+
+
+File: elisp,  Node: Compilation Errors,  Prev: Syntax Errors,  Up: Debugging
+
+Debugging Problems in Compilation
+=================================
+
+   When an error happens during byte compilation, it is normally due
+to an error in the program you are compiling.  The compiler itself
+can't tell you where in the file the error occurred, so here is how
+to find out.
+
+   What you should do is switch to the buffer ` *Compiler Input*'. 
+(Note that the buffer name starts with a space, so it will not show
+up in `M-x list-buffers'.)  This buffer contains the program being
+compiled, and point shows how far the byte compiler was able to read.
+
+   If the error was due to invalid Lisp syntax, point shows exactly
+where the invalid syntax was *detected*.  The cause of the error is
+not necessarily near by!  Use the techniques in the previous section
+to find the error.
+
+   If the error was detected while compiling a form that had been
+read successfully, then point is located at the end of the form.  In
+this case, it can't localize the error precisely, but can still show
+you which function to check.
+
+
+
+File: elisp,  Node: Streams,  Next: Minibuffers,  Prev: Debugging,  Up: Top
+
+Reading and Printing Lisp Objects
+*********************************
+
+   "Printing" and "reading" are the operations of converting Lisp
+objects to textual form and vice versa.  They use the printed
+representations and read syntax described in *Note Types of Lisp
+Object::.
+
+   This chapter describes the Lisp functions for reading and printing.
+It also describes "streams", which specify where to get the text (if
+reading) or where to put it (if printing).
+
+* Menu:
+
+* Streams Intro::     Overview of streams, reading and printing.
+* Input Streams::     Various data types that can be used as input streams.
+* Input Functions::   Functions to read Lisp objects from text.
+* Output Streams::    Various data types that can be used as input streams.
+* Output Functions::  Functions to print Lisp objects as text.
+
+ 
+
+File: elisp,  Node: Streams Intro,  Next: Input Streams,  Prev: Streams,  Up: Streams
+
+Introduction to Reading and Printing
+====================================
+
+   "Reading" a Lisp object means parsing a Lisp expression in textual
+form and producing a corresponding Lisp object.  This is how Lisp
+programs get into Lisp from files of Lisp code.  We call the text the
+"read syntax" of the object.  For example, reading the text `(a . 5)'
+returns a cons cell whose CAR is `a' and whose CDR is the number 5.
+
+   "Printing" a Lisp object means producing text that represents that
+object--converting the object to its printed representation. 
+Printing the cons cell described above produces the text `(a . 5)'.
+
+   Reading and printing are usually inverse operations: printing the
+object that results from reading a given piece of text often produces
+the same text, and reading the text that results from printing an
+object usually produces a similar-looking object.  For example,
+printing the symbol `foo' produces the text `foo', and reading that
+text returns the symbol `foo'.  Printing a list whose elements are
+`a' and `b' produces the text `(a b)', and reading that text produces
+a list (but not the same list) with elements are `a' and `b'.
+
+   However, these two operations are not precisely inverses.  There
+are two kinds of exceptions:
+
+   * Printing can produce text that cannot be read.  For example,
+     buffers, windows, subprocesses and markers print into text that
+     starts with `#'; if you try to read this text, you get an error.
+     There is no way to read those data types.
+
+   * One object can have multiple textual representations.  For
+     example, `1' and `01' represent the same integer, and `(a b)'
+     and `(a . (b))' represent the same list.  Reading will accept
+     any of the alternatives, but printing must choose one of them.
+
+
+
+File: elisp,  Node: Input Streams,  Next: Input Functions,  Prev: Streams Intro,  Up: Streams
+
+Input Streams
+=============
+
+   Most of the Lisp functions for reading text take an "input stream"
+as an argument.  The input stream specifies where or how to get the
+characters of the text to be read.  Here are the possible types of
+input stream:
+
+BUFFER
+     The input characters are read from BUFFER, starting with the
+     character directly after point.  Point advances as characters
+     are read.
+
+MARKER
+     The input characters are read from the buffer that MARKER is in,
+     starting with the character directly after the marker.  The
+     marker position advances as characters are read.  The value of
+     point in the buffer has no effect when the stream is a marker.
+
+STRING
+     The input characters are taken from STRING, starting at the
+     first character in the string and using as many characters as
+     required.
+
+FUNCTION
+     The input characters are generated by FUNCTION, one character
+     per call.  In version 18, FUNCTION is always called with no
+     arguments and should return a character.
+
+`t'
+     `t' used as a stream means that the input is read from the
+     minibuffer.  In fact, the minibuffer is invoked once and the
+     text given by the user is made into a string that is then used
+     as the input stream.
+
+`nil'
+     `nil' used as a stream means that the value of `standard-input'
+     should be used instead; that value is the "default input
+     stream", and must be a non-`nil' input stream.
+
+   Here is an example of reading from a stream which is a buffer,
+showing where point is located before and after:
+
+     ---------- Buffer: foo ----------
+     This-!- is the contents of foo.
+     ---------- Buffer: foo ----------
+     
+     (read (get-buffer "foo"))
+          => is
+     (read (get-buffer "foo"))
+          => the
+     
+     ---------- Buffer: foo ----------
+     This is the -!-contents of foo.
+     ---------- Buffer: foo ----------
+
+Note that the first read skips a space at the beginning of the buffer.
+Reading skips any amount of whitespace preceding the significant text.
+Note also that the second read skips the space which terminates the
+symbol `the'.  It has to read this space in order to know that no
+more letters follow.
+
+   Here is an example of reading from a stream that is a marker,
+initialized to point at the beginning of the buffer shown.  The value
+of the read is the symbol `This'.
+
+     ---------- Buffer: foo ----------
+     This is the contents of foo.
+     ---------- Buffer: foo ----------
+     
+     (setq m (set-marker (make-marker) 1 (get-buffer "foo")))
+          => #<marker at 1 in foo>
+     (read m)
+          => This
+     m
+          => #<marker at 6 in foo>   ;; After the first space.
+
+    Here we read from the contents of a string:
+
+     (read "(When in) the course")
+          => (When in)
+
+   The following example reads from the minibuffer, prompting with
+`Lisp expression: '.  (That is always the prompt used when you read
+from the stream `t'.)  The user's input is shown following the prompt.
+
+     (read t)
+          => 23
+     ---------- Buffer: Minibuffer ----------
+     Lisp expression: `23 RET'
+
+   Finally, here is an example of a stream that is a function, named
+`useless-stream'.  Before we use the stream, we initialize the
+variable `useless-list' to a list of characters.  Then each call to
+the function `useless-stream' obtains the next letter in the list:
+
+     (setq useless-list (append "XY()" nil))
+          => (88 89 40 41)
+     
+     (defun useless-stream ()
+       (prog1 (car useless-list)
+              (setq useless-list (cdr useless-list))))
+          => useless-stream
+
+Now we read using the stream thus constructed:
+
+     (read 'useless-stream)
+          => XY
+     
+     useless-list
+          => (41)
+
+Note that the close parenthesis remains in the list.  This is because
+the open parenthesis was read before the Lisp reader knew it had
+found the end of the symbol.  A second attempt to read from the
+stream at this point would get an error due to the unmatched close
+parenthesis.
+
+ * Function: get-file-char
+     This function is used internally as an input stream to read from
+     the input file opened by the function `load'.  Don't use this
+     function yourself.
+
+
+
+File: elisp,  Node: Input Functions,  Next: Output Streams,  Prev: Input Streams,  Up: Streams
+
+Input Functions
+===============
+
+   This section describes the Lisp functions and variables that
+pertain to reading.
+
+   In the functions below, STREAM stands for an input stream (see the
+previous section).  If STREAM is `nil' or omitted, it defaults to the
+value of `standard-input'.
+
+   An `end-of-file' error will result if an unterminated list or
+vector is found.
+
+ * Function: read &optional STREAM
+     This function reads one textual Lisp expression from STREAM,
+     returning it as a Lisp object.  This is the basic Lisp input
+     function.
+
+ * Function: read-from-string STRING &optional START END
+     This function reads the first textual Lisp expression from the
+     text in STRING.  It returns a cons cell whose CAR is that
+     expression, and whose CDR is an integer giving the position of
+     the next remaining character in the string (i.e., the first one
+     not read).
+
+     If START is supplied, then reading begins at index START in the
+     string (where the first character is at index 0).  If END is
+     also supplied, then reading stops at that index as if the rest
+     of the string were not there.
+
+     For example:
+
+          (read-from-string "(setq x 55) (setq y 5)")
+               => ((setq x 55) . 11)
+          (read-from-string "\"A short string\"")
+               => ("A short string" . 16)
+          
+          ;; Read starting at the first character.
+          (read-from-string "(list 112)" 0)
+               => ((list 112) . 10)
+          ;; Read starting at the second character.
+          (read-from-string "(list 112)" 1)
+               => (list . 6)
+          ;; Read starting at the seventh character, and stopping at the ninth.
+          (read-from-string "(list 112)" 6 8)
+               => (11 . 8)
+
+ * Variable: standard-input
+     This variable holds the default input stream: the stream that
+     `read' uses when the STREAM argument is `nil'.
+
+
+
+File: elisp,  Node: Output Streams,  Next: Output Functions,  Prev: Input Functions,  Up: Streams
+
+Output Streams
+==============
+
+   An output stream specifies what to do with the characters produced
+by printing.  Most print functions accept an output stream as an
+optional argument.  Here are the possible types of output stream:
+
+BUFFER
+     The output characters are inserted into BUFFER at point.  Point
+     advances as characters are inserted.
+
+MARKER
+     The output characters are inserted into the buffer that MARKER
+     is in at the marker position.  The position advances as
+     characters are inserted.  The value of point in the buffer has
+     no effect when the stream is a marker.
+
+FUNCTION
+     The output characters are passed to FUNCTION, which is
+     responsible for storing them away.  It is called with a single
+     character as argument, as many times as there are characters to
+     be output, and is free to do anything at all with the characters
+     it receives.
+
+`t'
+     The output characters are displayed in the echo area.
+
+`nil'
+     `nil' specified as an output stream means that the value of
+     `standard-output' should be used as the output stream; that
+     value is the "default output stream", and must be a non-`nil'
+     output stream.
+
+   Here is an example of a buffer used as an output stream.  Point is
+initially located as shown immediately before the `h' in `the'.  At
+the end, point is located directly before that same `h'.
+
+        ---------- Buffer: foo ----------
+     This is t-!-he contents of foo.
+     ---------- Buffer: foo ----------
+
+
+          (print "This is the output" (get-buffer "foo"))
+          => "This is the output"
+
+        ---------- Buffer: foo ----------
+     This is t
+     "This is the output"
+     -!-he contents of foo.
+     ---------- Buffer: foo ----------
+
+   Now we show a use of a marker as an output stream.  Initially, the
+marker points in buffer `foo', between the `t' and the `h' in the
+word `the'.  At the end, the marker has been advanced over the
+inserted text so that it still points before the same `h'.  Note that
+the location of point, shown in the usual fashion,  has no effect.
+
+     ---------- Buffer: foo ----------
+     "This is the -!-output"
+     ---------- Buffer: foo ----------
+     
+     m
+          => #<marker at 11 in foo>
+     
+     (print "More output for foo." marker)
+          => "More output for foo."
+     
+     ---------- Buffer: foo ----------
+     "This is t
+     "More output for foo."
+     he -!-output"
+     ---------- Buffer: foo ----------
+     
+     m
+          => #<marker at 35 in foo>
+
+   The following example shows output to the echo area:
+
+     (print "Echo Area output" t)
+          => "Echo Area output"
+     ---------- Echo Area ----------
+     "Echo Area output"
+     ---------- Echo Area ----------
+
+   Finally, we show an output stream which is a function.  The
+function `eat-output' takes each character that it is given and
+conses it onto the front of the list `last-output' (*note Building
+Lists::.).  At the end, the list contains all the characters output,
+but in reverse order.
+
+     (setq last-output nil)
+          => nil
+     
+     (defun eat-output (c)
+       (setq last-output (cons c last-output)))
+          => eat-output
+     
+     (print "This is the output" 'eat-output)
+          => "This is the output"
+     
+     last-output
+          => (10 34 116 117 112 116 117 111 32 101 104 116 32 115 105
+         32 115 105 104 84 34 10)
+
+Now we can put the output in the proper order by reversing the list:
+
+     (concat (nreverse last-output))
+          => "
+     \"This is the output\"
+     "
+
+

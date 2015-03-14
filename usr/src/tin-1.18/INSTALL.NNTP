@@ -1,0 +1,90 @@
+Compilation and installation notes for NNTP patches - 18-11-92
+--------------------------------------------------------------
+
+This document explains the install procedure for the supplied patch to the
+NNTP server nntpd & to the TIN newsreader to retrieve index files from the
+NNTP server. 
+
+NNTP server
+-----------
+1) Copy the following files to <nntp-source-dir>/server
+     cp xindex.c <nntp-source-dir>/server
+     cp xmotd.c <nntp-source-dir>/server
+     cp xuser.c <nntp-source-dir>/server
+
+2) Copy the following files to <nntp-source-dir>
+     cp server.patch <nntp-source-dir>
+     cp common.patch <nntp-source-dir>
+
+3) Patch the files in <nntp-source-dir>/common & <nntp-source-dir>/server
+     cd <nntp-source-dir>
+     patch < common.patch
+     patch < server.patch
+
+4) Copy <nntp-source-dir>/common/conf.h.dist to <nntp-source-dir>/common/conf.h
+     cd <nntp-source-dir>/common
+     cp conf.h.dist conf.h
+
+5) Edit <nntp-source-dir>/common/conf.h to suit your sites needs. 
+   The XINDEX, XMOTD, XOVERVIEW & XUSER extensions are #defined by 
+   default. You may need to change the path for the #define's for 
+   XINDEX_DIR, XMOTD_FILE & SUBSCRIBTIONS_FILE. 
+   The default for XINDEX_DIR is /usr/spool/news/.index and for the
+   others /usr/lib/news/[motd | subscriptions]
+     cd <nntp-source-dir>/common
+     [vi|emacs] conf.h
+
+6) Recompile & install the NNTP server nntpd
+     cd  <nntp-source-dir>
+     make server
+     make install_server
+
+TIN client
+----------
+1) Nothing needs to changed in the tin client as long as you originally
+   compiled tin with -DNNTP_ABLE or -DNNTP_ONLY. You will have to remove
+   -DDONT_HAVE_NNTP_EXTS from the CFLAGS in the Makefile and recompile
+   if it was originally defined.
+
+2) Recompile & install tin.
+     cd <tin-dir>
+     make <system>
+     make install
+
+TIN daemon (on NNTP server)
+---------------------------
+1) Edit tin Makefile to enable index daemon functionality.
+     cd <tin-dir>
+     [vi|emacs] Makefile
+     Add -DINDEX_DAEMON to CFLAGS to create a version of tin 'tind' to
+     create & update index files on the NNTP server.
+
+2) Compile & install tind.
+     cd <tin-dir>
+     make <system>
+     make install_daemon
+
+3) Add entry to crontab to start 'tind' index daemon every so often.
+     cd /usr/spool/cron/crontabs
+     [vi|emacs] root
+     Add following line to run tind every 30 minutes: 
+       0,30 * * * * su news -c '/usr/lib/news/tind'
+
+OK. If you have gotten this far you will have the following configuration:
+  o  tind will run every 30 minutes to update a central directory (usually
+     /usr/spool/news/.index) of tin index files for all groups in the active
+     file. The directory can be changed by 'tind -I dir' if so desired.
+
+  o  The NNTP server nntpd will service all requests for tin index files
+     from tin clients. It will do this by returning the contents of the
+     group index file in the index directory (ie. /usr/spool/news/.index/*)
+
+  o  The tin client will issue requests for index files to the NNTP server
+     therefore saving space on the client machine and ensuring that there
+     are only one copy of index files on the whole network.  Also clients
+     will not have to wait while index files are built locally as the index
+     daemon tind runs frequently on the news server.
+             
+Enjoy & happy newsreading
+
+Iain

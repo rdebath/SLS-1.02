@@ -1,0 +1,166 @@
+#! /bin/sh
+# anne.jones [file...] - censor headers: munge locally-generated headers in
+#  files, enforce feeble attempts at Usenet security, generate lots of silly
+#  headers.
+# (after the notorious ring-leader of the Ontario Film and Video Review Board
+# (nee Ontario Board of Censors), Ontario's very own Mrs. Mary Whitehouse.)
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN/inject:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+# pass 0 - dredge up defaults
+case "$trversion" in
+v[67])	;;
+*)	echo "$0: trversion is nonsense or missing from environment" >&2
+	exit 1 ;;
+esac
+if test -r $NEWSCTL/mailname; then
+	mailname="`tr -d ' \11' <$NEWSCTL/mailname`"
+else
+	mailname="`newshostname`"
+	case "$mailname" in
+	*.*)	;;			# not a uucp host name
+	*)	mailname="$mailname.uucp" ;;	# probably a uucp host name
+	esac
+fi
+# badsites="pucc.bitnet!"		# tailor, syntax is "host1!host2!...host3!"
+host="$mailname"
+
+# dig up user's name (a simple task, you'd think, but you'd be wrong)
+case "$LOGNAME" in
+"")
+	# "who am i" on many Unixes does "ttyname(0)" and "getpwuid(getuid())"
+	# if that fails - it can be confused by empty utmp entries (per jerqs);
+	# "who am i </dev/null" yields your userid, not your login name.
+	# "tty" does "ttyname(0)"; also fallible.
+	# So, emulate a slightly-modified V7 getlogin(3) (actually ttyslot(3)):
+	# look for tty on /dev/tty, stdin, stdout, stderr (actually via ttyname(3)).
+	for fd in 3 0 1 2			# 3 is /dev/tty on V8
+	do
+		if test -t $fd; then
+			case "$USER" in
+			"")	USER="`who am i <&$fd |
+				    sed -e 's/[	 ].*//' -e '/!/s/^.*!//' `" ;;
+			esac
+		fi
+	done
+	case "$USER" in
+	"")	USER="`who am i </dev/null |	# last resort: use userid
+			sed -e 's/[	 ].*//' -e '/!/s/^.*!//' `" ;;
+	esac
+	;;
+*)	USER="$LOGNAME" ;;
+esac
+case "$NAME" in
+"")
+	if test -s $HOME/.name; then
+		NAME=`cat $HOME/.name`
+	else
+		NAME=`(grep "^$USER:" /etc/passwd || ypmatch "$USER" passwd) |
+		  sed -n 's/^[^:]*:[^:]*:[^:]*:[^:]*:\([^,:]*\).*$/\1/;p;q'  `
+		# tailor: for BTL RJE format, add
+		#	| sed -e 's/^[^-]*- *//' -e 's/ *(.*$//'
+		# otherwise for Berkeley format, use this
+		# (courtesy Rayan Zachariassen):
+		case "$NAME" in
+		*'&'*)
+			# generate Capitalised login name
+			NM=`echo "$USER" | sed -e 's/^\(.\)\(.*\)/\1:\2/'`
+			NM1=`expr "$NM" : '\(.\):.*' |
+				case "$trversion" in
+				v7)	tr a-z A-Z ;;
+				v6)	tr '[a-z]' '[A-Z]' ;;
+				esac
+				`
+			NMR=`expr "$NM" : '.:\(.*\)'`
+			CAPNM="$NM1$NMR"
+			# turn & into Capitalised login name
+			NAME=`echo "$NAME" | sed "s:&:$CAPNM:"`
+			;;
+		esac
+	fi
+	;;
+esac
+case "$NAME" in
+"")	fullname="" ;;		# no full name, leave it off
+*)	fullname=" ($NAME)" ;;
+esac
+reallyfrom="$USER@$host$fullname"
+FROM="$reallyfrom"
+
+# generate a few defaults.
+# RFC 1036 requests a GMT Date:, despite it being hard to read.
+# Compensate for V6 Uglix date (no -u) tarted up with all that TZ goo.
+date="`
+	set ''\`TZ=GMT0 date\`	# give TZ to see if (Uglix) date responds
+	case \"$5\" in
+	GMT)	echo $* ;;	# Uglix date or V7 date with GMT local time
+	*)	date -u ;;	# must be V7 date command, it ignored TZ
+	esac
+`"				# for defdate, defmsgid
+case "$ORGANIZATION" in
+"")	deforg="`sed 1q $NEWSCTL/organi[sz]ation`" ;;	# look in a file
+*)	deforg="$ORGANIZATION" ;;	# look in environment
+esac
+
+# give defaults and headers to awk
+
+input=/tmp/aj$$in		# collected assumed-canonicalised headers
+tmp=/tmp/aj$$tmp
+cat $* >$input
+artdate="` sed -n '/^Date: */s///p' $input `"
+case "$artdate" in
+"")					# none; supply default
+	set $date
+	defdate="$1, $3 $2 $6 $4 $5"
+	;;
+*)					# canonicalise given date to RFC 822
+	timet="` getabsdate \"$artdate\" `"
+	case "$?" in
+	0)
+		set `ctime -u "$timet"`
+		defdate="$1, $3 $2 $5 $4 GMT"
+		;;
+	*)
+		echo "$0: bad Date: header" >&2
+		rm -f $tmp $input
+		exit 1
+		;;
+	esac
+	;;
+esac
+expiry="` sed -n '/^Expires: */s///p' $input `"
+case "$expiry" in
+"")	;;
+*)
+	timet="` getdate \"$expiry\" `"	# temporary; use getreldate eventually
+	case "$?" in
+	0)
+		set `ctime -u "$timet"`
+		expiry="$1, $3 $2 $5 $4 GMT"
+		;;
+	*)
+		echo "$0: bad Expires: header" >&2
+		rm -f $tmp $input
+		exit 1
+		;;
+	esac
+	;;
+esac
+
+# strip invisible chars, a la B news; turn tabs to spaces (RFC1036)
+egrep -v '^(Date|Expires):' $input |
+	case "$trversion" in
+	v7)	tr -d  '\1-\7\13\15-\37' ;;
+	v6)	tr -d '[\1-\7]\13[\15-\37]' ;;
+	esac |
+	sed -e 's/:	/: /' -e '/^[^	 :]*:[^ ]/s/:/: /' >$tmp
+awk -f $NEWSBIN/inject/defhdrs.awk defpath="$badsites$USER" deffrom="$FROM" \
+ deforg="$deforg" defdate="$defdate" defexpiry="$expiry" \
+ defmsgid="`set $date; echo \<$6$2$3.\`  echo $4 | tr -d : \`.$$@$host\>`" \
+ me="`newshostname`" $tmp
+status=$?
+rm -f $tmp $input
+exit $status

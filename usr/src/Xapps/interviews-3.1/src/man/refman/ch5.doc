@@ -1,0 +1,394 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 4
+%label{session}{?}
+%label{options}{?}
+%label{display}{5.5}
+%label{window}{5.1}
+%label{cursor}{5.2}
+%label{managed-window}{5.3}
+%label{managed-window-subclasses}{5.4}
+%label{session-example}{?}
+
+\begin{document}
+%
+%
+\chapter{Windows}%
+%
+\float{figure}{5-\pagenumber{00}}%374.96 -644.72 -2
+\float{figure}{5-\pagenumber{00}}%374.64 -644.88 0
+The previous chapters covered the composition of physical (glyphs)
+and logical (views) objects. This chapter discusses the other objects
+necessary to manage where glyphs are drawn.  A %
+%
+\term{window}%
+%
+ is an object that can be mapped onto a %
+%
+\term{screen}%
+%
+ and receive input.  Associated with a window is the root of a directed
+acyclic graph of glyphs.  The window creates a %
+%
+\term{canvas}%
+%
+ that is bound to a portion of the screen when the window is mapped.  The
+window calls Glyph::draw on the root glyph to refresh the canvas and
+Glyph::pick to determine what to do with input events
+
+\quad Figure \ref{window} shows the Window base class interface.%
+%
+\code{interface Window \{\
+\quad Window(Glyph* = nil);\
+\quad void style(Style*);\
+\quad Style* style() const;\
+\quad void display(Display*);\
+\quad Display* display() const;\
+\quad Canvas* canvas() const;\
+\quad void cursor(Cursor*);\
+\quad Cursor* cursor() const;\
+\quad void push\_cursor();\
+\quad void pop\_cursor();\
+\
+\quad void place(Coord left, Coord bottom);\
+\quad void align(float x, float y);\
+\quad Coord left() const, bottom() const, width() const, height()
+const;\
+\
+\quad void map(), unmap();\
+\quad boolean is\_mapped() const;\
+\quad void raise(), lower();\
+\quad void move(Coord left, Coord bottom);\
+\quad void resize();\
+\
+\quad void receive(const Event\&);\
+\quad void grab\_pointer(Cursor* = nil) const;\
+\quad void ungrab\_pointer() const;\
+\quad void repair();\
+\}; %
+%
+\figurecaption{Window protocol\label{window}}%
+%
+%1.91997 -275.52 0
+}%
+%
+  Window::style sets or gets the style associated with the window.  Several
+style attributes control characteristics of a window:  \252double\_buffered\272
+controls whether the window is double-buffered by default, \252visual\272
+specifies the name of a visual to use for the window, \252visual\_id\272
+specifies the id of the desired visual, and \252overlay\272 specifies
+whether overlay planes should be used for the window.
+
+\quad Window::display sets or gets the display that a window is mapped
+on (or nil if the window is not currently mapped).  Window::canvas
+returns the canvas that the window passes to its glyph for drawing.
+
+\quad Window::cursor sets or gets the image that tracks a pointing
+device's position when the it is inside the window.  Cursors are defined
+by two bitmaps and a ``hot spot''.  The mask bitmap specifies which
+pixels are to be drawn, and the pattern bitmap specifies which pixels
+are in foreground color and which are in background color.  The hot
+spot specifies the location of the pointing device relative to the
+cursor's lower-left corner.  The foreground and background colors
+for a cursor are defined by the attributes \252pointerColor\272 and
+\252pointerColorBackground\272 in the window's style.
+
+\quad Figure \ref{cursor} shows the cursor protocol.%
+%
+\code{interface Cursor \{\
+\quad Cursor(short x, short y, const int* pattern, const int* mask);\
+\quad Cursor(const Bitmap* pat, const Bitmap* mask);\
+\quad Cursor(const Font*, int pattern, int mask);\
+\quad Cursor(int index);\
+\}; %
+%
+\figurecaption{Cursor class interface\label{cursor}}%
+%
+%0.960052 -504.96 1
+}%
+%
+ A cursor can be created from specific data, pattern and mask bitmaps,
+a character in a font, or an index into the standard cursor information
+for the target window system.  If the cursor is specified with bitmaps,
+the hot spot is the origin of the pattern bitmap; if specified with
+a character, it is the origin of the character's bitmap in the font.  An
+index implies both bitmaps as well as the hot spot.  Specific values
+for the index are usually defined in an include file.  For example,
+standard X11 cursors are defined in the file <X11/cursorfont.h>.
+
+\quad Window::place specifies the desired screen coordinates for a
+window. Window::align specifies a desired alignment.  The alignment
+values are fractions that indicate where the window should appear
+relative to its coordinates as specified by a call to Window::place.  For
+example, an alignment of 0.0,1.0 means the placement specifies the
+upper-left corner of the window.  An alignment of 0.5,0.5 means the
+placement specifies the center of the window.  Unless specified, the
+alignment will be 0.0,0.0, meaning the placement coordinates specify
+the lower-left corner of the window.
+
+\quad Window::map requests the window to be mapped onto the screen.  If
+no display has been set, then the session's default display is used.  Window::map
+may be asynchronous--one cannot assume the window is usable immediately
+after calling map.  Window::unmap requests that the window be removed
+from the screen.
+
+\quad Window::raise and Window::lower control the stacking order of
+a window on the screen.  Window::raise makes the window above all
+the other windows on the screen; Window::lower make the window below
+all the others.  These operations usually are neither necessary nor
+appropriate, as stacking order should normally be under control of
+the user through a window manager.
+
+\quad The window systems delivers input events to a particular window,
+which in turn tries to find a handler to process each event.  Window::receive
+examines an event, handling window maintenance events internally.  For
+example, X expose and configure events are handled directly by Window::receive.
+
+\quad Window::grab\_pointer takes control of pointer input events
+for the display.  Other applications will not receive pointer events
+until Window::ungrab\_pointer is called to release control.  If a
+cursor is passed to Window::grab\_pointer, it will be used when the
+pointer is outside the window during the grab.
+
+\quad If any part of a window's canvas has been damaged, Window::repair
+will call draw on the root glyph and perform the necessary screen
+update when double-buffering.  All windows on a display will be repaired
+automatically before blocking for input from the display, so applications
+usually need not call Window::repair directly. %
+%
+\section{ManagedWindow}%
+%
+A managed window specifies information for a window manager to use.  ManagedWindow
+is an abstract base class with four predefined descendants: ApplicationWindow,
+TopLevelWindow, TransientWindow, and IconWindow.  An application should
+create one application window, which makes information about command-line
+arguments available to a session manager, if present on the system.  After
+the application window, normal windows are top-level.  A top-level
+window can have a ``group leader'', which is typically the application
+window.  A window manager may allow quick control of all windows with
+the same group leader, such as when iconifying or deiconifying.
+
+\quad A transient window is often treated specially by window managers.  It
+may be decorated differently (or not at all), or automatically unmapped
+when the main window is iconified.  Transient windows are used for
+temporary controls, such as dialog boxes, but not for unmanaged windows
+such as popups or pulldowns.  A transient is usually associated with
+another managed window.
+
+\quad An icon window is a window that is mapped when its associated
+window is iconified and unmapped when its associated window is deiconified.  Calling
+Window::map on an icon window will therefore bind it to the window
+system, but will not map it on the screen.
+
+\quad Figure \ref{managed-window} shows the ManagedWindow protocol.%
+%
+\code{interface ManagedWindow : Window \{\
+\quad void icon\_bitmap(Bitmap*);\
+\quad Bitmap* icon\_bitmap() const;\
+\quad void icon\_mask(Bitmap*);\
+\quad Bitmap* icon\_mask() const;\smallskip
+\quad void icon(ManagedWindow*);\
+\quad ManagedWindow* icon() const;\
+\
+\quad void iconic(boolean);\
+\quad boolean iconic() const;\
+\quad void iconify();\
+\quad void deiconify();\
+\
+\quad void focus\_event(Handler* in, Handler* out);\
+\quad void wm\_delete(Handler*);\
+\}; %
+%
+\figurecaption{ManagedWindow class interface\label{managed-window}}%
+%
+%-0.959999 -14.4 3
+}%
+%
+ Most of the operations on a managed window set or return information
+associated with the window.  In addition, ManagedWindow interprets
+additional attributes in its style inherited from the base class.  The
+attribute \252name\272 specifies a string name for the window manager
+to use, \252iconName\272 specifies a string for the window's icon,
+\252geometry\272 specifies the desired geometry, and \252iconGeometry\272
+specifies the desired geometry for the window's icon.  Geometry specifications
+are strings of the form ``WxH+X+Y'' where W is the width, H the height,
+X the left corner, and Y the top corner of the window.  Either the
+position or the size may be omitted, and the position can use ``--''
+instead of ``+'' to denote distance from the opposite of the display
+to the opposite side of the window.  For example, a --X value specifies
+that the right side of the window should be a distance of X from the
+right edge of the screen.
+
+\quad ManagedWindow::icon\_bitmap and ManagedWindow::icon\_mask specify
+two bitmaps to use to draw an icon.  The mask defines the area to
+be drawn and the bitmap defines the foreground and background areas.  Pixels
+that correspond to a one in the bitmap and a one in the mask are drawn
+with the foreground color.  Pixels that correspond to a zero in the
+bitmap and a one in the mask are draw with the background color.  Pixels
+that correspond to a zero in the mask are not drawn.
+
+\quad ManagedWindow::icon specifies a second window to map when the
+first window is iconified.  Using a window as an icon overrides the
+other icon information.  Therefore, it does not make sense to use
+ManagedWindow::icon in conjunction with icon\_bitmap, icon\_mask,
+or the \252iconName\272 and \252iconGeometry\272 attributes.
+
+\quad ManagedWindow::iconic specifies the initial state of a window.  If
+iconic is true, mapping a window will actually map its icon instead.  ManagedWindow::iconic
+need not be called directly by an application; it is called automatically
+if specified by user customization information.
+
+\quad ManagedWindow::iconify requests the window be unmapped and the
+window's icon be mapped to the screen.  ManagedWindow::deiconify reverses
+the operation, unmapping the icon and mapping the original window.  It
+does not make sense to iconify or deiconify an icon window.
+
+\quad ManagedWindow::focus\_event specifies handlers for the window
+receiving and losing keyboard focus from the window manager.  ManagedWindow::wm\_delete
+specifies a handler for a request from the window manager to delete
+the window.  If the handler is nil (which is the initial value), then
+the response to this event will be to call Session::quit.
+
+\quad Figure \ref{managed-window-subclasses} shows the operations
+on the ManagedWindow subclasses.%
+%
+\code{interface ApplicationWindow : ManagedWindow \{\
+\quad ApplicationWindow(Glyph*);\
+\};\
+\
+interface TopLevelWindow : ManagedWindow \{\
+\quad TopLevelWindow(Glyph*);\
+\quad void group\_leader(ManagedWindow*);\
+\quad ManagedWindow* group\_leader() const;\
+\};\
+\
+interface TransientWindow : TopLevelWindow \{\
+\quad TransientWindow(Glyph*);\
+\quad void transient\_for(ManagedWindow*);\
+\quad void ManagedWindow* transient\_for() const;\
+\};\
+\
+interface IconWindow : ManagedWindow \{\
+\quad IconWindow(Glyph*);\
+\}; %
+%
+\figurecaption{ManagedWindow subclasses\label{managed-window-subclasses}}%
+%
+%0.960052 -8.64001 4
+}%
+%
+  ApplicationWindow and IconWindow provide no additional operations
+beyond a constructor.  TopLevelWindow provides an operation to set
+or return its group leader.  TransientWindow is a subclass to TopLevelWindow
+that can additionally be associated with a primary window with TransientWindow::transient\_for.
+%
+%
+\section{PopupWindow}%
+%
+A popup window is mapped directly to a screen without window manager
+interaction (or knowledge).  In the X  Window System, a popup window
+will override the normal redirection of map requests to window managers.  Popups
+on X also will request that the pixels under the popup be saved to
+avoid a subsequent exposure when the popup is unmapped.
+
+\quad Popups should only be used for temporary windows, such as popup
+or pulldown menus.  Because they do not go through the window manager,
+popups should be placed explicitly.  Here is an example of using a
+popup that appears below a menubar, aligning the top of the popup
+to the lower left corner of the menubar:\smallskip
+{\sf {\small \quad \quad void pulldown(Window* menubar, Glyph* g)
+\{\
+\quad \quad \quad PopupWindow* popup = new PopupWindow(g);\
+\quad \quad \quad \quad popup->place(menubar->left(), menubar()->bottom());\
+\quad \quad \quad \quad popup->align(0.0, 1.0);\
+\quad \quad \quad \quad popup->map(); \
+\quad \quad \}
+
+}}%
+%
+\section{Display}%
+%
+A %
+%
+\term{display}%
+%
+ is the unit of window system control; typically it consists of a
+single screen, keyboard, and a mouse or other pointing device.  Application
+objects typically need not deal directly with a display; the functionality
+of the window class is normally sufficient.
+
+\quad Figure%
+%
+\code{interface Display \{\
+\quad static Display* open(const String\&);\
+\quad static Display* open();\
+\quad virtual void close();\smallskip
+\quad virtual Coord width() const;\
+\quad virtual Coord height() const;\
+\quad virtual Coord a\_width() const;\
+\quad virtual Coord a\_height() const;\
+\quad int to\_pixels(Coord) const;\
+\quad Coord to\_coord(int) const;\smallskip
+\quad virtual void set\_screen(int);\smallskip
+\quad virtual void style(Style*);\
+\quad virtual Style* style() const;\smallskip
+\quad virtual void repair();\
+\quad virtual void flush();\
+\quad virtual void sync()\smallskip
+\quad virtual void ring\_bell(int);\
+\quad virtual void set\_key\_click(int);\
+\quad virtual void set\_auto\_repeat(boolean);\
+\quad virtual void set\_pointer\_feedback(int thresh, int scale);\
+\quad virtual void move\_pointer(Coord x, Coord y);\
+\};%
+%
+\figurecaption{Display class interface\label{display}.}%
+%
+%1.20001 -294.48 5
+}%
+%
+ \ref{display} shows the display class interface.  Display::open is
+a static member function that opens a connection to the display with
+the given name.  The interpretation of a display name is system-dependent.  On
+X, the name is {\font{Times-Italic}host:number} where {\font{Times-Italic}host}
+is a machine's hostname and {\font{Times-Italic}number} is the index
+for the display connected to that host (typically 0).  If successful,
+Display::open returns a pointer to a display object.  If not successful,
+it returns nil.  Display::close terminates the connection.
+
+\quad Display::width and Display::height return the dimensions in
+coordinates of the display's current screen.  Display::a\_width and
+Display::a\_height return the dimensions in points (72 points = one
+inch).
+
+\quad Display::to\_pixels and Display::to\_coord convert between coordinates
+and pixels.  The conversion is a function of the {\font{Times-Italic}dpi}
+attribute, which is 75 by default.  One coordinate unit length is
+a printer's point, defined as 72/{\font{Times-Italic}dpi} pixels.
+
+\quad Display::set\_screen sets the current screen to use for display
+operations.  Initially, current screen is set to 0.
+
+\quad Display::repair calls Window::repair for each window on the
+display that has a canvas with damage.  It is not necessary to call
+Display::repair directly, as windows will automatically be repaired
+before blocking for input events.
+
+\quad Display::flush and Display::sync are used to synchronize with
+the window system.  Display::flush repairs all damaged windows on
+the display and ensures that any pending requests have been sent to
+the window system.  Display::sync is the same as Display::flush, but
+additionally waits for an acknowledgement from the window system.
+
+\quad Display::ring\_bell sounds the workstation's bell at a specified
+volume.  The parameter should be between 0 and 100, where 0 is silent
+and 100 is the loudest possible bell.
+
+\quad The operations set\_key\_click, set\_auto\_repeat, and set\_pointer\_feedback
+modify the key click volume, the flag determining whether keys should
+repeat, and the pointer interpretation parameters, respectively.  Display::move\_pointer
+changes the position of the input pointer.  This operation can have
+surprising effects to the user and should generally be avoided.%
+\end{document}

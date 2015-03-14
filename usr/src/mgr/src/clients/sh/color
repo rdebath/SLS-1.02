@@ -1,0 +1,93 @@
+#!/bin/sh
+#                        Copyright (c) 1988 Bellcore
+#                            All Rights Reserved
+#       Permission is granted to copy or use this program, EXCEPT that it
+#       may not be sold for profit, the copyright notice must be reproduced
+#       on copies, and credit should be given to Bellcore where it is due.
+#       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+
+#	$Header: color,v 1.1 88/07/07 14:39:11 sau Exp $
+#	$Source: /tmp/mgrsrc/demo/sh/RCS/color,v $
+
+# set colors - use "set_color" for clt
+
+ESC="^["
+FG="j"
+BG="J"
+
+print=0
+color=
+which=0
+fc=
+bc=
+offset=0
+on=0
+
+if test $# = 0  -o  $# -gt 5
+then
+	echo "Usage:  $0 [-p] [dark|light] <color> on [dark|light] <color>
+	$0 [-p] [dark|light] <color>
+colors: black, white, red, green, blue, yellow, cyan, magenta, grey"
+	exit 255
+fi
+
+for i
+do
+	case $i in
+	0|white)   	color=0;;
+	1|black)   	color=1;;
+	2|r|red)    color=2;;
+	3|g|green)	color=3;;
+	4|blue)		color=4;;
+	5|y|yellow) color=5;;
+	6|c|cyan)   color=6;;
+	7|purple|magenta) color=7;;
+	9|grey)    	color=9;;
+#misc colors
+	pink)			color=2;offset=16;;
+	rust)			color=2;offset=8;;
+   [0-9][0-9]*) color=$i;;
+#other stuff
+	d|dark|dim)
+			offset=8;;
+	l|br|bright|light)
+			offset=16;;
+	-|on|over)
+			fc=`expr ${color:-0} + ${offset:-0}`
+			color=
+			on=`expr $on + 1`
+			offset=0;;
+	-p|-print|print)
+			print=1;;
+	*)
+			echo "unknown keyword: $i";
+			exit 1;;
+	esac
+done
+
+bc=`expr "${color:-0}" + "${offset:-0}"`
+
+if test $on -ne 1 
+then
+	if test x$color = x 
+	then
+		echo "$0 couldn't figure out which color on what"
+		exit 2
+	fi
+	fc=`expr $color + $offset`
+	bc=`expr 255 - $fc`
+fi
+
+if test "$bc" -eq "$fc"
+then
+	echo "$0 Can't make background and foreground colors the same"
+	exit 3
+fi
+
+set_colormap
+echo  -n "${ESC}${fc}${FG}${ESC}${bc}${BG}"
+
+if test $print -eq 1
+then
+	echo "Foreground color: $fc, Background color: $bc"
+fi

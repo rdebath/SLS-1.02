@@ -1,0 +1,62 @@
+#! /bin/sh
+# Try to recover 2nd field of active file.
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/expire:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+cd $NEWSCTL || { echo "$0: can't cd to $NEWSCTL" >&2; exit 1; }
+
+# check active file format
+set ""`sed 1q active`
+case $# in
+4)	;;
+*)	echo "$0: active file has other than 4 fields" >&2
+	exit 1 ;;
+esac
+
+# lock news system
+lock="$NEWSCTL/LOCK"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+while true
+do
+	if newslock $ltemp $lock
+	then
+		trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+		break
+	fi
+	sleep 30
+done
+
+while read group max min fourth
+do
+	dir=`echo $group | tr . / `	# map ng name to directory name
+	new=
+	if test -d $NEWSARTS/$dir
+	then
+		new=`ls $NEWSARTS/$dir | egrep '^[0-9]+$' | sort -n | tail -1`
+	fi
+	case "$new" in
+	"")	new=$max	;;	# no files -- preserve old value
+	*)	if test "$new" -lt "$max"	# old value more recent (!)
+		then
+			new="$max"
+		fi
+		;;
+	esac
+	dots="`echo $max | tr 0123456789 ..........`"
+	max="`expr 0000000000$new : '.*\('$dots'\)$'`"	# preserve length
+
+	echo $group $max $min $fourth
+done <active >active.new
+
+# replace active, carefully
+rm -f active.old
+ln active active.old
+mv active.new active
+
+exit 0

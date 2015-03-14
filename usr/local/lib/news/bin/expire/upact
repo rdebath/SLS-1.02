@@ -1,0 +1,71 @@
+#! /bin/sh
+# Update 3rd field (minimum art. #) of a 4-field active file.
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+
+PATH=$NEWSCTL/bin:$NEWSBIN/expire:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+cd $NEWSCTL || { echo "$0: can't cd to $NEWSCTL" >&2; exit 1; }
+
+# check active file format
+set ""`sed 1q active`
+case $# in
+4)	;;
+*)	echo "$0: active file has other than 4 fields" >&2
+	exit 1 ;;
+esac
+
+rm -f active.tmp
+if test -f active.tmp
+then
+	echo "$0: active.tmp exists and can't be removed; aborting" >&2
+	exit 1
+fi
+
+# lock news system
+lock="$NEWSCTL/LOCK"
+ltemp="$NEWSCTL/L.$$"
+echo $$ >$ltemp
+trap "rm -f $ltemp ; exit 0" 0 1 2 15
+while true
+do
+	if newslock $ltemp $lock
+	then
+		trap "rm -f $ltemp $lock ; exit 0" 0 1 2 15
+		break
+	fi
+	sleep 30
+done
+
+while read group max min fourth
+do
+	dir=`echo $group | tr . / `	# map ng name to directory name
+	min=
+	if test -d $NEWSARTS/$dir
+	then
+		min=`ls $NEWSARTS/$dir | egrep '^[0-9]+$' | sort -nr | tail -1`
+	fi
+	case "$min" in		# no files, so use max+1
+	"")	min=`awk "END{ print $max + 1 }" /dev/null`	;;
+	esac
+	case "$min" in
+	[0-9]|[0-9][0-9]|[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9])	# short
+		min=`expr 00000$min : '.*\(.....\)$'` ;;
+	esac
+
+	echo $group $max $min $fourth
+done <active >active.tmp
+
+# replace active, carefully
+if test `wc -l <active.tmp` -lt `wc -l <active`
+then
+	echo "$0: active.tmp is bad; aborting, leaving active unchanged" >&2
+	exit 1
+fi
+rm -f active.old
+ln active active.old
+mv active.tmp active
+
+exit 0

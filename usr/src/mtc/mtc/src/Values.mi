@@ -1,0 +1,861 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: evaluation of constant expressions
+ *
+ *	$Author: grosch $
+ *	$Date: 1991/11/21 16:57:59 $
+ *	$Revision: 1.2 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE Values;
+
+FROM SYSTEM	IMPORT
+   ADDRESS	;
+
+FROM IO		IMPORT
+   tFile	, WriteI	, WriteR	, WriteS	,
+   WriteC	, WriteB	, WriteN	, WriteNl	;
+
+FROM StringMem	IMPORT
+   GetString	, WriteString	;
+
+FROM Strings	IMPORT
+   tString	, StringToReal	, Length	;
+
+FROM Tree	IMPORT
+   tTree	,
+   NotEqual	, Times		, Plus		, Minus		,
+   Divide	, Less		, LessEqual	, Equal		,
+   Greater	, GreaterEqual	, And		, Div		,
+   In		, Mod		, Not		, Or		;
+
+FROM Defs	IMPORT
+   tEnv		, tObject	, tType		,
+   NoObject	, NoType	,
+   Identify	, Identify2	,
+   Const1	, EnumLiteral1	, TypeDecl1	, Opaque1	,
+   StdProc1	,
+   ProcABS	, ProcCAP	, ProcCHR	, ProcFLOAT	, 
+   ProcMAX	, ProcMIN	, ProcODD	, ProcORD	,
+   ProcSIZE	, ProcTRUNC	, ProcVAL	, ProcTSIZE	, 
+   TypeREAL	, TypeBOOLEAN	, TypeCHAR	, TypeBITSET	,
+   TypeIntCard	, TypeNIL	, TypeSTRING	, TypeStringChar,
+   ShortInt	, LongInt	, ShortCard	, LongCard	,  
+   LongReal	, Bool		, Enumeration1	, Subrange1	,
+   GetExport2	, GetType	, GetLiteral	;
+   
+FROM Types	IMPORT
+   MinShortInt	, MinLongInt	, MinReal	, MinLongReal	,
+   MinChar	,
+   MaxShortInt	, MaxLongInt	, MaxShortCard	, MaxLongCard	,
+   MaxReal	, MaxLongReal	, MaxChar	, MaxBitset	,
+   NoSize	, TypeSize	;
+
+IMPORT Defs, Tree, Strings;
+
+CONST
+   CharKind	= {Char, StringChar};
+
+   FalseCode	= 0;
+   TrueCode	= 1;
+
+VAR Env		: tEnv;
+
+PROCEDURE CompConst (Tree(*:tTree*), pEnv(*:tEnv*): ADDRESS; VAR Value: tValue);
+(* returns in parameter 'Value' the result of evaluating the	*)
+(* expression 'Tree' using the environment 'Env'		*)
+   BEGIN
+      Env := pEnv;
+      Evaluate (Tree, Value);
+   END CompConst;
+
+PROCEDURE Evaluate (t: tTree; VAR Value: tValue);
+   VAR Value1, Value2	: tValue;
+   VAR Object1, Object2	: tObject;
+   VAR Type1		: tType;
+   VAR string		: tString;
+   VAR i, size		: CARDINAL;
+   VAR r		: REAL;
+   BEGIN
+      IF t = NIL THEN RETURN; END;
+      CASE t^.Kind OF
+      | Tree.Qualid0:
+	 t^.Qualid0.Object := Identify (t^.Qualid0.Ident, Env); (* should be Identify3! *)
+	 CASE t^.Qualid0.Object^.Kind OF
+	 | Const1	:
+	    Value := t^.Qualid0.Object^.Const1.Value;
+	    RETURN;
+	 | EnumLiteral1	:
+	    Value.Kind := Enumeration;
+	    Value.EnumValue := t^.Qualid0.Object;
+	    RETURN;
+	 | TypeDecl1	,
+	   Opaque1	:
+	    Value.Kind := Type;
+	    Value.TypeValue := GetType (t^.Qualid0.Object);
+	    RETURN;
+	 | StdProc1	:
+	    Value.Kind := StdProc;
+	    Value.StdProcValue := t^.Qualid0.Object^.StdProc1.StdProc;
+	    RETURN;
+	 ELSE
+	 END;
+
+      | Tree.Qualid1:
+	 Evaluate (t^.Qualid1.Qualid, Value);
+	 t^.Qualid1.Object := Identify2 (t^.Qualid1.Ident, GetExport2 (t^.Qualid1.Qualid^.Qualid.Object));
+	 CASE t^.Qualid1.Object^.Kind OF
+	 | Const1	:
+	    Value := t^.Qualid1.Object^.Const1.Value;
+	    RETURN;
+	 | EnumLiteral1	:
+	    Value.Kind := Enumeration;
+	    Value.EnumValue := t^.Qualid1.Object;
+	    RETURN;
+	 | TypeDecl1	,
+	   Opaque1	:
+	    Value.Kind := Type;
+	    Value.TypeValue := GetType (t^.Qualid1.Object);
+	    RETURN;
+	 | StdProc1	:
+	    Value.Kind := StdProc;
+	    Value.StdProcValue := t^.Qualid1.Object^.StdProc1.StdProc;
+	    RETURN;
+	 ELSE
+	 END;
+
+      | Tree.Binary:
+
+	 Evaluate (t^.Binary.Lop, Value1);
+	 Evaluate (t^.Binary.Rop, Value2);
+
+	 CASE t^.Binary.Operator OF
+	 | Plus		:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Integer;
+	       Value.IntValue := Value1.IntValue + Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Real;
+	       Value.RealValue := Value1.RealValue + Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Bitset;
+	       Value.BitsetValue := Value1.BitsetValue + Value2.BitsetValue;
+	       RETURN;
+	    END;
+
+	 | Minus	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Integer;
+	       Value.IntValue := Value1.IntValue - Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Real;
+	       Value.RealValue := Value1.RealValue - Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Bitset;
+	       Value.BitsetValue := Value1.BitsetValue - Value2.BitsetValue;
+	       RETURN;
+	    END;
+
+	 | Times	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Integer;
+	       Value.IntValue := Value1.IntValue * Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Real;
+	       Value.RealValue := Value1.RealValue * Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Bitset;
+	       Value.BitsetValue := Value1.BitsetValue * Value2.BitsetValue;
+	       RETURN;
+	    END;
+
+	 | Divide	:
+	    IF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Real;
+	       Value.RealValue := Value1.RealValue / Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Bitset;
+	       Value.BitsetValue := Value1.BitsetValue / Value2.BitsetValue;
+	       RETURN;
+	    END;
+
+	 | Div		:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       IF Value2.IntValue # 0 THEN
+	          Value.Kind := Integer;
+	          Value.IntValue := Value1.IntValue DIV Value2.IntValue;
+	          RETURN;
+	       END;
+	    END;
+
+	 | Mod		:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       IF Value2.IntValue # 0 THEN
+	          Value.Kind := Integer;
+	          Value.IntValue := Value1.IntValue MOD Value2.IntValue;
+	          RETURN;
+	       END; (* IF *)
+	    END;
+
+	 | Less		:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.IntValue < Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.RealValue < Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue < Value2.BoolValue;
+	       RETURN;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.CharValue < Value2.CharValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	       Object1 := Value1.EnumValue;
+	       Object2 := Value2.EnumValue;
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Object1^.EnumLiteral1.Index < Object2^.EnumLiteral1.Index;
+	       RETURN;
+	    END;
+
+	 | LessEqual	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.IntValue <= Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.RealValue <= Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue <= Value2.BoolValue;
+	       RETURN;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.CharValue <= Value2.CharValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BitsetValue <= Value2.BitsetValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	       Object1 := Value1.EnumValue;
+	       Object2 := Value2.EnumValue;
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Object1^.EnumLiteral1.Index <= Object2^.EnumLiteral1.Index;
+	       RETURN;
+	    END;
+
+	 | Equal	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.IntValue = Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.RealValue = Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue = Value2.BoolValue;
+	       RETURN;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.CharValue = Value2.CharValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BitsetValue = Value2.BitsetValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = NilType) AND (Value2.Kind = NilType) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := TRUE;
+	       RETURN;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	       Object1 := Value1.EnumValue;
+	       Object2 := Value2.EnumValue;
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Object1^.EnumLiteral1.Index = Object2^.EnumLiteral1.Index;
+	       RETURN;
+	    END;
+
+	 | NotEqual	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.IntValue # Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.RealValue # Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue # Value2.BoolValue;
+	       RETURN;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.CharValue # Value2.CharValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BitsetValue # Value2.BitsetValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = NilType) AND (Value2.Kind = NilType) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := FALSE;
+	       RETURN;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	       Object1 := Value1.EnumValue;
+	       Object2 := Value2.EnumValue;
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Object1^.EnumLiteral1.Index # Object2^.EnumLiteral1.Index;
+	       RETURN;
+	    END;
+
+	 | Greater	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.IntValue > Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.RealValue > Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue > Value2.BoolValue;
+	       RETURN;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.CharValue > Value2.CharValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	       Object1 := Value1.EnumValue;
+	       Object2 := Value2.EnumValue;
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Object1^.EnumLiteral1.Index > Object2^.EnumLiteral1.Index;
+	       RETURN;
+	    END;
+
+	 | GreaterEqual	:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.IntValue >= Value2.IntValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Real) AND (Value2.Kind = Real) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.RealValue >= Value2.RealValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue >= Value2.BoolValue;
+	       RETURN;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.CharValue >= Value2.CharValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Bitset) AND (Value2.Kind = Bitset) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BitsetValue >= Value2.BitsetValue;
+	       RETURN;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	       Object1 := Value1.EnumValue;
+	       Object2 := Value2.EnumValue;
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Object1^.EnumLiteral1.Index >= Object2^.EnumLiteral1.Index;
+	       RETURN;
+	    END;
+
+	 | And		:
+	    IF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue AND Value2.BoolValue;
+	       RETURN;
+	    END;
+
+	 | Or		:
+	    IF (Value1.Kind = Boolean) AND (Value2.Kind = Boolean) THEN
+	       Value.Kind := Boolean;
+	       Value.BoolValue := Value1.BoolValue OR Value2.BoolValue;
+	       RETURN;
+	    END;
+
+	 | In		:
+	    IF (Value1.Kind = Integer) AND (Value2.Kind = Bitset) THEN
+	       IF (Value1.IntValue >= 0) AND (Value1.IntValue <= MaxBitset) THEN
+	          Value.Kind := Boolean;
+	          Value.BoolValue := Value1.IntValue IN Value2.BitsetValue;
+	          RETURN;
+	       END;
+	    ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind = Bitset) THEN
+	       IF ORD (Value1.CharValue) <= MaxBitset THEN
+	          Value.Kind := Boolean;
+	          Value.BoolValue := ORD (Value1.CharValue) IN Value2.BitsetValue;
+	          RETURN;
+	       END;
+	    ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Bitset) THEN
+	       Object1 := Value1.EnumValue;
+	       IF Object1^.EnumLiteral1.Index <= MaxBitset THEN
+		  Value.Kind := Boolean;
+		  Value.BoolValue := Object1^.EnumLiteral1.Index IN Value2.BitsetValue;
+		  RETURN;
+	       END;
+	    END;
+
+	 END;
+
+      | Tree.Unary:
+
+	 Evaluate (t^.Unary.Mop, Value);
+	 CASE t^.Unary.Operator OF
+	 | Plus		:
+	 | Minus	:
+	    IF (Value.Kind = Integer) THEN
+	       Value.IntValue := - Value.IntValue; RETURN;
+	    ELSIF (Value.Kind = Real) THEN
+	       Value.RealValue := - Value.RealValue; RETURN;
+	    END;
+
+	 | Not		:
+	    IF (Value.Kind = Boolean) THEN
+	       Value.BoolValue := NOT Value.BoolValue; RETURN;
+	    END;
+
+	 END;
+
+      | Tree.IntConst:
+	 IF t^.IntConst.IntVal <= MaxLongInt THEN
+	    Value.Kind := Integer;
+	    Value.IntValue := t^.IntConst.IntVal;
+	 ELSE
+	    Value := ErrorValue; (* implementation restriction!	*)
+	 END; (* IF *)
+	 RETURN;
+
+      | Tree.RealConst:
+	 Value.Kind := Real;
+	 GetString (t^.RealConst.RealVal, string);
+	 Value.RealValue := StringToReal (string);
+	 RETURN;
+
+      | Tree.StringConst:
+	 GetString (t^.StringConst.StringVal, string);
+	 IF Length (string) = 1 THEN
+	    Value.Kind := StringChar;
+	    Value.CharValue := Strings.Char (string, 1);
+	 ELSE
+	    Value.Kind := String;
+	    Value.StringValue := t^.StringConst.StringVal;
+	 END; (* IF *)
+	 RETURN;
+
+      | Tree.CharConst:
+	 Value.Kind := Char;
+	 Value.CharValue := t^.CharConst.CharVal;
+	 RETURN;
+
+      | Tree.FuncCall:
+	 Evaluate (t^.FuncCall.Designator, Value);
+	 IF Value.Kind = StdProc THEN
+	    Evaluate (t^.FuncCall.Actuals, Value1);
+	    CASE Value.StdProcValue OF
+
+	    | ProcABS	:
+	       IF Value1.Kind = Integer THEN
+		  Value.Kind := Integer;
+		  Value.IntValue := ABS (Value1.IntValue);
+		  RETURN;
+	       ELSIF Value1.Kind = Real THEN
+		  Value.Kind := Real;
+		  Value.RealValue := ABS (Value1.RealValue);
+		  RETURN;
+	       END;
+
+	    | ProcCAP	:
+	       IF Value1.Kind IN CharKind THEN
+		  Value.Kind := Char;
+		  Value.CharValue := CAP (Value1.CharValue);
+		  RETURN;
+	       END;
+
+	    | ProcCHR	:
+	       IF Value1.Kind = Integer THEN
+		  Value.Kind := Char;
+		  Value.CharValue := CHR (CARDINAL (Value1.IntValue));
+		  RETURN;
+	       END;
+
+	    | ProcFLOAT	:
+	       IF Value1.Kind = Integer THEN
+		  Value.Kind := Real;
+		  Value.RealValue := FLOAT (CARDINAL (Value1.IntValue));
+		  RETURN;
+	       END;
+
+	    | ProcMIN	:
+	       IF Value1.Kind = Type THEN
+		  Type1 := Value1.TypeValue;
+		  CASE Type1^.Kind OF
+		  | ShortInt	: Value := MinShortIntVal;
+				  RETURN;
+		  | LongInt	: Value := MinLongIntVal;
+				  RETURN;
+		  | ShortCard	: Value := ZeroValue;
+				  RETURN;
+		  | LongCard	: Value := ZeroValue;
+				  RETURN;
+		  | Defs.Real	: Value := MinRealVal;
+				  RETURN;
+		  | LongReal	: Value := MinLongRealVal;
+				  RETURN;
+		  | Bool	: Value := FalseValue;
+				  RETURN;
+		  | Defs.Char	: Value := MinCharVal;
+				  RETURN;
+		  | Enumeration1: Value.Kind := Enumeration;
+				  Value.EnumValue := GetLiteral (Type1^.Enumeration1.Objects, 0);
+				  RETURN;
+		  | Subrange1	: Value := Type1^.Subrange1.Lwb;
+				  RETURN;
+		  ELSE
+		  END; (* CASE *)
+	       END; (* IF *)
+
+	    | ProcMAX	:
+	       IF Value1.Kind = Type THEN
+		  Type1 := Value1.TypeValue;
+		  CASE Type1^.Kind OF
+		  | ShortInt	: Value := MaxShortIntVal;
+				  RETURN;
+		  | LongInt	: Value := MaxLongIntVal;
+				  RETURN;
+		  | ShortCard	: Value := MaxShortCardVal;
+				  RETURN;
+		  | LongCard	: Value := MaxLongCardVal;
+				  RETURN;
+		  | Defs.Real	: Value := MaxRealVal;
+				  RETURN;
+		  | LongReal	: Value := MaxLongRealVal;
+				  RETURN;
+		  | Bool	: Value := TrueValue;
+				  RETURN;
+		  | Defs.Char	: Value := MaxCharVal;
+				  RETURN;
+		  | Enumeration1: Value.Kind := Enumeration;
+				  WITH Type1^.Enumeration1 DO
+				     Value.EnumValue := GetLiteral (Objects, MaxValue);
+				  END;
+				  RETURN;
+		  | Subrange1	: Value := Type1^.Subrange1.Upb;
+				  RETURN;
+		  ELSE
+		  END; (* CASE *)
+	       END; (* IF *)
+
+	    | ProcODD	:
+	       IF Value1.Kind = Integer THEN
+		  Value.Kind := Boolean;
+		  Value.BoolValue := ODD (Value1.IntValue);
+		  RETURN;
+	       END;
+
+	    | ProcORD	:
+	       IF Value1.Kind = Integer THEN
+		  Value := Value1;
+		  RETURN;
+	       ELSIF Value1.Kind IN CharKind THEN
+		  Value.Kind := Integer;
+		  Value.IntValue := ORD (Value1.CharValue);
+		  RETURN;
+	       ELSIF Value1.Kind = Enumeration THEN
+		  Object1 := Value1.EnumValue;
+		  Value.Kind := Integer;
+		  Value.IntValue := Object1^.EnumLiteral1.Index;
+		  RETURN;
+	       END;
+
+	    | ProcSIZE	,
+	      ProcTSIZE	:
+	       IF Value1.Kind = Type THEN
+		  size := TypeSize (Value1.TypeValue);
+		  IF size # NoSize THEN
+		     Value.Kind := Integer;
+		     Value.IntValue := size;
+		     RETURN;
+		  ELSE
+		     (* compiler restriction: cannot determine size of	*)
+		     (* RECORD and ARRAY types				*)
+		  END; (* IF *)
+	       END; (* IF *)
+
+	    | ProcTRUNC	:
+	       IF Value1.Kind = Real THEN
+		  r := Value1.RealValue;
+		  Value.Kind := Integer;
+		  Value.IntValue := TRUNC (r);
+		  RETURN;
+	       END;
+
+	    | ProcVAL	:
+	       IF t^.FuncCall.Actuals^.Kind # Tree.Actuals0 THEN
+		  Evaluate (t^.FuncCall.Actuals^.Actual.Next, Value2);
+
+		  IF (Value1.Kind = Type) AND (Value2.Kind = Integer) THEN
+		     Type1 := Value1.TypeValue;
+		     IF Type1^.Kind = Subrange1 THEN
+			Type1 := Type1^.Subrange1.Type;
+		     END;
+
+		     CASE Type1^.Kind OF
+
+		     | Char		:
+			Value.Kind := Char;
+			Value.CharValue := VAL (CHAR, Value2.IntValue);
+			RETURN;
+
+		     | ShortInt		,
+		       LongInt		,
+		       ShortCard	,
+		       LongCard		:
+			Value := Value2;
+			RETURN;
+
+		     | Enumeration1	:
+			Object1 := GetLiteral (Type1^.Enumeration1.Objects, Value2.IntValue);
+			IF Object1 # NoObject THEN
+			   Value.EnumValue := Object1;
+			   Value.Kind := Enumeration;
+			   RETURN;
+			END; (* IF *)
+
+		     ELSE
+		     END; (* CASE *)
+		  END; (* IF *)
+
+	       END; (* IF *)
+
+	    ELSE
+	    END;
+	 END;
+
+      | Tree.Set:
+	 (* the compiler treats the values of all set constants as	*)
+	 (* values of kind Bitset					*)
+	 Evaluate (t^.Set.Elems, Value);
+	 RETURN;
+
+      | Tree.BitSet:
+	 Evaluate (t^.BitSet.Elems, Value);
+	 RETURN;
+
+      | Tree.Elems0:
+	 Value.Kind := Bitset;
+	 Value.BitsetValue := {};
+	 RETURN;
+
+      | Tree.Elem:
+	 Evaluate (t^.Elem.Next, Value);
+	 Evaluate (t^.Elem.Elem, Value2);
+
+	 CASE Value2.Kind OF
+	 | Integer	:
+	    IF (Value2.IntValue >= 0) AND (Value2.IntValue <= MaxBitset) THEN
+	       INCL (Value.BitsetValue, Value2.IntValue);
+	       RETURN;
+	    END;
+
+	 | Char		,
+	   StringChar	:
+	    IF ORD (Value2.CharValue) <= MaxBitset THEN
+	       INCL (Value.BitsetValue, ORD (Value2.CharValue));
+	       RETURN;
+	    END;
+
+	 | Enumeration	:
+	    Object2 := Value2.EnumValue;
+	    IF Object2^.EnumLiteral1.Index <= MaxBitset THEN
+	       INCL (Value.BitsetValue, Object2^.EnumLiteral1.Index);
+	       RETURN;
+	    END;
+
+	 ELSE
+	 END;
+
+      | Tree.ElemRange:
+	 Evaluate (t^.ElemRange.Next, Value);
+	 Evaluate (t^.ElemRange.Lwb, Value1);
+	 Evaluate (t^.ElemRange.Upb, Value2);
+
+	 IF (Value1.Kind = Integer) AND (Value2.Kind = Integer) THEN
+	    IF (Value1.IntValue >= 0) AND (Value2.IntValue <= MaxBitset) THEN
+	       FOR i := CARDINAL (Value1.IntValue) TO CARDINAL (Value2.IntValue) DO
+		  INCL (Value.BitsetValue, i);
+	       END;
+	       RETURN;
+	    END;
+	 ELSIF (Value1.Kind IN CharKind) AND (Value2.Kind IN CharKind) THEN
+	    IF ORD (Value2.CharValue) <= MaxBitset THEN
+	       FOR i := ORD (Value1.CharValue) TO ORD (Value2.CharValue) DO
+		  INCL (Value.BitsetValue, i);
+	       END;
+	       RETURN;
+	    END;
+	 ELSIF (Value1.Kind = Enumeration) AND (Value2.Kind = Enumeration) THEN
+	    Object1 := Value1.EnumValue;
+	    Object2 := Value2.EnumValue;
+	    IF Object2^.EnumLiteral1.Index <= MaxBitset THEN
+	       FOR i := Object1^.EnumLiteral1.Index TO Object2^.EnumLiteral1.Index DO
+		  INCL (Value.BitsetValue, i);
+	       END;
+	       RETURN;
+	    END;
+	 END;
+
+      | Tree.Actuals0:
+      | Tree.Actual:
+	 Evaluate (t^.Actual.Expr, Value);
+	 RETURN;
+
+      ELSE
+      END;
+      Value.Kind := NoValue;
+   END Evaluate;
+
+PROCEDURE TypeOfValue	(Value: tValue): ADDRESS; (* tType *)
+(* returns the type of value 'Value'	*)
+   BEGIN
+      CASE Value.Kind OF
+      | Integer		: RETURN TypeIntCard;
+      | Real		: RETURN TypeREAL;
+      | Boolean		: RETURN TypeBOOLEAN;
+      | Char		: RETURN TypeCHAR;
+      | StringChar	: RETURN TypeStringChar;
+      |	String		: RETURN TypeSTRING;
+
+	(* the compiler assumes that all values of	*)
+	(* kind Bitset have the type BITSET		*)
+      | Bitset		: RETURN TypeBITSET;
+
+      | Enumeration	: RETURN GetType (Value.EnumValue);
+      | NilType		: RETURN TypeNIL;
+      | Type		: RETURN Value.TypeValue;
+      ELSE
+	 RETURN NoType;
+      END; (* CASE *)
+   END TypeOfValue;
+
+PROCEDURE ValueToInt	(Value: tValue): LONGINT;
+(* the value 'Value' is converted to an integer value	*)
+   VAR Object	: tObject;
+   BEGIN
+      CASE Value.Kind OF
+      | Integer		: RETURN Value.IntValue;
+      | Boolean		: IF Value.BoolValue THEN
+			    RETURN TrueCode;
+			  ELSE
+			    RETURN FalseCode;
+			  END; (* IF *)
+      | Char		: RETURN ORD (Value.CharValue);
+      |	StringChar	: RETURN ORD (Value.CharValue);
+      | Enumeration	: Object := Value.EnumValue;
+			  RETURN Object^.EnumLiteral1.Index;
+      ELSE
+	 RETURN 0;
+      END; (* CASE *)
+   END ValueToInt;
+
+PROCEDURE WriteValue	(f: tFile; Value: tValue);
+(* the value 'Value' is printed on file 'f'	*)
+   VAR Object	: tObject;
+   BEGIN
+      WITH Value DO
+	 CASE Kind OF
+	 | NoValue	: WriteS (f, "NoValue");
+	 | Integer	: WriteI (f, IntValue, 0);
+	 | Real		: WriteR (f, RealValue, 1, 10, 1);
+	 | Boolean	: WriteB (f, BoolValue);
+	 | Char		: WriteC (f, CharValue);
+	 | StringChar	: WriteC (f, CharValue);
+	 | String	: WriteString (f, StringValue);
+	 | Bitset	: WriteN (f, INTEGER (BitsetValue), 8, 16);
+	 | Enumeration	: Object := EnumValue;
+			  WriteI (f, Object^.EnumLiteral1.Index, 0);
+	 | NilType	: WriteS (f, "NIL");
+	 | StdProc	: WriteS (f, "<StdProc>");
+	 | Type		: WriteS (f, "<Type>");
+	 END;
+      END;
+   END WriteValue;
+
+BEGIN
+   (* predefined values		*)
+   WITH ErrorValue DO
+      Kind := NoValue;
+   END;
+   WITH NilValue DO
+      Kind := NilType;
+   END;
+   WITH TrueValue DO
+      Kind := Boolean;	BoolValue := TRUE;
+   END;
+   WITH FalseValue DO
+      Kind := Boolean;	BoolValue := FALSE;
+   END;
+   WITH MinCharVal DO
+      Kind := Char;	CharValue := MinChar;
+   END;
+   WITH MaxCharVal DO
+      Kind := Char;	CharValue := MaxChar;
+   END;
+   WITH ZeroValue DO
+      Kind := Integer;	IntValue := 0;
+   END;
+   WITH MinShortIntVal DO
+      Kind := Integer;	IntValue := MinShortInt;
+   END;
+   WITH MaxShortIntVal DO
+      Kind := Integer;	IntValue := MaxShortInt;
+   END;
+   WITH MinLongIntVal DO
+      Kind := Integer;	IntValue := MinLongInt;
+   END;
+   WITH MaxLongIntVal DO
+      Kind := Integer;	IntValue := MaxLongInt;
+   END;
+   WITH MaxShortCardVal DO
+      Kind := Integer;	IntValue := MaxShortCard;
+   END;
+(*
+   WITH MaxLongCardVal DO
+      Kind := Integer; IntValue := MaxLongCard;
+   END;
+*)
+   MaxLongCardVal := ErrorValue; (* implementation restriction!	*)
+   WITH MinRealVal DO
+      Kind := Real;	RealValue := MinReal;
+   END;
+   WITH MaxRealVal DO
+      Kind := Real;	RealValue := MaxReal;
+   END;
+   WITH MinLongRealVal DO
+      Kind := Real;	RealValue := MinLongReal;
+   END;
+   WITH MaxLongRealVal DO
+      Kind := Real;	RealValue := MaxLongReal;
+   END;
+END Values.

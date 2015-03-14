@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+
+RC=1
+if [ -x /usr/bin/tput ] ; then
+    bd=`tput bold`
+    rv=`tput smso`
+    Off=`tput rmso`
+    cls=`tput clear`
+fi
+fclean(){
+    echo ${Off}
+    if [ $RC != 0 ] ; then
+	echo 
+	echo "Press any key to continue ...\c"
+	/usr/local/lib/mm/mmgetchar
+	echo
+    fi
+    exit $RC
+}
+
+trap "fclean" 0 1 2 15
+
+mmreset
+echo ${bd}mmgetfilenm:${Off} $*
+echo
+
+until [ "$fnam" ] ; do
+    echo "Select a ${bd}$1${Off} file: \c"
+    read fnam
+    if [ ! -r $fnam ] ; then
+	echo No such file
+	fname=
+	continue
+    fi
+done
+cp $fnam $2
+RC=0
+exit 0
+

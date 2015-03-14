@@ -1,0 +1,69 @@
+# Makefile for library files used by GNU textutils.
+# Do not use this makefile directly, but only from `../Makefile'.
+# Copyright (C) 1991 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+SHELL = /bin/sh
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+SOURCES = error.c getopt.c getopt1.c linebuffer.c regex.c xmalloc.c \
+xwrite.c bcopy.c memchr.c memcmp.c memset.c stpcpy.c \
+strtol.c strtoul.c alloca.c
+
+# Always link in the fast GNU memchr; it speeds up sort, especially on HP-UX.
+OBJECTS =  error.o getopt.o getopt1.o linebuffer.o regex.o xmalloc.o \
+xwrite.o memchr.o @LIBOBJS@ @ALLOCA@
+
+DISTFILES = Makefile.in getopt.h linebuffer.h regex.h $(SOURCES)
+
+all: libtu.a
+
+.c.o:
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(DEFS) -I$(srcdir) $<
+
+install: all
+
+uninstall:
+
+TAGS: $(SOURCES)
+	etags $(SOURCES)
+
+clean:
+	rm -f *.a *.o
+
+mostlyclean: clean
+
+distclean: clean
+	rm -f Makefile
+
+realclean: distclean
+	rm -f TAGS
+
+dist:
+	ln $(DISTFILES) ../`cat ../.fname`/lib
+
+libtu.a: $(OBJECTS)
+	rm -f $@
+	$(AR) cr $@ $(OBJECTS)
+	-$(RANLIB) $@
+
+getopt1.o: getopt.h
+regex.o: regex.h
+
+# Prevent GNU make v3 from overflowing arg limit on SysV.
+.NOEXPORT:

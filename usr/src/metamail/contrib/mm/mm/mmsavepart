@@ -1,0 +1,224 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+
+#
+# attempt to get to the users home directory
+
+cd
+
+RC=1
+clean(){
+    [ -f $PARTS/$id/LCK.$partnum.$$ ] && rm $PARTS/$id/LCK.$partnum.$$
+    exit $RC
+}
+trap "clean" 0 1 2 15
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+
+
+if [ $# -lt 3 -o $# -gt 4 ] ; then
+    echo "Usage:  showpartial file id partnum totalnum"
+    if [ $RC != 0 ] ; then
+	echo 
+	echo "Press any key to continue ...\c"
+	/usr/local/lib/mm/mmgetchar
+	echo
+    fi
+    exit 1
+fi
+
+file=$1
+
+# This next line is because message-id can contain weird chars
+id=`echo $2 | tr -d  '\!\$\&\*\[\];\|\'\"\;\/\<\>\\' ` 
+
+partnum=$3
+if [ $# -eq 3 -o $4 -eq "" ] ; then
+    totalnum=-1
+else
+    totalnum=$4
+fi
+
+#
+# find or create MMParts directory or /tmp/MMParts.`whoami`
+
+PARTS=MMParts
+DELETEDIRS=
+DELETEFILES=
+if [ ! -d $PARTS ] ; then
+    mkdir $PARTS 2>/dev/null >/dev/null 
+    if [ ! -d $PARTS ] ; then
+	PARTS=/tmp/MMParts.`whoami`
+	DELETEDIRS=$PARTS
+	mkdir $PARTS 2>/dev/null >/dev/null 
+	if [ ! -d $PARTS ] ; then
+	    echo mkdir $PARTS failed
+	    exit 1
+	fi
+    fi
+fi
+
+if [ ! -d $PARTS/$id ] ; then 
+    mkdir $PARTS/$id
+    if [ ! -d $PARTS/$id ] ; then 
+	if [ ! -d $PARTS/$id ] ; then
+	    echo mkdir $PARTS/$id failed
+	    exit 1
+	fi
+    fi
+fi
+
+# create our LCK file
+touch $PARTS/$id/LCK.$partnum.$$
+
+# copy file into TMP file
+cp $file $PARTS/$id/TMP.$partnum
+if [ $? -ne 0 ] ; then 
+    echo cp $file $PARTS/$id/$partnum failed
+    exit 1
+fi
+
+# rename TMP file
+mv $PARTS/$id/TMP.$partnum $PARTS/$id/$partnum
+if [ $? -ne 0 ] ; then 
+    echo mv $file $PARTS/$id/$partnum failed
+    exit 1
+fi
+
+echo
+echo "Part $partnum has been saved to:"
+echo "    $PARTS/$id/$partnum"
+echo
+
+if [ $totalnum -eq -1 ] ; then
+    if [ -r $PARTS/$id/CT ] ; then
+	totalnum=`cat $PARTS/$id/CT`
+    else
+    	totalnum=-1  #GROSS HACK
+    fi
+else
+    echo $totalnum > $PARTS/$id/CT
+fi
+
+if [ ! -f "$PARTS/$id/HDRS" ] ; then
+    echo "$MM_HEADERS" > $PARTS/$id/HDRS
+fi
+
+found=0
+list=""
+limit=$totalnum
+if [ $limit -eq -1 ] ; then
+    limit=25
+fi
+
+ix=1
+while [ $ix -le $limit ] ; do
+    if [ -r $PARTS/$id/$ix ] ; then
+	list="$list $ix"
+	found=`expr $found + 1` 
+    fi
+    ix=`expr $ix + 1`
+done
+
+#
+# have all the parts been found
+if [ $found -lt $totalnum ] ; then
+    RC=0
+    exit 0
+fi
+
+#
+# Concurrency control
+# 
+while : ; do
+    LCK=`ls -t $PARTS/$id/LCK* | sed "1q"`
+    [ ! -d "$PARTS/$id" -o "$LCK" = "$PARTS/$id/LCK.$partnum.$$" ] \
+	&& break
+    sleep 5
+done
+
+#
+# OK we have attained the LCK or someone else has finished job
+
+#
+# has someone else completed the message?
+if [ ! -d "$PARTS/$id" ] ; then
+    RC=0
+    exit 0
+fi
+
+FULL=$PARTS/`date +%Y%m%d%H%M`.$$
+
+( cd $PARTS/$id; cat $list ) > $FULL
+
+rm $list 2>&1 > /dev/null
+
+(
+    subject=`echo "$MM_HEADERS" | sed -n 's/^Subject: //p;t`
+    if [ "$subject" ] ; then
+	subjectp=`expr "$subject" : '\(.*\)(part.*of.*)$'`
+	if [ "subjectp" ] ; then
+	    echo "Subject: $subjectp"
+	else
+	    echo "Subject: $subject"
+	fi
+    fi
+    echo "Content-type: message/external-body; "
+    echo "        access-type=local-file;"
+    echo "        name=`pwd`/$FULL;"
+    echo "        site=`hostname`"
+    echo 
+    echo "Content-type: message/rfc822"
+    echo 
+    echo
+    echo "> THIS IS A MESSAGE IN 'MIME' FORMAT."
+    echo "> Your mail reader does not support MIME."
+    echo "> This message was generated when a multipart message"
+    echo "> was re-assembled and saved as:"
+    echo ">    `hostname`:"
+    echo ">        $FULL"
+    echo
+    echo
+) | rmail `whoami` 
+cd /
+
+
+echo
+echo "Your message has been saved as: $FULL"
+echo
+echo "A new message has been forwarded to you with an" 
+echo "message/rfc822 body type."
+echo
+echo "You will be able to process received message when you read it."
+echo
+echo
+
+rm -rf $PARTS/$id
+
+RC=0
+exit 0
+

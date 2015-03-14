@@ -1,0 +1,76 @@
+XCOMM $Header: /home/x_cvs/mit/util/makedepend/Imakefile,v 1.3 1992/09/17 10:44:56 dawes Exp $
+XCOMM $XConsortium: Imakefile,v 1.15 91/12/02 08:48:08 rws Exp $
+/*
+ * NOTE: CppSourcesPresent IS NO LONGER TESTED OR SUPPORTED,
+ * and is nearly guaranteed to not work.
+ */
+
+#ifndef CppSourcesPresent
+#define CppSourcesPresent	NO	/* only works with BSD sources */
+#endif
+#ifndef CppSources
+#define CppSources /usr/src/lib/cpp
+#endif
+
+#if CppSourcesPresent
+    SRCS = include.c main.c parse.c pr.c cppsetup.c cpp.c cpy.y
+    OBJS = include.o main.o parse.o pr.o cppsetup.o cpp.o cpy.o
+ CPPDEFS = -DCPP
+  CPPSRC = CppSources
+#else
+/*
+ * But if you do not have cpp source...
+ */
+    SRCS = include.c main.c parse.c pr.c cppsetup.c
+    OBJS = include.o main.o parse.o pr.o cppsetup.o
+#endif
+
+INCLUDES = -I$(CONFIGSRC)
+ DEFINES = $(CPPDEFS) '-DINCLUDEDIR="/usr/include"' $(SIGNAL_DEFINES)
+ DEPLIBS =
+
+#ifdef MacIIArchitecture
+ XBSDLIB = /**/
+#endif
+
+#if NeedInetEmulLib
+XINETLIB = /**/
+#endif
+
+all:: makedepend
+
+#undef InstallManPage
+#define InstallManPage(file,dest) /* as nothing */
+ComplexProgramTarget(makedepend)
+
+InstallManPageLong(mkdepend,$(MANDIR),makedepend)
+
+
+#if CppSourcesPresent
+cpy.c: cpy.y yylex.c
+	$(YACC) $(YFLAGS) cpy.y
+	sed -e '/^# *line/d' < y.tab.c > cpy.c
+	$(RM) y.tab.c
+
+cpy.y: $(CPPSRC)/cpy.y
+	$(RM) $@
+	$(LN) $(CPPSRC)/cpy.y .
+
+yylex.c: $(CPPSRC)/yylex.c
+	$(RM) $@
+	sed -e 's/#if pdp11 | vax | mc68000/& | ns16000 | ibm032/' \
+		$(CPPSRC)/yylex.c > yylex.c
+
+cpp.c: $(CPPSRC)/cpp.c cpp.ed
+	$(RM) cpp.c
+	/lib/cpp $(CPPSRC)/cpp.c \
+		| cb \
+		| sed -e '/^$$/d' -e '/^#/d' -e 's/	/ /g' > cpp.c
+	sed -e '/^#/d' < cpp.ed | ed - cpp.c
+
+cpp.o: cpp.c
+cpy.o: cpy.c
+
+clean::
+	$(RM) cpp.c cpy.? yylex.c
+#endif

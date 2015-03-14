@@ -1,0 +1,2106 @@
+This is Info file autoconf.info, produced by Makeinfo-1.51 from the
+input file autoconf.texi.
+
+   This file documents the GNU Autoconf package for creating scripts to
+configure source code packages using templates and an `m4' macro
+package.
+
+   Copyright (C) 1992 Free Software Foundation, Inc.
+
+   Permission is granted to make and distribute verbatim copies of this
+manual provided the copyright notice and this permission notice are
+preserved on all copies.
+
+   Permission is granted to copy and distribute modified versions of
+this manual under the conditions for verbatim copying, provided that
+the entire resulting derived work is distributed under the terms of a
+permission notice identical to this one.
+
+   Permission is granted to copy and distribute translations of this
+manual into another language, under the above conditions for modified
+versions, except that this permission notice may be stated in a
+translation approved by the Foundation.
+
+
+File: autoconf.info,  Node: Top,  Next: Introduction,  Up: (dir)
+
+   This file documents the GNU Autoconf package for creating scripts to
+configure source code packages using templates and an `m4' macro
+package.
+
+* Menu:
+
+* Introduction::		Autoconf's purpose, strengths, and weaknesses.
+* Distributing::		Legal restrictions on Autoconf output.
+* Making configure Scripts::	How to organize and produce Autoconf scripts.
+* Specific Tests::		Macros that check for particular features.
+* General Purpose Macros::	Macros that check for kinds of features.
+* Writing Macros::		How to add your own macros to Autoconf.
+* Makefiles::			Information Autoconf uses in `Makefile's.
+* Running configure Scripts::	How to use the Autoconf output.
+* Example::			Sample Autoconf input files.
+* Preprocessor Symbol Index::	Index of C preprocessor symbols defined.
+* Macro Index::			Index of Autoconf macros.
+
+
+File: autoconf.info,  Node: Introduction,  Next: Distributing,  Prev: Top,  Up: Top
+
+Introduction
+************
+
+   Autoconf is a tool for producing shell scripts that automatically
+configure software source code packages to adapt to many kinds of
+UNIX-like systems.  For each software package that Autoconf is used
+with, it creates a configuration script from a template file that lists
+the operating system features that the package can use.
+
+   The configuration scripts produced by Autoconf normally require no
+manual user intervention when run; they do not even take an argument
+specifying the system type.  Instead, they test for the presence of each
+feature that might be needed individually (after printing a one-line
+message stating what they are checking for, so the user doesn't get too
+bored while waiting for the script to finish).  As a result, they deal
+well with systems that are hybrids or customized from the more common
+UNIX variants.  There is no need to maintain files that list the
+features supported by each release of each variant of UNIX, except for
+occasional quirks.
+
+   After the shell code needed to recognize and respond to an operating
+system feature has been written, Autoconf allows it to be shared between
+many software packages that can use (or need) that feature.  If it later
+turns out that the shell code needs adjustment for some reason, it needs
+to be changed in only one place; all of the the configuration scripts
+can be regenerated automatically to take advantage of the updated code.
+
+   Autoconf was developed for configuring packages of small utilities;
+it might not be able to deduce all of the information needed to
+configure programs with more specialized needs.  Larry Wall's
+Metaconfig package is similar in purpose to Autoconf, but is more
+general; the scripts it produces are hairier and require manual user
+intervention, which is quite inconvenient when configuring large source
+trees.
+
+   Unlike Metaconfig scripts, Autoconf scripts can support
+cross-compiling if some care is taken in writing them.  They should
+avoid executing test programs, since test programs compiled with a
+cross-compiler can not be executed on the host system.  Also, they
+shouldn't do anything that tests features of the host system instead of
+the target system.
+
+   Autoconf imposes some restrictions on the names of macros used with
+`#ifdef' in C programs (*note Preprocessor Symbol Index::.).
+
+   Autoconf was written by David MacKenzie, with help from Franc,ois
+Pinard, Karl Berry, Richard Pixley, Ian Lance Taylor, and Roland
+McGrath.  It was inspired by Brian Fox's automatic configuration system
+for BASH, by Larry Wall's Metaconfig, and by Richard Stallman, Richard
+Pixley, and John Gilmore's configuration tools for the GNU compiler and
+object file utilities.
+
+
+File: autoconf.info,  Node: Distributing,  Next: Making configure Scripts,  Prev: Introduction,  Up: Top
+
+Distributing Autoconf Output
+****************************
+
+   The configuration scripts that Autoconf produces are covered by the
+GNU General Public License.  This is because they consist almost
+entirely of parts of Autoconf itself, rearranged somewhat, and Autoconf
+is distributed under the terms of the GPL.  However, programs that use
+Autoconf scripts to configure themselves do not automatically come under
+the GPL.  Distributing an Autoconf configuration script as part of a
+program is considered to be *mere aggregation* of that work with the
+Autoconf script.  Such programs are not derivative works based on
+Autoconf; only their configuration scripts are.  We still encourage
+software authors to distribute their work under terms like those of the
+GPL, but doing so is not required to use Autoconf.
+
+
+File: autoconf.info,  Node: Making configure Scripts,  Next: Specific Tests,  Prev: Distributing,  Up: Top
+
+Making `configure' Scripts
+**************************
+
+   The configuration scripts that Autoconf produces are by convention
+called `configure' when they are distributed.  When run, they create
+several files:
+
+   * one or more `Makefile' files (one in each subdirectory of the
+     package), from template `Makefile.in' files (*note Makefiles::.);
+
+   * optionally, a C header file, the name of which is configurable,
+     containing `#define' statements;
+
+   * a shell script called `config.status' that, when run, will recreate
+     the current configuration parameter settings.
+
+   To create a `configure' script with Autoconf, you need to write an
+Autoconf input file and run Autoconf on it to produce the script.  And,
+of course, test the resulting script.
+
+   Here is a diagram showing how the files that can be used in
+configuration are produced:
+
+     acgeneral.m4 \                          Makefile.in \
+     acspecific.m4 \                                      \
+     autoconf*     -> m4* -> configure* -> config.status* -> Makefile \
+     configure.in  /                          |    |                   \
+       |    |                                 |    |             make* -> your
+       |    |                                 |    |                   /package
+       |    |                              config.status* -> config.h /
+     configure.in \                                       /
+     autoheader*  ->  - - - - - - - - - - -> config.h.in /
+     acconfig.h   /
+
+Executables are suffixed by `*', while files appearing twice are linked
+with lines of `|'.
+
+* Menu:
+
+* Writing configure.in::	What to put in an Autoconf input file.
+* Invoking autoconf::		How to create configuration scripts.
+* Invoking autoheader::		How to create configuration header files.
+
+
+File: autoconf.info,  Node: Writing configure.in,  Next: Invoking autoconf,  Up: Making configure Scripts
+
+Writing `configure.in'
+======================
+
+   To produce a `configure' script for a software package, create a
+file called `configure.in' that contains invocations of the Autoconf
+macros that test the system features your package needs or can use.
+Autoconf macros already exist to check for many features; see *Note
+Specific Tests::, for their descriptions.  For most other features, you
+can use Autoconf template macros to produce custom checks; see *Note
+General Tests::, for information about them.  For especially tricky or
+specialized features, `configure.in' might need to contain some
+hand-crafted shell commands.  *Note Writing Macros::, for guidelines on
+writing tests from scratch.
+
+   Every `configure.in' must begin with a call to `AC_INIT' and end
+with a call to `AC_OUTPUT' (*note Setup::.).  Other than that, the
+order in which `configure.in' calls the Autoconf macros is generally
+not important, except that some macros rely on other macros having been
+called first, because they check previously set values of some
+variables to decide what to do.  These macros are noted in the
+individual descriptions (*note Specific Tests::.).
+
+   To encourage consistency, here is a suggested order for calling the
+Autoconf macros.  A few macros need to be called in a different order
+from the one given here; they are noted in their individual descriptions
+(*note Specific Tests::.).  (Note that there must not be any space
+between the macro name and the open parentheses.)
+
+     `AC_INIT(FILE)'
+     checks for programs
+     checks for UNIX variants that set `DEFS'
+     checks for header files
+     checks for typedefs
+     checks for functions
+     checks for structure members
+     checks for compiler characteristics
+     checks for operating system services
+     other checks for UNIX variants
+     `AC_OUTPUT([FILE...])'
+
+   You can include comments in `configure.in' files by starting them
+with the `m4' predefined macro `dnl', which discards text up through
+the next newline.  These comments do not appear in the generated
+`configure' scripts.  For example, it is helpful to begin
+`configure.in' files with a line like this:
+
+     dnl Process this file with autoconf to produce a configure script.
+
+   *Note Sample configure.in::, for an example of a real `configure.in'
+script.
+
+
+File: autoconf.info,  Node: Invoking autoconf,  Next: Invoking autoheader,  Prev: Writing configure.in,  Up: Making configure Scripts
+
+Invoking `autoconf'
+===================
+
+   To create `configure' from `configure.in', run the `autoconf'
+program with no arguments.  `autoconf' processes `configure.in' with
+the `m4' macro processor, using the Autoconf macros.  If you give
+`autoconf' an argument, it reads that file instead of `configure.in'
+and writes the configuration script to the standard output instead of
+to `configure'.
+
+   The Autoconf macros are defined in two or more files.  Two of the
+files are distributed with Autoconf: `acgeneral.m4' (*note General
+Purpose Macros::.) and `acspecific.m4' (*note Specific Tests::.).
+`autoconf' also looks for an optional file called `aclocal.m4' both in
+the directory that contains the other Autoconf macro files and in the
+current directory.  (If both files exist, it uses both of them.) Those
+files can contain your site's own locally written Autoconf macro
+definitions.  *Note Writing Macros::, for more information.
+
+   Autoconf requires GNU `m4'.  It uses features that some UNIX
+versions of `m4' do not have; it is also reported to overflow internal
+limits of some versions of `m4'.
+
+   Autoconf does not work well with GNU C library releases 1.05 and
+earlier.  The GNU C library contains stubs (which always return an
+error) for functions that are not available instead of omitting them
+from the library.  As a result, Autoconf scripts are fooled into
+thinking that those functions are available.  This problem will not
+exist with future GNU C library releases, which define C preprocessor
+macros that the Autoconf macro `AC_FUNC_CHECK' tests, indicating that
+certain functions are stubs (*note General Tests::., for more
+information on checking for functions).
+
+
+File: autoconf.info,  Node: Invoking autoheader,  Prev: Invoking autoconf,  Up: Making configure Scripts
+
+Invoking `autoheader'
+=====================
+
+   You can use the program `autoheader' to create a template file of C
+`#define' statements for `configure' to use.  By default, the file that
+`autoheader' creates is called `config.h.in'.  `autoheader' scans
+`configure.in' and figures out which C preprocessor symbols it might
+define.  It copies comments and `#define' and `#undef' statements from
+a file called `acconfig.h', which comes with Autoconf; it also uses a
+file called `acconfig.h' in the current directory, if present.  For
+symbols that `AC_HAVE_HEADERS' or `AC_HAVE_FUNCS' define, `autoheader'
+generates comments itself rather than copying them from a file, since
+the possible symbols are effectively limitless.
+
+   If you give `autoheader' an argument, it uses that file instead of
+`configure.in' and writes the header file to the standard output
+instead of to `config.h.in'.
+
+
+File: autoconf.info,  Node: Specific Tests,  Next: General Purpose Macros,  Prev: Making configure Scripts,  Up: Top
+
+Specific Tests
+**************
+
+   These macros test for particular operating system features that
+packages might need or want to use.  If you need to test for a feature
+that none of these macros check for, you can probably do it by calling
+one of the general purpose test macros with appropriate arguments
+(*note General Tests::.).
+
+   All of these macros that set `make' variables call `AC_SUBST' on
+those variables (*note Setting Variables::., for details about
+`AC_SUBST').  The phrase "define NAME" is used below as a shorthand to
+mean either add `-DNAME=1' to the `make' variable `DEFS', or put
+`#define NAME 1' in the configuration header file, depending on whether
+`AC_CONFIG_HEADER' has been called.  *Note Setting Variables::, for
+more information.
+
+   Within each section below, the macros are listed in alphabetical
+order.  The macros are generally named for the `make' variables or C
+preprocessor macros that they define; those names are based largely on
+what existing GNU programs use.  These macros are defined in the file
+`acspecific.m4'.
+
+* Menu:
+
+* Alternative Programs::	Selecting between alternative programs.
+* Header Files::		Header files that might be missing.
+* Typedefs::			`typedef's that might be missing.
+* Library Functions::		C library functions that might be missing.
+* Structures::			Structures or members that might be missing.
+* Compiler Characteristics::	C compiler or machine architecture features.
+* System Services::		Operating system services.
+* UNIX Variants::		Special cases for specific UNIX variants.
+
+
+File: autoconf.info,  Node: Alternative Programs,  Next: Header Files,  Up: Specific Tests
+
+Alternative Programs
+====================
+
+   The following macros check for the presence or behavior of particular
+programs:
+
+`AC_DECLARE_YYTEXT'
+     Define `DECLARE_YYTEXT' to declare `yytext' appropriately,
+     depending on whether `lex' or `flex' is being used.  This macro
+     calls `AC_PROG_CPP' and `AC_PROG_LEX' if they haven't been called
+     already.
+
+`AC_LN_S'
+     If `ln -s' works on the current filesystem (the O.S. and filesystem
+     support symbolic links), set shell and `make' variable `LN_S' to
+     `ln -s', otherwise set it to `ln'.
+
+`AC_MINUS_C_MINUS_O'
+     If the C compiler does not accept the `-c' and `-o' options
+     simultaneously, define `NO_MINUS_C_MINUS_O'.
+
+`AC_PROG_YACC'
+     If `bison' is found, set `make' variable `YACC' to `bison -y'.
+     Otherwise, if `byacc' is found, set `YACC' to `byacc'.  Otherwise
+     set `YACC' to `yacc'.
+
+`AC_PROG_CPP'
+     Set shell and `make' variable `CPP' to a command that runs the C
+     preprocessor.  If `$CC -E' doesn't work, it uses `/lib/cpp'.
+
+     Many of the specific test macros use the value of `CPP' indirectly
+     by calling `AC_TEST_CPP', `AC_HEADER_CHECK', `AC_HEADER_EGREP', or
+     `AC_PROGRAM_EGREP'.  Those macros call this macro first if it
+     hasn't been called already.  It should be called after
+     `AC_PROG_CC'.
+
+`AC_PROG_LEX'
+     If `flex' is found, set `make' variable `LEX' to `flex' and
+     `LEXLIB' to `-lfl' (or the full pathname of the `fl' library, if
+     it is in a standard place).  Otherwise set `LEX' to `lex' and
+     `LEXLIB' to `-ll'.
+
+`AC_PROG_AWK'
+     Check for `mawk', `gawk', `nawk', and `awk', in that order, and
+     set `make' variable `AWK' to the first one that it finds.
+
+`AC_PROG_CC'
+     If `gcc' is found, set `make' variable `CC' to `gcc', and set
+     shell variable `GCC' to 1 for use by macros such as
+     `AC_GCC_TRADITIONAL'.
+
+`AC_GCC_TRADITIONAL'
+     Add `-traditional' to `make' variable `CC' if using the GNU C
+     compiler and `ioctl' does not work properly without
+     `-traditional'.  This macro calls `AC_PROG_CC' and `AC_PROG_CPP'
+     if they haven't been called already.
+
+`AC_PROG_INSTALL'
+     Set `make' variable `INSTALL_PROGRAM' to `install -c' and the
+     variable `INSTALL_DATA' to `install -c -m 644' if `install' is
+     found, otherwise set both to `cp'.  Screens out the false matches
+     `/etc/install' and `/usr/sbin/install' (shell scripts found on
+     System V).
+
+`AC_PROG_RANLIB'
+     Set `make' variable `RANLIB' to `ranlib' if `ranlib' is found,
+     otherwise to `@:' (do nothing and produce no output from `make').
+
+`AC_RSH'
+     If a remote shell is available, put `rtapelib.o' in `make'
+     variable `RTAPELIB'.  Otherwise, also do so if `netdb.h' exists
+     (implying the `rexec' function), and in addition define
+     `HAVE_NETDB_H'.  If neither a remote shell nor `rexec' is
+     available, define `NO_REMOTE'.
+
+
+File: autoconf.info,  Node: Header Files,  Next: Typedefs,  Prev: Alternative Programs,  Up: Specific Tests
+
+Header Files
+============
+
+   The following macros check for the presence of certain C header
+files:
+
+`AC_DIR_HEADER'
+     If the system has `dirent.h', define `DIRENT'; otherwise, if it
+     has `sys/ndir.h', define `SYSNDIR'; otherwise, if it has
+     `sys/dir.h', define `SYSDIR'; otherwise, if it has `ndir.h',
+     define `NDIR'.  Also, if the directory library header file
+     contains a declaration of the `closedir' function with a `void'
+     return type, define `VOID_CLOSEDIR'.  The directory library
+     declarations in the source code should look something like the
+     following:
+
+          /* unistd.h defines _POSIX_VERSION on POSIX.1 systems.  */
+          #if defined(DIRENT) || defined(_POSIX_VERSION)
+          #include <dirent.h>
+          #define NLENGTH(dirent) (strlen((dirent)->d_name))
+          #else /* not (DIRENT or _POSIX_VERSION) */
+          #define dirent direct
+          #define NLENGTH(dirent) ((dirent)->d_namlen)
+          #ifdef SYSNDIR
+          #include <sys/ndir.h>
+          #endif /* SYSNDIR */
+          #ifdef SYSDIR
+          #include <sys/dir.h>
+          #endif /* SYSDIR */
+          #ifdef NDIR
+          #include <ndir.h>
+          #endif /* NDIR */
+          #endif /* not (DIRENT or _POSIX_VERSION) */
+
+     Using the above declarations, the program would declare variables
+     to be type `struct dirent', not `struct direct', and would access
+     the length of a directory entry name by passing a pointer to a
+     `struct dirent' to the `NLENGTH' macro.
+
+`AC_MAJOR_HEADER'
+     If `sys/types.h' does not define `major', `minor', and `makedev',
+     but `sys/mkdev.h' does, define `MAJOR_IN_MKDEV'; otherwise, if
+     `sys/sysmacros.h' does, define `MAJOR_IN_SYSMACROS'.
+
+`AC_MEMORY_H'
+     Define `NEED_MEMORY_H' if `memcpy', `memcmp', etc. are not
+     declared in `string.h' and `memory.h' exists.  This macro is
+     obsolete; instead, use `AC_HAVE_HEADERS(memory.h)'.  See the
+     example for `AC_STDC_HEADERS'.
+
+`AC_STDC_HEADERS'
+     Define `STDC_HEADERS' if the system has ANSI C header files.
+     Specifically, this macro checks for `stdlib.h', `stdarg.h',
+     `string.h', and `float.h'; if the system has those, it probably
+     has the rest of the ANSI C header files.  This macro also checks
+     whether `string.h' declares `memchr' (and thus presumably the
+     other `mem' functions) and whether the `ctype.h' macros work on
+     characters with the high bit set, as ANSI C requires.
+
+     Use `STDC_HEADERS' instead of `__STDC__' to determine whether the
+     system has ANSI-compliant header files (and probably C library
+     functions) because many systems that have GCC do not have ANSI C
+     header files.
+
+     To check whether to use the System V/ANSI C string functions and
+     header file, you can put the following in `configure.in':
+
+          AC_STDC_HEADERS
+          AC_HAVE_HEADERS(string.h memory.h)
+
+     Then, in the code, use a test like this:
+
+          #if STDC_HEADERS || HAVE_STRING_H
+          #include <string.h>
+          /* An ANSI string.h and pre-ANSI memory.h might conflict.  */
+          #if !STDC_HEADERS && HAVE_MEMORY_H
+          #include <memory.h>
+          #endif /* not STDC_HEADERS and HAVE_MEMORY_H */
+          #define index strchr
+          #define rindex strrchr
+          #define bcopy(s, d, n) memcpy ((d), (s), (n))
+          #define bcmp(s1, s2, n) memcmp ((s1), (s2), (n))
+          #define bzero(s, n) memset ((s), 0, (n))
+          #else /* not STDC_HEADERS and not HAVE_STRING_H */
+          #include <strings.h>
+          /* memory.h and strings.h conflict on some systems.  */
+          #endif /* not STDC_HEADERS and not HAVE_STRING_H */
+
+     This example asssumes that your code uses the BSD style functions.
+     If you use the System V/ANSI C style functions, you will need to
+     replace the macro definitions with ones that go in the other
+     direction.
+
+`AC_UNISTD_H'
+     Define `HAVE_UNISTD_H' if the system has `unistd.h'.  The way to
+     check if the system supports POSIX.1 is:
+
+          #if HAVE_UNISTD_H
+          #include <sys/types.h>
+          #include <unistd.h>
+          #endif
+          
+          #ifdef _POSIX_VERSION
+          /* Code for POSIX.1 systems.  */
+          #endif
+
+     `_POSIX_VERSION' is defined when `unistd.h' is included on POSIX.1
+     systems.  If there is no `unistd.h', it is definitely not a
+     POSIX.1 system.  However, some non-POSIX.1 systems do have
+     `unistd.h'.
+
+`AC_USG'
+     Define `USG' if the system does not have `strings.h', `rindex',
+     `bzero', etc.  This implies that it has `string.h', `strrchr',
+     `memset', etc.
+
+     The symbol `USG' is obsolete.  Instead of this macro, use
+     `AC_HAVE_HEADERS(string.h)' and use `HAVE_STRING_H' in your code.
+     See the example for `AC_STDC_HEADERS'.
+
+
+File: autoconf.info,  Node: Typedefs,  Next: Library Functions,  Prev: Header Files,  Up: Specific Tests
+
+Typedefs
+========
+
+   The following macros check for predefined C types:
+
+`AC_MODE_T'
+     If `mode_t' is not defined in `sys/types.h', define `mode_t' to be
+     `int'.
+
+`AC_PID_T'
+     If `pid_t' is not defined in `sys/types.h', define `pid_t' to be
+     `int'.
+
+`AC_RETSIGTYPE'
+     If `signal.h' declares `signal' as returning a pointer to a
+     function returning `void', define `RETSIGTYPE' to be `void';
+     otherwise, define it to be `int'.
+
+     Define signal handlers as returning type `RETSIGTYPE':
+
+          RETSIGTYPE
+          hup_handler ()
+          {
+          ...
+          }
+
+`AC_SIZE_T'
+     If `size_t' is not defined in `sys/types.h', define `size_t' to be
+     `unsigned'.
+
+`AC_UID_T'
+     If `uid_t' is not defined in `sys/types.h', define `uid_t' to be
+     `int' and `gid_t' to be `int'.
+
+
+File: autoconf.info,  Node: Library Functions,  Next: Structures,  Prev: Typedefs,  Up: Specific Tests
+
+Library Functions
+=================
+
+   The following macros check for particular C library functions:
+
+`AC_ALLOCA'
+     Check how to get `alloca'.  Tries to get a builtin version by
+     checking for `alloca.h' or the predefined C preprocessor macros
+     `__GNUC__' and `_AIX'.  If that fails, it looks for a function in
+     the standard C library.  If that fails, it sets the `make'
+     variable `ALLOCA' to `alloca.o'.  This variable is separate from
+     `LIBOBJS' so multiple programs can share the value of `ALLOCA'
+     without needing to create an actual library.
+
+     If this macro finds `alloca.h', it defines `HAVE_ALLOCA_H'.
+
+     This macro does not try to get `alloca' from the SVR3 `libPW' or
+     the SVR4 `libucb' because those libraries contain some
+     incompatible functions that cause trouble.  Some versions do not
+     even contain `alloca' or contain a buggy version.  If you still
+     want to use their `alloca', use `ar' to extract `alloca.o' from
+     them instead of compiling `alloca.c'.
+
+     Source files that use `alloca' should start with a piece of code
+     like the following, to declare it properly.  Note that in some
+     versions of AIX, the declaration of `alloca' must precede
+     everything else except for comments and preprocessor directives.
+     The `#pragma' directive is indented so that pre-ANSI C compilers
+     will ignore it, rather than choke on it.
+
+          /* AIX requires this to be the first thing in the file. */
+          #ifdef __GNUC__
+          #define alloca __builtin_alloca
+          #else /* not __GNUC__ */
+          #if HAVE_ALLOCA_H
+          #include <alloca.h>
+          #else /* not HAVE_ALLOCA_H */
+          #ifdef _AIX
+           #pragma alloca
+          #else /* not _AIX */
+          char *alloca ();
+          #endif /* not _AIX */
+          #endif /* not HAVE_ALLOCA_H */
+          #endif /* not __GNUC__ */
+
+`AC_GETLOADAVG'
+     Check how to get the system load averages.  It tries to get the
+     `getloadavg' function from `/usr/lib/libutils.a', if present (such
+     as on 4.4BSD), or from `/usr/lib/libgetloadavg.a' or
+     `/usr/local/lib/libgetloadavg.a' (such as is commonly installed on
+     AIX systems).  Otherwise, it adds `getloadavg.o' to the `make'
+     variable `LIBOBJS' and defines `SVR4', `DGUX', `UMAX', or
+     `UMAX4_3' if on those systems.  It then checks for `nlist.h'.  If
+     it finds it, it defines `NLIST_STRUCT' and checks whether `struct
+     nlist' has an `n_un' member; if so, it defines `NLIST_NAME_UNION'.
+     Then it determines whether compiling `getloadavg.c' would define
+     the `LDAV_PRIVILEGED'; this indicates whether the program will
+     need to be installed specially for `getloadavg' to work.  If so,
+     it defines `GETLOADAVG_PRIVILEGED'.  It always defines the `make'
+     variable `NEED_SETGID'; the value is `true' if special
+     installation is required, or `false' if not.
+
+`AC_SETVBUF_REVERSED'
+     If `setvbuf' takes the buffering type as its second argument and
+     the buffer pointer as the third, instead of the other way around,
+     define `SETVBUF_REVERSED'.  This is the case on System V before
+     release 3.
+
+`AC_STRCOLL'
+     Check for a proper declaration of the `strcoll' function.  This
+     does a bit more than `AC_HAVE_FUNCS(strcoll)', because some systems
+     have incorrect definitions of `strcoll', which should not be used.
+
+`AC_UTIME_NULL'
+     If `utime(FILE, NULL)' sets FILE's timestamp to the present,
+     define `HAVE_UTIME_NULL'.
+
+`AC_VFORK'
+     If `vfork.h' is found, define `HAVE_VFORK_H'.  If a working
+     `vfork' is not found, define `vfork' to be `fork'.  This macro
+     checks for several known errors in implementations of `vfork' and
+     considers the system to not have a working `vfork' if it detects
+     any of them.
+
+`AC_VPRINTF'
+     If `vprintf' is found, define `HAVE_VPRINTF'.  Otherwise, if
+     `_doprnt' is found, define `HAVE_DOPRNT'.
+
+`AC_WAIT3'
+     If `wait3' is found and fills in the contents of its third argument
+     (a `struct rusage *'), which HP-UX does not do, define
+     `HAVE_WAIT3'.
+
+
+File: autoconf.info,  Node: Structures,  Next: Compiler Characteristics,  Prev: Library Functions,  Up: Specific Tests
+
+Structures
+==========
+
+   The following macros check for certain structures or structure
+members:
+
+`AC_ST_BLKSIZE'
+     If `struct stat' contains an `st_blksize' member, define
+     `HAVE_ST_BLKSIZE'.
+
+`AC_ST_BLOCKS'
+     If `struct stat' contains an `st_blocks' member, define
+     `HAVE_ST_BLOCKS'.  Otherwise, add `fileblocks.o' to the `make'
+     variable `LIBOBJS'.
+
+`AC_ST_RDEV'
+     If `struct stat' contains an `st_rdev' member, define
+     `HAVE_ST_RDEV'.
+
+`AC_STRUCT_TM'
+     If `time.h' does not define `struct tm', define `TM_IN_SYS_TIME',
+     which means that including `sys/time.h' defines `struct tm'.
+
+`AC_TIMEZONE'
+     Figure out how to get the current timezone.  If `struct tm' has a
+     `tm_zone' member, define `HAVE_TM_ZONE'.  Otherwise, if the
+     external array `tzname' is found, define `HAVE_TZNAME'.  This
+     macro calls `AC_STRUCT_TM' if it hasn't been called already.
+
+
+File: autoconf.info,  Node: Compiler Characteristics,  Next: System Services,  Prev: Structures,  Up: Specific Tests
+
+Compiler Characteristics
+========================
+
+   The following macros check for C compiler or machine architecture
+features:
+
+`AC_ARG_ARRAY'
+     If the address of an argument to a C function can not be used like
+     the start of an array, define `NO_ARG_ARRAY'.  This ability allows
+     a sequence of arguments with the same type to be accessed as if
+     they were an array of values.
+
+`AC_CROSS_CHECK'
+     If the C compiler being used does not produce executables that can
+     run on the system where `configure' is being run, set the shell
+     variable `cross_compiling' to 1.  This information can be used by
+     `AC_TEST_PROGRAM' to determine whether to take a default action
+     instead of trying to run a test program (*note General Tests::.).
+
+`AC_CHAR_UNSIGNED'
+     If the C type `char' is unsigned, define `__CHAR_UNSIGNED__',
+     unless the C compiler predefines it.
+
+`AC_CONST'
+     If the C compiler does not fully support the keyword `const',
+     define `const' to be empty.  Some C compilers that do not define
+     `__STDC__' do support `const'; some compilers that define
+     `__STDC__' do not completely support `const'.  Programs can simply
+     use `const' as if every C compiler supported it; for those that
+     don't, the `Makefile' or configuration header file will define it
+     as empty.
+
+`AC_INLINE'
+     If the C compiler is a version of GCC that supports the keyword
+     `__inline' but not `inline' (such as some NeXT versions), define
+     `inline' to be `__inline'.  This macro calls `AC_PROG_CC' if it
+     hasn't been called already.
+
+`AC_INT_16_BITS'
+     If the C type `int' is smaller than the type `long', define
+     `INT_16_BITS'.
+
+`AC_WORDS_BIGENDIAN'
+     If words are stored with the most significant byte first, define
+     `WORDS_BIGENDIAN'.
+
+
+File: autoconf.info,  Node: System Services,  Next: UNIX Variants,  Prev: Compiler Characteristics,  Up: Specific Tests
+
+System Services
+===============
+
+   The following macros check for operating system services:
+
+`AC_LONG_FILE_NAMES'
+     If the system supports file names longer than 14 characters, define
+     `HAVE_LONG_FILE_NAMES'.
+
+`AC_REMOTE_TAPE'
+     If BSD tape drive ioctls are available, define `HAVE_SYS_MTIO_H',
+     and if sockets are available add `rmt' to `make' variable `PROGS'.
+
+`AC_RESTARTABLE_SYSCALLS'
+     If the system automatically restarts a system call that is
+     interrupted by a signal, define `HAVE_RESTARTABLE_SYSCALLS'.
+
+
+File: autoconf.info,  Node: UNIX Variants,  Prev: System Services,  Up: Specific Tests
+
+UNIX Variants
+=============
+
+   The following macros check for certain operating systems that need
+special treatment for some programs, due to exceptional oddities in
+their header files or libraries:
+
+`AC_AIX'
+     If on AIX, define `_ALL_SOURCE'.  Allows the use of some BSD
+     functions.  Should be called before any macros that run the C
+     compiler.
+
+`AC_DYNIX_SEQ'
+     If on DYNIX/ptx (Sequent UNIX), add `-lseq' to `make' variable
+     `LIBS'.  Allows use of some BSD system calls and `getmntent'.
+
+`AC_IRIX_SUN'
+     If on IRIX (Silicon Graphics UNIX), add `-lsun' to `make' variable
+     `LIBS'.  Needed to get `getmntent'.
+
+`AC_ISC_POSIX'
+     If on a POSIXized ISC UNIX, define `_POSIX_SOURCE' and add
+     `-posix' (for the GNU C compiler) or `-Xp' (for other C compilers)
+     to `make' variable `CC'.  This allows the use of POSIX facilities.
+     Must be called after `AC_PROG_CC' and before any other macros
+     that run the C compiler.
+
+`AC_MINIX'
+     If on Minix, define `_MINIX' and `_POSIX_SOURCE' and define
+     `_POSIX_1_SOURCE' to be 2.  This allows the use of POSIX
+     facilities.  Should be called before any macros that run the C
+     compiler.
+
+`AC_SCO_INTL'
+     If on SCO UNIX, add `-lintl' to `make' variable `LIBS'.  Used to
+     get `strftime'.  It must be called before checking for `strftime'.
+
+`AC_XENIX_DIR'
+     If on Xenix, define `VOID_CLOSEDIR' and add `-lx' to `make'
+     variable `LIBS'.  Also, if `sys/ndir.h' is not being used, add
+     `-ldir' to `LIBS'.  Needed when using the directory reading
+     functions.  This macro must be called after `AC_DIR_HEADER'.
+
+
+File: autoconf.info,  Node: General Purpose Macros,  Next: Writing Macros,  Prev: Specific Tests,  Up: Top
+
+General Purpose Macros
+**********************
+
+   These macros provide ways for other macros to control the kind of
+output that Autoconf produces or to check whether various features are
+available.  They all take arguments.  When calling these macros, there
+must not be any blank space between the macro name and the open
+parentheses.
+
+   Arguments to these macros can be more than one line long if they are
+enclosed within the `m4' quote characters `[' and `]'.
+
+   Within each section below, the macros are listed in alphabetical
+order.  These macros are defined in the file `acgeneral.m4'.
+
+* Menu:
+
+* Setup::			Controlling Autoconf operation.
+* General Tests::		Check for kinds of features.
+* Setting Variables::		Setting shell and `make' variables.
+* Macro Ordering::		Enforcing ordering constraints.
+
+
+File: autoconf.info,  Node: Setup,  Next: General Tests,  Up: General Purpose Macros
+
+Controlling Autoconf Setup
+==========================
+
+   The following macros control the kind of output that Autoconf
+produces.
+
+`AC_CONFIG_HEADER(HEADER-TO-CREATE)'
+     Create a file HEADER-TO-CREATE containing C preprocessor `#define'
+     statements instead of setting the `DEFS' variable in a `Makefile'.
+     This macro should be called right after `AC_INIT'.  Your
+     distribution should contain a file `HEADER-TO-CREATE.in' that
+     looks as you want the final header file to look, including
+     comments, with default values in the `#define' statements.  A
+     default value can be to `#undef' the variable instead of to define
+     it to a value, if your code tests for configuration options using
+     `#ifdef' instead of `#if'.
+
+     The usual name for the configuration header file is `config.h'.
+     Some GNU library routines contain
+
+          #ifdef HAVE_CONFIG_H
+          #include "config.h"
+          #endif
+
+     so if you use those routines, you should add `-DHAVE_CONFIG_H' to
+     CFLAGS in `Makefile.in' and call your configuration header file
+     `config.h'.  If you use `AC_CONFIG_HEADER', then `AC_OUTPUT'
+     replaces the string `@DEFS@' with `-DHAVE_CONFIG_H' instead of
+     with the value of `DEFS' (*note Setup::.).
+
+     You can use the program `autoheader' to create
+     `HEADER-TO-CREATE.in' (*note Invoking autoheader::.).
+
+`AC_INIT(UNIQUE-FILE-IN-SOURCE-DIR)'
+     Process the command-line arguments and find the source code
+     directory.  UNIQUE-FILE-IN-SOURCE-DIR is some file that is in the
+     package's source directory; `configure' checks for this file's
+     existence to make sure that the directory that it is told contains
+     the source code in fact does (*note Running configure Scripts::.,
+     for more information).
+
+`AC_OUTPUT([FILE...])'
+     Create output files (typically one or more `Makefile's) and
+     `config.status'.  If `AC_CONFIG_HEADER' has been called, also
+     create the header file that was named as its argument.  The
+     argument is a whitespace-separated list of files to create; if it
+     is omitted, no files are created.  `AC_OUTPUT' creates each file
+     `FILE' in the list by copying `FILE.in', substituting the variable
+     values that have been selected by calling `AC_SUBST'.  It creates
+     the directory that each file is in if it doesn't exist (but not the
+     parents of that directory).  A plausible value for the argument to
+     `AC_OUTPUT' is `Makefile src/Makefile man/Makefile X/Imakefile'.
+
+
+File: autoconf.info,  Node: General Tests,  Next: Setting Variables,  Prev: Setup,  Up: General Purpose Macros
+
+Checking for Kinds of Features
+==============================
+
+   These macros are templates that, when called with actual parameters,
+check for various kinds of features.  Many of these macros handle two
+cases: what to do if the given condition is met, and what to do if the
+condition is not met.  In some places you you might want to do something
+if a condition is true but do nothing if it's false, or vice versa.  To
+omit the true case, pass an empty value for the ACTION-IF-FOUND
+argument to the macro.  To omit the false case, omit the
+ACTION-IF-NOT-FOUND argument to the macro, including the comma before
+it.
+
+   One shell programming construction that you should not use in the
+action arguments to these macros is `VAR=${VAR:-VALUE}'.  Old BSD
+shells, including the Ultrix `sh', don't understand the colon, and
+complain and die.  If you omit the colon, it works fine:
+`VAR=${VAR-VALUE}'.
+
+   *Note Writing Macros::, for more information on how best to use these
+macros.
+
+`AC_COMPILE_CHECK(ECHO-TEXT, INCLUDES, FUNCTION-BODY, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND])'
+     Print `checking for ECHO-TEXT' to the standard output.  Then
+     create a test C program to see whether a function whose body
+     consists of FUNCTION-BODY can be compiled and linked; INCLUDES is
+     any `#include' statements needed by the code in FUNCTION-BODY.  If
+     the file compiles and links successfully, run shell commands
+     ACTION-IF-FOUND, otherwise run ACTION-IF-NOT-FOUND.  To include
+     double quotes in FUNCTION-BODY or INCLUDES, quote them with
+     backslashes.
+
+`AC_FUNC_CHECK(FUNCTION, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND])'
+     If FUNCTION is available, run shell commands ACTION-IF-FOUND,
+     otherwise ACTION-IF-NOT-FOUND.
+
+`AC_HAVE_FUNCS(FUNCTION...)'
+     For each given FUNCTION in the whitespace-separated argument list
+     that is available, define `HAVE_FUNCTION' (in all caps).  *Note
+     Specific Tests::, for a precise definition of "define" as it is
+     used here.
+
+     To check whether a particular library exists, you can use the
+     `AC_HAVE_LIBRARY' macro.  If you need to check whether a library
+     other than the default C library actually contains a particular
+     function, temporarily change the shell variable `LIBS', which
+     contains a list of libraries to use when compiling test files.
+     Here is an example that checks whether the function `rint' is
+     present in the math library:
+
+          LIBS_save="$LIBS"
+          LIBS="$LIBS -lm"
+          AC_HAVE_FUNCS(rint)
+          LIBS="$LIBS_save"
+
+     Note that the above code does not decide whether to link the
+     program with `-lm'.
+
+`AC_HAVE_HEADERS(HEADER-FILE...)'
+     For each given HEADER-FILE in the whitespace-separated argument
+     list that exists, define `HAVE_HEADER-FILE' (in all caps).  *Note
+     Specific Tests::, for a precise definition of "define" as it is
+     used here.
+
+`AC_HAVE_LIBRARY(LIBRARY [, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]])'
+     Print `checking for LIBRARY' to the standard output.  Then create
+     a test C program to see whether that program can be linked with
+     the specified library.  ACTION-IF-FOUND is a list of shell
+     commands to run if the link succeeds (which means that the library
+     is present); ACTION-IF-NOT-FOUND is a list of shell commands to run
+     if the link fails.  If ACTION-IF-FOUND and ACTION-IF-NOT-FOUND are
+     not specified, the default action is to add `-lfoo' to `LIBS' and
+     define `HAVE_LIBFOO' for library `foo'.  LIBRARY can be written as
+     any of `foo', `-lfoo', or `libfoo.a'.  In all of those cases, the
+     compiler is passed `-lfoo'.
+
+`AC_HEADER_CHECK(HEADER-FILE, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND])'
+     If HEADER-FILE exists, execute shell commands ACTION-IF-FOUND,
+     otherwise execute ACTION-IF-NOT-FOUND.
+
+`AC_HEADER_EGREP(PATTERN, HEADER-FILE, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND])'
+     If the output of running the C preprocessor on HEADER-FILE
+     contains the `egrep' regular expression PATTERN, execute shell
+     commands ACTION-IF-FOUND, otherwise execute ACTION-IF-NOT-FOUND.
+
+`AC_PREFIX(PROGRAM)'
+     If the user did not specify an installation prefix on the command
+     line, guess a value for it by looking for PROGRAM in `PATH', the
+     way the shell does.  If PROGRAM is found, set the prefix to the
+     parent of the directory containing PROGRAM; otherwise leave the
+     prefix specified in `Makefile.in' unchanged.  For example, if
+     PROGRAM is `gcc' and the `PATH' contains `/usr/local/gnu/bin/gcc',
+     set the prefix to `/usr/local/gnu'.
+
+`AC_PROGRAM_CHECK(VARIABLE, PROG-TO-CHECK-FOR, VALUE-IF-FOUND, VALUE-IF-NOT-FOUND)'
+     Check whether program PROG-TO-CHECK-FOR exists in `PATH'.  If it
+     is found, set VARIABLE to VALUE-IF-FOUND, otherwise to
+     VALUE-IF-NOT-FOUND.  Calls `AC_SUBST' for VARIABLE.
+
+`AC_PROGRAM_EGREP(PATTERN, PROGRAM, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND])'
+     PROGRAM is the text of a C program, on which shell variable and
+     backquote substitutions are performed.  If the output of running
+     the C preprocessor on PROGRAM contains the `egrep' regular
+     expression PATTERN, execute shell commands ACTION-IF-FOUND,
+     otherwise execute ACTION-IF-NOT-FOUND.
+
+`AC_PROGRAMS_CHECK(VARIABLE, PROGS-TO-CHECK-FOR)'
+     Check for each program in the whitespace-separated list
+     PROGS-TO-CHECK-FOR exists in `PATH'.  If it is found, set VARIABLE
+     to the name of that program.  Otherwise, continue checking the
+     next program in the list.  If none of the programs in the list are
+     found, the value of VARIABLE will not be changed.  Calls
+     `AC_SUBST' for VARIABLE.
+
+`AC_REPLACE_FUNCS(FUNCTION-NAME...)'
+     For each given FUNCTION-NAME in the whitespace-separated argument
+     list that is not in the C library, add `FUNCTION-NAME.o' to the
+     value of the `make' variable `LIBOBJS'.
+
+`AC_TEST_PROGRAM(PROGRAM, ACTION-IF-TRUE [, ACTION-IF-FALSE] [, ACTION-IF-CROSS-COMPILING])'
+     PROGRAM is the text of a C program, on which shell variable and
+     backquote substitutions are performed.  If it compiles and links
+     successfully and returns an exit status of 0 when executed, run
+     shell commands ACTION-IF-TRUE.  Otherwise run shell commands
+     ACTION-IF-FALSE.
+
+     If the optional argument ACTION-IF-CROSS-COMPILING is given and
+     the C compiler being used does not produce executables that run on
+     the system where `configure' is being run, then the test program
+     is not run.  Instead, the shell commands ACTION-IF-CROSS-COMPILING
+     are run.  If that argument is given, this macro calls
+     `AC_CROSS_CHECK' if it has not already been called (*note Compiler
+     Characteristics::.).
+
+`AC_TEST_CPP(INCLUDES, ACTION-IF-TRUE [, ACTION-IF-FALSE])'
+     INCLUDES is C `#include' statements and declarations, on which
+     shell variable and backquote substitutions are performed.
+     (Actually, it can be any C program, but other statements are
+     probably not useful.)  If the C preprocessor produces no error
+     messages while processing it, run shell commands ACTION-IF-TRUE.
+     Otherwise run shell commands ACTION-IF-FALSE.
+
+     This macro calls `AC_PROG_CPP' if it hasn't been called already.
+
+`AC_WITH(PACKAGE, ACTION-IF-TRUE [, ACTION-IF-FALSE])'
+     If the user gave `configure' the option `--with-PACKAGE', run
+     shell commands ACTION-IF-TRUE.  Otherwise run shell commands
+     ACTION-IF-FALSE.  The name PACKAGE should consist only of
+     alphanumeric characters and dashes; typical package names are
+     `gnu-libc' and `x'.
+
+
+File: autoconf.info,  Node: Setting Variables,  Next: Macro Ordering,  Prev: General Tests,  Up: General Purpose Macros
+
+Setting Variables
+=================
+
+   These macros help provide ways for other macros to define shell and
+`make' variables.
+
+`AC_DEFINE(VARIABLE [, VALUE])'
+     Define C preprocessor variable VARIABLE.  If VALUE is given, set
+     VARIABLE to that value, otherwise set it to 1.  To use a VALUE
+     containing double quotes, protect them with backslashes.
+
+     This macro adds to the shell variable `DEFS'.  `AC_OUTPUT' later
+     substitutes the values in `DEFS' into the `Makefile.in' file(s),
+     or if `AC_CONFIG_HEADER' has been called, into the header file
+     named as its argument.
+
+     `AC_OUTPUT' creates HEADER-TO-CREATE from `HEADER-TO-CREATE.in' by
+     substituting the correct values in `#define' statements.  For
+     example, suppose your `configure.in' calls
+     `AC_CONFIG_HEADER(conf.h)' and `AC_UNISTD_H'.  You could have code
+     like this in `conf.h.in':
+
+          /* Define as 1 if you have unistd.h.  */
+          #define HAVE_UNISTD_H 0
+
+     On systems that have `unistd.h', `configure' will change the 0 to
+     a 1.  On other systems, it will leave the line unchanged.
+     Alternately, if you prefer to use `#ifdef', your `conf.h.in' could
+     have code like this:
+
+          /* Define if you have unistd.h.  */
+          #undef HAVE_UNISTD_H
+
+     On systems that have `unistd.h', `configure' will change the
+     second line to read `#define HAVE_UNISTD_H 1'.  On other systems,
+     it will leave the line unchanged.
+
+     If HEADER-TO-CREATE already exists and its contents are identical
+     to what `AC_OUTPUT' would put in it, it is left alone.  Doing this
+     allows some changes in configuration without needlessly causing
+     object files that depend on the header file to be recompiled.
+
+`AC_SUBST(VARIABLE)'
+     Substitute the variable VARIABLE when creating the output files
+     (typically one or more `Makefile's).  This means replace instances
+     of `@VARIABLE@', e.g. in `Makefile.in', with the current value of
+     the shell variable VARIABLE.  If this macro were not called, the
+     value of VARIABLE would not be set in the output files, even
+     though `configure' had figured out a value for it.
+
+     You can set or add to the value of VARIABLE in the usual shell
+     way.  For example, to add `-ltermcap' to the value of the variable
+     `LIBS':
+
+          LIBS="$LIBS -ltermcap"
+
+
+File: autoconf.info,  Node: Macro Ordering,  Prev: Setting Variables,  Up: General Purpose Macros
+
+Macro Ordering
+==============
+
+   These macros provide ways for other macros to make sure that they are
+called in the correct order.
+
+`AC_BEFORE(THIS-MACRO-NAME, CALLED-MACRO-NAME)'
+     Make `m4' print a warning message on the standard error output if
+     CALLED-MACRO-NAME has already been called.  THIS-MACRO-NAME should
+     be the name of the macro that is calling `AC_BEFORE'.  The macro
+     CALLED-MACRO-NAME must contain a call to `AC_PROVIDE' to indicate
+     that it has been called.
+
+     This macro should be used when one macro makes changes that might
+     affect another macro, so that the other macro should probably not
+     be called first.  For example, `AC_PROG_CPP' checks whether the C
+     compiler can run the C preprocessor when given the `-E' option.
+     It should therefore be called after any macros that change which C
+     compiler is being used, such as `AC_PROG_CC'.  So `AC_PROG_CC'
+     contains:
+
+          AC_BEFORE([$0], [AC_PROG_CPP])
+
+     This warns the user if a call to `AC_PROG_CPP' has already occurred
+     when `AC_PROG_CC' is called.
+
+`AC_PROVIDE(MACRO-NAME)'
+     Set a flag recording that MACRO-NAME has been called.  The
+     argument should be the name of the macro that is calling
+     `AC_PROVIDE'.  An easy way to get it is from the `m4' builtin
+     variable `$0', like this:
+
+          AC_PROVIDE([$0])
+
+`AC_REQUIRE(MACRO-NAME)'
+     If the `m4' macro MACRO-NAME has not already been called, call it
+     (without any arguments).  Make sure to quote MACRO-NAME with
+     square brackets.  The body of MACRO-NAME must contain a call to
+     `AC_PROVIDE' to indicate that it has been called.
+
+     Macros that need some other macro to be called before they are
+     called can use `AC_REQUIRE' to ensure that it has been, in case
+     the person who made `configure.in' forgot or didn't know to do it.
+     `AC_REQUIRE' and `AC_PROVIDE' together can ensure that a macro is
+     only called if it is needed, and only called once.  *Note
+     Dependencies Between Macros::, for more information.
+
+
+File: autoconf.info,  Node: Writing Macros,  Next: Makefiles,  Prev: General Purpose Macros,  Up: Top
+
+Writing Macros
+**************
+
+   If your package needs to test for some feature that none of the
+macros supplied with Autoconf handles, you'll need to write one or more
+new Autoconf macros.  Here are some suggestions and some of the
+rationale behind why the existing macros are written the way they are.
+You can also learn a lot about how to write Autoconf macros by looking
+at the existing ones.  If something goes wrong in one or more of the
+Autoconf tests, this information can help you understand why they work
+the way they do and the assumptions behind them, which might help you
+figure out how to best solve the problem.
+
+   If you add macros that you think would be useful to other people, or
+find problems with the distributed macros, please send electronic mail
+to `bug-gnu-utils@prep.ai.mit.edu', so we can consider them for future
+releases of Autoconf.  Please include the Autoconf version number,
+which you can get by running `autoconf --version'.
+
+* Menu:
+
+* Macro Format::		Basic format of an Autoconf macro.
+* Quoting::			Protecting macros from unwanted expansion.
+* Dependencies Between Macros::	What to do when macros depend on other macros.
+* Checking for Files::		Finding whether a file exists.
+* Checking for Symbols::	Finding whether a symbol is defined.
+* Test Programs::		Writing programs to test for features.
+* Multiple Cases::		Tests for several possible values.
+
+
+File: autoconf.info,  Node: Macro Format,  Next: Quoting,  Up: Writing Macros
+
+Macro Format
+============
+
+   Autoconf macros are defined as arguments to the `m4' builtin command
+`define'.  Their overall structure looks like this:
+
+     define(MACRO-NAME, [MACRO-BODY])dnl
+
+The square brackets here do not indicate optional text: they should
+literally be present in the macro definition.
+
+   All of the Autoconf macros have names starting with `AC_' to prevent
+them from accidentally conflicting with other text.  You should prefix
+your own macro names with some other sequence, such as your initials or
+an abbreviation for the name of your organization or software package,
+to ensure that their names don't conflict with the names of present or
+future Autoconf macros.
+
+   The `m4' builtin `dnl' prevents a newline from being inserted in the
+output where the macro is defined; without it, the generated
+`configure' script would begin with dozens of blank lines.  `dnl' is
+also used to introduce comments in `m4'; it causes `m4' to discard the
+rest of the input line.
+
+   You should quote the entire macro body with square brackets to avoid
+macro expansion problems (*note Quoting::.).  You can refer to any
+arguments passed to the macro as `$1', `$2', etc.
+
+   *Note How to define new macros: (m4.info)Definitions, for more
+complete information on writing `m4' macros.
+
+
+File: autoconf.info,  Node: Quoting,  Next: Dependencies Between Macros,  Prev: Macro Format,  Up: Writing Macros
+
+Quoting
+=======
+
+   Macros that are called by other macros are evaluated by `m4' several
+times; each evaluation might require another layer of quotes to prevent
+unwanted expansions of macros or `m4' builtins, such as `include' and
+`$1'.  Quotes are also required around macro arguments that contain
+commas, since commas separate the arguments from each other.
+
+   Autoconf (in `acgeneral.m4') changes the `m4' quote characters from
+the default ``' and `'' to `[' and `]', because many of the macros use
+``' and `'', mismatched.  However, in a few places the macros need to
+use brackets.  In those places, they use the `m4' builtin command
+`changequote' to temporarily disable quoting before the code that uses
+brackets, like this:
+
+     changequote(,)dnl
+
+Then they turn quoting back on again with another call to `changequote':
+
+     changequote([,])dnl
+
+   When you create a `configure' script using newly written macros,
+examine it carefully to check whether you need to add more quotes in
+your macros.  If one or more words have disappeared in the `m4' output,
+you need more quotes.  When in doubt, quote.
+
+   However, it's also possible to put on too many layers of quotes.  If
+this happens, the resulting `configure' script will contain unexpanded
+macros.  The `autoconf' program checks for this problem by doing `grep
+AC_ configure'.
+
+
+File: autoconf.info,  Node: Dependencies Between Macros,  Next: Checking for Files,  Prev: Quoting,  Up: Writing Macros
+
+Dependencies Between Macros
+===========================
+
+   Some Autoconf macros depend on other macros having been called first
+in order to work correctly, or in some cases, to work at all.  Autoconf
+provides a way to ensure that certain macros are called if needed and a
+way to warn the user if macros are called in an order that might cause
+incorrect operation.
+
+* Menu:
+
+* Prerequisite Macros::		Ensuring required information.
+* Suggested Ordering::		Warning about possible ordering problems.
+
+
+File: autoconf.info,  Node: Prerequisite Macros,  Next: Suggested Ordering,  Up: Dependencies Between Macros
+
+Prerequisite Macros
+-------------------
+
+   A macro that you write might need to use values that have previously
+been computed by other macros.  For example, if you write a new macro
+that uses the C preprocessor, it depends on `AC_PROG_CPP' having been
+called first to set the shell variable `CPP' (*note Alternative
+Programs::.).
+
+   Rather than forcing the user of the macros to keep track of all of
+the dependencies between them, you can use the macros `AC_PROVIDE' and
+`AC_REQUIRE' to do it automatically.  *Note Macro Ordering::, for more
+information on their syntax.
+
+   The new macro that runs the C preprocessor should contain, somewhere
+before `CPP' is used, the statement
+
+     AC_REQUIRE([AC_PROG_CPP])
+
+and the macro `AC_PROG_CPP' should contain the statement (anywhere in
+its body)
+
+     AC_PROVIDE([$0])
+
+Then, when the new macro is run, it will invoke `AC_PROG_CPP' if and
+only if `AC_PROG_CPP' has not already been run.
+
+
+File: autoconf.info,  Node: Suggested Ordering,  Prev: Prerequisite Macros,  Up: Dependencies Between Macros
+
+Suggested Ordering
+------------------
+
+   Some macros should be run before another macro if both are called,
+but neither requires the other to be called.  For example, a macro like
+`AC_AIX' that changes the behavior of the C compiler (*note UNIX
+Variants::.) should be called before any macros that run the C compiler.
+Many of these dependencies are noted in the documentation.
+
+   Autoconf provides a way to warn users when macros with this kind of
+dependency appear out of order in a `configure.in' file.  The warning
+occurs when creating `configure' from `configure.in', not when running
+`configure'.  It is not a fatal error; `configure' is created as usual.
+
+   The `AC_BEFORE' macro causes `m4' to print a warning message on the
+standard error output when a macro is used before another macro which
+might change its behavior.  The macro which should come first should
+contain a call to `AC_BEFORE' and the macro which should come later
+should contain a call to `AC_PROVIDE'.
+
+   For example, `AC_AIX' contains
+
+     AC_BEFORE([$0], [AC_COMPILE_CHECK])
+
+and `AC_COMPILE_CHECK' contains
+
+     AC_PROVIDE([$0])
+
+As a result, if `AC_AIX' is called after `AC_COMPILE_CHECK', it will
+note that `AC_COMPILE_CHECK' has already been called and print a
+warning message.
+
+
+File: autoconf.info,  Node: Checking for Files,  Next: Checking for Symbols,  Prev: Dependencies Between Macros,  Up: Writing Macros
+
+Checking for Files
+==================
+
+   If you need to check whether a file other than a C header file
+exists, use `test -f FILENAME'.  If you need to make multiple checks
+using `test', combine them with the shell operators `&&' and `||'
+instead of using the `test' operators `-a' and `-o'.  On System V, the
+precedence of `-a' and `-o' is wrong relative to the unary operators;
+consequently, POSIX does not specify them, so using them is
+nonportable.  If you combine `&&' and `||' in the same statement, keep
+in mind that they have equal precedence.
+
+   Do not use `test -x', because 4.3BSD does not have it.  Use `test
+-f' or `test -r' instead.
+
+
+File: autoconf.info,  Node: Checking for Symbols,  Next: Test Programs,  Prev: Checking for Files,  Up: Writing Macros
+
+Checking for Symbols
+====================
+
+   If you need to check whether a symbol is defined in a C header file,
+you can use `AC_HEADER_EGREP' if the symbol is not a C preprocessor
+macro (*note General Tests::.), or compile a small test program that
+includes the file and references the symbol (*note Test Programs::.).
+Don't directly `grep' for the symbol in the file, because on some
+systems it might be defined in another header file that the file you are
+checking `#include's.
+
+   However, if you need to check for a particular UNIX variant which is
+distinguished by having certain text in a certain file, then use `grep'
+(or `egrep').  But don't use `grep -s' to suppress output, because
+`grep -s' on System V does not suppress output, only error messages.
+Instead, redirect the standard output and standard error (in case the
+file doesn't exist) of `grep' to `/dev/null'.  Check the exit status of
+`grep' to determine whether it found a match.
+
+   To check whether the Autoconf macros have already defined a certain C
+preprocessor symbol, you can use a `case' statement like this:
+
+     case "$DEFS" in
+       *HAVE_FOO*) ;;
+       *) LIBOBJS="$LIBOBJS foo.o" ;;
+     esac
+
+Make sure to enclose the variable name you are checking (usually
+`DEFS') in double quotes, because otherwise some old versions of `bash'
+misinterpret the statement.
+
+
+File: autoconf.info,  Node: Test Programs,  Next: Multiple Cases,  Prev: Checking for Symbols,  Up: Writing Macros
+
+Test Programs
+=============
+
+   Autoconf checks for many features by compiling small test programs.
+To find out whether a library function is available, Autoconf tries to
+compile a small program that uses it.  This is unlike Larry Wall's
+Metaconfig, which uses `nm' or `ar' on the C library to try to figure
+out which functions are available.  Trying to link with the function is
+usually a more reliable and flexible approach because it avoids dealing
+with the variations in the options and output formats of `nm' and `ar'
+and in the location of the standard libraries.  It also allows
+`configure' to check aspects of the function's runtime behavior if
+needed.  On the other hand, it is sometimes slower than scanning the
+libraries.
+
+   If you need to check for a condition other than whether some symbol
+exists on the system or has a certain value, then you can't use
+`AC_COMPILE_CHECK' (*note General Tests::.).  You have to write a test
+program by hand.  You can compile and run it using `AC_TEST_PROGRAM'
+(*note General Tests::.).
+
+   Try to avoid writing test programs if possible, because using them
+prevents people from configuring your package for cross-compiling.  If
+it's really best that you test for a run-time behavior, try to provide a
+default "worst case" value to use when cross-compiling makes run-time
+tests impossible.  You do this by passing the optional last argument to
+`AC_TEST_PROGRAM'.
+
+* Menu:
+
+* Guidelines::			General rules for writing test programs.
+* Tricks::			Special ways to work around problems.
+
+
+File: autoconf.info,  Node: Guidelines,  Next: Tricks,  Up: Test Programs
+
+Guidelines for Test Programs
+----------------------------
+
+   Test programs should return 0 if the test succeeds, nonzero
+otherwise, so that success can be distinguished easily from a core dump
+or other failure; segmentation violations and other failures produce a
+nonzero exit status.  Test programs should `exit', not `return', from
+`main', because on some systems the argument to `return' in `main' is
+ignored.  They should not write anything to the standard output.
+
+   Test programs can use `#if' or `#ifdef' to check the values of
+preprocessor macros defined by tests that have already run.  For
+example, if you call `AC_STDC_HEADERS', then later on in `configure.in'
+you can have a test program that includes an ANSI C header file
+conditionally:
+
+     #if STDC_HEADERS
+     #include <stdlib.h>
+     #endif
+
+   If a test program needs to use or create a data file, give it a name
+that starts with `conftest', such as `conftestdata'.  The `configure'
+script cleans up by running `rm -f conftest*' after running test
+programs and if the script is interrupted.
+
+
+File: autoconf.info,  Node: Tricks,  Prev: Guidelines,  Up: Test Programs
+
+Tricks for Test Programs
+------------------------
+
+   If a test program calls a function with invalid parameters (just to
+see whether it exists), organize the program to ensure that it never
+invokes that function.  You can do this by calling it in another
+function that is never invoked.  You can't do it by putting it after a
+call to `exit', because GCC version 2 knows that `exit' never returns
+and optimizes out any code that follows it in the same block.
+
+   If you include any header files, make sure to call the functions
+relevant to them with the correct number of arguments, even if they are
+just 0, to avoid compilation errors due to prototypes.  GCC version 2
+has internal prototypes for several functions that it automatically
+inlines; for example, `memcpy'.  To avoid errors when checking for
+them, either pass them the correct number of arguments or redeclare them
+with a different return type (such as `char').
+
+
+File: autoconf.info,  Node: Multiple Cases,  Prev: Test Programs,  Up: Writing Macros
+
+Multiple Cases
+==============
+
+   Some operations are accomplished in several possible ways, depending
+on the UNIX variant.  Checking for them essentially requires a "case
+statement".  Autoconf does not directly provide one; however, it is
+easy to simulate by using a shell variable to keep track of whether a
+way to perform the operation has been found yet.
+
+   Here is an example excerpted from the `configure.in' for GNU `find'.
+It uses the shell variable `fstype' to keep track of whether the
+remaining cases need to be checked.  There are several more cases which
+are not shown here but follow the same pattern.
+
+     echo checking how to get filesystem type
+     # SVR4.
+     AC_TEST_CPP([#include <sys/statvfs.h>
+     #include <sys/fstyp.h>], AC_DEFINE(FSTYPE_STATVFS) fstype=1)
+     if test -z "$fstype"; then
+     # SVR3.
+     AC_TEST_CPP([#include <sys/statfs.h>
+     #include <sys/fstyp.h>], AC_DEFINE(FSTYPE_USG_STATFS) fstype=1)
+     fi
+     if test -z "$fstype"; then
+     # AIX.
+     AC_TEST_CPP([#include <sys/statfs.h>
+     #include <sys/vmount.h>], AC_DEFINE(FSTYPE_AIX_STATFS) fstype=1)
+     fi
+
+
+File: autoconf.info,  Node: Makefiles,  Next: Running configure Scripts,  Prev: Writing Macros,  Up: Top
+
+Makefiles
+*********
+
+   Each subdirectory in a distribution should come with a file
+`Makefile.in', from which `configure' will produce a `Makefile' in that
+directory.  Most of the substitutions that `configure' does are simple:
+for each configuration variable that the package uses, it just replaces
+occurrences of `@VARIABLE@' with the value that `configure' has
+determined for that variable.  Any occurrences of `@VARIABLE@' for
+variables that `configure' does not know about are passed through
+unchanged.
+
+   There is no point in checking for the correct value to give a
+variable that is never used.  Every variable that the `configure' script
+might set a value for should appear in a `@VARIABLE@' reference in at
+least one `Makefile.in'.  If `AC_CONFIG_HEADER' is called, `configure'
+replaces `@DEFS@' with `-DHAVE_CONFIG_H', since the contents of `DEFS'
+would be redundant.
+
+   *Note Makefile Conventions: (standards.info)Makefiles, for more
+information on what to put in Makefiles.  *Note Sample Makefile.in::,
+for an example of a real `Makefile.in'.
+
+* Menu:
+
+* Predefined Variables::	Heavily used `make' variables.
+* Installation Prefixes::	A special variable substitution.
+* VPATH Substitutions::		Compiling in a different directory.
+* Automatic Remaking::		Makefile rules for configuring.
+
+
+File: autoconf.info,  Node: Predefined Variables,  Next: Installation Prefixes,  Up: Makefiles
+
+Predefined Variables
+====================
+
+   Some `make' variables are predefined by the Autoconf macros.
+`AC_SUBST' is called for them automatically (*note Setting
+Variables::.), so in your `Makefile.in' files you can get their values
+by enclosing their names in `@' characters (*note Makefiles::.).  The
+variables that are defined by the general purpose Autoconf macros are:
+
+`srcdir'
+     The directory that contains the source code for that `Makefile'.
+
+`DEFS'
+     `-D' options to pass to the C compiler.  Do not include `@DEFS@'
+     in your `Makefile.in' files if you are using `AC_CONFIG_HEADER'.
+
+`LIBS'
+     `-l' and `-L' options to pass to the linker.
+
+`LIBOBJS'
+     Names of object files (ending in `.o').  Set by `AC_REPLACE_FUNCS'
+     (*note General Tests::.).
+
+
+File: autoconf.info,  Node: Installation Prefixes,  Next: VPATH Substitutions,  Prev: Predefined Variables,  Up: Makefiles
+
+Installation Prefixes
+=====================
+
+   If `configure' has figured out a value for the installation prefix,
+either by the user supplying one on the command line (*note Running
+configure Scripts::.) or with `AC_PREFIX', then it substitutes that
+value in `Makefile's that it creates.  Wherever a `Makefile.in'
+contains a line like
+
+     prefix = /usr/local
+
+`configure' substitutes the value it figured out.  The word `prefix'
+must not be preceded by any other characters on the line.
+
+   There can be separate installation prefixes for architecture-specific
+files and architecture-independent files *note Running configure
+Scripts::.).  `configure' substitutes the word `exec_prefix' in the
+same way that it does `prefix'.
+
+
+File: autoconf.info,  Node: VPATH Substitutions,  Next: Automatic Remaking,  Prev: Installation Prefixes,  Up: Makefiles
+
+`VPATH' Substitutions
+=====================
+
+   You might want to compile a software package in a different directory
+from the one that contains the source code.  Doing this allows you to
+compile the package for several architectures simultaneously from the
+same copy of the source code and keep multiple sets of object files on
+disk.
+
+   To support doing this, `make' uses the `VPATH' variable to find the
+files that are in the source directory.  GNU `make' and most other
+recent `make' programs can do this.  Older `make' programs do not
+support `VPATH'; when using them, the source code must be in the same
+directory as the object files.
+
+   To support `VPATH', each `Makefile.in' should contain two lines that
+look like:
+
+     srcdir = @srcdir@
+     VPATH = @srcdir@
+
+   Do not set `VPATH' to the value of another variable, for example
+`VPATH = $(srcdir)', because some versions of `make' do not do variable
+substitutions on the value of `VPATH'.
+
+   `configure' substitutes in the correct value for `srcdir' when it
+produces `Makefile.in'.
+
+   Do not use the `make' variable `$<', which expands to the pathname
+of the file in the source directory (found with `VPATH'), except in
+implicit rules.  (An implicit rule is one such as `.c.o', which tells
+how to create a `.o' file from a `.c' file.)  Some versions of `make'
+do not set `$<' in explicit rules; they expand it to an empty value.
+
+   Instead, `Makefile' command lines should always refer to source
+files by prefixing them with `$(srcdir)/'.  For example:
+
+     time.info: time.texinfo
+             makeinfo $(srcdir)/time.texinfo
+
+
+File: autoconf.info,  Node: Automatic Remaking,  Prev: VPATH Substitutions,  Up: Makefiles
+
+Automatic Remaking
+==================
+
+   You can put rules like the following in the top-level `Makefile.in'
+for a package to automatically update the configuration information when
+you change the configuration files.
+
+   # The next rule also takes care of making config.h from config.h.in.
+# If remaking config.h does not change it, its timestamp is untouched.
+Makefile: Makefile.in config.status 	$(SHELL) config.status
+config.status: configure 	$(SHELL) $(srcdir)/configure -no-create
+configure: configure.in 	cd $(srcdir); autoconf config.h.in:
+configure.in 	cd $(srcdir); autoheader
+
+
+File: autoconf.info,  Node: Running configure Scripts,  Next: Example,  Prev: Makefiles,  Up: Top
+
+Running `configure' Scripts
+***************************
+
+   A software package that uses a `configure' script generated by
+Autoconf should be distributed with a file `Makefile.in', but no
+`Makefile'; that way, the user has to properly configure the package
+for the local system before compiling it.  Normally, configuring
+consists of simply doing a `cd' to the package's source code directory
+and typing:
+
+     configure
+
+   If the `PATH' environment variable does not contain the directory
+`.', the command is instead:
+
+     ./configure
+
+   Users running `csh' on old versions of System V might have to
+explicitly run `sh' on `configure':
+
+     sh configure
+
+   Running `configure' takes a minute or two.  While it is running, it
+prints some messages that tell what it is doing.  If you don't want to
+see the messages, run `configure' with its standard output redirected
+to `/dev/null'; for example, `./configure >/dev/null'.
+
+   To compile the package in a different directory from the one
+containing the source code, you must use a version of `make' that
+supports the `VPATH' variable, such as GNU `make'.  `cd' to the
+directory where you want the object files and executables to go and run
+`configure'.  `configure' automatically checks for the source code in
+the directory that `configure' is in and in `..'.  If for some reason
+`configure' is not in the source code directory that you are
+configuring, then it will report that it can't find the source code.
+In that case, run `configure' with the option `--srcdir=DIR', where DIR
+is the directory that contains the source code.
+
+   By default, `make install' will install the package's files in
+`/usr/local/bin', `/usr/local/man', etc.  You can specify an
+installation prefix other than `/usr/local' by giving `configure' the
+option `--prefix=PATH'.  Alternately, you can do so by giving a value
+for the `prefix' variable when you run `make', e.g.,
+     make prefix=/usr/gnu
+
+   You can specify separate installation prefixes for machine-specific
+files and machine-independent files.  If you give `configure' the
+option `--exec-prefix=PATH' or set the `make' variable `exec_prefix' to
+PATH, the package will use PATH as the prefix for installing programs
+and libraries.  Normally, all files are installed using the same prefix.
+
+   Another `configure' option is useful mainly in `Makefile' rules for
+updating `config.status' and `Makefile'.  The `--no-create' option
+figures out the configuration for your system and records it in
+`config.status', without actually configuring the package (creating
+`Makefile's and perhaps a configuration header file).  Later, you can
+run `./config.status' to actually configure the package.  You can also
+give `config.status' the `--recheck' option, which makes it re-run
+`configure' with the same arguments you used before.  This option is
+useful if you change `configure'.
+
+   Some packages pay attention to `--with-PACKAGE' options to
+`configure', where PACKAGE is something like `gnu-libc' or `x' (for X
+windows).  The README should mention any `--with-' options that the
+package recognizes.
+
+   `configure' ignores any other arguments that you give it.
+
+   On systems that require unusual options for compilation or linking
+that the package's `configure' script does not know about, you can give
+`configure' initial values for variables by setting them in the
+environment.  In Bourne-compatible shells, you can do that on the
+command line like this:
+
+     CC='gcc -traditional' LIBS=-lposix ./configure
+
+   The `make' variables that you might want to override with
+environment variables when running `configure' are:
+
+   (For these variables, any value given in the environment overrides
+the value that `configure' would choose:)
+
+`CC'
+     C compiler program.  The default is `cc', or `gcc' if `gcc' is in
+     your `PATH'.
+
+`INSTALL'
+     Program to use to install files.  The default is `install' if you
+     have it, `cp' otherwise.
+
+   (For these variables, any value given in the environment is added to
+the value that `configure' chooses:)
+
+`DEFS'
+     Configuration options, in the form `-Dfoo -Dbar...'.  Do not use
+     this variable in packages that use `AC_CONFIG_HEADER'.
+
+`LIBS'
+     Libraries to link with, in the form `-lfoo -lbar...'.
+
+   Of course, in the long term, most problems requiring manual
+intervention should be fixed by updating either the Autoconf macros or
+the `configure.in' file for that package.  *Note Making configure
+Scripts::, for a discussion of that subject.
+
+
+File: autoconf.info,  Node: Example,  Next: Preprocessor Symbol Index,  Prev: Running configure Scripts,  Up: Top
+
+An Example
+**********
+
+   Here are sample `configure.in' and `Makefile.in' files, to give a
+real illustration of using Autoconf.  They are from the GNU `cpio'
+package, which also includes the `mt' and `rmt' programs.
+
+* Menu:
+
+* Sample configure.in::		An example of a `configure' template.
+* Sample Makefile.in::		An example of a `Makefile' template.
+
+
+File: autoconf.info,  Node: Sample configure.in,  Next: Sample Makefile.in,  Up: Example
+
+Sample `configure.in'
+=====================
+
+Here is `configure.in' from GNU `cpio'.  Note the use of the `dnl'
+macro after `AC_SUBST' to suppress an extra unwanted, though harmless,
+newline in the generated `configure' script (because the `AC_SUBST'
+macro does not produce any output where it is called).
+
+     dnl Process this file with autoconf to produce a configure script.
+     AC_INIT(cpio.h)
+     PROGS="cpio"
+     AC_SUBST(PROGS)dnl
+     AC_PROG_CC
+     AC_PROG_CPP
+     AC_GCC_TRADITIONAL
+     AC_PROG_INSTALL
+     AC_AIX
+     AC_MINIX
+     AC_ISC_POSIX
+     AC_RETSIGTYPE
+     AC_MAJOR_HEADER
+     AC_REMOTE_TAPE
+     test -n "$have_mtio" && PROGS="$PROGS mt"
+     AC_RSH
+     AC_CONST
+     AC_UID_T
+     AC_STDC_HEADERS
+     AC_UNISTD_H
+     AC_HAVE_HEADERS(string.h fcntl.h utime.h)
+     AC_REPLACE_FUNCS(bcopy mkdir strdup)
+     AC_HAVE_FUNCS(strerror lchown)
+     AC_VPRINTF
+     AC_ALLOCA
+     AC_XENIX_DIR
+     AC_HAVE_LIBRARY(socket, [LIBS="$LIBS -lsocket"])
+     AC_HAVE_LIBRARY(nsl, [LIBS="$LIBS -lnsl"])
+     AC_OUTPUT(Makefile)
+
+
+File: autoconf.info,  Node: Sample Makefile.in,  Prev: Sample configure.in,  Up: Example
+
+Sample `Makefile.in'
+====================
+
+Here is `Makefile.in' from GNU `cpio', with some irrelevant lines
+omitted, for brevity.
+
+     #### Start of system configuration section. ####
+     
+     srcdir = @srcdir@
+     VPATH = @srcdir@
+     
+     CC = @CC@
+     
+     INSTALL = @INSTALL@
+     INSTALL_PROGRAM = @INSTALL_PROGRAM@
+     INSTALL_DATA = @INSTALL_DATA@
+     
+     DEFS = @DEFS@
+     LIBS = @LIBS@
+     RTAPELIB = @RTAPELIB@
+     
+     CFLAGS = -g
+     LDFLAGS = -g
+     
+     prefix = /usr/local
+     exec_prefix = $(prefix)
+     binprefix =
+     manprefix =
+     
+     bindir = $(exec_prefix)/bin
+     libdir = /etc
+     mandir = $(prefix)/man/man1
+     manext = 1
+     
+     #### End of system configuration section. ####
+     
+     SHELL = /bin/sh
+     
+     SRCS = copyin.c copyout.c copypass.c dstring.c fnmatch.c global.c \
+     main.c tar.c util.c error.c getopt.c getopt1.c filemode.c version.c \
+     rtapelib.c dirname.c idcache.c makepath.c xmalloc.c stripslash.c \
+     userspec.c xstrdup.c bcopy.c mkdir.c strdup.c
+     OBJS = copyin.o copyout.o copypass.o dstring.o fnmatch.o global.o \
+     main.o tar.o util.o error.o getopt.o getopt1.o filemode.o version.o \
+     $(RTAPELIB) dirname.o idcache.o makepath.o xmalloc.o stripslash.o \
+     userspec.o xstrdup.o @LIBOBJS@ @ALLOCA@
+     # mt source files not shared with cpio.
+     MT_SRCS = mt.c argmatch.c
+     MT_OBJS = mt.o argmatch.o error.o getopt.o getopt1.o \
+     xmalloc.o $(RTAPELIB) @ALLOCA@
+     HDRS = cpio.h cpiohdr.h tar.h tarhdr.h dstring.h extern.h filetypes.h \
+     system.h fnmatch.h getopt.h rmt.h
+     DISTFILES = $(SRCS) $(HDRS) COPYING COPYING.LIB ChangeLog Makefile.in \
+     README NEWS INSTALL cpio.1 mt.1 makefile.pc cpio.def cpio.cs \
+     configure configure.in $(MT_SRCS) rmt.c tcexparg.c alloca.c
+     
+     all: @PROGS@
+     
+     .c.o:
+             $(CC) -c $(CFLAGS) $(CPPFLAGS) $(DEFS) -I$(srcdir) $<
+     
+     install: all $(srcdir)/cpio.1 $(srcdir)/mt.1
+             $(INSTALL_PROGRAM) cpio $(bindir)/$(binprefix)cpio
+             test ! -f mt || $(INSTALL_PROGRAM) mt $(bindir)/$(binprefix)mt
+             -test ! -f rmt || $(INSTALL_PROGRAM) rmt /etc/rmt
+             $(INSTALL_DATA) $(srcdir)/cpio.1 $(mandir)/$(manprefix)cpio.$(manext)
+             test ! -f mt || \
+             $(INSTALL_DATA) $(srcdir)/mt.1 $(mandir)/$(manprefix)mt.$(manext)
+     
+     cpio: $(OBJS)
+             $(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+     
+     rmt: rmt.o
+             $(CC) $(LDFLAGS) -o $@ rmt.o $(LIBS)
+     
+     mt: $(MT_OBJS)
+             $(CC) $(LDFLAGS) -o $@ $(MT_OBJS) $(LIBS)
+     
+     TAGS: $(SRCS)
+             etags $(SRCS)
+     
+     clean:
+             rm -f cpio rmt mt *.o core
+     
+     mostlyclean: clean
+     
+     distclean: clean
+             rm -f Makefile config.status
+     
+     realclean: distclean
+             rm -f TAGS
+     
+     dist:
+             echo cpio-`sed -e '/version_string/!d' \
+             -e 's/[^0-9.]*\([0-9.]*\).*/\1/' -e q version.c` > .fname
+             rm -rf `cat .fname`
+             mkdir `cat .fname`
+             ln $(DISTFILES) `cat .fname`
+             tar chZf `cat .fname`.tar.Z `cat .fname`
+             rm -rf `cat .fname` .fname
+
+
+File: autoconf.info,  Node: Preprocessor Symbol Index,  Next: Macro Index,  Prev: Example,  Up: Top
+
+Preprocessor Symbol Index
+*************************
+
+   This is an alphabetical list of the C preprocessor symbols that the
+Autoconf macros define.  To work with Autoconf, C source code needs to
+use these names in `#if' directives.
+
+* Menu:
+
+* const:                                Compiler Characteristics.
+* DECLARE_YYTEXT:                       Alternative Programs.
+* DIRENT:                               Header Files.
+* GETLODAVG_PRIVILEGED:                 Library Functions.
+* gid_t:                                Typedefs.
+* HAVE_FUNCTION:                        General Tests.
+* HAVE_HEADER:                          General Tests.
+* HAVE_ALLOCA_H:                        Library Functions.
+* HAVE_CONFIG_H:                        Setup.
+* HAVE_DOPRNT:                          Library Functions.
+* HAVE_LONG_FILE_NAMES:                 System Services.
+* HAVE_NETDB_H:                         Alternative Programs.
+* HAVE_RESTARTABLE_SYSCALLS:            System Services.
+* HAVE_STRCOLL:                         Library Functions.
+* HAVE_ST_BLKSIZE:                      Structures.
+* HAVE_ST_BLOCKS:                       Structures.
+* HAVE_ST_RDEV:                         Structures.
+* HAVE_SYS_MTIO_H:                      System Services.
+* HAVE_TM_ZONE:                         Structures.
+* HAVE_TZNAME:                          Structures.
+* HAVE_UNISTD_H:                        Header Files.
+* HAVE_UTIME_NULL:                      Library Functions.
+* HAVE_VFORK_H:                         Library Functions.
+* HAVE_VPRINTF:                         Library Functions.
+* HAVE_WAIT3:                           Library Functions.
+* inline:                               Compiler Characteristics.
+* INT_16_BITS:                          Compiler Characteristics.
+* MAJOR_IN_MKDEV:                       Header Files.
+* MAJOR_IN_SYSMACROS:                   Header Files.
+* mode_t:                               Typedefs.
+* NDIR:                                 Header Files.
+* NEED_MEMORY_H:                        Header Files.
+* NEED_SETGID:                          Library Functions.
+* NLIST_NAME_UNION:                     Library Functions.
+* NLIST_STRUCT:                         Library Functions.
+* NO_ARG_ARRAY:                         Compiler Characteristics.
+* NO_MINUS_C_MINUS_O:                   Alternative Programs.
+* NO_REMOTE:                            Alternative Programs.
+* pid_t:                                Typedefs.
+* RETSIGTYPE:                           Typedefs.
+* SETVBUF_REVERSED:                     Library Functions.
+* size_t:                               Typedefs.
+* STDC_HEADERS:                         Header Files.
+* SYSDIR:                               Header Files.
+* SYSNDIR:                              Header Files.
+* TM_IN_SYS_TIME:                       Structures.
+* uid_t:                                Typedefs.
+* USG:                                  Header Files.
+* vfork:                                Library Functions.
+* VOID_CLOSEDIR:                        UNIX Variants.
+* VOID_CLOSEDIR:                        Header Files.
+* WORDS_BIGENDIAN:                      Compiler Characteristics.
+* _ALL_SOURCE:                          UNIX Variants.
+* _MINIX:                               UNIX Variants.
+* _POSIX_1_SOURCE:                      UNIX Variants.
+* _POSIX_SOURCE:                        UNIX Variants.
+* _POSIX_SOURCE:                        UNIX Variants.
+* _POSIX_VERSION:                       Header Files.
+* __CHAR_UNSIGNED__:                    Compiler Characteristics.
+
+
+File: autoconf.info,  Node: Macro Index,  Prev: Preprocessor Symbol Index,  Up: Top
+
+Macro Index
+***********
+
+   This is an alphabetical list of the Autoconf macros.  To make the
+list easier to use, the macros are listed without their preceding `AC_'.
+
+* Menu:
+
+* AIX:                                  UNIX Variants.
+* ALLOCA:                               Library Functions.
+* ARG_ARRAY:                            Compiler Characteristics.
+* BEFORE:                               Macro Ordering.
+* CHAR_UNSIGNED:                        Compiler Characteristics.
+* COMPILE_CHECK:                        General Tests.
+* CONFIG_HEADER:                        Setup.
+* CONST:                                Compiler Characteristics.
+* CROSS_CHECK:                          Compiler Characteristics.
+* DECLARE_YYTEXT:                       Alternative Programs.
+* DEFINE:                               Setting Variables.
+* DIR_HEADER:                           Header Files.
+* DYNIX_SEQ:                            UNIX Variants.
+* FUNC_CHECK:                           General Tests.
+* GCC_TRADITIONAL:                      Alternative Programs.
+* GETLOADAVG:                           Library Functions.
+* HAVE_FUNCS:                           General Tests.
+* HAVE_HEADERS:                         General Tests.
+* HAVE_LIBRARY:                         General Tests.
+* HEADER_CHECK:                         General Tests.
+* HEADER_EGREP:                         General Tests.
+* INIT:                                 Setup.
+* INLINE:                               Compiler Characteristics.
+* INT_16_BITS:                          Compiler Characteristics.
+* IRIX_SUN:                             UNIX Variants.
+* ISC_POSIX:                            UNIX Variants.
+* LN_S:                                 Alternative Programs.
+* LONG_FILE_NAMES:                      System Services.
+* MAJOR_HEADER:                         Header Files.
+* MEMORY_H:                             Header Files.
+* MINIX:                                UNIX Variants.
+* MINUS_C_MINUS_O:                      Alternative Programs.
+* MODE_T:                               Typedefs.
+* OUTPUT:                               Setup.
+* PID_T:                                Typedefs.
+* PREFIX:                               General Tests.
+* PROGRAMS_CHECK:                       General Tests.
+* PROGRAM_CHECK:                        General Tests.
+* PROGRAM_EGREP:                        General Tests.
+* PROG_AWK:                             Alternative Programs.
+* PROG_CC:                              Alternative Programs.
+* PROG_CPP:                             Alternative Programs.
+* PROG_INSTALL:                         Alternative Programs.
+* PROG_LEX:                             Alternative Programs.
+* PROG_RANLIB:                          Alternative Programs.
+* PROG_YACC:                            Alternative Programs.
+* PROVIDE:                              Macro Ordering.
+* REMOTE_TAPE:                          System Services.
+* REPLACE_FUNCS:                        General Tests.
+* REQUIRE:                              Macro Ordering.
+* RESTARTABLE_SYSCALLS:                 System Services.
+* RETSIGTYPE:                           Typedefs.
+* RSH:                                  Alternative Programs.
+* SCO_INTL:                             UNIX Variants.
+* SETVBUF_REVERSED:                     Library Functions.
+* SIZE_T:                               Typedefs.
+* STDC_HEADERS:                         Header Files.
+* STRCOLL:                              Library Functions.
+* STRUCT_TM:                            Structures.
+* ST_BLKSIZE:                           Structures.
+* ST_BLOCKS:                            Structures.
+* ST_RDEV:                              Structures.
+* SUBST:                                Setting Variables.
+* TEST_CPP:                             General Tests.
+* TEST_PROGRAM:                         General Tests.
+* TIMEZONE:                             Structures.
+* UID_T:                                Typedefs.
+* UNISTD_H:                             Header Files.
+* USG:                                  Header Files.
+* UTIME_NULL:                           Library Functions.
+* VFORK:                                Library Functions.
+* VPRINTF:                              Library Functions.
+* WAIT3:                                Library Functions.
+* WITH:                                 General Tests.
+* WORDS_BIGENDIAN:                      Compiler Characteristics.
+* XENIX_DIR:                            UNIX Variants.
+
+
+
+Tag Table:
+Node: Top956
+Node: Introduction1847
+Node: Distributing4648
+Node: Making configure Scripts5563
+Node: Writing configure.in7456
+Node: Invoking autoconf9862
+Node: Invoking autoheader11685
+Node: Specific Tests12680
+Node: Alternative Programs14344
+Node: Header Files17339
+Node: Typedefs22259
+Node: Library Functions23185
+Node: Structures27397
+Node: Compiler Characteristics28422
+Node: System Services30348
+Node: UNIX Variants31008
+Node: General Purpose Macros32716
+Node: Setup33633
+Node: General Tests36225
+Node: Setting Variables43928
+Node: Macro Ordering46407
+Node: Writing Macros48560
+Node: Macro Format50056
+Node: Quoting51428
+Node: Dependencies Between Macros52887
+Node: Prerequisite Macros53508
+Node: Suggested Ordering54557
+Node: Checking for Files55936
+Node: Checking for Symbols56722
+Node: Test Programs58192
+Node: Guidelines59841
+Node: Tricks60983
+Node: Multiple Cases61986
+Node: Makefiles63190
+Node: Predefined Variables64598
+Node: Installation Prefixes65475
+Node: VPATH Substitutions66332
+Node: Automatic Remaking68050
+Node: Running configure Scripts68734
+Node: Example73330
+Node: Sample configure.in73799
+Node: Sample Makefile.in74942
+Node: Preprocessor Symbol Index78238
+Node: Macro Index81913
+
+End Tag Table

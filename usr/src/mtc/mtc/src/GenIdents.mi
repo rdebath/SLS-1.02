@@ -1,0 +1,303 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: administration of compiler generated identifiers
+ *
+ *	$Author: grosch $
+ *	$Date: 1991/11/21 16:57:59 $
+ *	$Revision: 1.2 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE GenIdents;
+
+FROM Idents	IMPORT
+  tIdent	, MakeIdent	, GetString	;
+
+FROM Strings	IMPORT
+  tString	, tStringIndex	, AssignEmpty	, Char		,
+  SubString	, Append	, Concatenate	, ArrayToString	,
+  IntToString	, Length	;
+
+VAR
+  RenameCnt	,
+  LabelCnt	,
+  ParamCnt	,
+  WithCnt	,
+  StructCnt	,
+  GlobalPtrCnt	,
+  LocalPtrCnt	,
+  BoundCnt	,
+  ReturnCnt	,
+  StringCnt	: CARDINAL;
+
+  IdentEXIT	: tIdent;
+
+  String	: tString;
+
+(*------- MakeQualified ------------------------------------------------------*)
+
+PROCEDURE MakeQualified	(Module, Ident: tIdent): tIdent;
+(* returns the identifier Module_Ident.			*)
+VAR 
+  QualId	,
+  String	: tString;
+BEGIN
+  GetString (Module, QualId);
+  Append (QualId, '_');
+  GetString (Ident, String);
+  Concatenate (QualId, String);
+
+  RETURN MakeIdent (QualId);
+END MakeQualified;
+
+(*------- RenameField --------------------------------------------------------*)
+
+PROCEDURE RenameField	(Ident: tIdent): tIdent;
+(* returns the identifier C_0_Ident.			*)
+BEGIN
+  RETURN GenIdent1 ('C', 0, Ident);
+END RenameField;
+
+(*------- Rename -------------------------------------------------------------*)
+
+PROCEDURE Rename	(Ident: tIdent): tIdent;
+(* returns an identifier C_nnn_Ident, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (RenameCnt);
+
+  RETURN GenIdent1 ('C', RenameCnt, Ident);
+END Rename;
+
+(*------- GenLabel -----------------------------------------------------------*)
+
+PROCEDURE GenLabel	(): tIdent;
+(* returns an identifier EXIT_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (LabelCnt);
+
+  RETURN GenIdent3 (IdentEXIT, LabelCnt);
+END GenLabel;
+
+(*------- GenSelector --------------------------------------------------------*)
+
+PROCEDURE GenSelector	(StructOrUnion: CHAR; Nr: CARDINAL): tIdent;
+(* returns the identifier StructOrUnion_Nr.		*)
+BEGIN
+  RETURN GenIdent2 (StructOrUnion, Nr);
+END GenSelector;
+
+(*------- GenParam -----------------------------------------------------------*)
+
+PROCEDURE GenParam	(): tIdent;
+(* returns an identifier O_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (ParamCnt);
+
+  RETURN GenIdent2 ('O', ParamCnt);
+END GenParam;
+
+(*------- GenWith ------------------------------------------------------------*)
+
+PROCEDURE GenWith	(): tIdent;
+(* returns an identifier W_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (WithCnt);
+
+  RETURN GenIdent2 ('W', WithCnt);
+END GenWith;
+
+(*------- GenStruct1 ---------------------------------------------------------*)
+
+PROCEDURE GenStruct1	(Module: tIdent; Nr: CARDINAL): tIdent;
+(* returns the identifier Module_Nr or Module__Nr (if	*)
+(* the identifier Module consists of a single character)*)
+VAR
+  ModuleId	: tString;
+BEGIN
+  GetString (Module, ModuleId);
+  IF Length (ModuleId) > 1 THEN
+    RETURN GenIdent3 (Module, Nr);
+  ELSE
+    Append (ModuleId, '_');
+    RETURN GenIdent3 (MakeIdent (ModuleId), Nr);
+  END; (* IF *)
+END GenStruct1;
+
+(*------- GenStruct2 ---------------------------------------------------------*)
+
+PROCEDURE GenStruct2	(): tIdent;
+(* returns an identifier S_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (StructCnt);
+
+  RETURN GenIdent2 ('S', StructCnt);
+END GenStruct2;
+
+(*------- GenGlobalPtr -------------------------------------------------------*)
+
+PROCEDURE GenGlobalPtr	(Ident: tIdent): tIdent;
+(* returns an identifier G_nnn_Ident, whereby nnn is	*)
+(* an unique number > 0.				*)
+BEGIN
+  INC (GlobalPtrCnt);
+
+  RETURN GenIdent1 ('G', GlobalPtrCnt, Ident);
+END GenGlobalPtr;
+
+(*------- GenLocalPtr --------------------------------------------------------*)
+
+PROCEDURE GenLocalPtr	(): tIdent;
+(* returns an identifier L_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (LocalPtrCnt);
+
+  RETURN GenIdent2 ('L', LocalPtrCnt);
+END GenLocalPtr;
+
+(*------- GenBound -----------------------------------------------------------*)
+
+PROCEDURE GenBound	(): tIdent;
+(* returns an identifier F_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (BoundCnt);
+
+  RETURN GenIdent2 ('B', BoundCnt);
+END GenBound;
+
+(*------- GenReturn ----------------------------------------------------------*)
+
+PROCEDURE GenReturn	(): tIdent;
+(* returns an identifier R_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (ReturnCnt);
+
+  RETURN GenIdent2 ('R', ReturnCnt);
+END GenReturn;
+
+(*------- GenString ----------------------------------------------------------*)
+
+PROCEDURE GenString	(): tIdent;
+(* returns an identifier X_nnn, whereby nnn is an	*)
+(* unique number > 0.					*)
+BEGIN
+  INC (StringCnt);
+
+  RETURN GenIdent2 ('X', StringCnt);
+END GenString;
+
+(*------- GenOpaque ----------------------------------------------------------*)
+
+PROCEDURE GenOpaque	(TypeName: tIdent): tIdent;
+(* PRECONDITION: TypeName = Module_Ident	 	*)
+(* returns the identifier TypeName without leading	*)
+(* module name and underscore.				*)
+VAR
+  NewId		,
+  QualId	: tString;
+  Index		: tStringIndex;
+BEGIN
+  GetString (TypeName, QualId);
+
+  Index := Length (QualId) - 1;
+  LOOP
+    IF Char (QualId, Index) = '_' THEN
+      EXIT;
+    ELSE
+      DEC (Index);
+    END; (* IF *)
+  END; (* LOOP *)
+  
+  SubString (QualId, Index + 1, Length (QualId), NewId);
+
+  RETURN MakeIdent (NewId);
+END GenOpaque;
+
+(*------- GenIdent1 ----------------------------------------------------------*)
+
+PROCEDURE GenIdent1	(Letter: CHAR; Nr: CARDINAL; Ident: tIdent): tIdent;
+(* returns the identifier Letter_Nr_Ident.		*)
+VAR
+  NewId		,
+  String	: tString;
+BEGIN
+  AssignEmpty (NewId);
+
+  Append (NewId, Letter);
+  Append (NewId, '_');
+
+  IntToString (Nr, String);
+  Concatenate (NewId, String);
+
+  Append (NewId, '_');
+
+  GetString (Ident, String);
+  Concatenate (NewId, String);
+
+  RETURN MakeIdent (NewId);
+END GenIdent1;
+
+(*------- GenIdent2 ----------------------------------------------------------*)
+
+PROCEDURE GenIdent2	(Letter: CHAR; Nr: CARDINAL): tIdent;
+(* returns the identifier Letter_Nr.			*)
+VAR
+  NewId		,
+  String 	: tString;
+BEGIN
+  AssignEmpty (NewId);
+
+  Append (NewId, Letter);
+  Append (NewId, '_');
+
+  IntToString (Nr, String);
+  Concatenate (NewId, String);
+
+  RETURN MakeIdent (NewId);
+END GenIdent2;
+
+(*------- GenIdent3 ----------------------------------------------------------*)
+
+PROCEDURE GenIdent3	(Ident: tIdent; Nr: CARDINAL): tIdent;
+(* returns the identifier Ident_Nr.			*)
+VAR
+  NewId		,
+  String	: tString;
+BEGIN
+  AssignEmpty (NewId);
+
+  GetString (Ident, String);
+  Concatenate (NewId, String);
+
+  Append (NewId, '_');
+
+  IntToString (Nr, String);
+  Concatenate (NewId, String);
+
+  RETURN MakeIdent (NewId);
+END GenIdent3;
+
+BEGIN
+  RenameCnt	:= 0;
+  LabelCnt	:= 0;
+  ParamCnt	:= 0;
+  WithCnt	:= 0;
+  StructCnt	:= 0;
+  GlobalPtrCnt	:= 0;
+  LocalPtrCnt	:= 0;
+  BoundCnt	:= 0;
+  ReturnCnt	:= 0;
+  StringCnt	:= 0;
+
+  ArrayToString ("EXIT", String);
+  IdentEXIT	:= MakeIdent (String);
+END GenIdents.

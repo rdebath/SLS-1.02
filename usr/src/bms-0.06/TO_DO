@@ -1,0 +1,125 @@
+This file contains some random notes about things that could be done
+to improve MandelSpawn.  Feel free to try you hand at any of these and
+send me context diffs; if your enhancements are nice and clean I will
+incorporate them into the distribution.  If you make a significant
+contribution (more than just a few lines of code), a written copyright
+disclaimer may be needed (see the end of the file COPYING).
+
+
+					Andreas, gson@niksula.hut.fi
+--
+
+The documentation needs work.  More info is needed about how to
+install on hosts running SunOS and/or YP. The xms(1) man page should
+have a RESOURCES section.  Perhaps there should be a tutorial in
+Texinfo format.
+
+Mslaved and mslavedc still don't accept spaces between an option and
+its argument.  This should be fixed.
+
+In xms, the value specified by the "-colours" option should probably
+have a default value that is determined automatically as a function of
+the number of display planes and/or the number of free cells in the
+default colourmap.
+
+Add support for other visual types besides PseudoColor and StaticGray
+to xms, and improve the support for StaticGray visuals so that it uses
+greyscale instad of black-and-white if possible.
+
+Use getservent()?
+
+Invent a clever algorithm to decide which bitplanes to invert (instead
+of inverting them all) to maximize contrast when drawing the
+rubberband box in xms.
+
+The "-greyscale" option of xms should not be necessary when it is
+possible to detect automatically that a greyscale display is being
+used (unfortunately some machines lie about this).
+
+There should be a way to "loop" only part of the spectrum instead of
+the whole spectrum when the number of colours is smaller than the
+iteration count.  E.g., xms -spectrum "white-(red-blue-green)-black"
+would show a white exterior, black interior and repeat the
+red-blue-green sequence as many times as needed.
+
+Write a widget for interactive editing of the colourmap ("spectroscope
+widget"?) for xms.  It could show the spectrum as a band of colours
+with lines marking the interpolation points, allowing the user to grab
+the points with the mouse and move them towards either end of the
+spectrum, and popping up a set of scrollbars next to the line for
+editing the RGB value.
+
+A lot of identical small structures are malloc'ed and freed;
+it would probably be faster to put them on a linked list instead
+of freeing them and then allocate from that list whenever an object
+of the same size is needed again and the list is nonempty.
+
+XtInitialize should not be used (in main.c), it's obsolete.
+
+Add special-case support for more display types (those that
+cause the dreaded "drawing a pixel at a time, this will be very
+slow" message).  In particular, the Sony NEWS 4-plane display
+adapter is not supported in monochrome mode, nor are monochrome
+DECStations.
+
+Write a fixed-point multiply routine for the SPARC in assembly
+language and compare its performance to the floating-point version
+(it might be slower).
+
+Add fixed-point support for other cpus (NS32K... ?) wherever
+it is faster than floating point. 
+
+Add an option to mslaved to make it discard requests from outside the
+local network, to avoid people abusing servers at remote sites.
+("netmask-style"?).
+
+It should be possible to query the computation servers for performance
+statistics.  This of course turns MandelSpawn into Yet Another Unix
+Benchmark, and gives yet another definition of the dreaded MIPS
+rating: MIPS is short for "Mandelbrot Iterations Per Second" :-).  It
+may become a very popular benchmark because it gives very high
+MIPS ratings :-) :-).
+
+Improve the protocol.  Currently the servers are idle during the
+round-trip to the client when they have finished one chunk and are
+waiting for the next.  Instead the client could send, say, two chunks
+initially and the server would try to maintain a queue of work to be
+done containing about two chunks at all times.  When sending results
+to a client the server should indicate how many more chunks it needs
+to keep the queue full.  This would also make it possible to have a
+single server running on a multiprocessor machine; it would then ask
+for at least as many chunks as there are CPUs in the machine.  Note
+that the "queue" of work to be done probably ought to be a LIFO
+structure so that the most recent requests are served first; they are
+the ones that are most likely to be finished before the client has
+retransmitted the same chunk to another server.  Having most chunks
+calculated immediately and a few chunks very late is better than
+delaying all chunks uniformly as when using a FIFO.
+
+There should also be an "abort" packet that is sent to all computation
+servers when an update has finished, so that they don't continue
+making calculations whose results will never be used.  Note that this
+will also reduce network load because the abort packet is smaller than
+the packet whose transmission it inhibits.
+
+Implement multiple-precision fixed-point arithmetic.  Note that even
+a 64-bit fixed-point number will have more precision than the mantissa
+of a typical C "double", so the client will also have to do its
+coordinate manipulations (zooming, etc.) using the fixed-point routines
+or some other more or less portable, multiple-precision arithmetic
+package.
+
+Write a program for colouring the output of bms in the same way xms
+does, using on a "spectrum" of colours to interpolate between.  The
+pgmtoppm program in PBMPLUS already does colour interpolation between
+two colours, so it should be a good starting point.  Note that this
+feature should definitely not be built into bms but written as a
+separate utility program that converts from pgm to ppm format.  Such a
+program would also be very useful as a general-purpose tool for making
+false-colour images of any kind of greyscale data.
+
+There should be a way to scroll the image inside an xms window,
+recalculating only the newly exposed areas at the trailing edge.
+
+Colormap animation would be a nice addition to xms, and not difficult
+to implement.

@@ -1,0 +1,340 @@
+XView API for Drag and Drop.
+# @(#)dnd_api.txt	1.1 10/5/91 SMI
+
+This paper discusses the API for drag and drop in the XView toolkit.  There
+are three parts to drag and drop that are discussed.  "Registry of Interest"
+defines how applications tell other applications that they are interested
+in receiving drops.  "Initiating a Drop" explains how to source a drop
+and "Receiving a Drop" defines the api for the destination of drop events.
+
+Registry of Interest:
+
+In order to receive drop and previewing events, an application must register
+areas that are acceptable drop sites such as a graphical icon.  These areas or
+site descriptions within the application can be made up of several regions.  
+Currently a region is described by a rectangle.
+
+If the application does not register an area as a drop site, the source
+of the drop will refuse to drop on that area.
+
+In order to provide animation of the drop site, a region can
+receive synthetic preview events from the source.  These preview events 
+indicate to the destination the state of the mouse relative to the destination.
+Possible events include LOC_WINENETER and LOC_WINEXIT that cue the drop site
+when the mouse enters or leaves a region.  Sites can also select for LOC_DRAG
+events that are sent as the mouse moves across a region.  Each site
+description can specify *hints* to the source as to what type of synthetic
+events it would like to receive.  These events will be delivered to the
+event proc of the site's owner.  They will use the format of the Event
+structure.
+
+	action  == ACTION_DRAG_PREVIEW
+	ie_code == {LOC_WINENTER, LOC_WINEXIT, LOC_DRAG}
+	ie_locx and ie_locy, coords of mouse in site's window coordinate space.
+
+Possible destinations receiving ACTION_DRAG_PREVIEW events should do what
+ever is necessary to indicate to the user that this area is an acceptable
+drop site.  This might mean inverting an image at the drop site or changing
+a folder icon from closed to an open state.
+
+A new drag and drop item has been created in order to facilitate registry of
+interest.  This item is subclassed from the generic pkg and instances of
+it will be owned by a window based object.
+
+Item name: DROP_SITE_ITEM
+Type: 	   Xv_drop_site
+Owner:     Xv_Window
+
+Attributes:
+----------
+
+DROP_SITE_ID
+
+Type: 		long
+Default:	xv_unique_key()
+Procs:		create, set, get
+
+An uninterpreted id used to distinguish one site from the next.
+Ideal when more than one site has been set on an object.  This id will
+be sent in the ACTION_DRAG_PREVIEW, ACTION_DRAG_MOVE, and ACTION_DRAG_COPY
+events.
+
+DROP_SITE_EVENT_MASK
+
+Type:		{DND_ENTERLEAVE, DND_MOTION}
+Default:	NULL
+Procs:		create, set, get
+
+A mask used to specify if the regions within the site will receive synthetic
+previewing events.  The previewing events will come with event_action() 
+equal to ACTION_DRAG_PREVIEW and event_id() set to one of LOC_WINENTER,
+LOC_WINEXIT or LOC_DRAG.  These events will be delivered to the event
+proc of the drop item owner.  This mask is only a hint to the source.  There
+is no guarantee the source will send these previewing events.
+
+DROP_SITE_DEFAULT 
+ 
+Type:           Boolean
+Default:        False
+Procs:          create, set, get
+
+Specifies that this drop site wants forwarded drops from the window manager. 
+Such drops include drops on icons and window manager decor windows.  Only
+one drop site default should be specified per base frame. 
+
+DROP_SITE_REGION
+
+Type: 		Rect *
+Default:	NULL
+Procs:		create, set, get
+
+This attribute is used to associate a region to a drop item.  The region
+is a Rect *.  DROP_SITE_REGION will add to any existing regions within
+the drop site item.
+
+The rect pointed to by Rect * will be copied.  The coordinates in the
+rect should be relative to the drop site item's owner's window.
+
+An xv_get of a region of type Rect * will return an allocated Rect structure.
+This should be freed once the application has finished using it.
+
+DROP_SITE_REGION_PTR
+
+Type: 		Rect * (A NULL terminated array of Rect structs)
+Default:	NULL
+Procs:		create, set, get
+
+This attribute is similar to DROP_SITE_REGION except that it accepts a
+NULL terminated list of regions.  It will add to any existing regions
+that exist within the drop item.  A NULL rect is defined to be one
+with width or height equal to 0.
+
+An xv_get of a region list will return a NULL terminated list of Rects.
+This data should be freed once the application has finished using it.
+
+DROP_SITE_DELETE_REGION
+
+Type: 		Rect *
+Default:	None
+Procs:		create, set
+
+Used to remove a region from the drop item.  If the owner is destroyed with
+xv_destroy, any drop site regions attached to it will also be destroyed.
+If NULL is passed as an argument, all regions in the drop site will be
+removed.
+
+DROP_SITE_DELETE_REGION_PTR
+
+Type: 		Rect * (a NULL terminated array of Rect structs)
+Default:	None
+Procs:		create, set
+
+Used to remove a list of regions from the drop item.
+
+
+If an object is no longer going to support drops it should remove its drop
+site regions.  If the object is going to be destroyed there is no need to
+remove the sites as XView will destroy any drop site items associated with
+the object.  If NULL is passed as an argument, all regions in the drop site
+will be removed.
+
+
+The individual regions should correspond to/or overlay objects contained
+within the window that are willing to receive drops.  If the position of the
+objects within the window change or no longer exist, it is the responsibility
+of the application to update the drop site item to correspond to the current
+state of the window.   For example, if an object is deleted, its region
+should be removed.  If an object is being clipped by the window border and is
+no longer viewable, its region should be removed.   If the application does
+not keep the region information up to date, a user can be mislead into
+believing that an area supports drops.
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+Initiating a Drop:
+
+If an application wants to initiate a drag and drop operation, it must first
+create a drag and drop object and set attributes on it to define the
+behavior of the drag and drop operation.  The new package is called
+DRAGDROP and is subclassed from the new selection pkg.  An instance of a
+DRAGDROP object is created by using xv_create():
+
+        	dnd_object = xv_create(owner, DRAGDROP, attrs, NULL)
+
+where owner is an Xv_window and attrs are defined below.  The object created
+can be modified later by using xv_set().  Information can be looked up
+by using xv_get().  The drag and drop object that is created is later
+used as a parameter to dnd_send_drop().
+
+The owner of the drag and drop object should be the window in which the 
+drag operation will be initiated from.
+
+A drag and drop object can only be used on one drag and drop operation at
+a time.
+
+To initiate a drag operation an application should call dnd_send_drop().
+The dnd_send_drop() function will be responsible for changing the root
+cursor, sending previewing events to appropriate sites, sending the ``trigger''
+message (ACTION_DRAG_COPY or ACTION_DRAG_MOVE), etc.  As an example, filemgr
+should call this routine when the user dragged the mouse ``x'' number of
+pixels over a selected file icon.
+
+dnd_send_drop() takes as a parameter a drag and drop object.
+
+		int
+		dnd_send_drop(object)
+        	    Xv_dnd       object;
+ 
+dnd_send_drop() will not return until the user has released all of the
+mouse buttons thus dropping the object.  The dnd_send_drop() function will
+return one of:
+
+XV_OK:  		The drag and drop operation has begun. 
+DND_TIMEOUT:    	The destination did not respond to the kicker message.
+DND_ILLEGAL_TARGET:     The user dropped on an object that has not registered
+			interest in drag and drop.
+DND_SELECTION:		A selection could not be obtained.
+DND_ROOT:		The user dropped on the root window.
+XV_ERROR:		An unexpected error occurred.
+
+The means in which data is transferred under drag and drop operations is 
+through selections.  Since the drag and drop pkg is subclassed from the
+new selection owner pkg it fully supports selections.  A selection should be 
+associated with the drag and drop object in order for the destination to
+obtain the data to be transferred.  The selection should be a transient
+selection that will persist only for the duration of the drag and drop
+operation.  A transient selection should be used even if the dragged object
+is already associated with another selection such as the PRIMARY.  The reason
+for this is that another client may acquire the PRIMARY selection while the
+drag and drop transfer is taking place.  If this were to happen, the drag and
+drop operation would fail.
+
+The application can use the SEL_RANK attribute to associate a selection
+with the drag and drop object.  If the application does not own a
+selection (SEL_OWN) before dnd_send_drop() is called, XView will
+create a transient selection and associate it with the drag and drop
+object.  This selection can be obtained by using xv_get on the dnd object
+with the SEL_RANK attribute. It is the responsibility of the application to
+disown a selection associated with the drag and drop object when it has
+completed the operation.  This is irregardless of who initially established
+ownership of the selection. 
+
+Since the source will be required to reply to requests from the destination
+for data conversion, the source should  have either a convert proc or 
+selection items set on the drag and drop object *before* it calls
+dnd_send_drop().
+
+In addition to all selection owner pkg attrs, the following drag and drop attrs
+can be used on a drag and drop object:
+------------------------------------------------------------
+
+DND_TYPE
+
+Defines whether this drag and drop operation will be a copy or a move.  This
+is just a hint to the destination.  If the type is a ``move'' operation and
+if the destination honors the hint, the destination will ask the source to
+convert the DELETE target.
+
+Type:           DND_COPY or DND_MOVE
+Default:        DRAG_MOVE
+Procs:          create, set, get
+
+DND_CURSOR
+
+Defines the mouse cursor that will be used during the drag portion of
+the drag and drop operation.
+
+Type:           Xv_cursor
+Default:        Predefined OPEN LOOK drag and drop cursor.
+Procs:          create, set, get
+
+DND_X_CURSOR
+
+An alternative to DND_CURSOR, but accepts an XID of a cursor instead of
+an Xv_object.
+
+Type:           Cursor
+Default:        Predefined OPEN LOOK drag and drop cursor.
+Procs:          create, set, get
+
+DND_ACCEPT_CURSOR
+DND_ACCEPT_X_CURSOR
+
+Defines the mouse cursor to be used when the cursor is over an acceptable
+drop site.
+
+Type:           Xv_cursor, Cursor
+Default:        Predefined OPEN LOOK drag and drop cursor.
+Procs:          create, set, get
+
+DND_TIMEOUT_VALUE
+ 
+Defines the amount of time to wait for an ACK from the destination
+after the ``kicker'' message (ACTION_DRAG_*) has been sent.
+
+Type:           struct timeval *
+Default:        Default selection pkg timeout.
+Procs:          create, set, get
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+Receiving a Drop:
+
+A window or object that has registered interest in receiving drop events
+will receive an ACTION_DRAG_COPY or an ACTION_DRAG_MOVE event when one of its
+sites is dropped on.
+
+Upon receiving a drop event, the application should call
+dnd_decode_drop().  The application should pass in as a parameter
+the ACTION_DRAG_{MOVE, COPY} event that it received along with a 
+selection requester object:
+
+	
+	Xv_drop_site
+	dnd_decode_drop(sel_object, drop_event)
+	    Selection_requestor   sel_object;
+	    Event 		 *drop_event;
+
+The dnd_decode_drop() function will decode the drop event.  It will
+associate the selection rank defined within the drop event with the
+selection object that was passed into dnd_decode_drop().
+
+The dnd_decode_drop() function will send an ACK (if requested) to the
+source of the drag and drop informing it that the transaction has begun.
+
+dnd_decode_drop() will return XV_ERROR if it failed to initiate the drag
+and drop transaction [i.e. the selection defined within the drop event does
+not exist.]  Or the drop site item that was dropped on will be returned if
+it could begin the drag and drop transaction.
+
+If dnd_decode_drop() returns a drop site item, it is the responsibility
+of the application to continue and complete the drag and drop transaction.
+This will be done by normal selections on the selection object passed into
+dnd_decode_drop().
+
+The macro dnd_is_local(drop_event) returns True if the source and
+destination are the same client.
+
+If the application receives an ACTION_DRAG_MOVE, it should simulate a move
+by performing a copy followed by a delete.   The delete is initiated by
+the requester asking the holder to convert the DELETE target:
+
+	xv_set(sel_object, SEL_TYPE_NAME, "DELETE", 0);
+	(void)xv_get(sel_object, SEL_DATA, &length, &format);
+
+	- or - (Non-blocking)
+
+	xv_set(sel_object, SEL_TYPE_NAME, "DELETE", 0);
+	sel_post_request(sel_object);
+
+The application should only ask the owner to delete the selection if
+the drop event indicates a move operation and the application determines
+it is appropriate to do so.  This will typically happen after the application
+has successfully transferred the data.
+
+Finally the application should inform the toolkit that the drag and drop
+operation has completed.  It does so by calling:
+
+	dnd_done(sel_object);

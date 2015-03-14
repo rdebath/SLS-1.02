@@ -1,0 +1,215 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 2
+%label{event}{3.1}
+%label{handler}{3.2}
+%label{listener}{?}
+%label{target}{3.3}
+%label{button-label}{3.4}
+%label{button-impl}{?}
+
+\begin{document}
+%
+%
+\chapter{Event processing}%
+%
+\float{figure}{3-\pagenumber{00}}%377.52 -644.88 -2
+\float{figure}{3-\pagenumber{00}}%377.52 -644.88 0
+This chapter describes the InterViews mechanisms for processing user
+input.  An %
+%
+\term{event}%
+%
+ is an object that represents a user input action, such as pressing
+a mouse button or a keystroke.  Events are low-level objects that
+application code should rarely need to access directly.  A %
+%
+\term{handler}%
+%
+ is an object that processes events.  An %
+%
+\term{input handler}%
+%
+ is a glyph that provides a handler that translates events to operations
+such as press, release, and keystroke.%
+%
+\section{Events}%
+%
+The event class interface is shown in Figure \ref{event}%
+%
+\code{typedef unsigned int EventType;\
+typedef unsigned long EventTime;\
+typedef unsigned int EventButton;\
+typedef unsigned int EventModifierKey;\smallskip
+interface Event \{\
+\quad enum \{ undefined, motion, down, up, key, other\_event \};\
+\quad enum \{ none, any, left, middle, right, other\_button \};\
+\quad enum \{ control, shift, capslock, meta \};\smallskip
+\quad Window* window() const;\
+\quad boolean pending();\
+\quad void unread();\
+\quad EventType type() const;\
+\quad EventTime time() const;\
+\quad Coord pointer\_x() const, pointer\_y() const;\
+\quad EventButton pointer\_button() const;\
+\quad boolean button\_is\_down(EventButton) const;\
+\quad boolean modifier\_is\_down(EventModifierKey) const;\
+\quad unsigned char keycode() const;\
+\quad unsigned int mapkey(char*, unsigned int len) const;\
+\};%
+%
+\figurecaption{\label{event}Event protocol}%
+%
+%1.68001 -348.96 0
+}%
+%
+.  Input events arrive in a single stream (per display) to an application.  EventType
+is the kind of event (mouse motion, button down, etc.).  An application
+receives all window system events, but Event::type is only defined
+for device input.  Other events have the type Event::other\_event{\font{Helvetica}\size{10}.}  EventButton
+is the number of a button on a pointing device, where Event::any refers
+to any one of the buttons.
+
+\quad Event::window returns the window that received the event.  Event::pending
+tests if more events are waiting to be read.  Event::unread puts the
+event at the front of the input queue for the display.
+
+\quad Event::time returns a timestamp in milliseconds for the event.  Event::pointer\_x
+and Event::pointer\_y return the pointer location for the event in
+coordinates relative to the lower-left corner of the window.  Pointer
+locations are defined for motion, button, and keyboard events.  Event::pointer\_button
+returns the EventButton for a down or up event, Event::none for all
+other events.  Event::button\_is\_down (Event::modifier\_is\_down)
+returns whether the given button (modifier key) was down %
+%
+\emphasis{before}%
+%
+ the event occurred.
+
+\quad Event::keycode returns the code associated with a keystroke.  Key
+codes are potentially platform-specific and should be avoided if possible.  Event::mapkey
+finds the string binding for a given key.  Event::mapkey is passed
+a buffer for the result and the size of the buffer; it returns the
+number of characters in the translated string.  If the event is not
+a key event, Event::mapkey returns -1.%
+%
+\section{Handlers}%
+%
+A handler is an object that is passed an event to process.  The only
+operation is Handler::event, which translates a raw event into an
+abstract operation.  InputHandler is a monoglygph subclass that uses
+a handler to translate events.  ActiveHandler is a subclass of input
+handler that detects when the input pointer enters or leaves its body.  Figure
+\ref{handler} shows the handler, input handler, and active handler
+protocols.%
+%
+\code{interface Handler : Resource \{\
+\quad boolean event(Event\&) ;\
+\};\
+\
+interface InputHandler : MonoGlyph \{\
+\quad InputHandler(Glyph*, Style*);\smallskip
+\quad Handler* handler() const;\
+\quad InputHandler* parent() const;\
+\quad Style* style() const;\
+\quad void append\_input\_handler(InputHandler*);\
+\quad void remove\_input\_handler(InputHandler*);\
+\quad void focus(InputHandler*);\
+\quad void next\_focus();\
+\quad void prev\_focus();\
+\quad InputHandler* focus\_in();\
+\quad void focus\_out();\smallskip
+\quad void move(const Event\&);\
+\quad void press(const Event\&);\
+\quad void drag(const Event\&);\
+\quad void release(const Event\&);\
+\quad void keystroke(const Event\&);\
+\quad void double\_click(const Event\&);\smallskip
+\quad void allocation\_changed(Canvas*, const Allocation\&);\
+\quad void redraw() const;\
+\};\smallskip
+interface ActiveHandler : InputHandler \{\
+\quad ActiveHandler(Glyph*, Style*);\
+\quad void enter();\
+\quad void leave();\
+\};%
+%
+\figurecaption{\label{handler}Handler and InputHandler protocols}%
+%
+%1.67995 -1.43991 2
+}%
+%
+
+
+\quad The InputHandler constructor is passed the glyph body (which
+can also be set with MonoGlyph::body) and a style.  Though a glyph
+can in general have multiple parents, input handlers form a hierarchy
+for focus management.  InputHandler::append\_focusable adds a child,
+setting the child's parent to the target input handler.  InputHandler::remove\_focusable
+removes a child.  InputHandler::focus sets the current focus for the
+input handler.  The effect of setting focus is that key events (or
+in general any focusable event) will be processed by the focus input
+handler as opposed to an input handler under the input pointer coordinates.
+
+\quad InputHandler::next\_focus and InputHandler::prev\_focus move
+the focus forward and backward through the children of an input handler.  InputHandler::focus\_in
+moves the focus \252down\272 the hierarchy and returns the handler
+that now has focus.  InputHandler::focus\_out notifies an input handler
+that it no longer will receive focusable events, in case it wishes
+to change its appearance.
+
+\quad InputHandler::move, press, drag, release, and keystroke are
+called by the handler in response to motion, button down, motion while
+a button is down, button up, and key events.  InputHandler::double\_click
+is called when two button down events occurs within a threshold time.  The
+threshold is set by the \252clickDelay\272 style attribute; the default
+is 250 milliseconds.
+
+\quad InputHandler::allocation\_changed is a notification that the
+glyph's size or position has changed; subclasses can override this
+operation and therefore typically do not need to define an allocate
+operation.  InputHandler::redraw damages the canvas and area where
+the input handler was most recently drawn.
+
+\quad The implementation of ActiveHandler notices when motion events
+first intersect the glyph's body, in which case ActiveHandler::enter
+is called, and when the motion next leaves the body, in which case
+ActiveHandler::leave is called.  The default enter and leave operations
+do nothing; subclasses should define these operations as desired.%
+%
+\section{Targets}%
+%
+A {\bf {\font{Times-Roman}%
+%
+\term{target}%
+%
+}} controls the behavior of picking on its body.  A target is useful
+for defining a pick area that is not identical to the underlying object.  For
+example, if one wanted to pick in a line of characters then one might
+wish to interpret the pick based on the line height instead of the
+heights of the individual characters.  So, a pick lower than the top
+of the ``h'' in ``the'' but above the ``e'' will not miss.
+
+\quad Figure \ref{target}%
+%
+\code{enum TargetSensitivity \{\
+\quad TargetPrimitiveHit,\
+\quad TargetCharacterHit\
+\};\smallskip
+interface Target : MonoGlyph \{\
+\quad Target(Glyph* body, TargetSensitivity);\
+\};%
+%
+\figurecaption{Targe\label{target}t class interface}%
+%
+%0.719971 -263.52 3
+}%
+%
+ shows the target class interface.  The target behavior is controlled
+by the sensitivity parameter to the constructor.  TargetPrimitiveHit
+means the body is hit if the pick region intersects the target's allocation.  TargetCharacterHit
+means the body is hit if the area intersects the target's allocation
+in the X dimension.%
+\end{document}

@@ -1,0 +1,520 @@
+%% This file documents RLaB, a Vector and Matrix Programming Language
+%% Copyright @copyright{} 1992, 1993 Ian R. Searle
+%%     
+%% Permission is granted to make and distribute verbatim copies of
+%% this manual provided the copyright notice and this permission notice
+%% are preserved on all copies.
+%%
+%% Permission is granted to process this file through TeX and print the
+%% results, provided the printed document carries a copying permission
+%% notice identical to this one except for the removal of this paragraph
+%% (this paragraph not being relevant to the printed manual).
+%%
+%% Permission is granted to copy and distribute modified versions of this
+%% manual under the conditions for verbatim copying, provided also that the
+%% sections entitled ``Distribution'' and ``General Public License'' are
+%% included exactly as in the original, and provided that the entire
+%% resulting derived work is distributed under the terms of a permission
+%% notice identical to this one.
+%%
+%% Permission is granted to copy and distribute translations of this manual
+%% into another language, under the above conditions for modified versions,
+%% except that the sections entitled ``Distribution'' and ``General Public
+%% License'' may be included in a translation approved by the author instead
+%% of in the original English.
+
+\documentstyle[11pt]{article}
+%%
+%% Set up page style, new commands etc...
+%%
+\setlength{\parindent}{0in}
+\setlength{\textwidth}{6.25in}
+\setlength{\oddsidemargin}{0.35in}
+\setlength{\evensidemargin}{0in}
+\setlength{\parskip}{0.1in}
+%%
+%%  Tell LaTeX to number subsubsections and list them in 
+%%  the table of contents
+%%
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+%%
+\newcommand{\defeq}{\stackrel{\triangle}{=}}
+\newcommand{\rvec}[4]{{}^{#2}\vec{#1}^{#3}_{#4}}
+\newcommand{\bvec}[4]{{}^{#2}{\mbox{\boldmath $#1$}}{}^{#3}_{#4}}
+\newcommand{\dbvec}[4]{{}^{#2}\dot{\mbox{\boldmath $#1$}}{}^{#3}_{#4}}
+\newcommand{\ddbvec}[4]{{}^{#2}\ddot{\mbox{\boldmath $#1$}}{}^{#3}_{#4}}
+%%
+%% Define RLaB logo.
+%%
+%%\def\LaTeX{{\rm L\kern-.36em\raise.3ex\hbox{\sc a}\kern-.15em
+%%    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\def\RLaB{{\rm R\kern-.1667em\lower.5ex\hbox{L}\kern-.25em\raise.3ex
+    \hbox{\sc a}\kern-.2emB}}
+%%
+%%
+\title{\RLaB\ Function Tutorial}
+\author{Ian R. Searle \\ ians@eskimo.com}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+   \RLaB\ is an interactive or batch mode matrix-oriented programming
+   language. \RLaB\ also serves as a convenient interface to the
+   LAPACK, FFTPACK, and RANLIB numerical libraries from netlib.
+
+   This tutorial is intended to serve as an introduction to \RLaB\'s
+   user-function abilities. As with the Matrix Tutorial, this document
+   is best read while siting at a computer terminal, trying each
+   example as it is shown in the text.
+
+   It is assumed that the reader has had some programming experience
+   with a high-level language like Fortran, or even better, a
+   lower-level language like C. 
+
+\section{Functions are Variables}
+
+   Like matrices, and lists functions are stored as ordinary variables
+   in the symbol table. And, like other variables in the symbol table,
+   functions are accessible as global variables. Function's treatment
+   as variables explains the somewhat peculiar syntax required to
+   create and store a function.
+
+\begin{verbatim}
+> logsin = function ( x ) { return log (x) .* sin (x); }
+\end{verbatim}
+
+   The above statement creates a function, and assigns it to the
+   variable \verb+logsin+. The function can then be used like:
+
+\begin{verbatim}
+> logsin ( 2 )
+     0.63
+\end{verbatim}
+
+   Like variables function can be copied, re-assigned, and destroyed. 
+
+\begin{verbatim}
+> // Create a function
+> logsin = function ( x ) { return log (x) .* sin (x); }
+>
+> // Use it
+> logsin (2)
+     0.63
+>
+> // Copy it to the variable y
+> y = logsin
+> y (2)
+     0.63
+>
+> // Overwrite it with a matrix
+> logsin = rand(3,2)
+ logsin =
+ matrix columns 1 thru 2
+        1      0.333  
+    0.975     0.0369  
+    0.647      0.162  
+>
+> // Check that y still is a function
+> y (2)
+     0.63
+\end{verbatim}
+
+   If you try re-assigning a built-in function you will get a run-time
+   error message. The built-in functions, those that are programmed in
+   C, are a permanent part of the environment. So that users may
+   always rely on their availability, they cannot be re-assigned, or
+   copied. 
+
+   Variables that represent functions can also be part of list
+   objects. Sometimes it can be useful to group functions that serve a
+   similar purpose, or perform different parts of a larger procedure.
+
+\begin{verbatim}
+list = << logsin = logsin >>
+   logsin       
+> list.logsin (2)
+     0.63
+> list.expsin = function ( x ) { return exp (x) .* sin (x); }
+   expsin       logsin       
+> list.expsin (2)
+     6.72
+\end{verbatim}
+
+\section{Function Syntax}
+
+   The function syntax is fairly simple. The basic form of a function
+   is:
+
+   \begin{tabbing}
+    123456 \= 1234 \=  \kill
+
+    \> function \ (\  {\it argument list} \ ) \\
+    \> \{               \\
+    \> \> local \ (\ {\it local variable list} \ ) \\
+    \> \>               \\
+    \> \> {\it statements}    \\
+    \> \>               \\
+    \> \> return {\it expression } \\
+    \> \}               \\
+   \end{tabbing}
+
+   The \verb+local+, and \verb+return+ statements are optional.
+
+   If a syntax error is encountered while the function is being
+   entered (read), definition of the function must begin again, from
+   the very beginning.
+
+\subsection{Local Statement}
+
+   The local statement is optional. If it is present it must be the
+   first statement in the function. Only one local statement is
+   allowed.
+
+\subsection{Return Statement}
+
+   The return statement is optional. There are no restrictions on the
+   number of return statements, or their placement. A function can
+   return from any point in it's execution.
+
+\section{Function Scoping Rules}
+
+   \RLaB\'s scoping rules will seem somewhat peculiar if you don't
+   remember that: ``everything is a variable''. 
+
+   By default, all variables used inside a function, with the
+   exception of arguments, and local variables, are global. This
+   allows users to have access to the other user and builtin functions
+   without special declarations, or complicated scoping rules.
+
+   Variables in a function are resolved by:
+
+   \begin{enumerate}
+      \item Looking in the fuction arguments,
+      \item Looking in the local variables,
+      \item Looking in the symbol-table.
+   \end{enumerate}
+
+\subsection{Function Arguments}
+
+   Arguments are passed by reference. Thus, when a function argument
+   is modified, the object in the caller's scope gets modified
+   directly.
+
+   A function can be called with fewer arguments than specified in the
+   definition. When this situation occurs, rlab pads the argument list
+   with extra variables, each having zero value. Each padded zero
+   argument has the name ``dummy'', so that the function can tell the
+   difference between explicit arguments with zero value, and
+   ``dummy'' arguments.
+
+   A function cannot be called with more arguments than specified in
+   the function definition. If you attempt to do so, a run-time error
+   will result.
+
+   Function argument types are not specified during definition. When
+   writing ``robust'' functions the author should take some care to
+   check that the function argument(s) are of the correct type.
+   Furthermore, the documentation (comments) should clearly state the
+   requisite argument types if necessary. If the function
+   documentation does not clearly state that the arguments will be
+   modified during function execution, care should be exercised to
+   avoid changing any of the function arguments. If necessary, the
+   function arguments can be copied to local variables, so that
+   changes will not affect the caller's variables.
+
+\subsection{Function Local Variables}
+
+   Local variables are created each time the function is invoked. Each
+   local variable is initially \verb+UNDEFINED+. When execution has
+   left the function, the local variables are destroyed.
+
+   If you wish to write function(s) to serve as often used utilities
+   or libraries, then care should be taken to declare all variables
+   (other than function arguments) as local. Declaring all function
+   variables as local will prevent accidental destruction of user's
+   global variables.
+
+\subsection{Function Recursion}
+
+   Function can call themselves recursively. Each time execution
+   passes into the function the local variables are (re)created. There
+   is a special keyword: \verb+$self+, which can be used to force a
+   function to refer to itself. This is only necessary if you plan to
+   rename the function after it has been created.
+
+\begin{verbatim}
+fac = function ( a ) 
+{
+  if(a <= 1) 
+  {
+      return 1;
+  else
+      return a*fac (a-1);   // return a*$self (a-1);
+  }
+};
+\end{verbatim}
+
+   In the previous example a factorial computation is performed using
+   recursion\footnote{Not necessarily an efficient way to compute the
+   factorial}. In the second return statement, the function calls
+   itself until $a \leq 1$. In the event that the function is later
+   copied to another variable, and the original destroyed, the
+   function will no longer work. To avoid this, use the special
+   keyword \verb+$self+ in place of the function self-reference.
+
+\section{Examples}
+
+   Many functions are included with the \RLaB\ source distribution.
+   Functions can be found in the distribution subdirectories
+   \verb+./rlib+, \verb+./toolbox+, and \verb+./contrib+.
+
+   We will discuss a few examples from the \RLaB\ source distribution.
+   
+\subsection{Mean Example}
+
+\begin{figure}
+\begin{verbatim}
+//-------------------------------------------------------------------//
+//
+//  Syntax:	mean ( A )
+
+//  Description:
+
+//  Calculate the mean value. If the input is a 1xN, then compute the
+//  mean value of all the elements. 
+
+//  If the input is a MxN matrix the compute a row matrix of the mean
+//  value of each column of the input. 
+//
+//-------------------------------------------------------------------//
+
+mean = function(x)
+{
+  local(m);
+
+  m = size (x)[1];
+  if( m == 1 ) 
+  { 
+    m = size (x)[2];
+  }
+
+  return sum( x ) / m;
+};
+\end{verbatim}
+\caption{Mean Function} \label{fig:mean}
+\end{figure}
+
+   The rfile \verb+mean.r+ (See Figure~\ref{fig:mean}) has several
+   noteworthy attributes.
+
+   \begin{enumerate}
+      \item The top lines of the file contain comments which document
+            the usage of the function. This is useful, since the the
+            rlab help function will copy the contents of each rfile to
+            the screen. If documentation comments are include in the
+            topmost portion of the file, then users will have
+            convenient access to the help comments.
+
+      \item \verb+mean+ does not do any error checking on the input
+            arguments. Whether it should or not is debatable. We will
+            present arguments for and against:
+
+         \begin{description}
+            \item[For:] Calling \verb+mean+ with a string, or a list
+            variable as argument will result in a slightly obscure
+            error message.
+
+            \begin{verbatim}
+> mean ( "string constant" )
+rlab: -1, invalid type for sum()
+near line 25, file: /usr/local/lib/rlab/rlib/mean.r
+> mean ( << [1,2,3]; 100 >> )
+rlab: -1, invalid type for sum()
+near line 25, file: /usr/local/lib/rlab/rlib/mean.r
+>             \end{verbatim}
+
+            Instead of \verb+mean+ reporting the error, the error is
+            propagated down to \verb+sum+. This is somewhat confusing,
+            since the user committed the error with the function
+            \verb+mean+. 
+
+            \item[Against:] The function is obviously intended to
+            calculate the mean value of a vector, or matrix object.
+            And, for any numeric argument \verb+mean+ will work just
+            fine. Users who are foolish enough to try and compute the
+            mean value of a string, or a heterogeneous object (a list)
+            should not be catered to. That is, users who use the
+            function correctly, should not have to pay a performance
+            penalty.
+         \end{description}
+   \end{enumerate}
+   
+\subsection{Object-Tests Example}
+
+\begin{figure}
+\begin{verbatim}
+// Boolean tests
+isvector = function(M) {
+  if (class(M) != "matrix") { return 0; }
+  return ((M.nr*M.nc) == M.n);
+}
+
+issamesize = function(X,Y) {
+  return ((X.nr == Y.nr) && (X.nc == Y.nc));
+}
+
+islist = function(X) {
+  return (class(X) == "list");
+}
+
+isscalar = function(X) {
+  return (class(X) == "scalar");
+}
+
+isstring = function(X) {
+  return (class(X) == "string");
+}
+\end{verbatim}
+\caption{Object Tests} \label{fig:obj-tests}
+\end{figure}
+
+   This example (See Figure\~ref{fig:obj-tests}) was contributed by a
+   user who finds it convenient to test arguments via some simple
+   user-functions. The functions in this example can be found in
+   \verb+contrib/is.r+. These functions perform a boolean test,
+   returning TRUE (1) if the condition is satisfied, and FALSE (0) if
+   the condition is not satisfied.
+
+\subsection{MGS Example}
+
+\begin{figure}
+\begin{verbatim}
+//
+// Modified Gram-Schmidt
+// Given A (MxN), with rank(A) = N. The following algorithm computes
+// the factorization A = Q*R (skinny QR) where Q (MxN) has orthonormal
+// columns and R (NxN) is upper triangular
+//
+// From MATRIX Computations, G.H. Golub, C.F. Van Loan (page 219)
+// 
+
+mgs = function(A)
+{
+  local(a,k,j,n,m,q,r);
+
+  a = A;
+  m = a.nr;
+  n = a.nc;
+  for(k in 1:n)
+  {
+    r[k;k] = norm( a[1:m;k], "2");
+    q[1:m;k] = a[1:m;k]/r[k;k];
+    for(j in k+1:n)
+    {
+      r[k;j] = q[1:m;k]' * a[1:m;j];
+      a[1:m;j] = a[1:m;j] - q[1:m;k] * r[k;j];
+    }
+   }
+  return << q = q; r = r >>;
+};
+\end{verbatim}
+\caption{Modified Gram-Schmidt Function} \label{fig:mgs}
+\end{figure}
+
+   This example (See Figure~\ref{fig:mgs}) implements a modified
+   Gram-Schmidt algorithm to find an orthonormal basis for the input
+   matrix. There are several important points to recognize in this
+   function.
+
+   \begin{enumerate}
+      \item The function returns a list. \verb+mgs+ returns a list
+            containing the matrices $Q$ and $R$. The members of the
+            list can be accessed by:
+
+            \begin{verbatim}
+> aa = rand(4,4)
+ aa =
+ matrix columns 1 thru 4
+      0.7       0.96      0.924      0.148  
+     0.95      0.915     0.0882      0.879  
+   0.0918      0.441      0.908    0.00543  
+    0.902     0.0735      0.362      0.222  
+> x = mgs (aa)
+   q            r            
+> x.q
+ q =
+ matrix columns 1 thru 4
+     0.47      0.513      0.261     -0.669  
+    0.638      0.243     -0.613      0.396  
+   0.0617      0.436      0.642      0.628  
+    0.606     -0.698      0.379     0.0378  
+> mgs (aa).q
+ q =
+ matrix columns 1 thru 4
+     0.47      0.513      0.261     -0.669  
+    0.638      0.243     -0.613      0.396  
+   0.0617      0.436      0.642      0.628  
+    0.606     -0.698      0.379     0.0378  
+             \end{verbatim}
+
+      \item The function argument is copied. The argument \verb+A+ is
+            copied to the local variable \verb+a+ to avoid destroying
+            the original contents of \verb+A+ (or \verb+aa+ in the
+            callers environment).
+   \end{enumerate}
+
+\section{Files}
+
+   Simple ``one-liner'' functions can be typed in at the command line.
+   However, they are destroyed when the \RLaB\ session is ended. When
+   writing longer functions, or functions that you want to save for
+   repeated usage; it is convenient to create them using a text editor
+   and save them on disk as an ordinary ASCII text file.
+
+   The function \verb+load+ will execute the rlab statements in a file
+   as if they were typed at the command line. The rlab command
+   \verb+rfile+ searches a specified path for files with a `.r'
+   extension. When the rfile command finds a file that matches it's
+   argument, it executes the rlab statements in the file as if they
+   were typed at the command line.
+
+   Statements in a file are executed in the same manner as they would
+   be had they been typed in interactively, ordinary commands and
+   multiple functions are O.K. In fact, complete programs can be
+   written and run interactively or in batch mode. To run a program in
+   batch mode you can try:
+
+\begin{verbatim}
+$ rlab program.r &
+\end{verbatim}
+
+   Or the program could contain \verb+#!/usr/local/bin/rlab+ on the
+   first line. Then, if your operating system provides the proper
+   support, rlab can execute your program, interactively, or in the
+   background by simply typing:
+
+\begin{verbatim}
+$ chmod +x program.r
+$ ./program.r
+\end{verbatim}
+
+\section{Conclusion}
+
+   This concludes our simple function tutorial. We have just barely
+   covered some of the capabilties of user-functions. Topics we have
+   not covered, that you may wish to experiment with are:
+
+   \begin{enumerate}
+      \item Passing functions as arguments to other functions.
+      \item Using list variables to get the effect of variable length
+            argument lists.
+      \item Using list variables, and user-functions to build your own
+            ``objects''.
+   \end{enumerate}
+
+\end{document}

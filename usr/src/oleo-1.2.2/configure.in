@@ -1,0 +1,51 @@
+dnl Process this file with autoconf to produce a configure script.
+
+AC_INIT(io-term.c)
+AC_SUBST(LIBS)
+
+dnl Checks for programs:
+AC_PROG_CC
+AC_PROG_CPP
+AC_PROG_YACC
+AC_PROG_INSTALL
+
+dnl Checks for UNIX variants that set `DEFS':
+AC_ISC_POSIX
+
+dnl Checks for header files:
+AC_STDC_HEADERS
+AC_UNISTD_H
+AC_DIR_HEADER
+AC_HAVE_HEADERS(sys/time.h string.h memory.h sys/select.h)
+AC_HEADER_CHECK(X11/X.h, AC_DEFINE(HAVE_X11_X_H); LIBS="$LIBS -lX11")
+
+dnl checks for functions
+AC_RETSIGTYPE
+AC_ALLOCA
+AC_REPLACE_FUNCS(random)
+
+dnl Replace vfprintf and vsprintf.
+dnl If either needs to be replaced, replace _doprnt.
+need_doprnt=
+AC_COMPILE_CHECK([vfprintf], , [vfprintf();], ,
+[LIBOBJS="$LIBOBJS vfprintf.o"; need_doprnt=1])
+AC_COMPILE_CHECK([vsprintf], , [vsprintf();], ,
+[LIBOBJS="$LIBOBJS vsprintf.o"; need_doprnt=1])
+if test $need_doprnt; then
+  AC_REPLACE_FUNCS(_doprnt)
+fi
+
+AC_HAVE_LIBRARY(termlib, \
+		LIBS="$LIBS -lcurses -ltermlib", \
+		AC_HAVE_LIBRARY(termcap, \
+				LIBS="$LIBS -lcurses -ltermcap", \
+				LIBS="$LIBS -lcurses"))
+
+LIBS_save="$LIBS"
+LIBS="$LIBS -lm"
+AC_HAVE_FUNCS(rint rename \
+	      getcap stricmp strincmp cbreak \
+	      strdup strstr)
+LIBS="$LIBS_save"
+
+AC_OUTPUT(Makefile)

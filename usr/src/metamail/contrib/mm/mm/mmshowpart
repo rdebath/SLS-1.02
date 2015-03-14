@@ -1,0 +1,201 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+if [ -x /usr/bin/tput ] ; then
+    bd=`tput bold`
+    rv=`tput smso`
+    Off=`tput rmso`
+    cls=`tput clear`
+fi
+RC=1
+clean(){
+    echo ${Off}
+    if [ $RC != 0 ] ; then
+	echo 
+	echo "Press any key to continue ...\c"
+	/usr/local/lib/mm/mmgetchar
+	echo
+    fi
+    exit $RC
+}
+trap "clean" 1 2 15
+
+mmreset 
+echo ${bd}mmshowpart:${Off} $*
+
+TREEROOT=/tmp/message-parts-`whoami`
+
+if [ $# -lt 3 -o $# -gt 4 ] ; then
+    echo "Usage:  showpartial file id partnum totalnum"
+    exit 1
+fi
+
+file=$1
+
+# This next line is because message-id can contain weird chars
+id=`echo $2 | tr -d  '\!\$\&\*\[\];\|\'\"\;\/\<\>\\' ` 
+mmreset
+echo ${bd}mmshowpart:${Off} $*
+echo
+echo id: $id
+echo
+
+partnum=$3
+if [ $# -eq 3 -o $4 -eq "" ] ; then
+    totalnum=-1
+else
+    totalnum=$4
+fi
+
+if [ ! -d  $TREEROOT ] ;  then
+    mkdir $TREEROOT
+    if [ $? -ne 0 ] ; then 
+        echo mkdir $TREEROOT failed
+        exit 1
+    fi
+fi
+
+if [ ! -d ${TREEROOT}/$id ] ; then 
+    mkdir ${TREEROOT}/$id
+    if [ $? -ne 0 ] ; then 
+        echo mkdir ${TREEROOT}/$id failed
+        exit 1
+    fi
+fi
+
+cp $file ${TREEROOT}/$id/$partnum
+if [ $? -ne 0 ] ; then 
+    echo cp $file ${TREEROOT}/$id/$partnum failed
+    exit 1
+fi
+
+if [ $totalnum -eq -1 ] ; then
+    if [ -r ${TREEROOT}/$id/CT ] ; then
+	totalnum=`cat ${TREEROOT}/$id/CT`
+    else
+    	totalnum=-1  #GROSS HACK
+    fi
+else
+    echo $totalnum >! ${TREEROOT}/$id/CT
+fi
+
+if [ $partnum -eq 1 ] ; then
+    echo "$MM_HEADERS" > ${TREEROOT}/$id/HDRS
+fi
+
+found=0
+ix=1
+list=""
+limit=$totalnum
+if [ $limit -eq -1 ] ; then
+    limit=25
+fi
+
+while [ $ix -le $limit ] ; do
+    if [ -r ${TREEROOT}/$id/$ix ] ; then
+	list="$list $ix"
+	found=`expr $found + 1` 
+    fi
+    ix=`expr $ix + 1`
+done
+
+if [ $found -eq $totalnum ] ; then
+    cd ${TREEROOT}/$id
+    cat $list > ${TREEROOT}/$id/FULL
+    #cat ${TREEROOT}/$id/HDRS $list > ${TREEROOT}/$id/FULL
+    rm $list 2>&1 > /dev/null
+
+    echo
+    echo All parts of this ${bd}${totalnum}${Off}-part message have now been read.
+    echo
+
+    while : ; do
+
+	trap "break;trap "" 1 2 15" 1 2 15
+	mmreset
+	echo ${bd}mmshowpart:${Off} 
+	echo "$MM_HEADERS"
+	echo
+	echo
+	echo "      1 -- Process message now"
+	echo "      2 -- Save into your mailbox"
+	echo
+	echo "      q -- Quit"
+	echo
+	echo
+	echo "  ${bd}Menu selection:${Off} \c"
+
+	answer=`/usr/local/lib/mm/mmgetchar`
+	echo
+
+	case $answer in 
+	    1) 
+		echo
+		echo Processing ....
+		metamail  ${TREEROOT}/$id/FULL
+ 	        ;;
+	    2)
+		subject=`echo "$MM_HEADERS" | sed -n 's/^Subject: //p;t`
+		echo
+		echo Forwarding ....
+		rmail `whoami` < ${TREEROOT}/$id/FULL
+		;;
+	    q)
+		break
+		;;
+	esac
+    done
+    trap "" 1 2 15
+
+    echo
+    echo "${bd}WARNING:${Off}  To save space, the temporary message part files and" 
+    echo "assembled message file are now being deleted. To view or save this"
+    echo "message again you will have to re-read all $totalnum parts again."
+    echo
+    cd /
+    (
+	rm ${TREEROOT}/$id/FULL ${TREEROOT}/$id/CT ${TREEROOT}/$id/HDRS
+	rmdir ${TREEROOT}/$id
+	rmdir ${TREEROOT}
+    ) 2>&1 > /dev/null
+else
+    echo
+    if [ ${totalnum} -eq -1 ] ; then
+        echo So far you have only read ${bd}$found${Off} of the several parts of this message.
+    else
+        echo So far you have only read ${bd}$found${Off} of the ${bd}$totalnum${Off} parts of this message.
+    fi
+    echo When you have read them all, then you will see the message in full.
+    echo
+    trap "clean" 1 2 15
+fi
+    
+echo ${Off}
+RC=0
+exit 0

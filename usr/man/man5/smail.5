@@ -1,0 +1,4590 @@
+.\" @(#)man/man5/smail.an	1.37 9/20/92 15:58:46
+.de BD          \"% entry descriptions
+.br
+.TP
+\fI\\$1\fP
+.br
+type: \fI\\$2\fP
+.sp .2v
+.br
+..
+.de DD          \"% entry descriptions with default
+.nf
+.TP
+\fI\\$1\fP
+.br
+type: \fI\\$2\fP
+.br
+default value: \fI\\$3\fP
+.sp .2v
+.br
+.fi
+..
+.TH SMAIL X_MAN5_EXT_X "1 February 1988" "Local"
+.SH NAME
+X_LIB_DIR_X/* \- configuration files used by smail
+.SH SYNOPSIS
+.B "X_LIB_DIR_X/config"
+.br
+.B "X_LIB_DIR_X/qualify"
+.br
+.B "X_LIB_DIR_X/directors"
+.br
+.B "X_LIB_DIR_X/routers"
+.br
+.B "X_LIB_DIR_X/transports"
+.br
+.B "X_LIB_DIR_X/retry"
+.br
+.B "X_LIB_DIR_X/methods/"
+.SH DESCRIPTION
+The
+.IR config ,
+.IR qualify ,
+.IR directors ,
+.IR routers ,
+.IR transports ,
+and
+.I retry
+files describe the rules used by
+.IR smail (X_MAN8_EXT_X)
+in processing and delivering mail.
+In addition to these configuration files,
+.I method
+files may be pointed to by entries in the
+.I routers
+file.
+The actual paths may differ from system to system
+and, in addition, the paths to these files,
+with the exception of the config file itself,
+may be changed in the config file.
+.PP
+.I Smail
+is compiled with a default configuration.
+This default configuration is suitable for many sites that
+communicate to other systems via UUCP, or SMTP.
+For such sites, no configuration files are needed,
+though it may still be convenient to have a
+.I config
+file for attributes (described below) such as
+.B smart_user
+and
+.BR smart_path .
+See the section
+.B "DEFAULT CONFIGURATION"
+for more details.
+.SH "COMMON FORMAT CONVENTIONS"
+In all files used by
+.IR smail ,
+entries begin with a character in column 1
+that is not white space or the character `#'.
+Entries continue until the next line
+which begins with a character other than white-space
+or the character `#',
+or until the end of the file is encountered.
+.PP
+Comments begin with the character `#',
+in any column and end at the next newline.
+A `#' in the first column does not signify the
+end of an entry.
+.PP
+Variable and attribute names in configuration files
+are formed of characters from the
+set of letters, numbers and the
+character `_'.
+.PP
+String values may be enclosed in double
+quotes,
+in which case backslash escapes are
+processed as in C.
+If string values are not enclosed
+in double quotes,
+the values are limited to characters
+from the set of letters, digits and
+the characters
+.B "! @ $ % ^ & * \- _ + ~ / ? | < > : [ ] { } . '
+and
+.BR "`" .
+.PP
+Numbers are as in C,
+with a prefix of 0 specifying an octal
+constant
+and a prefix of 0x specifying a
+hexadecimal constant.
+In addition,
+a suffix of
+.I k
+or
+.I K
+specifies a multiplier of 1024
+and a suffix of
+.I m
+or
+.I M
+specifies a multipler of 1048576, or 1024K.
+.SH "String Expansion"
+Some string values will be variable and filename expanded before being used.
+When this is done, certain substrings, beginning with $, will
+be replaced by the value of a
+.I smail
+variable.
+The names of expansion variables are either a single
+character, or are multiple characters from the set of letters,
+digits and underscore.  A variable name can also be
+enclosed between { and }, to isolate the variable name from
+the surrounding text.
+.PP
+In addition to variables, a number of meta-expansions can be
+used.  These expansions are of the form:
+
+.RS
+${\fImeta_name\fP:\fIname\fP}
+.RE
+
+where
+.I meta_name
+defines some operation to perform on the
+value of the variable
+.IR name .
+Multiple meta-expansions can be
+specified, and they are processed from right to left.  For example:
+
+.RS
+${lc:strip:user}
+.RE
+
+This strips quotes from the value of the variable
+.B user
+and
+then converts characters to lower case.
+.PP
+When a string to be expanded begins with the character `~', a
+home directory is substituted.  If only `~' is given, or `~\&/'
+is given, then the home directory associated with an address
+is substituted.  If the form ``~\&\fIusername\fP'' is given, where
+.I username
+is the name of a user on the local host, that
+user's home directory is substituted.
+.SS Conditionals
+Conditionals can be used to include text based on whether or not
+a particular value is non-empty.  Conditionals are of the form:
+
+.RS
+${if \fIcondition\fP [:]\fIstring\fP}
+.RE
+
+or
+
+.RS
+${if \fIcondition\fP {\fIstring1\fP} {\fIstring2\fP}}
+.RE
+
+The first form includes \fIstring\fP if the condition is true.
+The second form includes \fIstring1\fP if the condition is true, or
+\fIstring2\fP if the condition is false.  For readability, \fBelse\fP
+can be inserted before the \fIelse\fP clause.
+.PP
+Possible conditions are:
+.IP "!\fIcondition" 20
+Negate the truth value of \fIcondition\fP.
+.IP "\fBdef:\fIvariable\fR"
+True if the given expansion variable is defined and is non-empty.
+.IP "\fBheader:\fIheader\fR"
+True if the message contains a header field named \fIheader\fP.
+.IP "\fBorigin:local\fR"
+True if the message originated locally.
+.IP "\fBorigin:remote\fR"
+True if the message was received from a remote machine.
+.IP "\fBdest:local\fR"
+True if the message is being delivered to an address on the local host.
+.IP "\fBdest:remote\fR"
+True if the message is being delivered to a remote host.
+.IP "\fBxform:\fItransformation\fR"
+True if the transformation being applied to the message, for delivery
+by the assigned transport, matches the given type.  Valid types are:
+\fBlocal\fP, \fBinet\fP, \fBuucp\fP, or \fBnone\fP.
+.IP "\fBeq{\fIvariable\fP}{\fIstring\fP}\fR"
+True if the given expansion variable matches the given string.
+.IP "\fBor{{\fIcondition\fP}...}\fR"
+True if any of the given conditions are true.
+.IP "\fBand{{\fIcondition\fP}...}\fR"
+True if all of the given conditions are true.
+.SS "File lookups"
+String expansions can use lookup procedures to convert a key, taken
+from a an expansion variable, into a string found in a file or other
+accessible database.  These expansions are defined using the form:
+
+.RS
+${lookup:\fIvariable\fP:\fIproto\fP{\fIfile-expansion\fP} [:]\fIfound-string\fP}
+.RE
+
+or
+
+.RS
+${lookup:\fIvariable\fP:\fIproto\fP{\fIfile-expansion\fP}
+    {\fIfound-string\fP} {\fInot-found-string\fP}
+.RE
+
+Lookups operate by taking the value of the indicated variable as a
+key for lookup in a file.  The \fIproto\fP string defines how the
+lookup is to be performed, and \fIfile-expansion\fP is a string
+defining the file or database to search.  If the key is found, then
+the \fIfound-string\fP is expanded, otherwise the \fInot-found-string\fP
+is expanded.  A \fB$value\fP reference in \fIfound-string\fP is
+replaced by the value found by the lookup.  For readability, \fBthen\fP
+can be inserted before the \fIfound\fP clause, and \fBelse\fP can
+be inserted before the \fInot-found\fP clause.
+.PP
+Allowed lookup methods are:
+.IP \fBbsearch\fP 10
+Use a binary search to locate the key in a sorted file, organized
+as lines beginning with a key separated from a value by blanks.
+.IP \fBlsearch\fP
+Use a linear search to locate the key in a plain file, again
+organized as lines beginning with a key separated from a value
+by blanks.  Comments in this file begin with # and continue until
+end-of-line.  Blank lines are ignored.
+.IP \fBdbm\fP
+Lookup the dbm in a dbm database.
+.IP \fByp\fP
+Lookup the key in a remote Sun NIS database.
+.IP \fBaliasyp\fP
+Lookup the key in a remote Sun NIS database.  This differs from \fByp\fP
+in that a nul byte is added to the key before lookup.
+.IP \fBnialias\fP
+Lookup the key in a NeXT netinfo database.
+.SS "Expansion variables"
+The complete set of variable names depends upon context, but
+the following are always available:
+.TP .8i
+.B bat
+a string defining a string of characters which identifies where
+your smail sources originated.  See the source file
+.I src/version.c
+for more information.
+.TP .8i
+\fBcompile_date\fP or \fBld_date\fP
+the date when the current smail binary was compiled.
+.TP .8i
+\fBcompile_num\fP or \fBld_num\fP
+a decimal number giving the number of times smail has
+been compiled since the creation of the source file
+.IR ldinfo.c .
+.TP .8i
+.B ctime
+the date and time, in the form returned by the
+.IR ctime (3)
+function.
+.TP .8i
+.B date
+The date and time in ARPAnet format.
+.TP .8i
+.B spool_date
+The date and time that the message was received by the local host, in
+ARPAnet format.
+.TP .8i
+.B grade
+The priority character for the
+current message.
+See the
+.B grades
+attribute in the
+.I config
+file for more information
+on this value.
+.TP .8i
+\fBmessage_id\fP or \fBid\fP
+the message ID for the current message.
+.TP .8i
+\fBmessage_size\fP or \fBsize\fP
+the total size of the spooled message.
+.TP .8i
+\fBmessage_body_size\fP or \fBbody_size\fP
+the size of the body of the message, which excludes the message header
+fields, and also excludes any overhead within the message spool file.
+.TP .8i
+\fBpatch_number\fP or \fBpatch\fP
+the patch level of the smail sources,
+from the source file
+.IR patchnum ,
+which contains the date that the most recently applied patch was
+created, and the number of that patch.
+.TP .8i
+.B patch_date
+The date when the most recently applied patch was created.
+.TP .8i
+\fBpid\fP or \fB$\fP
+the current process ID.
+.TP .8i
+\fBprimary_name\fP or \fBprimary\fP
+the canonical name for the local host.
+.TP .8i
+\fBrelease_date\fP or \fBrelease\fP
+the release date of the smail sources.
+.TP .8i
+\fBsender\fP or \fBfrom\fP
+the address of the sender of a message.
+.TP .8i
+\fBsender_name\fP or \fBfullname\fP
+the full-name of the sender, taken either from the \fB\-F\fP argument
+to \fBsmail\fP or from the password file.
+.TP .8i
+.B sender_host
+the sending host, if one is known.  This is set automatically for
+mail received via UUCP or SMTP.  It can also be set with
+.B \-oMs
+from the command line.
+.TP .8i
+.B sender_proto
+the sending protocol (e.g. \fBsmtp\fP or \fBuucp\fP), if one is
+known.  This is set automatically for mail received via UUCP or SMTP.
+It can also be set with
+.B \-oMs
+from the command line.
+.TP .8i
+.B sender_program
+The program that queued the message.  For mail received via UUCP, this
+will be, typically, \fBrmail\fP.  Otherwise, the sender program will
+likely by set to \fBsendmail\fP or \fBsmail\fP, depending upon the
+program that typically is invoked for receiving mail.
+.TP .8i
+.B uucp_name
+the UUCP-network name for the local host.
+.TP .8i
+.B version
+a short version string for
+.IR smail .
+.TP .8i
+.B version_string
+a verbose version string.
+.TP .8i
+\fBvisible_name\fP or \fBname\fP
+the local host name used in outgoing addresses.
+.TP .8i
+\fBsmail_lib_dir\fP or \fBlib_dir\fP
+the value of the config file variable
+.BR smail_lib_dir ,
+which is the directory in which configuration files are found.
+.PP
+In addition, the following variables are defined if
+they are available in the current context:
+.TP .8i
+\fBHOME\fP or \fBhome\fP
+the home directory of a user associated with an address.
+.TP .8i
+.B host
+the remote host string associated with a remote address.
+.TP .8i
+\fBuser\fP or \fBaddr\fP
+a user name or remaining address string associated with
+an address.
+.TP .8i
+\fBinput_addr\fP
+The address specified in the message, or in an alias or mailing list
+expansion, that is being processed.
+.TP .8i
+.B director
+The name of the director that matched the address, if appropriate.
+.TP .8i
+.B router
+The name of the router that matched the address, if appropriate.
+.TP .8i
+.B transport
+The name of the transport to be used for delivering to the address,
+if the address has been successfully resolved.
+.PP
+The following meta-expansions also exist:
+.TP .8i
+.B lc
+convert to lower case.
+.TP .8i
+.B parent
+interpret the value
+within the context of the parent
+local address that produced the associated address.
+This is useful when the local
+address that produced an address is
+desired.
+Expansion fails if no parent exists.
+.TP .8i
+.B quote
+enclose the value in quotes, if it
+would not otherwise be a valid
+local-form address,
+within the rules of RFC822.
+Uses backslash escapes as appropriate.
+(This is not available in the Alpha release of
+smail).
+.TP .8i
+.B strip
+Remove backslashes and double quotes
+from a value.  If a double-quote is
+preceded by a backslash, the
+backslash is removed, but the double
+quote is not.  Sequences of
+whitespace characters and dots are
+converted to exactly one dot
+character.
+.TP .8i
+.B top
+interpret the value
+within the context of the original address,
+supplied to the mailer, that produced the
+associated address.
+.TP .8i
+.B uc
+convert to upper case.
+.PP
+The following are sample expansions:
+
+.nf
+	/usr/spool/mail/${lc:user}
+.fi
+
+with a
+.B $user
+value of ``Tron'' will become:
+
+.nf
+	/usr/spool/mail/tron
+.fi
+
+whereas:
+
+.nf
+    	Received: by $primary_name ($version_string)
+		id <$message_id@primary_name>;
+		$spool_date
+.fi
+
+will become something such as:
+
+.nf
+    	Received: by futatsu.uts.amdahl.com (smail 3.0.2 03-dec-87)
+		id <m0c87zK-007zXpC@futatsu.uts.amdahl.com>;
+		Tue,  8 Dec 87 19:45 PST
+.fi
+
+and:
+
+.nf
+    	$host!rmail ${strip:addr}
+.fi
+
+with an
+.B $addr
+value of ``Ronald S. Karr'' and a
+.B $host
+value of ``amdahl'' will become:
+
+.nf
+    	amdahl!rmail Ronald.S.Karr
+.fi
+
+If a value does not exist
+(such as
+.B $HOME
+being used when no
+associated home directory is known,
+or when a string begins
+with "~\&\fIusername\fP" and the
+.I username
+is not known,
+or when
+.B $host
+is used for a local address)
+then the expansion fails.
+.SH "THE CONFIG FILE"
+The config file defines values for global variables used by
+.IR smail .
+Each entry in this file gives the
+name of a variable to be set and defines a string, numeric
+or boolean value to give to that variable.
+The recognized forms for entries in the config file are:
+
+.RS
+\fBvariable_name\fP = \fIstring\fP or \fInumber\fP
+
+\fBvariable_name\fP  or  +\fBvariable_name\fP
+
+\-\fBvariable_name\fP
+.RE
+
+The first form above sets the variable to a string or numeric value,
+the second form sets a boolean variable,
+and the last form resets a boolean variable, clears a string value
+or sets a numeric value to zero.
+.PP
+The following config file specifies a spool file
+mode of 0400,
+a maximum message size of 200K,
+a method directory of
+.I /usr/lib/smail/method
+and disables use of a transport configuration:
+
+.RS
+.nf
+# don't allow others to read spool files
+spool_mode = 0400
+
+# truncate messages that are too large
+max_message_size = 200k
+
+# method files are stored in this directory
+method_dir = /usr/lib/smail/method
+
+# we are using the built in transport definitions,
+# so don't bother looking for a transport file
+\-transport_file
+.fi
+.RE
+
+The complete list of recognized attributes is given
+in the following table,
+in alphabetic order.
+Note that the default values can be changed when
+compiling the
+.I smail
+program.
+.br
+.DD auth_domains string off
+A colon-separated list of domain names for which this host is
+considered authoritative.  A host that is authoritative for a domain
+has access to all routing information needed for that domain.  The
+primary purpose of this variable is to list domains that will not be
+matched by the \fBsmarthost\fP router driver.
+.DD auto_mkdir boolean on
+If set, then any directories required for spooling and logging
+will be created if they do not exist.
+Smail will never try to create required parent directories.
+.DD auto_mkdir_mode integer 0755
+When directories are created automatically by smail,
+they are created with this permission mode mask.
+See
+.IR stat (2)
+for information on what this mode represents.
+.DD console string /dev/console
+The file name for the console device.  This filename
+is used as a last resort in attempting to write panic
+messages.
+.DD copying_file string "``COPYING''"
+The pathname to the
+.I COPYING
+file, which describes your
+distribution rights and details the warranty information
+from the authors of smail.  If this does not begin with ``/'', it will
+be referenced relative to the
+.I smail_lib_dir
+directory.
+.DD date_field string "``Date: $spool_date''"
+This string will be expanded to form the
+.B Date:
+header field.
+This will be used if such a field does
+not already exist in the header.
+.DD delivery_mode string "``foreground''"
+The default mode of delivery for new mail.
+This can be one of the values
+``foreground''
+(immediate delivery in the process that received the message),
+``background''
+(immediate delivery in a child process,
+where the process that received the message exits immediately),
+or
+``queued''
+(do not attempt delivery until a later queue run).
+.DD director_file string "``directors''"
+Names the file containing the director configuration
+information.  If this does not begin with ``/'', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+.DD error_copy_postmaster boolean off
+Copy the postmaster on all error messages.  Normally only errors that
+appear to be a result of administrator errors will be mailed to the
+postmaster.  If \fIerror_copy_postmaster\fP is set, then errors that
+are returned to the sender, or that are mailed to owners of mailing
+lists, will also be sent to the postmaster.
+.DD fnlock_interval number 3
+The sleep interval between retries while attempting to
+lock mailbox files with a lockfile-based locking
+protocol.  On systems where sleep has a 1 second granularity, this
+value should be at least 2.
+.DD fnlock_mode number 0666
+Mailbox lock files are created with this mode.
+.DD fnlock_retries number "0 if you have an atomic rename, 5 otherwise"
+The number of times to attempt to lock mailbox files using
+a file-based locking protocol.
+.BD from_field string
+This string will be expanded to form From: or Sender: fields.  The
+expanded string must begin with "From:", which may be replaced by
+other strings to form an actual header field.  The default value
+is:
+
+.nf
+	From: $sender${if def:sender_name: ($sender_name)}
+.fi
+
+.DD grades string "special-delivery:9:air-mail:A:first-class:C:bulk:a:junk:n"
+The priority, or grade, characters corresponding to particular values
+of the
+.B Precedence:
+field in the message header.  The parts of the
+string are separated by `:' with alternating precedence string and
+grade character.
+Numbers are higher in priority than upper case letters which
+are in turn higher than lower case letters.
+Also, lower numbers are higher in priority than higher numbers,
+and the same goes for letters lower in the alphabet.
+Grades in
+the range
+.B [a\-m]
+will only have an error message and header returned
+to the sender on errors,
+rather than including the message body as well.
+Grades in the range
+.B [n\-z]
+will not have anything returned to the sender on errors.
+.sp .4v
+The precedence names recognized by many BSD sendmail configurations are:
+.IR special-delivery ,
+.I first-class
+and
+.IR junk .
+Others are useful mainly for getting mail out
+of the local machine or for communication with other machines
+running
+.I smail
+in a similar configuration.
+The grade character for a message is available in string expansions
+as the
+.B $grade
+variable.
+.DD hit_table_len number "241 with a large address space, 13 otherwise"
+The length of an internal address hit table.
+Addresses are hashed into this table to prevent multiple deliveries
+to the same address.
+Longer tables speed address hashing
+at a small memory expense.
+.sp .4v
+NOTE:  this value may be ignored in the future.
+.DD host_lock_timeout interval 30
+Specify the timeout for locking a host's retry file for the purpose of
+exclusive delivery to that host.  If the file cannot be locked within
+the specified time, then the message is not delivered; unless other
+considerations intervene, the message is left in the message queue
+(deferred).  A number with no suffix indicates seconds.  Suffixes can
+be added to indicate a time multiplier.  \fBm\fP indicates minutes,
+\fBh\fP indicates hours, \fBd\fP indicates days.
+.DD "hostnames \fRor\fP hostname" string "computed at run time"
+A colon-separated list of names for the local host.
+This list, together with
+.I uucp_host
+and
+.I more_hostnames
+should
+represent all possible names for the local host.  Note that the
+.I visible_name
+hostname is not recognized as a name for the local host unless it also
+appears in the value for one of the other hostname variables.
+For a host that is in more than one domain
+or that can gateway to more than one level of domains,
+this should represent those names.
+For a host in a registered domain in the UUCP zone,
+which is also in the maps distributed over
+USENET,
+\fIlocalhost\fP\fB.uucp\fP
+should also be in the list.
+The first value in
+.I hostnames
+is used internally as a special
+``primary name''
+for the local host.
+.IP
+If
+.I hostnames
+is set turned off
+(which is generally the default)
+then the hostnames value will be computed by
+pairing the localhosts's name, computed in a system-dependent
+manner, with all values in the
+.I domains
+attribute list.
+.DD lock_by_name boolean system-dependent
+If this is on, then
+input spool file locking is always based on lock files.
+Otherwise,
+an inode-based locking mechanism may be used,
+such as
+.I flock(2)
+under BSD, or
+.I lockf(3)
+under System V.
+Inode-based locking is more efficient,
+if available.
+However,
+lock files can be easily created by shell scripts which
+may be advantageous under some circumstances.
+.DD lock_mode number 0444
+The creation mode for lock files.
+.DD log_mode number 0664
+The creation mode for the various mail system
+log files.
+.DD logfile string "``/usr/spool/smail/log/logfile''"
+The name of a file to which
+transaction and error messages are appended.
+If this file does not exist,
+it is created with a mode from the
+.I log_mode
+attribute.
+.DD max_hop_count number 20
+If the hop count for a message equals or
+exceeds this number,
+then attempts at remote delivery will
+result in an error message being returned to
+the sender.
+This is used to prevent infinite loops.
+The hop count for a message can be set using the
+.B \-h
+option when invoking
+.IR smail .
+Otherwise it is computed from the number
+of
+.B Received:
+fields in the message header.
+.DD max_load_ave number 0
+For systems on which a load average can be computed,
+this specifies the maximum load average at
+which mail delivery will be performed, otherwise
+this value is ignored.
+If the load average exceeds this number,
+incoming mail will be saved in the input
+spool directory,
+though no delivery will be performed.
+If this value is 0 the load average will not be
+computed and delivery will always be performed.
+Normally the load average refers to a 5 minute
+load average.
+(This is not currently implemented)
+.DD max_message_size number 100k
+Messages longer than this will
+be truncated by
+.I smail
+when when written to its input queue.
+(This is not currently implemented and there
+is no limit on the size of messages).
+.DD message_buf_size number "100k with a large address space, BUFSIZ otherwise"
+The size of an internal buffer
+for reading and writing messages.
+For systems with a reasonable VM space,
+this can be equal to the maximum size for
+messages.
+Specifying the value of 
+in which case reading messages and then
+delivering them to one or more destinations requires very
+few read calls,
+as the entire message is always kept in memory.
+BUFSIZ, here, refers to the defined symbol in /usr/include/stdio.h.
+.DD message_id_field string "``Message-Id: <$message_id@$primary_name>''"
+This string will be expanded to form the
+.B Message-Id:
+header field.
+This will be used if such a field does
+not already exist in the header.
+.DD message_log_mode number 0644
+Each message has associated with it a unique
+file containing a transaction log for that
+message.
+This number specifies the creation mode for
+this log file.
+.DD method_dir string "``methods''"
+If a
+.B method
+attribute for a router does not specify
+a pathname beginning with `/',
+then this directory is prepended to the path
+to form the complete path for the method file.  If this does not begin
+with ``/'', it will be referenced relative to the
+.I smail_lib_dir
+directory.
+See the description of the router file for
+more information on method files.
+.DD more_hostnames string off
+A colon-separated list of hostnames.
+This list is in addition to any names which may have been
+computed from the
+.B domains
+attribute in forming the value of
+.BR hostnames .
+Thus,
+it is useful for specifying names which are not formed
+from the computed name for the host.
+.IP
+The \fBmore_hostnames\fP attribute can also be specified as
+\fBgateway_names\fP, since the attribute is often used to indicate the
+list of domains for which this machine is a gateway.
+.DD nobody string "site-dependent: often ``nobody''"
+This names a default user that defines
+permissions when no other user is specified.
+Also, this user is used
+in some conditions when it is not certain
+whether a set of actions can be trusted,
+if performed under other, potentially
+more powerful users.
+This should reference a login id
+which has few or no capabilities for doing
+harm or accessing protected files.
+.DD paniclog string "``/usr/spool/smail/log/paniclog''"
+The name of a file to which
+panic and very important error messages are appended.
+If this file does not exist,
+it is created with a mode from the
+.I log_mode
+attribute.
+Entries written to this log file represent
+problems that require human intervention,
+such as configuration errors or
+directory permission errors preventing
+mail spooling or delivery.
+.IP
+Configuration errors generally cause
+mail to be moved into a special
+.I error/
+directory under the
+input spool directory,
+thus preventing attempts at redelivery until
+the configuration error has been corrected.
+.IP
+Thus, both the panic log and the
+.I error/
+directory should be checked periodically
+under normal use,
+and frequently after configuration changes.
+When any problems have been resolved,
+these messages can be requeued for delivery
+by using
+.IR mv (1)
+to move the spool files back to the
+spool directory.
+.DD "postmaster_address \fRor\fP postmaster" string ``root''
+This is the default address for the postmaster.  If the address
+.I Postmaster
+is not resolved by any of the configured directors, then this address
+is used.
+.DD qualify_file string "``qualify''"
+Names the file containing the hostname qualification information.
+If this does not begin with ``/'', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+.DD queue_only boolean off
+If this is set then
+.I smail
+will not immediately
+attempt delivery for incoming mail.
+The
+.I smail
+program will then only attempt delivery when
+explicitly processing the input queue,
+such as when invoked with the
+.B \-q
+flag.
+.BD received_field string
+This string will be expanded to form the
+.B Received:
+header field.
+This field will be inserted into the header
+if the
+.B received
+attribute is not explicitly turned off
+for a transport.
+The default value for
+.B received_field
+is:
+
+.nf
+	Received: \\
+	    ${if def:sender_host\\
+	         {from $sender_host by $primary_name\\
+	          ${if def:sender_proto: with $sender_proto}\\
+	          \\n\\t(Smail$version #$compile_num) }\\
+	     else{by $primary_name ${if def:sender_proto:with $sender_proto }\\
+		  (Smail$version #$compile_num)\\n\\t}}\\
+	    id $message_id; $spool_date
+.fi
+
+.DD require_configs boolean off
+If this is not set, then configuration files are not required to exist.
+This applies to the primary and secondary config files and
+the director, router and transport files.
+If one of these files does not exist then it is ignored and
+internally compiled configuration is used instead.
+If this attribute is set, then any configuration file, which does
+not have a NULL filename (for example, using
+.B \-router_file
+to set the name for the router file to NULL)
+and which does not exist,
+will generate a panic message from the mailer.
+.DD retry_file string "``retry''"
+Names the file containing the retry control information.
+If this does not begin with ``/'', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+.DD retry_duration interval 5d
+Specify the default duration for attempting deliver of messages.  If
+a message cannot be delivered within this period of time, then the
+message delivery fails and a bounce message is sent to the sender, or
+to the list owner, if there is one.  A number with no suffix indicates
+seconds.  Suffixes can be added to indicate a time multiplier.  \fBm\fP
+indicates minutes, \fBh\fP indicates hours, \fBd\fP indicates days.
+.DD retry_interval interval 10m
+Specify the default retry interval for connecting to unaccessible hosts.
+If a host is temporarily unreachable, then smail will avoid attempting
+to deliver to that host until this period of time has elapsed.  This
+applies to all messages, so that queue runs will not block each message
+waiting for a timeout for a particular set of unaccessible hosts.  See
+the description of the \fIretry\fP file for more information.
+.DD return_path_field string "``Return-Path: <$sender>''"
+This string will be expanded to form the
+.B Return-Path:
+header field.
+This field will be inserted into the header
+if the
+.B return_path
+attribute is turned on for a transport.
+.DD router_file string "``routers''"
+Names the file containing the router configuration
+information.  If this does not begin with `/', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+.DD second_config_file string none
+This names a secondary configuration file which can
+define attribute values which override internal
+defaults and values in the primary configuration
+file.  If this does not begin with ``/'', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+This is primarily useful in networks containing machines
+that share filesystems.
+By having a shared primary configuration file
+most systems on a network need not be concerned with
+maintaining the
+.I smail
+program,
+while other systems may want or need to use a
+different configuration,
+while sharing the same binary.
+In particular, the
+.BR smart_user ,
+.B smart_path
+and
+.B smart_transport
+attributes are common attributes to be set in
+the secondary configuration file.
+.DD sender_env_variable string none
+This names an environment variable that can be used to name the
+sender.  Normally, the sender is determined from system login
+information, or by checking the real user ID of the calling process.
+If
+.I sender_env_variable
+is set, and an environment variable with the given name exists, then
+use it, by default.  This can be set to LOGNAME for use with System V-based
+systems, or USER for BSD-based systems.
+.DD smail string "``X_SMAIL_NAME_X"
+Name a valid path to a
+.I smail
+binary that can be used to
+re-exec
+.I smail
+when a major configuration change has
+been detected,
+or to exec
+.I smail
+when delivering error messages.  If this does not begin with ``/'', it
+will be referenced relative to the
+.I smail_lib_dir
+directory.
+.DD smail_lib_dir string "``X_LIB_DIR_X''"
+This defines the path to the smail configuration file directory.  The
+router, director and transport files, as well as alias and path
+files and method files may be referenced relative to this directory.
+.DD smail_util_dir string "``X_UTIL_BIN_DIR_X''"
+This defines the path to directory containing most smail utilities.
+In particular, smail expects to find the \fBmkaliases\fP and
+\fBmkdbm\fP utilities in this directory.
+.DD smart_path string none
+This defines the default value for the
+.B path
+attribute used by the
+.I smarthost
+router driver.
+This gives the path to a machine
+which supposedly contains a more
+complete routing database than is available
+on the local host.
+See a later section describing the
+smarthost driver for more information on the use
+of this attribute.
+.DD smart_transport string none
+This defines the default value for the
+.B transport
+generic attribute used by the
+.I smarthost
+router driver.
+See a later section describing the
+smarthost driver for more information on the use
+of this attribute.
+.DD smart_user string none
+This defines the default value for the
+.B smart_user
+attribute used by the
+.I smartuser
+director driver.
+.BD smtp_accept_max number
+The maximum number of SMTP connections that smail will process at any
+one time.  This is for use with SMTP daemons started with the \fB\-bd\fP
+option to \fIsmail\fP.  If connection requests come in while when this
+number of SMTP-connection children are forked, the connection will be
+shutdown with SMTP message 421.
+.IP
+If this value is zero, then the number of SMTP connections is not limited.
+.BD smtp_accept_queue number
+If this number of SMTP connection processes is exceeded, then additional
+connections will be accepted, but their messages will be queued and will
+not be processed until a later queue run.  When the number of current
+connection processes drops below this number, immediate mail processing
+will resume, depending upon the value of \fBdelivery_mode\fP.
+.IP
+If this value is zero, then SMTP connections will not be converted to
+queue-only mode based on the number of connections.  Note that the
+value of \fIsmtp_accept_queue\fP should be less than the value of
+\fIsmtp_accept_max\fP, and that setting \fIsmtp_accept_max\fP to zero
+prevents \fIsmtp_accept_queue\fP from working correctly in all cases.
+.BD smtp_banner string
+This string will be expanded to form the SMTP startup banner that is
+written by the SMTP server when a connection request is accepted.
+Each line of this message is automatically preceded by a 220
+identification code, and newlines are correctly changed into a
+carriage-return newline sequence.  The default value for
+.B smtp_banner
+is:
+
+.nf
+	$primary_name Smail$version #$compile_num ready at $date
+.fi
+
+.DD smtp_debug boolean on
+This boolean variable controls the meaning of the DEBUG command when
+receiving SMTP commands.  If the variable is on, then the DEBUG command
+(with an optional debugging level) sets debugging to the specified
+level, or 1 if no level was specified.  The debugging output will
+be written over the SMTP connection.
+.DD smtp_receive_command_timeout interval 5m
+This interval defines the timeout for each SMTP receiver command for
+interactive SMTP daemons.  If a command is not received within this
+period of time after a prompt, then the connection is closed down
+and the SMTP receiver exits.
+.DD smtp_receive_message_timeout interval 2h
+This interval defines the timeout for reading a message with the DATA
+command for interactive SMTP daemons.  If the entire message is not
+received within this period of time after the ``354 Enter mail'' prompt,
+then the message is removed, the connection is closed down, and the
+SMTP receiver exits.
+.DD spool_dirs string "``/usr/spool/smail''"
+This defines one or more directories into which
+incoming mail can be spooled.
+Directories are separated by single colon
+characters.
+When writing a message to the first spool directory
+fails,
+(say due to permission problems, filesystem full errors, etc.)
+successive spool directories are tried until
+the incoming message can be successfully written
+or until no more alternative directories exist.
+Each spool directory is expected to have writable subdirectories of:
+.I input
+(to hold the actual spool files),
+.I lock
+(for temporary lock files),
+.I msglog
+(for temporary per-message transaction logs and audit trails)
+and
+.I error
+(to hold messages which failed due to configuration errors or other
+problems which require human intervention).
+.DD spool_grade character "``C''"
+This character names the default grade for messages.
+This can be overridden by a
+.B Precedence:
+field in the message header.
+The grade is used in sorting messages in the
+input spool directory
+and is also available in string expansions
+as the
+.B $grade
+variable.
+See the
+.B grades
+attribute for more information.
+.DD spool_mode number 0440
+This defines the file creation mode for spool files.
+.DD transport_file string "``transports''"
+names the file containing the transport configuration
+information.  If this does not begin with ``/'', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+.DD trusted_users string "``root:uucp:daemon''"
+This names a list of users (separated by colons) who are trusted to
+specify a sender for a message.
+Users who are not in this list cannot specify a
+.B Sender:
+header field without it being removed.
+If such users specify a
+.B From:
+header field, then a
+.B Sender:
+field will be created that specifies the real
+user that submitted this mail.
+Generally,
+this should be set to that names of all users under
+which remote mail is received and sent to
+.IR smail .
+If this list is turned off,
+using the form
+.BR \-trusted ,
+then all users are trusted.
+.IP
+.B NOTE:
+The real user ID is used in verifying
+trusted users.  However, under many operating systems,
+the /usr/lib/uucp/uucico program runs under the real uid
+of the user that ran
+.I /usr/lib/uucp/uucico.
+Often any user can run the
+.I uucico
+program.
+The
+.I smail
+program cannot differentiate this case from any other case
+and will thus do the ``wrong thing'' here.
+If this problem exists on your machine,
+then the trusted attribute may need to be turned off.
+This problem is particularly difficult to resolve on
+System V machines where non-superuser programs
+are unable to change their real uid.
+.DD trusted_groups string off
+This names a list of groups (separated by colons) that are trusted
+to specify a sender for a message.  The groups specified are checked
+against the effective gid of smail.  Thus, if smail is a setgid program,
+then this string is of no value and should be turned off.  However,
+if smail is not set gid, then programs that invoke smail under a specific
+effective gid, while not a specific real uid, can be detected and can
+be properly treated as trusted.
+.DD uucp_name string "computed at run time"
+This specifies a name for the local host.
+This name is available in string expansions as the
+.B $uucp_name
+variable.
+It is also used in the
+``remote from \fIhostname\fP''
+suffix to
+``From\fI<space>\fP''
+lines for mail being delivered to remote
+machines, when the
+.B from
+attribute is turned on for a transport.
+.DD domains string "uucp"
+.PD 0
+.DD visible_name string "computed at run time"
+.PD
+The full domain name used in outgoing mail addresses within
+header fields.
+If
+.B visible_name
+is turned off,
+then it will be set to the first name
+from the
+.B hostnames
+attribute.
+If the
+.B hostnames
+attribute is not specified
+then that attribute will be filled in
+with hostnames of the form \fIhostname\fP.\fIdomain\fP,
+where
+.I hostname
+is derived in a system-dependent manner
+and where
+.IR domain ,
+here,
+is one name from the
+.B domains
+list attribute.
+Each entry in the
+.B domains
+list is used, in order, to created the
+.B hostnames
+value.
+.IP
+For sites in the UUCP zone
+.B domains
+will often merely be the string ``uucp''.
+Finally,
+the variable
+.B $visible_name
+is available in string expansions.
+.IP
+For compatibility with earlier versions of smail3.1, the \fBdomains\fP
+list can also be specified as \fBvisible_domains\fP.
+.br
+.SH DIRECTOR, ROUTER AND TRANSPORT FILE FORMATS
+The
+.IR director ,
+.IR router
+and
+.I transport
+configuration
+files share a common format,
+which is described in this section.
+The specific contents for each file are described in later sections.
+.PP
+Each entry in one of these files specifies a name for
+the entry, a set of
+.I generic
+attributes and a set of
+.I driver
+attributes.
+The generic attributes and the driver attributes
+define the characteristics for the entry.
+.PP
+The list of possible generic attributes
+are common to all entries in a configuration file.
+One generic attribute is always required:
+the
+.B driver
+attribute.
+This attribute names the underlying
+set of functions that will
+be used when using that entry.
+The list of possible driver attributes are specific to
+different types of drivers.
+.PP
+The form of an entry is:
+
+.nf
+	\fIentry_name\fP:
+		\fIgeneric_attribute\fP , ... ; \fIdriver_attribute\fP , ...
+.fi
+
+where a comma separates the definitions for specific attributes
+and where a semicolon separates the generic attributes from
+the driver attributes.
+It is
+.I not
+an error for an entry to end in a comma or
+semicolon.
+The form for generic and driver attributes is the same as for
+entries in the config file.
+.PP
+As an example, consider an entry in the transport file
+that specifies use of the program /bin/mail to
+deliver mail to local users.
+The mail messages are to contain a ``Return-Path:''
+header field,
+and the /bin/mail program is to be given no
+more than 20 addresses per invocation.
+A simple entry to specify this is:
+
+.nf
+	# call /bin/mail to deliver to local users
+	local: max_addrs=20, return_path, driver=pipe;
+		cmd="/bin/mail $($user$)"
+.fi
+
+.SH "INTERACTION BETWEEN DIRECTORS, ROUTERS AND TRANSPORTS"
+To better understand the use of the
+.IR director ,
+.I router
+and
+.I transport
+files,
+this section describes, briefly,
+how address resolving
+and delivery is accomplished in
+.IR smail .
+The configuration specified in these files
+is intimately involved in this process.
+.PP
+When
+.I smail
+is given a list of addresses to which
+a message is to be delivered,
+the list is processed iteratively
+until a list of resolved addresses is produced.
+When an address is resolved,
+the transport (the part of
+.I smail
+that
+performs delivery of messages to local users
+or remote hosts) and all data required by the transport
+will be known.
+.PP
+To accomplish this the
+.I smail
+program
+goes through the following
+steps:
+.IP a. 4n
+Each address is parsed to find a hostname,
+called the
+.IR target ,
+and the remaining part of the address,
+called the
+.IR remainder .
+As a simple example, in the address
+.IR "tron@uts.amdahl.com" ,
+the host part
+.I uts.amdahl.com
+is the target and
+.I tron
+is the remainder.
+In the address
+.IR "sun!amdahl!tron" ,
+the target is
+.I sun
+and the remainder is
+.IR amdahl!tron .
+More information on addresses can
+be found in
+.IR mailaddrs(X_MAN5_EXT_X) .
+.IP b. 4n
+Each local address
+is given to directors, in the order specified by the director file,
+until one of the directors
+says that it knows what to do with that address.
+That director has the option of
+returning a new list of addresses
+or of putting the address on a list
+of resolved addresses.
+If new addresses are produced,
+they are put on the input list,
+to be processed from step a.
+.IP c. 4n
+Each remote address is passed to routers,
+in the order specified by the router file,
+until one of the routers is able to match the
+target name for the address.
+If no router is able to match the complete target, then
+the first router with the longest match will be used.
+The router specifies the transport to be
+used for delivery to that address,
+plus some other information required by
+the transport,
+such as the
+.I "next host"
+and
+.I "next address"
+values.
+The transport may come from a router default, a method file
+of may be specified by the router specifically.
+.PP
+When all addresses have been resolved,
+they are sorted out and passed to
+transports.
+It is the job of the transport
+to deliver a message to the
+set of addresses that it is given.
+.PP
+It is important to know that all hostnames and local usernames are
+matched independent of case, so that, for example,
+.IR Postmaster ,
+.I POSTMASTER
+and
+.I postmaster
+all compare equal.  In addition an internal hash table is kept of all
+regular recipient addresses, that is, all addresses which do not
+specify files or shell commands.  This table is used to discard
+duplicate regular recipient addresses.  This hash table is independent
+of case, as well, so that the address
+.I Postmaster@SRI-NIC.ARPA
+is considered a duplicate of
+.IR postmaster@sri-nic.arpa .
+.SH "THE DIRECTOR FILE"
+The
+.I director
+file describes the operations,
+and their order,
+for handling local addresses.
+For example,
+some possibilities are to expand a local address
+into a list of local and remote addresses
+through an alias file, forward file or mailing list,
+or to cause mail to be delivered to a local user.
+.PP
+The following list describes the possible
+generic attributes for director file entries:
+.BD caution boolean
+If set then be cautious of addresses produced by this
+director.  If the nobody attribute is not
+set, then reject file, shell command
+or
+.IR :include:filename -style
+mailing list addresses.
+.BD default_group string
+If the driver does not associate a group
+to an address returned by it, then
+associate the group id for this group
+name.  This will override the gid set by a
+.B default_user
+attribute.
+.BD default_home string
+If the driver does not associate a home
+directory with an address returned by it,
+then use this home directory.
+The value will be expanded to form the actual directory pathname.
+At the present time, the
+.B $user
+variable is not available for
+this expansion.
+If the string expansion fails,
+it is ignored.
+.BD default_user string
+If the driver does not associate a user
+or group to an address returned by it,
+then associate the user id and group id
+of this user.
+.BD driver string
+The driver attribute names a specific set of low-level
+functions which will do the work of directing
+local mail.  This attribute is required.
+.BD nobody boolean
+If set, then access files, or run shell
+commands as the user specified
+by the
+.B nobody
+attribute,
+for
+addresses flagged with
+.I caution
+by either the
+.B caution
+generic attribute or by the driver.
+Association of nobody with an address
+overrides the default_user,
+default_group, set_user and set_group
+attributes.
+This attribute is set by default.
+.BD owner string
+Names the address to be sent mail if an error
+occurs in processing the addresses
+produced by this director.
+This string is expanded
+with the variable
+.B $user
+set to the local-form
+address passed to the director.
+Commonly the value will be ``owner-$user''.
+If this string expansion fails,
+it is ignored.
+.BD sender_okay boolean
+If set, then it is always okay for this attribute to
+produce an address equal to the sender.
+This effectively turns on the
+.I "me too"
+flag for this director.
+This should generally be set for
+forwarding directors and should not be
+set for aliasing and mailing list
+directors.
+.BD set_group string
+Associate the gid for this group with the
+addresses returned by the driver.  This
+overrides any gid set by the
+.B set_user
+attribute.
+.BD set_home string
+Associate this home directory with all
+addresses returned by the driver.  This
+will be expanded in the same manner as
+.BR default_home .
+.BD set_user string
+Associate the uid and gid for this user
+with addresses returned by the driver.
+This overrides any values set by the driver.
+.PP
+There are two addresses which are required by the mailer software to
+exist: the address
+.I Postmaster
+and the address
+.IR Mailer-Daemon .
+To avoid the necessity of an alias for these two users, smail contains
+two implicit directors embedded into the directing code.  These
+implicit directors are used as a last resort.  The first such director
+maps the address
+.I Mailer-Daemon
+onto the address
+.I Postmaster
+and the second maps
+.I Postmaster
+onto the address
+.IR root .
+.SH "THE ROUTER FILE"
+The
+.I router
+file describes the operations,
+and their order,
+for handling remote addresses.
+For example,
+some possibilities are to lookup hostnames in a routing database,
+to match a special domain-literal form,
+or call a program to return a list of neighboring hosts.
+.PP
+The following list describes the possible
+generic attributes for router file entries:
+.BD always boolean
+Routers will not always find a complete match for a particular
+hostname.
+For example,
+if a routing database has a route to the domain
+.I amdahl.com
+but not to the hostname
+.I futatsu.uts.amdahl.com
+then the routing driver might return
+the route to
+.IR amdahl.com .
+Generally,
+the route for the longest match of the target host
+is used.
+However,
+if the
+.B always
+attribute is set,
+then any match found by this router
+will be used in preference to routes that might have been returned by
+routers
+.IR "later in the router list" .
+This is useful for hardwiring a certain number of
+routes within a small database.
+For example, this is useful for Internet sites that
+gateway for a small number of UUCP sites
+in the UUCP zone.
+.BD driver string
+The driver attribute names a specific set of low-level
+functions which will do the work of routing
+remote mail.  This attribute is required.
+.BD method string
+.PD 0
+.BD transport string
+.PD
+The router driver has the option of specifically setting a transport
+to use for remote delivery.
+If the driver does not do so,
+then either a
+.B method
+or a
+.B transport
+attribute must exist to specify how the mail is to be delivered.
+A
+.B method
+attribute specifies a file which contains a table relating
+hostnames to transports.
+A
+.B transport
+attribute specifies a specific transport.
+If the method file does not contain a match for all hosts,
+then the transport named with the
+.B transport
+attribute is used.
+The format of a method file is given in the next section.
+.SH "METHOD FILES"
+Method files define a relation between a set of hostnames
+and a set of transports to be used in delivering to
+those hostnames.
+Method files use the standard routine for reading
+file entries,
+just as with the
+.IR config ,
+.IR director ,
+.IR router
+and
+.I transport
+files.
+Each entry should have the form:
+
+.nf
+	\fIhostname\fP	\fItransport-name\fP
+.fi
+
+stating that mail being sent to
+.I hostname
+should be delivered using the transport
+.IR transport-name .
+As a special case,
+if the
+.I hostname
+value is the special string ``*'',
+the entry matches any host.
+This is a catch-all feature which should
+only be used in the last entry in a
+method file.
+.PP
+Entries in a method file can be associated with particular message
+grades.  This allows different grades to use different transports,
+such as non-demand UUCP for messages with a bulk or junk precedence.
+Grade ranges are specified by appending a grade letter range to the
+hostname, separated by \fB/\fP.  Entries with grades can be in any
+of the forms:
+
+.nf
+	\fIhostname\fP/X	\fItransport-name\fP
+	\fIhostname\fP/X-*	\fItransport-name\fP
+	\fIhostname\fP/*-Y	\fItransport-name\fP
+	\fIhostname\fP/X-Y	\fItransport-name\fP
+.fi
+
+See the definition of the \fBgrades\fP configuration variable for
+a discussion of grade letters, and their correlation with message
+precedence strings.  In the first form, the transport is used for
+an exact match of the grade letter.  In the second form, a match
+requires a grade a character value of at least X.  In the third, form
+a match requires a grade character value of at most Y.  The final
+form specifies a range of grades from character value X to character
+value Y.
+.PP
+For example, with the default value for the \fBgrades\fP variable,
+the following file will use smtp for hosts \fBlocal1\fP and \fBlocal2\fP,
+if the precedence is air-mail or better; otherwise, for any host
+with a precedence of first-class or better, demand-polled uucp is
+used; otherwise, queued uucp is used:
+
+.nf
+	local1/*-A	smtp
+	local2/*-A	smtp
+	*/*-C		demand_uucp
+	*		uucp
+.fi
+.SH "THE TRANSPORT FILE"
+The
+.I transport
+file describes the various possible ways,
+of delivering mail.
+For example,
+some possibilities are to call a program such as
+.IR uux (1)
+to deliver mail to a remote host,
+to connect over TCP/IP to a remote host
+and converse using an SMTP protocol,
+or to deliver local mail by appending to a user's
+mailbox file.
+.IP NOTE:
+Unlike the routers and directors files, the transports file does not
+replace all compiled-in transports.  Rather, entries in the transports
+file override existing entries of the same name, or add new entries.
+Thus, if you wish to add one new transport definition, you need only
+add the new definition, and do not need to duplicate all of the
+existing entries.
+.PP
+The following list describes the possible
+generic attributes for transport file entries:
+.BD bsmtp boolean
+Use a batched SMTP format,
+where the message is enclosed in an envelope of SMTP
+commands.
+This is not the same format commonly used on BITNET,
+as it does not contain FORTRAN carriage control
+characters.
+This can be used to send mail to remote hosts using
+SMTP formats even when direct two-way connections are
+not feasible.
+For example, this will work over UUCP and eliminates
+difficulties with sending arbitrary addresses
+as arguments to UUX.
+Use of
+.B bsmtp
+also turns on the
+.B dots
+attribute.
+When used with the
+.B uucp
+attribute, UUCP-style !-path addresses are used in the SMTP envelope.
+.BD crlf boolean
+If set,
+then each line of the header and message
+will end in carriage-return/line-feed rather than
+a single newline character.
+This is not typically useful,
+as the SMTP transport,
+which requires this as a part of the interactive protocol
+always does this anyway.
+.BD debug boolean
+If set,
+replaces the body of the message
+with debugging information.  This can be
+used, for example, as a shadow transport
+to watch the flow of mail for a while for
+debugging purposes.  This essentially
+allows for debugging without the ethical
+and space problems of saving the
+personal correspondence of others.
+.BD dots boolean
+If set,
+then use the hidden dot protocol.
+All output lines which begin with dot will
+have one more dot prepended.
+All of the various SMTP modes imply this behavior.
+.BD driver string
+The driver attribute names a specific set of low-level
+functions which will do the work of delivering
+mail.  This attribute is always required.
+.BD error_transport string
+names another transport that the message
+should be sent to, if the first transport
+returns failure.
+.BD from boolean
+If set,
+then supply a ``From\fI<space>\fP'' line
+before the message when delivering with
+this transport.
+If this is a remote transport
+(i.e., the
+.B local
+attribute is not turned on)
+then this line will end with ``remote from \fIhostname\fP''
+where
+.I hostname
+is the UUCP name for the local host.
+This is useful for delivery over UUCP and
+for delivery to standard mailbox files,
+which require this format.
+.BD hbsmtp boolean
+``Half-baked'' batched SMTP.
+This is batched SMTP mode without
+an initial HELO command or an ending QUIT command.
+This can be used for creating files which will be concatenated
+together at a later time to form one batch of
+SMTP commands containing multiple messages.
+Use of the
+.B hbsmtp
+attribute also turns on the
+.B dots
+attribute.
+.BD local_xform boolean
+If set,
+the form of the header and envelope information will be setup for
+delivery to the local host.
+This performs no changes to existing header fields,
+other than insertion of commas into fields containing
+sender and recipient addresses.
+This also affects the form of any generated
+``From\fI<space>\fP''
+line and the form of envelope addresses used
+in SMTP commands.
+.IP
+This can be used with remote delivery, if delivery is to a remote
+smail3.1 site, which is useful within a domain that maintains
+consistent user forwarding information.  This leaves messages in
+unqualified format until leaving the domain through a gateway.
+.BD local boolean
+This implies \fBlocal_xform\fP, but implies that delivery really is
+final delivery to a user, file, or program on the local host.  This
+disables generation of a bounce message resulting from an
+excessive message hop-count.
+.BD max_addrs number
+This states the maximum number of recipient addresses that can
+be given in one call to the transport.
+If this is turned off then there is no maximum number.
+The default number is 1 and typically this is either
+left as 1 or turned off.
+.BD max_chars number
+This states the maximum number of characters in recipient addresses
+that can be given in one call to the transport.
+If this is turned off then there is no maximum number.
+The default number is about one third of the number characters that
+can be passed as arguments to a program.
+When using SMTP transports this should be turned off unless a remote
+host is known to be unable to handle a large number of addresses.
+For delivery over UUCP to a remote
+.I rmail
+program,
+this should be around 200 or 250,
+to avoid buffer overruns at the remote site.
+UUCP generally has small buffers to hold argument information.
+.IP
+If
+.I smail
+is given an address whose length exceeds this number,
+then the address will be passed with one call to the transport.
+Thus,
+this limit is not strictly enforced.
+.BD max_hosts number
+This states the maximum number of different hosts that can be given
+in one call to the transport.
+If this is turned off, using the form
+.B \-max_hosts
+then there is no maximum number.
+The default number is 1 and typically this is
+not changed.
+.BD received boolean
+If set,
+then a
+.B Received:
+field is inserted for mail being delivered
+with this transport.
+The form of this field is taken from the
+.B received_field
+attribute in the
+.I config
+file.
+This attribute is on be default.
+.BD return_path boolean
+If set,
+then a
+.B Return-Path:
+field is inserted for mail being delivered
+with this transport.
+The form of this field is taken from the
+.B return_path_field
+attribute in the
+.I config
+file.
+This should only be used for transports which
+perform final delivery to local destinations.
+.BD shadow string
+This names another transport that the message
+should be sent to.  This could be used
+to, for example, start a program that
+looked up the sender in a database and
+brought up a rendition of his face
+from a
+.I "face server"
+in a
+window on your workstation.  The shadow
+transport is called only if the
+primary transport successfully performs
+delivery.
+.BD strict boolean
+If this flag is set,
+then some effort is done to transform
+mail which does not conform to RFC822 standards.
+This is potentially useful for sites which gateway
+between the UUCP zone and the Internet.
+In general,
+it is not a good idea to turn this on as it
+changes the contents of headers fields.
+This should only be done when it is known that
+some remote hosts only understand
+mail which conforms to the
+RFC822 standard.
+.BD unix_from_hack boolean
+If set then any line in the body of the message which begins with
+``From '' will have the character `>' inserted at the beginning.
+This is required for local delivery to mailbox files that are in
+the standard form expected by the System V
+.I mailx (1)
+and the BSD
+.I Mail (1)
+programs.
+.BD uucp boolean
+If set then outgoing recipient addresses will be converted
+into UUCP-style paths of the form
+.IR hosta!hostb!hostc!user .
+An exception is that any use of `%' as an address operator
+is preserved.
+Thus, an envelope address of
+.I user%hostb@hosta
+would be converted to
+.IR hosta!user%hostb .
+This only affects envelope addresses and does NOT affect
+the message or the message header.
+.BD inet boolean
+If set then outgoing recipient addresses will be conform into to
+internet specifications.  This is not the same as the strict
+attribute, since the transformations apply only to the envelope
+addresses, and not to headers.  If \fBinet\fP is defined, then
+route-addr addresses will be generated when routing to remote
+destinations, rather than !-style addresses.  Thus, if smail is given
+the address
+.I user%host@gateway
+and \fIgateway\fP is reached through the path
+.IR hosta!hostb!hostc ,
+then smail will generate the address
+.IR @hostb,@hostc:user%host@gateway
+to be sent to the host \fI@hosta\fP.
+.BD retry_dir string
+The subdirectory under X_MAIL_SPOOL_DIR_X/retry to use for managing
+host retry intervals for this transport.  By default, the name of the
+transport is used.  However, multiple transports can share a retry
+directory by setting \fBretry_dir\fP for several transports to the
+same value.  For example, by default all of the default TCP/IP SMTP
+transports (\fBinet_zone_smtp\fP, \fPuucp_zone_smtp\fP, and
+\fBlocal_smtp\fP set \fBretry_dir\fP to ``smtp''.
+.BD remove_header string
+Identify a header field that will be removed from the message for
+transport.  This is an expansion string, so header removal can be made
+dependent upon some conditions.  If expansion of the string results in
+an empty string, then no header is removed.  Any number of
+\fBremove_header\fP attributes can be specified.
+.BD "insert_header\fR,\fP append_header" string
+Add the given header field at the beginning (\fBinsert_header\fP)
+or end (\fBappend_header\fP) of the message header for transport.
+These are expansion strings, so the header (and the existence of the
+header) can be made dependent on some conditions.  If expansion of the
+string results in an empty string, then no header is added.  Any
+number of \fBinsert_header\fP and \fBappend_header\fP attributes can
+be specified.
+.PP
+As an example of the manipulation of headers, consider the addition of
+an ``Organization'' header for all locally generated mail that does
+not already have an Organization header.  This can be done with:
+
+.nf
+	append_header="${if and{{origin:local}{!header:organization}} \\
+		Organization: ACME Explosives Corp.}"
+.fi
+
+To configure a ``Content-Length'' field, which some systems use to
+identify the length of a message within a mailbox file rather than
+keying on lines starting with ``From'', use:
+
+.nf
+	remove_header="Content-Length",
+	append_header="Content-Length: $body_size"
+.fi
+.SH "THE QUALIFY FILE"
+This section details the format and use of the hostname
+qualification file.
+.PP
+The qualify file defines the domain name(s) to be used in
+making all hostnames fully-qualified.  Note that this file
+is used only for bare hostnames, i.e. names without dots.
+.PP
+The qualify file uses the standard routine for reading
+file entries.  Each entry should have the form:
+
+.nf
+	\fIhostname\fP  \fIdomain\fP
+.fi
+
+stating that the host name
+.I hostname
+should be considered a part of domain
+.IR domain .
+As a special case, if the
+.I hostname
+value is the special string ``*'',
+the entry matches any host.
+This is a catch-all feature which should
+only be used in the last entry in a
+qualify file.  Typically, UUCP sites
+should should have an entry like:
+
+.nf
+	*         uucp
+.fi
+
+at the end of the qualify file.
+.PP
+If the qualify file is missing, or if no
+entry is found that matches a given hostname,
+then no hostname qualification is performed.
+.SH "THE RETRY FILE"
+This section details the format and use of the retry
+control file.
+.PP
+The retry file defines, by target domain,
+the minimum interval between delivery attempts
+and/or the maximum duration over which to continue
+attempting delivery.
+.PP
+Each retry entry should have the form:
+
+.nf
+	\fIdomain[:domain...]\fP  [\fIinterval\fP]/[\fIduration\fP]
+.fi
+
+stating that, for the given domain(s),
+delivery will be attempted no more frequently than
+.IR interval ,
+and that delivery attempts will cease after
+.IR duration .
+.PP
+Values for
+.I interval
+and
+.I duration
+are in seconds.  However, they can be written
+as a sequence of numbers with suffixes of
+`s' for seconds, `m' for minutes,
+`h' for hours, `d' for days, `w' for weeks and
+`y' for years.
+For example,
+.B 10m/2d
+specifies an
+.I interval
+of ten minutes and a
+.I duration
+of two days.
+.PP
+Either or both of
+.I interval
+and
+.I duration
+may be omitted, in which case they are
+taken to be zero (i.e. no limit).
+.PP
+As a special case, if a retry file entry has
+a domain list equal to the special string ``*'',
+that entry matches any domain.
+This feature is a catch-all which should
+only be used in the last entry in a
+retry file.
+.PP
+If a retry file contains no ``*'' catch-all
+entry, then the configuration parameters
+.I retry_interval
+and
+.I retry_duration
+will be used to control retries to domains
+without specific retry entries.
+.SH "THE DIRECTOR DRIVERS"
+This section details the usage and driver-specific
+attributes for all of the director drivers
+distributed with smail.
+See the section
+.B "THE DIRECTOR FILE"
+for more information on directors.
+.SH "The Aliasfile Driver"
+The base standard for the format of the aliases and forward
+files should be the format used by the BSD
+.IR sendmail
+program.
+This format is simple yet powerful enough for most needs.
+.PP
+A sendmail-compatible aliases file consists of relations
+between alias names and the lists of entities to that the
+aliases expand.
+Each entry is of the form:
+
+.nf
+	\fIalias-name\fP: \fIaddress\fP, ...
+.fi
+
+The following is a sample alias file for a machine nsavax:
+
+.ta 0.5i 1i 3i
+.nf
+	# Sample aliasing file for nsavax
+	root: brown, casey	# redirect root's mail
+	MAILER-DAEMON: postmaster
+	postmaster: brown	# brown maintains netnews and mail
+	netnews: brown
+	north: north, fawn	# copy fawn on all north's mail
+
+	# post important information to network
+	msgs: local-msgs@ciacray, local-msgs@nscprofs,
+		local-msgs@nsavax
+	local-msgs: "|/usr/ucb/msgs -s"	# deliver to msgs program
+
+	# administrivia
+	rnews: |/usr/lib/news/uurec	# read news messages from mail
+
+	# mailing lists for accessing users on the local network
+	nsavax-users: :include:/usr/lib/mail/nsavax-users
+	ciacray-users: :include:/usr/lib/mail/ciacray-users
+	nscprofs-users: :include:/usr/lib/mail/nscprofs-users
+
+	# mail to everybody on the local network
+	everybody: nsavax-users,	# well, almost everybody
+		ciacray-users,
+		nscprofs-users
+
+	# save mail to mailing list requests and send to moderator
+	funding-request: /usr/log/funding-req, reagan@nscprofs
+	covert-bugs-request: /usr/log/covert-bugs-req, james.bond@ciacray
+
+	# broadcast to mailing lists, and save a copy
+	funding:	# excludes congress
+		:include:/usr/list/funding,
+		/usr/log/funding	# save all messages here
+	covert-bugs:	# includes kgb
+		:include:/usr/list/covert-bugs,
+		/usr/log/covert-bugs	# save all messages here
+.fi
+.DT
+
+The aliasfile driver searches for matches between a
+local address on input and an
+.I alias-name
+from the alias file.
+If a match is found, it returns the associated list.
+.PP
+It has the following driver attributes:
+
+.BD file string
+Define the name of the file containing the database.  Except when this
+is not appropriate for the
+.I proto
+being used, if this does not
+begin with ``/'', it will be referenced relative to the
+.I smail_lib_dir
+directory.
+.BD interval number
+A sleep interval between open retries, in seconds.
+On systems which have 1 second granularities on wakeup
+times and where, as a result,
+sleep times can be nearly 0 seconds,
+this number should be at least 2.
+.BD modemask number
+A mask, ala
+.IR umask (2),
+defining the
+maximum permissiveness allowed for the
+permissions on the alias file.  For example,
+a modemask of 022 disallows write access
+to all but the file owner.  This value should be chosen to
+strike a reasonable compromise between security and user
+convenience.  It should also take into account the use
+of the
+.B owners
+and
+.B owngroups
+attributes described below.  A paragraph below describes the
+consequences for a file not meeting this criteria.
+.BD optional boolean
+If set, then if the open fails, assume an empty
+alias file.
+This is useful for optional databases.
+For example,
+in a networking environment,
+workstations may be configured with the option of having a private
+alias file,
+without the necessity of creating such a file on each host.
+.BD owners string
+A list of permissible owners for the alias file.  A paragraph below
+describes the consequences for a file not meeting this criteria.
+.BD owngroups string
+A list of permissible owning groups for the alias file.  A paragraph
+below describes the consequences for a file not meeting this criteria.
+.BD proto string
+Names the protocol used in opening and searching the database.
+Possibilities are discussed below.
+.BD reopen boolean
+If this attribute is on,
+the alias file will be closed and reopened after
+each call to the driver.
+This is useful for systems that have a shortage
+of file descriptors yet wish to access a large number
+of databases.
+.BD retries number
+the maximum count of open retries.  This should
+be greater than zero if the system does not
+have an atomic rename(2) system call, as the
+alias file may not always exist while being
+modified.
+.BD tryagain boolean
+If set, then if the open fails,
+the resolution of local addresses will be attempted at a later time.
+This is useful in a networking environment where failure
+to open a database (such as a remote YP database) may be a result
+of a server machine being down or temporarily inaccessible.
+.PP
+If any of the attributes
+.BR modemask ,
+.BR owners
+or
+.BR owngroups
+reject the file as a possible security problem,
+all addresses
+returned are flagged with
+the
+.I caution
+bit set.
+See the generic director attribute
+.B nobody
+for more information.
+.PP
+The current list of possible values for the
+.I proto
+attribute is:
+.TP 1i
+bsearch
+Use a binary search to look through a sorted file
+arranged as lines which begin with a key and are
+followed by the value associated with the key,
+separated by a colon or whitespace.  The file should be
+sorted by the key, not by the line.  The \fImksort\fP(X_MAN8_EXT_X)
+utility sorts lines correctly.  Care should be taken when using
+the regular \fIsort\fP(1) to ensure that the sort uses proper
+delimiters.
+.TP 1i
+dbm
+Use the BSD
+.IR dbm (3x)
+or
+.IR ndbm (3x)
+routines to
+search for the key.  The keys and data in the dbm
+database must end in a nul byte.  If only the
+.IR dbm (3x)
+library is available then only one dbm
+database can be used by
+.I smail ,
+while the
+.IR ndbm (3x)
+routines will allow any number of databases.
+However, it is always okay for multiple routers
+and directors to use the same dbm database, if
+this is useful.
+.TP 1i
+aliasyp
+This is a variant of the
+.I yp
+protocol that is compatible with the standard Sun
+.I mail.aliases
+YP service.
+This database has a different format from other databases
+which must be taken into account when sending requests.
+Typically this is not useful for a path database.
+.TP 1i
+lsearch
+Use a linear search using the same read routine
+used to read config files.  `#'-style comments are
+allowed and the beginning of each file entry
+should be the key, followed by whitespace or a
+colon character.  The rest of the entry should be
+the value associated with the key.
+.TP 1i
+yp
+Use the Sun YP service to access a paths database
+stored on a remote machine.
+In this case the value for the
+.B file
+attribute is of the form:
+
+.RS
+\fIdomain_name\fP:\fIdatabase_name\fP
+.RE
+
+where the
+.I domain_name:
+is optional and defaults to the
+default YP domain for the local host.
+.TP 1i
+nialias
+Use the NeXT NetInfo database, for getting user aliasing information.
+.PP
+A simple entry in the director file is:
+
+.nf
+	# don't perform any authentication on the alias file
+	aliases: driver=aliasfile;
+		file=/usr/lib/aliases, proto=dbm
+.fi
+.SH "The Forwardfile Driver"
+Sendmail-compatible forward files have the same structure as
+mailing lists.
+This format is:
+
+.nf
+	\fIaddress\fP, \fIaddress\fP, ...
+.fi
+
+Where newlines can be included wherever whitespace is allowed,
+and where a `#' character begins a comment that ends at the
+end of the line.
+Comments are treated as whitespace.
+.PP
+An example forward file for the user james.bond on nsavax is:
+
+.nf
+	# send to my own machine, but keep a copy here
+	# just in case it doesn't make it there.
+	bond%british-ss@ciacray, james.bond
+.fi
+.PP
+A useful forward file is:
+
+.nf
+	# I am on vacation, save away my mail, but tell people
+	# I won't be back for a while
+	hustead,
+	"\||\|mailx \-s 'Yep, gone fishing!' \\"$SENDER\\" < $HOME/.fish"
+.fi
+
+Which will save to Ted Hustead's mailbox file and will also execute
+the following shell command:
+
+.nf
+	mailx \-s 'Yep, gone fishing!' "$SENDER" < $HOME/.fish
+.fi
+
+where the shell variables $HOME and $SENDER are available from
+the environment as the user's home directory and the sender
+address, respectively.  Note that if the
+.B ignore_write_errors
+attribute is not turned on in the
+pipe transport,
+this example will cause mail to
+be returned to the sender stating that a write error occurred
+on the pipe to mailx.
+To prevent this, the line could also be changed to:
+
+.nf
+	"\||\|cat>/dev/null;\\
+	 mailx \-s 'Yep, gone fishing' \\"$SENDER\\"<$HOME/.fish"
+.fi
+
+where the ``cat>/dev/null'' will read
+.BR stdin ,
+preventing a write error on the pipe.
+.PP
+The current list of driver attributes for the forwardfile driver is:
+.BD caution string
+This string defines a list of users
+and directories which should cause
+addresses to be flagged with
+.IR caution .
+Each entry in the list is expanded individually.
+If this string expansion fails,
+it is ignored.
+A number, or a number range (in the form
+\fIlow_number\fP\-\fIhigh_number\fP) can be used to indicate numerical
+uid's that should be treated with caution.
+Typically,
+this string is ``0'',
+thus preventing file and shell command from
+being performed as the superuser, ``0-99'', preventing access with a
+system id.
+.BD checkowner boolean
+If set, then one of the permissible
+owners will be the user associated with the forward file.
+.BD file string
+The name of a file containing the forward
+information for a user.  This string will be expanded
+with the local name
+passed to the director available as
+.B $user
+and
+any associated home directory available as
+.BR $HOME .
+If this string expansion fails,
+it is ignored.
+.BD forwardto boolean
+If set, then the file must begin with
+``Forward to '' to be considered a forward file.
+Also, only the first line is scanned for addresses.
+This ``feature'' mimics the capability found in
+some systems for hiding forwarding information
+in user mailboxes.
+.BD modemask number
+A mode mask defining the maximum permissiveness
+allowed for the permissions on a forward file.
+Analogous to the modemask attribute for the
+aliasfile driver.
+.BD prefix string
+This attribute requires that an address begin with the specified
+string to be matched by the director.  In addition, any reference to
+the
+.B $user
+variable in the file attribute will have this prefix removed.
+.BD suffix string
+This attribute requires that an address end with the specified string
+to be matched by the director.  In addition, any reference to the
+.B $user
+variable in the file attribute will have this suffix removed.  Both a
+.B prefix
+and a
+.B suffix
+attribute can be specified for a director.  In this case both the
+prefix and the suffix string are required for a match.
+.BD owners string
+Specifies a list of user who may own the
+forward file.
+.BD owngroups string
+Specifies a list of groups who may own the
+forward file.
+.BD unsecure string
+This string defines a list of users
+and directories which should cause
+addresses to be flagged with
+.IR unsecure .
+This will prevent delivery to shell commands or files.
+Each list entry is expanded.
+If this string expansion fails,
+it is ignored.
+A number, or a number range (in the form
+\fIlow_number\fP\-\fIhigh_number\fP) can be used to indicate numerical
+uid's that should be treated with caution.
+.PP
+If none of the attributes
+.BR owners ,
+.BR owngroups
+or
+.B checkowner
+is given, no checks are made on ownership restrictions.  The
+default modemask is 0, effectively disabling checks for file mode
+restrictions.
+
+.TP \w'NOTE:'u+2n
+NOTE:
+Unless the file attribute references
+.B $HOME
+or begins with
+``~\&/'' the forward file driver can be used to provide forward
+files for users or names that are not listed in the passwd
+file.  In this case,
+.B $user
+merely expands to the address
+passed to the forwardfile driver.  This feature can be
+used for setting up forwarding for obsolete accounts or
+mailing list directories.
+.PP
+The
+.B prefix
+and
+.B suffix
+attributes can be used to define mailing list directories associated
+with ownership or request addresses.  To get a directory of mailing
+list or alias owners, a
+.B prefix
+of ``owner-'' could be used.  To create a directory of request
+addresses, a
+.B suffix
+of ``-request'' could be used.
+.PP
+An example of useful forwardfile director entries are:
+
+.nf
+	# put forwarding addresses for obsolete accounts under
+	# the /u/obsolete directory.  These will contain only
+	# forwarding addresses.  This is maintained by users in
+	# the group "admin" or "staff".
+	obsolete:
+		driver=forwardfile;
+		file=/u/obsolete/$user,
+		owngroups=admin:staff
+
+	# handle per-user forward files in each user's home
+	# directory.  This is roughly compatible with BSD
+	# sendmail, though performs some access checks, and
+	# is very cautious of directories which are remotely
+	# accessible.  Root's .forward entries will operate
+	# from the nobody uid.
+	dotforward:
+		driver=forwardfile, nobody;
+		file=~/.forward, unsecure=~uucp:~ftp,
+		caution=root, checkowner, owners=root,
+		modemask=022
+
+	# allow the "Forward to " feature to be used from user
+	# mailbox files as used in System V.
+	forwardto:
+		driver=forwardfile, nobody;
+		file=/usr/spool/mail/$user, caution=root,
+		checkowner, modemask=002
+
+	# define a mailing list directory, with any shell commands
+	# executed under the nobody user id.  Any file in this
+	# directory defines the name and contents of a mailing list.
+	mailing_lists:
+		driver=forwardfile, caution;
+		file=/usr/lib/smail/lists/${lc:user}
+
+	# define a directory of owner mailing lists.  Addresses
+	# specified in this directory specify the owner address of a
+	# mailing list or alias.
+	owner_lists:
+		driver=forwardfile, caution;
+		file=/usr/lib/smail/lists/owners/${lc:user},
+		prefix="owner-"
+.fi
+.SH "The Mailing-list Drivers"
+Mailing-list drivers come in two forms, one form for mailing-lists
+derived by aliasing drivers, and another form for mailing-lists
+derived by forwarding drivers.  The reason for having two forms
+is that security options take different forms depending on
+where mailing-lists come from.  Also, by having them separately
+recognized it is possible to allow pipes and files in
+mailing-lists from alias files but not from forward files.  Note that if
+a new driver is written that does not comply to the standards for
+alias drivers and forwarding drivers, and that can produce mailing
+lists, a new mailing-list driver may need to be written as well.
+.PP
+The format of a mailing list file is the same as that of a forward
+file, a simple list of addresses, with optional comments.
+.PP
+The driver attributes are common to both of the mailing-list
+drivers:
+.BD copyowners boolean
+If set,
+attributes related to ownership restrictions
+are taken from the director which produced
+the mailing list address.
+.BD copysecure boolean
+The modemask is copied from the director which
+produced the mailing list address.
+.BD interval number
+The sleep interval, in seconds, between retries.  For systems that
+have a 1 second timing granularity, this number must be at least 2 to
+guarrantee a non-zero sleep interval.
+.BD match_director string
+Names the specific director that this
+entry matches expansions of.  This can be
+used to assign different attributes from
+alternate uses of the
+.I aliasfile
+and
+.I forwardfile
+directors.
+.BD modemask number
+The maximum permissiveness of file modes.
+.BD owners string
+A list of allowed owners.
+.BD owngroups string
+A list of allowed owning groups.
+.BD retries number
+The maximum count of open retries.
+.SH "The User Driver"
+The user director directs mail to a mailbox for known user
+on the local host.  It will succeed if the local address
+matches a user on the system and will put an entry on the list
+of fully-resolved addresses.
+.PP
+The driver attributes are:
+.BD prefix string
+The prefix, if non-NULL, must be found in the front of the username
+for this driver to be used.
+This prefix is removed from the username prior to
+determining if it is a valid user on the local host.
+This can be used to set up an
+alternate name for each user on the system
+which is not matched by aliasing or forwarding
+director.  Commonly,
+.B prefix
+will be set to
+``real\-'' for one of the directors, so that
+mail can be guaranteed to be delivered to a
+user's mailbox file on a specific host by
+mailing to an address such as
+``real\-tron@namei.uucp.''
+If a match is found,
+the actual username is given to the transport.
+.BD transport string
+The name of the transport to associate with
+the address.
+.PP
+A typical user director entry in the director file is:
+
+.nf
+	user:  driver=user; transport=local
+.fi
+
+This will associate any mail destined for a user on the
+local host with the
+.B local
+transport.
+.SH "The Smartuser Driver"
+It may be that you wish all local addresses that you
+don't recognize to be sent elsewhere.
+For example, there could
+be a host in your domain that knows where most of the domain's
+users reside.
+The
+.I smartuser
+driver is a convenient way of
+handling this case, by redirecting mail for unknown users
+to another host.
+Note that this must be the last director
+entry,
+if it is used,
+because it is generally non-discriminatory.
+.PP
+The possible driver attributes for the smart user driver are:
+.BD new_user string
+This defines the new address to direct mail
+to.  This string will be string expanded
+with
+.B $user
+set to the
+local address name, and with
+.B $HOME
+being any the associated home directory,
+if there is one.
+It is a configuration error for this
+string expansion to fail.
+.BD well_formed_only boolean
+If set, the
+.I smartuser
+driver only matches an address if it contains
+characters exclusively from the set of
+letters, digits, whitespace, as well as `\-',
+`_', `+', and `.'.
+.PP
+If the
+.B well_formed_only
+attribute is on,
+any use of
+.B $user
+in the
+.B new_user
+value will have any groups of one or more whitespace
+and dot are characters collapsed into exactly one dot.
+If it is off, the
+.B $user
+value may be enclosed in double-quotes, with
+backslash escapes where appropriate.
+This prevents the the value of
+.B $user
+from changing the form of the address.
+.PP
+A sample entry is:
+
+.nf
+	smartuser:
+		driver=smartuser;
+		new_user=$user@gateway.domain,
+		well_formed_only
+.fi
+
+With this entry, the input addresses:
+
+.nf
+	john
+  and	John Q. Public
+.fi
+
+will become:
+
+	john@gateway.domain
+  and	John.Q.Public@gateway.domain
+
+respectively.  If
+.B well_formed_only
+had not been set, the second
+address would have been:
+
+	"John Q. Public"@gateway.domain
+
+whereas the input address:
+
+	\\unusual"address"in\\deed
+
+would become:
+
+	"\\\\unusual\\"address\\"in\\\\deed"@gateway.domain 
+
+Addresses which are produced by the smartuser driver are flagged
+as such and will not themselves be matched by the smartuser
+driver.  Thus, infinite loops will not occur if
+``gateway.domain,''
+from the example, happens to be the local host.
+.PP
+It is possible to set the new_user value in the
+.I config
+file.
+This is done by setting the config
+file attribute smart_user.  For example, the config file could
+contain the following line:
+
+.nf
+	smart_user = $user@gateway.domain
+.fi
+
+Then, if the entry in the director file was:
+
+.nf
+	smart_user: driver=smart_user; well_formed_only
+.fi
+
+the configuration would be equivalent to the second
+.I smart_user
+example above.  This makes it possible to share copies
+of the director file among several machines, with the smart user
+configuration specific to one machine being set in its private
+configuration file.
+This config file attribute is used only if the
+.I new_user
+attribute is not given in the
+.I smart_user
+entry.
+.SH "THE ROUTER DRIVERS"
+This section details the usage and driver-specific
+attributes for all of the router drivers
+distributed with smail.
+See the section
+.B "THE ROUTER FILE"
+for more information on routers.
+.SH "The Pathalias Driver"
+The pathalias router computes routes from a database in the
+style produced by the pathalias program.  It has the following
+driver-specific attributes:
+.BD domain string
+A list of domains to be stripped from the
+end of a hostname before it is
+searched for in the database.
+Multiple
+domains, in this list, are separated by colons.
+.BD file string
+This defines the name of the file containing
+the database.  Except when it does not make sense as a result of the
+.I proto
+used, if this does not begin with ``/'', it will be referenced
+relative to the
+.I smail_lib_dir
+directory.
+.BD interval number
+The number of seconds to wait between open retries.
+.BD optional boolean
+If set, then if the open fails, assume an empty
+alias file.
+This is useful for optional databases.
+For example,
+in a networking environment,
+workstations may be configured with the option of having a private
+alias file,
+without the necessity of creating such a file on each host.
+.BD proto string
+Names the protocol used in opening and searching
+the database.  Possibilities are discussed
+below.
+.BD reopen boolean
+If set,
+the pathalias will be closed and
+reopened after each call to the pathalias
+driver.  This is useful in
+environments where file descriptors are
+scarce but many databases are desired.
+.BD required string
+A list of domains which targets are
+required to be for a match.  The names
+are not stripped, unless they are also
+specified by the
+.B domain
+attribute.
+.BD retries number
+The maximum number of retries for opening a
+file.  This is useful on systems without an
+atomic rename system call.  On such systems
+there will be a window of vulnerability
+when new databases are moved into place
+where no file will exist.
+.BD try string
+A list of domains to be stripped only if
+the target was not found in the database
+without the domain stripped.
+(This is currently not supported).
+.BD tryagain boolean
+If set, then if the open fails,
+the resolution of local addresses will be attempted at a later time.
+This is useful in a networking environment where failure
+to open a database (such as a remote YP database) may be a result
+of a server machine being down or temporarily inaccessible.
+.PP
+The current list of possible values for the
+.I proto
+attribute is:
+.TP 1i
+bsearch
+Use a binary search to look through a sorted file
+arranged as lines which begin with a key and are
+followed by the value associated with the key,
+separated by a colon or whitespace.
+.TP 1i
+dbm
+Use the BSD
+.IR dbm (3x)
+or
+.IR ndbm (3x)
+routines to
+search for the key.  The keys and data in the dbm
+database must end in a nul byte.  If only the
+.IR dbm (3x)
+library is available then only one dbm
+database can be used by
+.I smail ,
+while the
+.IR ndbm (3x)
+routines will allow any number of databases.
+However, it is always okay for multiple routers
+and directors to use the same dbm database, if
+this is useful.
+.TP 1i
+lsearch
+Use a linear search using the same read routine
+used to read config files.  `#'-style comments are
+allowed and the beginning of each file entry
+should be the key, followed by whitespace or a
+colon character.  The rest of the entry should be
+the value associated with the key.
+.TP 1i
+yp
+Use the Sun YP service to access a paths database
+stored on a remote machine.
+In this case the value for the
+.B file
+attribute is of the form:
+
+.RS
+\fIdomain_name\fP:\fIdatabase_name\fP
+.RE
+
+where the
+.I domain_name:
+is optional and defaults to the
+default YP domain for the local host.
+.TP 1i
+aliasyp
+This is a variant of the
+.I yp
+protocol that is compatible with the standard Sun
+.I mail.aliases
+YP service.
+This database has a different format from other databases
+which must be taken into account when sending requests.
+Typically this is not useful for a path database.
+.PP
+All database lookups are either independent of case or, when case
+independent lookups are impossible, case-folded.  Thus, keys
+in DBM or YP databases must be in lower case.
+.PP
+As an example of the use of the
+.BR domain ,
+.BR try
+and
+.B required
+driver attributes,
+if the
+.B domain
+value is ``uucp,'' then any hostname that ends
+in .uucp will have the .uucp removed before being looked up.
+Alternately,
+if
+the the
+.B try
+value is ``uucp,''
+then ``.uucp'' is
+stripped only if the original
+was not found.  If the
+.B required
+value is ``uucp'' then a hostname
+is not a candidate for a match
+unless it ends in ``.uucp.''  The effects of
+.B domain
+and
+.B try
+are
+not cumulative and a hostname
+is applied to the
+.B required
+attribute value before being applied to
+.B domain
+and
+.B try
+in that order.
+.PP
+Note that the length of any stripped string is added to the count
+of characters matched for purposes of deciding which router had
+the most complete match.
+.PP
+A sample pathalias router entry is:
+
+.nf
+	pathalias:
+		transport=uux, driver=pathalias;
+		file=paths, proto=bsearch,
+		domain=uucp
+.fi
+
+An example of a pathalias file for the site
+.I walldrug
+is:
+
+.ta .8i 2.5i
+.nf
+	.amdahl.com	amdahl!%s
+	amdahl	amdahl!%s
+	dgcad	namei!glotz!nsavax!dgcad!%s
+	glotz	namei!glotz!%s
+	hoptoad	hoptoad!%s
+	kgbvax	kgbvax!%s
+	kremvax	kremvax!%s
+	namei	namei!%s
+	nsavax	namei!glotz!nsavax!%s
+.fi
+.DT
+.PP
+This data base associates a host or domain name, on the left
+hand side, with a path, on the right hand side.  The right hand
+side should be a UUCP-style `!'-path ending in a ``%s''.
+The format is
+intended to be more general,
+with the ``%s'' showing where to put
+a user name.
+Indeed,
+.IR pathalias (X_MAN8_EXT_X)
+can produce paths involving both
+right and left operators such as:
+
+.nf
+	decwrl	decwrl!%s@ucbvax
+.fi
+
+This form is not recommended in general because of a historical
+disagreement over the precedence of ``!'' and ``@''
+which is not always resolved correctly by the pathalias program.
+By standardizing on UUCP-style `!'-paths,
+as will be produced from the
+USENET maps, we avoid many routing ambiguities.
+If the path is just ``%s,''
+it denotes a name for the local host.
+.SH "The Uuname Driver"
+Some sites in the UUCP zone may wish to use a direct
+path to their neighbors,
+without relying on a pathalias
+database.
+Alternately,
+a site may wish
+to use the pathalias routes to their neighbors only in the case
+that a domain address is given
+(i.e., ``\fIneighbor\fP.uucp'').
+.PP
+A simple driver that meets these requirements is the
+.B uuname
+driver, which reads a list of hostnames from the output
+of a shell command (normally
+.BR /usr/bin/uuname )
+and uses this list to match neighboring hostnames.
+.PP
+An example entry for a site that wishes to route to their
+neighbors for hostnames that may end in .uucp is:
+
+.nf
+	uuname: transport=uux, driver=uuname;
+		cmd=/usr/bin/uuname, domain=uucp
+.fi
+
+An alternative is a site that wishes to bypass the pathalias
+router only for explicit target matches, so that
+the form ``\fIneighbor\fP.UUCP''
+will be routed through, as an example,
+pathalias.
+This can be done by not
+specifying a domain, as in:
+
+.nf
+	uuname:  transport=uux, driver=uuname; cmd=/usr/bin/uuname
+.fi
+
+The
+.I uuname
+driver also supports the
+.BR domain ,
+.BR required
+and
+.B try
+attributes,
+and all three domain-style attributes can be
+colon separated lists.  See the pathalias driver for more
+details on these attributes.
+.PP
+In addition, there is a string attribute,
+.B statfile
+which names a file which can be used to determine when the output of
+the shell command will change.  For example, when used with the uuname
+command this would normally be either
+.I /usr/lib/uucp/L.sys
+or
+.I /usr/lib/uucp/Systems
+depending on whether a site is using HoneyDanBer or stock V7-style
+UUCP.  If a
+.B statfile
+attribute is defined, then smail daemons that expect to deliver
+multiple messages will cache the output of the shell command.  The
+specified pathname will then be checked at regular intervals to
+determine if the command should be reissued to refresh the cached
+information.
+.SH "The Queryprogram Driver"
+If no other router driver meets a particular routing requirement, but
+a shell script or C program can be written which does, the
+.B queryprogram
+driver can be used to access this script or program.  This driver runs
+a program, with arguments, and examines its exit status and standard
+output for information.  The program should return an exit status of
+zero to indicate a match for the target host, non-zero otherwise.
+Optionally, this program can write a path and a transport on its
+standard output to provide additional information.  If a path is not
+returned then a one-hop path to the target host is assumed.  The
+program is always executed as an unprivileged user.
+.PP
+The
+.B queryprogram
+driver supports the
+.BR domain ,
+.BR required
+and
+.B try
+attributes, as defined in the description of the
+.B pathalias
+driver.  The program and its arguments are described in terms of a
+.B cmd
+attribute which is a string consisting of white-space-separated tokens
+which are expanded to form a program name and the arguments to pass to
+that program.  The variable
+.B $host
+can be used to obtain the target host string.  White space or
+punctuation from an expansion variable do not delimit arguments.
+Two additional boolean attributes affect the driver's behavior:
+.TP
+.B read_path
+If this attribute is enabled, then a path is read as the first
+white-space delimited field in the first line of output from the
+program.  If no output is produced by the program, or this attribute
+is not enabled, then a one-hop path to the target host is assumed.  A
+path should consist of a list of hostnames separated by an exclamation
+point (`!') character.
+.TP
+.B read_transport
+If this attribute is enabled, then a transport is read as a
+white-space delimited field from the first line of output from the
+program.  If the
+.B read_path
+attribute is also enabled, then the transport is taken from the second
+field, otherwise it is taken from the first.  If no output was
+generated by the program, or the field did not exist in the output,
+then the normal methods for determining the transport are used.
+.PP
+A trivial example of the use of this driver is the router file entry:
+
+.nf
+	match_bar:
+		driver=queryprogram, transport=bar;
+		cmd="/bin/test X${lc:host} = Xfoo"
+.fi
+
+This router will use the program
+.IR test (1)
+to determine if the target host is
+.IR foo .
+If this is the target host, then it is assumed to be a neighboring
+host which can be reached over the transport
+.IR bar .
+.PP
+A more complex example is to create a shell script such as:
+
+.nf
+	# match_fubar.sh - match hosts on the fubar networks
+
+	case "$1" in
+
+	foo)	echo "foo foo_transport"; exit 0;;
+	bar)	echo "foo!bar foo_transport"; exit 0;;
+	curds)	echo "curds curds_transport"; exit 0;;
+	whey)	echo "curds!whey curds_transport"; exit 0;;
+
+	esac
+
+	exit 1
+.fi
+
+By setting up a router file entry such as:
+
+.nf
+	match_fubar:
+		driver=queryprogram;
+		cmd="/bin/sh $lib_dir/match_fubar.sh ${lc:host}",
+		read_path, read_transport
+.fi
+
+a complete, though not particularly optimal, router is created which
+can match the hosts
+.IR foo ,
+.IR bar ,
+.IR curds
+and
+.IR whey
+and cause messages to these hosts to be delivered using one of the
+transports
+.IR foo_transport
+or
+.IR curds_transport .
+.PP
+The
+.B queryprogram
+driver is not very efficient, as it requires a fork/exec for each
+host.  However, it is a very simple to construct a new router using
+this driver, so it is useful for prototyping.  In general, a new form
+of routing requirement is most efficiently handled by writing a new
+router driver.
+.SH "The Gethostbyname Driver"
+In a networking environment,
+hostnames on a
+network can be matched using this driver,
+which calls
+the
+.IR gethostbyname (3N)
+library routine.
+This routine is only
+available on systems that supply a BSD compatible internet networking library.
+Driver attributes for this driver include
+.BR domain ,
+.BR required
+and
+.B try
+attributes, which are compatible with the
+.I pathalias
+and
+.I uuname
+drivers.
+.PP
+Additional attributes are:
+.BD only_local_domain boolean
+Do not match hosts that have a domain component (i.e., that contain a
+dot).  The \fBdomain\fP attribute is applied before the
+\fBonly_local_domain\fP attribute, so hosts that have a domain component
+consisting only of one of the strings listed with the \fBdomain\fP
+attribute can be matched.
+.PP
+.I gethostbyname
+will only match a target host completely.
+The hostname given to the transport will be the
+host as given by the
+.I h_name
+field of the
+.I hostent
+structure.
+.TP \w'NOTE:'u+2n
+NOTE:
+The hostname given to
+.IR gethostbyname (3N)
+will be downcased,
+so that upper-case or mixed-case names can be matched
+correctly.
+.SH "The Gethostbyaddr Driver"
+Also in a network environment, it is useful to be able to
+specify explicit Internet addresses using a target such as:
+[192.2.12.3]
+which is the internet address for the host
+.IR eek.uts.amdahl.com .
+.PP
+The gethostbyaddr driver matches targets of this form,
+which is defined
+by square brackets surrounding only digits and dot characters.
+The driver then converts this number into a hostname by
+calling
+.IR gethostbyaddr (3N)
+to determine the proper name for the host.
+If
+.I gethostbyaddr
+fails, then the input domain literal name is
+given to the transport.
+This is useful with incomplete host tables.
+.PP
+The gethostbyaddr driver has the following attributes:
+.BD check_for_local boolean
+If set, see if the hostname
+returned by gethostbyaddr() matches
+one of the known names for the
+local host.  The name ``localhost''
+is counted here as a potential name
+for the local host.
+
+NOTE:  This attribute is set by default.
+.BD fail_if_error boolean
+If set, then any domain-literal
+target which does not fit the form
+of an internet address is
+considered an error.  If not set,
+then such addresses are merely not
+matched by the driver.
+.SH "The Bind Driver"
+The
+.B bind
+driver uses the
+.I "Berkeley Internet Name Domain"
+server,
+.I named ,
+to resolve target hostnames.  It is fully compliant with
+the RFC974 standard,
+.I "Mail Routing and the Domain System" ,
+and uses MX and WKS records.  This router is available only on systems
+that have a 4.3BSD compatible resolver library.  It is highly
+recommended that this router be used for machines that are on the
+internet, rather than using the
+.B gethostbyname
+router.
+.PP
+The following attributes vary the behavior of the
+.B bind
+driver:
+.BD defer_no_connect boolean
+If this boolean attribute is set, then we must be able to connect to
+the server.  If attempts to connect to the server fail, then routing
+is retried at a later time, on the assumption that the nameserver is
+only down temporarily.  If this attribute is not set, then a failure
+to connect to the server will cause the router to be ignored.  This
+allows a bind router to be optional based on whether or not the server
+exists.
+
+NOTE:  This attribute is set by default.
+.BD local_mx_okay boolean
+If this boolean attribute is not set, then it is considered an error
+for an MX resource record to be encountered which points to the local
+host.  If this attribute is set, then such an MX resource record will
+cause the address not to be matched.  The precedence number for the
+resource record is taken into account here, so that an MX resource
+record which points to the local host is ignored if there are other
+records with a lower precedence number.
+.BD defnames boolean
+This boolean attribute is passed to the BIND resolve routines as the
+RES_DEFNAMES flag.  If set, then hostnames which do not contain dots
+will have a default domain appended to them before lookups.  For
+example, this allows for hosts on a local area network to be
+referenced using the basename of the host rather than requiring the
+full domain name.
+
+NOTE:  This attribute is set by default.
+.BD ignore_domains string
+If this string is set, then it is used as a colon-separated list of
+domain names.  If a hostname ends in any of these domains, then the
+router will not match the host, and will not result in any queries.
+This can be set to a list of domains that are known not to exist, such
+as \fBuucp\fP and \fBbitnet\fP, to prevent expensive lookups which
+will never be successful.
+.BD domain_required boolean
+If this boolean attribute is set, then a hostname with only one domain
+component (i.e., no dots) will not be matched.  This should probably
+be set if \fBdefnames\fP is not set, to prevent lookups for uucp
+hostnames that will not be found by BIND.
+.BD mx_only boolean
+If this boolean attribute is set, then match a host only if it has an
+MX record.  This is not currently useful on the Internet as a whole,
+though it does have uses in managing networks disconnected from the
+Internet, but that use BIND to manage the hostname space.  If all
+hosts that can accept mail have an MX entry pointing to them, then no
+attempts will made to send mail to other ``hosts,'' such as printers
+or terminal concentrators.
+.BD gateways string
+A list of gateways and corresponding domains for explicit routing using the
+bind processing logic for the gateway address. The string consists of a
+sequence of lists. Each list consists of strings separated by colons, and
+the lists are separated by a string consisting of a single `+' character.
+Each list consists of the name of a gateway, followed by a list of domains
+that should be routed to that gateway. The gatewayed domains will match
+either against a complete address, or against the terminating domain of an
+address. For example:
+
+.RS
+gateways = "uknet.ac.uk:uucp:+:\\
+            earn-relay.ac.uk:bitnet:ie:earn"
+.RE
+
+In this example, if an address of the form <anything>.uucp is being
+processed, it will be converted to uknet.ac.uk before any other processing
+is done. The new name will then be looked up in the DNS and routed
+accordingly. Thus mail for <anything>.uucp will always be sent to
+uknet.ac.uk, by whatever route is registered in the DNS for that address.
+Similarly, mail for the domains bitnet, ie, and earn will be routed to
+earn-relay.ac.uk.
+.BD widen_strings string
+A list of domains, separated by colons, to be tacked onto the end of the
+address if it isn't found directly in the DNS. For example:
+
+.RS
+widen_domains = "cam.ac.uk:ac.uk"
+.RE
+
+With this setting, an address such as "psy.ox" will first be tried as
+it stands, then "psy.ox.cam.ac.uk" will be tried, and if that fails,
+"psy.ox.ac.uk" will be tried.
+.PP
+The following attributes are for use in the UK, where mail routing is
+complicated by the co-existence of both the Internet and the JANET mail
+protocols.
+.BD uk_greybook_transport string
+If this attribute is set, then an address which is matched in the DNS but
+which does not have any usable MX records because they have been discarded
+for UK-specific reasons (see below) will be routed to this transport,
+provided the address ends in `.uk'. The string should be the name of a
+transport defined in smail's transports configuration file.
+.IP
+If this attribute is not set, such an address will cause a `nomatch'
+return, allowing a subsequent router (typically smarthost) to handle the
+message.
+.BD uk_greybook_worldorder boolean
+If this switch is set, addresses that are sent to the greybook transport
+are left in world order, otherwise they are inverted into UK order.
+.BD uk_ignore_gateways string
+A list of known gateways which are not to be used for sending SMTP mail
+within the UK (that is, to addresses that end in `.uk'). For example:
+
+.RS
+uk_ignore_gateways = "nsfnet-relay.ac.uk:\\
+                      sun2.nsfnet-relay.ac.uk:\\
+                      mhs-relay.ac.uk"
+.RE
+
+.BD uk_max_precedence number
+The highest MX precedence value that is acceptable for an address in the
+UK for SMTP mail. The default value is 999, which disables this option, but
+sites in the UK should normally set it to 9 in accordance with the
+established convention that preference values greater than 9 should not be
+used for intra-UK SMTP mail.
+.BD uk_try_inverting boolean
+If this attribute is set, then when an address cannot be found in the DNS,
+even after widening with the strings given in the widen_domains attribute,
+the original address is inverted (e.g. uk.ac.somewhere becomes
+somewhere.ac.uk) and the whole process is tried again. Inversion does not
+take place if the address already ends in `.uk'.
+.PP
+All matches found by the bind driver are considered full matches, for
+the purposes of prioritizing results from different routers.  Matches
+are considered full even in the presence of wildcards in MX records.
+.PP
+A site which exists only on the internet, requiring no other means of
+routing should have a router file consisting of the entries:
+
+.RS
+.nf
+# match internet address domain literals
+internet_addrs:
+	driver=gethostbyaddr, transport=smtp;
+	fail_if_error
+# match internet hostnames
+internet_hosts:
+	driver=bind, transport=smtp
+.fi
+.RE
+
+A site which servers as the internet gateway for some set of hosts
+should either have a paths file naming the hosts for which it
+gateways, or should use the
+.B local_mx_okay
+attribute and allow target hostnames to fall through to a router for
+another network.  For example, a UUCP network gateway which gateways
+for a set of hosts listed int the UUCP map database distributed over
+USENET could use the following two routers, in order, to handle all of
+its gateway responsibilities:
+
+.RS
+.nf
+internet_hosts:
+	driver=bind, transport=smtp;
+	local_mx_okay
+uucp_hosts:
+	driver=pathalias, transport=uux;
+	file=/usr/lib/smail/paths
+.fi
+.RE
+
+If the
+.B defer_no_connect
+is not used, then it is advisable to include a
+.B gethostbyname
+router to match hostnames.  The following sequence of routers will
+allow the same smail configuration to be used on machines that do have
+the BIND server and on machines that don't have the server:
+
+.RS
+.nf
+internet_hosts:
+	driver=bind, transport=smtp;
+	-defer_no_connect
+network_hosts:
+	driver=gethostbyname, transport=smtp
+.fi
+.RE
+
+.SH "The Smarthost Driver"
+Sometimes it is handy to be able to redirect mail to
+a host that you don't know about to some other host that has
+more routing information.  This other host is
+called a
+.IR "smart host" ,
+and can be named by using the smarthost driver.
+.PP
+The smarthost driver has the following driver attribute:
+.BD path string
+This define a host or UUCP-style `!'-path path that defines
+the smart host.
+.PP
+If no
+.B transport
+or
+.B method
+attribute is given for the
+router file entry,
+this address will be resent through all
+the routing drivers.
+An exception is that an address cannot
+be sent to the smarthost driver twice,
+as this would mean that the path to the smarthost was not known.
+.PP
+The global configuration variable \fBauth_domains\fP affects the
+smarthost router by restricting the set of hostnames that can be
+matched by the smarthost router to hostnames that are outside of the
+domains listed in \fBauth_domains\fP.
+.PP
+For example, if the site
+.I namei
+wanted to use
+.IR amdahl "'s"
+routing
+database for mail delivery to non-neighboring sites they could use
+a router file entry of:
+
+.nf
+	smart_host: driver=smarthost;  path=amdahl
+
+or	smart_host: transport=uusmtp, driver=smarthost;
+		path=amdahl
+.fi
+
+.TP \w'NOTE:'u+2n
+NOTE:
+At the present time, a
+.B transport
+or
+.B method
+attribute is required, as the software is not yet in place that
+can rescan the routers in the required ways.
+.PP
+Then, a recipient address of
+``Ted.Husted.Jr@walldrug.uucp''
+will be
+rewritten so that the hostname is
+.I amdahl
+and the
+remaining part of the address is
+``Ted.Hustead.Jr@walldrug.uucp.''
+Alternately, in the second form for the
+entry,
+the transport,
+.IR uux,
+would
+be known immediately and be passed
+the hostname ``amdahl'' immediately,
+with a
+.B $user
+value of
+``Ted.Hustead.Jr@walldrug.uucp.''
+.PP
+By specifying a UUCP-style `!'-path it is possible to route mail to a
+smart host that you would not otherwise be able to route to.
+For example, if the machine
+.I glotz
+wished to use
+.I amdahl
+as its smart host, through its neighboring site
+.IR namei ,
+it could use: 
+
+.nf
+	smart_host: driver=smarthost; path=namei!amdahl
+
+or	smart_host: transport=demand, driver=smarthost;
+		path=namei!amdahl
+.fi
+
+It is possible to set the path and/or the transport in the
+.I config
+file.  This is done by setting the
+config file attributes
+.B smart_path
+and
+.BR smart_transport .
+For example, the config file could contain the following:
+
+.nf
+	smart_path = amdahl
+	smart_transport = uusmtp
+.fi
+
+Then, if the entry in the router file was:
+
+.nf
+	smart_host: driver=smarthost
+.fi
+
+the configuration would be essentially the same as in the second
+smart_host example above.  This makes it possible to share copies
+of the router file among several machines, with the smart host
+configuration specific to one machine being set in its private
+configuration file.
+.PP
+These config file attributes are used only if the path driver
+attribute is not given in the
+.I smart_host
+entry.
+If the
+.B smart_path
+attribute from the config file is used, the
+.B smart_transport
+will override a
+.B transport
+or
+.B method
+attribute.
+.SH "The Rerouter Driver"
+The rerouter driver is an experimental router driver that can do
+optimization of UUCP-zone !-paths addresses.  For example, given an
+address of:
+.RS
+.PP
+host1!host2!host3!host4!host!user
+.RE
+.PP
+The rerouter driver could realize that a more efficient path exists to
+\fBhost\fP and rewrite this as:
+.RS
+.PP
+host6!host!user
+.RE
+.PP
+Before you say to yourself how neat this would be and how much of a
+savings this would be for the world, you must realize that such
+rerouting is dangerous and should be configured-in only with a great
+deal of consideration and attention to detail in your rerouting
+database.
+.PP
+Here are the attributes supported by the rerouter driver:
+.BD file string
+An expansion string defining a file that selects which hosts or
+domains will be considered candidates for rerouting.  If the string,
+after expansion, does not begin with \fB/\fP, it will be opened
+relative to the smail library directory.  The format of the file is
+described later in this section.
+.BD proto string
+The lookup protocol to use in searching through the database specified
+by the \fBfile\fP attribute.  The list of possible lookup protocols
+for the rerouter driver is the same as for the pathalias driver.
+.BD domain string
+A colon-separated list of default domains for hosts in the database.
+Targets ending in any of these domains will have the domain stripped
+(incuding a preceding dot) before the database is searched.  A target
+containing only the domain (e.g., just \fB.uucp\fP) will remain
+unchanged.
+.BD required string
+A colon-separated list of domain names that are must be part of a
+hostname for that hostname to be considered a candidate for rerouting.
+.BD reopen boolean
+If set, then reopen the database for each call to the rerouting
+driver, and close before each return.  This is necessary for systems
+that would not otherwise have a sufficient number of available file
+descriptors for all of their routing and directing needs.
+.BD optional boolean
+if set, then if the open of the database file fails, assume an empty
+file.
+.BD tryagain boolean
+if set, then if the open fails, try again on a later spool directory
+queue run.
+.BD matchall boolean
+If set, reroute all bang path addresses.  The rerouting database isn't
+used at all in this mode, so even hosts that have an exclusion flag
+(`-') in the database will be rerouted.  \fBUse this only for
+debugging purposes.  Unconditional rerouting is an offense against the
+net.community!\fP
+.BD matchlocal boolean
+If set, then address containing forms for the local host (within the
+bounds of the \fBrequired\fP attributes) are considered candidates for
+rerouting.  The path starting with the component directly following
+the last occurance of the local hostname is used rerouting.  For
+example, if the local hostname is \fBgeminix\fP, then the input path:
+.RS
+.RS
+.PP
+host1!host2!geminix!host!user
+.RE
+.RE
+.IP
+might be rewritten as:
+.RS
+.RS
+.PP
+host4!host!user
+.RE
+.RE
+.BD matchdb boolean
+If set, a database lookup is done for the target.  Otherwise, the
+reroute database isn't used.  This must be set of you intend to set
+the \fBfile\fP attribute to point to a database.
+.BD bounceonly boolean
+This attribute combines with the \fBmatchlocal\fP attribute to do
+limited rerouting that bypasses multiple occurances of the local host,
+but only for bounce messages (messages generated for returning errors
+to the originator of a message).  This attribute affects only the use
+of the \fBmatchlocal\fP attribute, and has no other affect on the
+rerouter driver.
+.PP
+The rerouter driver operates only on pure !-path addresses.  For such
+addresses, the !-path is scanned from right to left for hostnames that
+are considered candidates for rerouting.  If such a host is found, the
+path is truncated to contain everything from that component to the end
+of the path.  In the case of a match resulting from the
+\fBmatchlocal\fP attribute, the matching component is also removed
+from the path.
+.PP
+Given a truncated path generated by the rerouter driver, the address
+is passed back into the smail address resolver engine to be rerouted
+based on the other routers.  This goes all the way back to the
+beginning of the address resolution process, rather than continuing on
+with the list of routers, as would happen for a non-matching target
+hostname.
+.PP
+If a database file is used to define candidate hosts for rerouting,
+the file will be presumed to contain entries consisting of a hostname
+or a domain name beginning with a period, followed by \fB\(pl\fP or
+\fB\(mi\fP.  For example, the database file might contain:
+.RS
+.PP
+.nf
+.ta \w'host1.foo.bar'u+4n
+\&.do.main	+
+\&.bar	+
+\&.foo.bar	-
+host1.foo.bar	+
+host2	+
+host2.abc	+
+host3	+
+host4	+
+.fi
+.DT
+.RE
+.PP
+If a match is found on the given hostname, then the \fB\(pl\fP or
+\fB\(mi\fP is used to indicate whether the hostname is a candidate for
+rerouting.  A \fB\(pl\fP indicates that the host is a candidate, a
+\fB\(mi\fP indicates that the host is \fInot\fP a candidate.
+.PP
+The rules for finding an entry in the database are:
+.IP 1.
+Look for an exact match of the target hostname.  If not found, and the
+domain begins with a dot, look for a match without the dot.
+.IP 2.
+If that fails, strip the first component of the domain, leaving the
+initial dot on the second component.  Look for a match on the
+resulting name.  Repeat this step until a match is found or no
+components remain.
+.PP
+This lookup algorithm, together with the \fB\(pl\fP or \fB\(mi\fP
+field can be used to enable rerouting for all but a certain subset of
+hosts within a domain.
+.SS "General recommendations"
+While rerouting can be useful, and can improve the flow of mail
+through the UUCP zone, it can be disastrous if done wrong.  Here are
+two situations where it can be useful to reroute mail:
+.IP 1.
+If your site is on the Internet, and it is a backbone for a domain of
+UUCP sites that are connected to your site, then your site might have
+access to routing informations that isn't available to the UUCP sites
+(MX-records etc.).  Using shortcuts over the internet instead of
+sending the mail along the original slow and maybe expensive
+(telephone charges) path can be a major advantage.
+.IP 2.
+If one or more links that in your direct neighbourhood (one or two
+hops away) have changed and the new UUCP maps haven't yet propagated
+widely enough to make other sites aware of these changes, you could
+use rerouting to \fItemporarely\fP correct the incoming bang paths
+that were generated from the old maps.
+.PP
+However, before you enable rerouting you should make sure that your
+routing databases are really accurate.  It's not enough that you
+install the posted USENET maps automatically.  These maps are
+notoriously inaccurate, and often contain very unrealistic link costs,
+resulting in non-optimal routes.  Therefore, it is necessary to check
+all routes that might be used for rerouting line by line whenever it
+is rebuilt from the maps.
+.PP
+If you can't or don't want to do this, don't use rerouting! Or at
+least only for sites in your direct neighbourhood.  Rerouting with a
+poorly maintained routing database is a disservice to the net!  The
+simplest way to setup rerouting is to limit the set of hosts that you
+use for rerouting and ensure that the routes to all of those hosts are
+stable and accurate.  Making a separate paths file-based router is the
+simplest way of ensuring that stable paths are used.
+.PP
+Also, if you think that you have the administrative resources for
+rerouting, do so only when you are willing to keep in touch with the
+maintainers of other rerouting sites in your area.  Mail loops between
+two rerouting sites are a serious problem that can be reduced only by
+discussing changes you want to make to your routing \fIin advance\fP.
+.PP
+So in short, folks, don't use rerouting if it isn't absolutely
+necessary.  Please don't use it as a means to inflate your ego.
+Instead, maintaining a rerouting host is a responsible task that needs
+lots of time and determination.  Please restrain yourself, for the
+sake of fast and flawless mail delivery.
+.SS "Hostname non-uniqueness"
+One more point, which is actually an important one, is that hostnames
+within UUCP-zone are not always unique.  Just because you recognize a
+hostname on the end of path does \fInot\fP mean that it is the host
+that you think it is.  To avoid conflicts arrising from non-unique
+names it is best to avoid rerouting for hostnames that are not
+qualified within a domain.
+.PP
+The only safe way to reroute an address is to reroute from left to
+right rather than right to left, and to stop as soon as a host is
+found which is not a rerouting candidate.  However, such a policy
+greatly limits the usefulness of rerouting or at least it greatly
+increases the number of entries in your rerouting database that are
+necessary for rerouting to be useful.
+.SH "THE TRANSPORT DRIVERS"
+This section details the usage and driver-specific
+attributes for all of the transport drivers
+distributed with smail.
+See the section
+.B "THE TRANSPORT FILE"
+for more information on transports.
+.SH "The Pipe Driver"
+The pipe driver is the most general form of transport.  Its
+job is to send mail messages to another program, such as
+.IR uux (1)
+or
+.IR sh (1).
+.PP
+The driver attributes for the pipe
+driver are:
+.BD cmd string
+The program to be run and the arguments
+to be passed.
+This is string expanded.
+To handle multiple addresses being given
+to a transport,
+the use of
+.B $(
+and
+.B $)
+can be used to bracket a section of the
+command string which is to be repeated for
+each address given to the transport.
+It is a configuration error for string expansion
+to fail.
+.BD defer_child_errors boolean
+Generally, only child failures from
+the signal SIGTERM are reattempted
+at a later time.
+If this
+is set, then retries are performed at a later time if the
+exit code is non-zero, or if the write
+failed on the pipe.
+This is useful for treating errors from
+UUCP as configuration or as
+temporary filespace problems.
+.BD group string
+The name of the group to
+.IR setgid (2)
+to within
+the child process.  Useful only if the
+mailer is running as root.
+.BD ignore_status boolean
+If set, the exit status of the child process is
+ignored.  If this is not set, an exit
+value other than 0 is noted and mail is
+sent to the postmaster stating this.
+.BD ignore_write_errors boolean
+If set, write errors are ignored.  This
+is useful for running programs that may
+not actually read their standard input.
+If this is not set, a write error will
+cause mail to be returned to the sender.
+.BD log_output boolean
+The
+.I stdout
+and
+.I stderr
+of a command are
+logged and returned to the sender in case
+of problems.
+The current implementation is not very good
+as it actually returns the logs for all such transports
+in the event that any transports fail.
+This attribute is on by default.
+.BD parent_env boolean
+Stuff the environment with data taken
+from the parent of the input address,
+rather than the input address itself.
+This is useful for the
+transport specifically named
+.I pipe
+which is used by smail for delivery
+to shell-command
+addresses.
+Here the recipient address stored into
+the environment will then be the address
+that produced the
+shell-command address,
+rather than the shell-command address itself.
+.BD pipe_as_sender boolean
+If set, the child process' uid is taken
+from the real uid at the time the message was
+read by
+.IR smail .
+This does not affect the
+group id for the child.  This overrides
+the uid obtained from the
+.B pipe_as_user
+attribute.
+.BD pipe_as_user boolean
+Obtain a
+.I uid
+and,
+if `group' attribute is not given,
+a
+.I gid
+associated with the
+address (such as the user for a .forward file).
+Then set these via
+.IR setuid (2)
+and
+.IR setgid (2)
+in the child process.
+
+NOTE:  This attribute is on by default.
+.BD umask number
+file creation mask for the child process.
+.BD user string
+The name of the user to
+.IR setuid (2)
+to within
+the child process.  Useful only if the
+mailer is running as root.
+.PP
+The environment of the child process is entirely initialized
+and loaded with variables which may be useful in shell scripts
+or intelligent mail processing programs.  Exactly one
+environment variable is passed through from the environment
+handed to the
+.I smail
+program:  the
+.B TZ
+variable defining the
+timezone.
+The following portion of the environment is
+independent of the recipient addresses:
+
+.ta 1.5i
+.nf
+BASENAME	the basename for the spool file
+GRADE	the grade character
+MESSAGE_ID	the message ID as assigned by \fIsmail\fP
+PATH	``/bin:/usr/bin''
+PRIMARY_NAME	the official name for the host
+SENDER	the sender address
+SHELL	``/bin/sh''
+SPOOL_FILE	the complete name for the spool file
+UUCP_NAME	the name for the host on the uucp network
+VISIBLE_NAME	the name for the host used in addresses
+.fi
+.DT
+
+The rest of the environment is loaded from the input address,
+or from the parent of the input address:
+
+.TP \w'PRIMARY_NAME'u+1n
+ADDR
+The recipient address
+(or one of the recipient addresses, if more than one is
+given to the driver).
+.TP \w'PRIMARY_NAME'u+1n
+HOME
+The home directory (or one of home
+directories, if more than one recipient
+address is given to the driver).  If no
+home directory is associated with an
+address, ``/'' is used.
+.TP \w'PRIMARY_NAME'u+1n
+HOST
+The recipient hostname (or one of the
+recipient hosts, if more than one host is
+given to the driver).
+.TP \w'PRIMARY_NAME'u+1n
+USER, and LOGNAME
+These two variables are loaded with the name
+of a user on the local host, if one is found
+with some association to the address.
+.PP
+Examples of the use of the pipe driver are:
+
+.nf
+	# transport used for delivery to shell-command addresses
+	pipe:	from, local, return_path, unix_from_hack,
+		driver=pipe;
+		cmd="/bin/sh \-c $user",
+		pipe_as_user, ignore_status,
+		ignore_write_errors, parent_env,
+		\-log_output
+
+	# delivery to a remote \fIrmail\fP(8) program using \fIuux\fP(1)
+	uux:	max_addrs=5, max_chars=200, from, received,
+		driver=pipe;
+		cmd="/usr/bin/uux \- \-r \-g$grade $host!rmail
+			$((${strip:user})$)",  # see ``String expansion'' above
+		pipe_as_sender
+.fi
+.SH "The Appendfile Driver"
+The appendfile driver creates or appends to files.  It can either
+write to a filename derived from the recipient address, or it
+write a unique file into a directory.  This latter capability can
+be used to implement a primitive output queue for some purposes.
+.PP
+The driver-specific attributes are:
+.BD append_as_user boolean
+Get the
+.I uid
+and, perhaps, the
+.I gid
+from
+the user id and group id associated with
+the address.
+For example, the user
+associated with a forward file
+might be used.
+This attribute is on by default.
+.BD check_path boolean
+If set, then verify the permissions on a
+complete path for a file or dir attribute.
+This requires that all directories leading
+to a file must be searchable by the
+appending user (see the
+.IR user ,
+.I group
+and
+.I append_as_user
+attributes).
+Under System V,
+this requires a
+.IR stat (2)
+call for each
+directory in the path, and is thus somewhat expensive.
+.BD check_user boolean
+Reject an address if the
+.B $user
+would contain a `/'.
+This prevents a
+.B $user
+expansion
+from accessing a different directory.
+.BD dir string
+Defines a directory in which to write
+unique files.  Files written to this
+directory always begin with the letter `q',
+while temporary files used in the creation
+process begin with ``temp.''  This string is
+expanded similarly to the
+.B file
+attribute.
+It is a configuration error for this string expansion
+to fail.
+.BD expand_user boolean
+If set the value for
+.B $user
+value is string expanded
+before the value for the
+.B file
+or
+.B dir
+attribute is expanded.
+This is useful if a local-form address may
+require
+`~' or `$' expansions.
+.BD file string
+Defines a file to append messages to.
+This string is expanded,
+and the variables
+.B $user
+and
+.B $host
+are set
+from the recipient address.
+It is a configuration error for this string expansion
+to fail.
+.BD group string
+become this group.  Similar to the
+.B user
+attribute.
+.BD mode number
+When creating a file,
+.IR creat (2)
+it with this access mode.
+The default is 0666.
+.BD notify_comsat boolean
+Notify the COMSAT daemon of the message delivery, so that users can
+be notified that they received mail.  This has no effect if your system
+does not support the COMSAT daemon.  This should be used for delivery
+to user mailbox files.
+.BD prefix string
+This prefix is inserted in the file
+before the message.  This string is
+expanded, with
+.B $user
+and
+.B $host
+being available from the
+recipient address.
+It is a configuration error for this string expansion
+to fail.
+.BD suffix string
+This suffix is appended to the file after
+the message.
+This string is expanded, with
+.B $user
+and
+.B $host
+being available from the recipient
+address.
+It is a configuration error for this string expansion
+to fail.
+.BD user string
+This become this user (effectively at least)
+when opening or creating the file.  Access
+permissions are checked relative to this
+user, and the user will own the file if it
+did not previously exist.
+.PP
+To better understand the use of some of these attributes,
+consider the transport file entry:
+
+.nf
+	file:	driver=appendfile, from, return_path, local;
+		file=$user, suffix="\\n", check_path,
+		expand_user, append_as_user, mode=0664
+.fi
+
+This transport will be called when a file address is
+produced by a director.  Such addresses should be expanded,
+because they may require
+`~' expansions.
+Also, to keep standard many user agents happy,
+an extra newline is inserted after each message.
+The
+.B append_as_user
+attribute is set
+to ensure that addresses produced from,
+say,
+a forward file are only created or appended to if
+the associated user has permissions to do so.
+Because these filenames can be arbitrary,
+.B check_path
+is set to make sure that an otherwise
+inaccessible directory is not written to.
+.PP
+When given an address of ``~/Incoming,'' with an associated
+home directory of ``/u/joe-user'' and an associated user of
+.IR joe-user ,
+the following steps occur:
+.TP 3n
+a.
+The
+.B $user
+variable is expanded to ``/u/joe-user/Incoming.''
+.TP 3n
+b.
+The
+.B file
+attribute is also expanded to ``/u/joe-user/Incoming.''
+.TP 3n
+c.
+The directories
+.BR / ,
+.B /u
+and
+.B /u/joe-user
+are checked
+for accessibility by the user
+.IR joe-user .
+If any of these
+is not searchable, then delivery fails.
+.TP 3n
+d.
+The file
+.B /u/joe-user/Incoming
+is opened for append access.
+If it does not exist, it is created, will be owned by
+.I joe-user
+and will have mode 0664.
+Creation will fail if
+.I joe-user
+cannot write the directory.
+.TP 3n
+e.
+The message is written with a local-form ``From\fI<space>\fP'' line.
+.TP 3n
+f.
+An extra newline is appended to the file, after the
+message.
+.TP \w'NOTE:'u+2n
+NOTE:
+.I smail
+will follow the local conventions on locking
+protocols for mailbox files, which may involve creating
+a
+.RB . lock
+file or using a file lock system call,
+such as
+.IR lockf (3)
+under System V of
+.IR flock (2)
+under BSD.
+.PP
+Next, lets examine:
+
+.nf
+	local:	driver=appendfile, local, from, return_path;
+		file=/usr/spool/mail/$user, append_as_user,
+		check_user, mode=0600, notify_comsat
+.fi
+
+In this example, the
+.B $user
+value is not expanded before expanding
+the
+.B file
+attribute.  Also, just to make sure,
+.B $user
+is
+verified to not contain a `/'.
+Given an input address of
+``jane-doe,''
+associated with the user
+.IR jane-doe ,
+mail will be appended to the file
+``/usr/spool/mail/jane-doe.''
+If it did not
+previously exist, it will be owned by
+.I jane-doe
+and will have
+a mode of 0600.
+.SH "The TCPSMTP Driver"
+Simple support exists in
+.I smail
+for delivery using SMTP over
+TCP/IP,
+for systems that have BSD compatible networking.
+It is intended that eventually a complete
+backend will exist to handle SMTP in a more efficient manner,
+though in the mean time a built-in SMTP transport driver is
+available.
+.PP
+The smtp driver can be used for delivery of any number
+of addresses to one remote host, where the remote host can be
+specified either in form of a hostname known by the networking
+software or by an internet number in square brackets, such as
+.IR [192.2.12.142] .
+For example, the routing drivers
+.B gethostbyaddr
+and
+.B gethostbyname
+are suitable for matching addresses to be
+delivered using the SMTP driver.
+.PP
+The attributes for the tcpsmtp driver are:
+.BD short_timeout interval
+This defines the response timeout for oerations that are assumed to
+be short, such as protocol startup and protocol exit.  This can use
+suffix letters of `s', `m', `h', and `d' to mean seconds, minutes,
+hours or days, with no suffix signifying seconds.  Times can be added
+through direct concatenation.  For example, the value `5m30s'
+signifies 5 minutes and 30 seconds.
+The default value is 5 minutes.
+.BD long_timeout interval
+This defines the response timeout for long operations, i.e., those
+that are not short.  Suffix letters can be used in the same manner as
+with
+.BR short_timeout .
+The default value is 2 hours.
+.BD service string_or_number
+This attribute identifies a TCP/IP port number, either directly as a
+number, or as a name to be searched for in the
+.I /etc/services
+file.  This port number will be used in connecting to the remote host.
+The default is
+.IR smtp .
+.BD use_bind boolean
+Use DNS resolution, if supported, to locate and use MX and A records
+associated with the target host; without this option, the
+\fIgethostbyname\fP(\|) function is used to locate the address to use
+for delivery.  If the target host was matched with the \fBbind\fP
+router driver, then MX and A records found by the \fBbind\fP router
+will be used independent of the \fBuse_bind\fP attribute.
+.br
+.TP
+\fIdefer_no_connect, local_mx_okay, defnames, ignore_domains, domain_required, mx_only\fP
+.br
+.sp .2v
+.br
+If \fBuse_bind\fP is specified, these attributes vary the behavior of
+the \fBtcpsmtp\fP transport's DNS resolution.  See the documentation
+for the \fBbind\fP router for an explanation of these attributes.
+.PP
+The smtp driver attempts to connect immediately and deliver a
+single message.  If access to the remote host is currently not
+possible, the driver will tell smail that delivery should be
+attempted at a later time.
+.PP
+An example of the use of the smtp driver is the entry:
+
+.nf
+	# deliver using SMTP over TCP/IP to the remote host
+	tcpsmtp: \-max_chars, \-max_addrs, driver=smtp
+.fi
+
+If your site is on the Internet and gateways from the UUCP
+zone, it may be reasonable to set the
+.B strict
+attribute.
+Otherwise, this is probably not a good idea.
+.PP
+If the
+.B local
+attribute is set (see the generic transport attributes), then mail
+will be transmitted in a form that contains little reference to the
+transmitting host.  This can be used within a local network to make
+all mail transmitted within the network look like local mail (i.e.,
+local addresses will not be qualified with the domain name).  This is
+often convenient in environments that use a central host for
+processing all mailing lists and user addresses, but where mail can
+originate and be delivered anywhere in the network, and where user
+names are consistent throughout the network.
+.PP
+When mail is transmitted outside of the local network, an smtp
+transport with the \fBlocal\fP attribute turned off will qualify any
+mail sent from anywhere inside the network.
+.PP
+The SMTP transport is also affected by the \fBinet\fP and \fBuucp\fP
+generic transport attributes.  If \fBinet\fP is set, then sender and
+recipient addresses transmitted in the protocol envelope will strictly
+conform to the RFC821 and RFC1123 protocol specifications.  However,
+route-addr addresses may be generated, despite the recommendations of
+RFC1123 against the practice.  Note that networks connected completely
+by domain name servers will not result in generation of route-addr
+addresses, although they will be honored if received.
+.PP
+If the \fBuucp\fP transport attribute is set, then sender and
+recipient addresses will conform to the envelope specifications of
+RFC976, and will thus use !-style routes.  Addresses transmitted to
+the remote host will consist only of ! and % operators.  % operators
+will never be generated, but may be included if they were present in
+the original sender or recipient addresses.
+.PP
+If neither the \fBuucp\fP nor the \fBinet\fP attributes are specified,
+then an intermediate form will be used that nearly eliminates
+route-addr addresses.  This form uses RFC976 !-style addresses when
+routing is necessary, but otherwise stays within the formal SMTP
+specification.
+.PP
+The smtp driver always sets the
+.B crlf
+and
+.B dots
+transport attributes.
+.SH "DEFAULT CONFIGURATION"
+.IP NOTE:
+A transports file, unlike routers and directors files, does not
+replace all compiled-in transports.  Rather, entries in the transports
+file override existing entries of the same name, or add new entries.
+Thus, if you wish to add new transport definitions, you need only
+create a transports file containing the new defintion, and do not need
+to duplicate all of the compiled-in entries.
+.PP
+The default internal configuration is defined in the source files
+.I config.h
+and
+.IR default.c .
+The default director configuration uses:
+.IP \fIaliases\fP
+an alias database stored as an ASCII text file in
+.I "X_PATH_ALIASES_FILE_X"
+.IP \fIdotforward\fP
+forward files stored in user home directories in the file
+.I .forward
+.IP \fIforwardto\fP
+forwarding information stored in user mailbox files
+preceded by the string ``Forward to ''
+.IP \fIuser\fP
+matches local users with delivery using the
+.I local
+transport
+.IP \fIreal_user\fP
+matches local users with a prefix of
+``real-'' with delivery  (bypassing forwarding) using the
+.I local
+transport
+.IP \fIlists\fP
+mailing lists stored in the directory
+.I "X_LIB_DIR_X/lists/"
+.IP \fIsmart_user\fP
+a smart-user director may also be defined.
+.PP
+The default router configuration uses:
+.IP \fIinet_addrs\fP
+match domain literals forming IP internet addresses,
+deliver with the transport
+.IR smtp ;
+configured in if BSD style internet networking is available
+.IP \fIinet_hosts\fP
+call
+.I gethostbyname
+to match hosts on an IP network,
+deliver with the transport
+.IR smtp ;
+configured in if BSD style internet networking is available
+.IP \fIpaths\fP
+a pathalias database stored as a sorted ASCII file in
+.I "X_LIB_DIR_X/paths"
+.IP \fIuucp_neighbors\fP
+resolution of neighboring hosts on a UUCP network by calling
+the program
+.I uuname (1)
+.IP \fIsmart_host\fP
+a smarthost router may also be defined.
+.PP
+The default transport configuration defines:
+.IP \fIlocal\fP
+deliver mail to local users.  Usually, delivery is accomplished by
+writing directly to user mailbox files (either in \fI/usr/mail\fP or
+in \fI/usr/spool/mail\fP).  Alternately, mail may be delivered by
+calling a program, such as \fI/bin/mail\fP or \fI/bin/lmail\fP to
+perform delivery using system-dependent conventions.
+.IP \fIpipe\fP
+deliver mail to shell command addresses.  Shell-command addresses
+begin with a pipe character (|).  The pipe character is stripped from
+the address and the remainder of the address is passed as a command to
+\fI/bin/sh\fP.  Shell-command addresses can be generated by mailing
+lists or forwarding files, but cannot be specified as input to smail.
+.IP \fIfile\fP
+deliver mail to file addresses.  File addresses begin with a / or ~
+character.  If a file address begins with the ~ character followed by
+the name of a local user, then the ~ and username is replaced by the
+user's home directory.  If a file address begins with ~/, then the ~/
+sequence is replaced by a home directory that is appropriate to the
+context of the address.  Normally, ~/ is used within the context of
+addresses specified in a user's .forward file.
+.IP \fIuux\fP
+invoke \fIuux\fP to deliver mail to a remote
+.I rmail
+program.  The \fB\-r\fP option is given to \fIuux\fP to prevent an
+immediate poll.
+.IP \fIdemand\fP
+this is similar to the \fIuux\fP transport, except that the \fB\-r\fP
+is not supplied.  This will request that UUCP attempt to poll the
+remote site immediately.
+.PP
+\fIuusmtp\fP
+.br
+\fIdemand_uusmtp\fP
+.RS
+invoke \fIuux\fP to deliver mail to a remote
+.I rsmtp
+program (supplied in the Smail3.1 distribution).  The transmitted
+message will be encapsulated in an envelope of SMTP directives, with
+addresses passed in through the SMTP envelope rather than in the
+argument list to \fIuux\fP.  This works better than the standard
+\fIrmail\fP protocol, because quoted addresses can pass through
+unscathed, and because no limits are given on the number of addresses
+that can be given in a single transfer.  This last point can
+significantly reduce the number of uux transfers needed for large
+mailing lists, since the normal method of using \fIrmail\fP is limited
+by \fIuux\fP's internal limit of (usually) 300 characters of worth of
+arguments.
+.PP
+Note that the \fIuusmtp\fP transports are not likely to be useful
+unless both the receiving host also uses Smail 3.1.
+.PP
+The \fIuusmtp\fP transport passes the \fB\-r\fP option to uux,
+while the \fIdemand_uusmtp\fP transport does not.  Also, the
+\fBuucp\fP generic transport attribute is used by \fIuusmtp\fP and
+\fIdemand_uusmtp\fP to transfer addresses in accordance with the
+RFC976 specification.  This violates the RFC821 and RFC1123
+specifications, but is none-the-less useful between sites operating in
+the UUCP zone.
+.RE
+.PP
+\fIinet_uusmtp\fP
+.br
+\fIinet_demand_uusmtp\fP
+.RS
+These transports are identical to the \fIuusmtp\fP and
+\fIdemand_uusmtp\fP transports, except that the \fBinet\fP transport
+attribute is enabled, and the \fBuucp\fP attribute is disabled.  This
+causes mail addresses to be transferred in accordance with the SMTP
+specification.  If routing is required to reach a destination, then
+route-addr addresses are generated (e.g.,
+<@host1,@host2:user@destination>).
+.RE
+.PP
+\fIsmtp\fP
+.br
+\fIuucp_zone_smtp\fP
+.br
+\fIinet_zone_smtp\fP
+.RS
+deliver mail to a remote host by using the SMTP protocol over a TCP/IP
+connection.  If used in conjunction with the \fIbind\fP router, MX
+records will be handled in accordance with RFC974 and the RFC1123
+updates to RFC974.
+.PP
+The \fIuucp_zone_smtp\fP attribute has the \fBuucp\fP transport
+attribute set, causing transferred addresses to use !-style addresses,
+as specified in RFC976.  This can often be useful when using SMTP
+within the UUCP zone, but is otherwise inappropriate.
+.PP
+The \fIinet_zone_smtp\fP attribute has the \fBinet\fP transport
+attribute set, causing transferred addresses to conform to the RFC821
+and RFC1123 specifications for SMTP.  This is necessary for correct
+operation with arbitrary nodes on the Internet.  Both the
+\fIuucp_zone_smtp\fP and \fIinet_zone_smtp\fP attributes will handle
+generated routes (from paths files) correctly between nodes running
+Smail3.1.  The \fIinet_zone_smtp\fP transport will use route-addr
+addresses for routing despite RFC1123's recommendations against such a
+practice.  However, generated routes should never be necessary on the
+Internet.
+.PP
+The \fIsmtp\fP transport is identical to either the
+\fIuucp_zone_smtp\fP transport or the \fIinet_zone_smtp\fP transport,
+depending upon local configuration information specified when the
+smail program is compiled.  This depends upon the setting of the
+UUCP_ZONE attribute in the \fIconf/EDITME\fP file.
+.RE
+.PP
+\fIlocal_uux\fP
+.br
+\fIlocal_demand\fP
+.br
+\fIlocal_uusmtp\fP
+.br
+\fIlocal_demand_uusmtp\fP
+.br
+\fIlocal_smtp\fP
+.RS
+These transports are identical to the \fIuux\fP, \fIdemand\fP,
+\fIuusmtp\fP, \fIdemand_uusmtp\fP, and \fIsmtp\fP transports, except
+that they have the \fBlocal_xform\fP generic transport attribute enabled,
+and the \fBuucp\fP and \fBinet\fP attributes disabled.  This causes
+mail to be transferred to the remote site as if the mail were local to
+the remote site.  This is useful within closely coordinated networks
+where usernames and central mailing lists are kept consistent or are
+processed by central nodes.
+.RE
+.SH FILES
+The following files and directories are from
+a typical
+.I smail
+configuration:
+
+.PD .2v
+.TP 2.1i
+.I "X_LIB_DIR_X/config"
+Optional general
+.I smail
+configuration.
+This file can override compiled-in
+configuration.
+.TP 2.1i
+.I "X_LIB_DIR_X/transports"
+Optional configuration for
+.I smail
+transports;
+i.e., configured methods of mail delivery.
+This file replaces the compiled-in
+transport configuration.
+.TP 2.1i
+.I "X_LIB_DIR_X/directors"
+Optional configuration for
+.I smail
+directors,
+i.e., configured methods for resolving
+local addresses.
+This file replaces the compiled-in
+director configuration.
+.TP 2.1i
+.I "X_LIB_DIR_X/routers"
+Optional configuration for
+.I smail
+routers,
+i.e., configured methods for resolving
+or routing to remote hosts.
+This file replaces the compiled-in
+router configuration.
+.TP 2.1i
+.I "X_LIB_DIR_X/aliases"
+A file of aliases for local addresses.
+.TP 2.1i
+.I "X_LIB_DIR_X/paths"
+A file of paths to remote hosts.
+.TP 2.1i
+.I "X_LIB_DIR_X/lists/"
+A directory of mailing list files.
+.TP 2.1i
+.I ~/.forward
+Lists of forwarding addresses for
+local users.
+.TP 2.1i
+.I "/usr/spool/smail"
+The top of the spool directory hierarchy.
+.TP 2.1i
+.I "/usr/spool/smail/input"
+The directory containing messages to
+be processed and delivered.
+.TP 2.1i
+.I "/usr/spool/smail/msglog"
+A directory of transaction logs
+for individual messages.
+.TP 2.1i
+.I "/usr/spool/smail/lock"
+A directory used in
+.I smail
+input spool files.
+.TP 2.1i
+.I "/usr/spool/smail/log/logfile"
+A log of smail transactions.
+.TP 2.1i
+.I "/usr/spool/smail/log/paniclog"
+A log of configuration or system errors encountered by
+.IR smail .
+.TP 2.1i
+.I "/usr/spool/smail/error"
+Messages that failed due to a small set of fatal
+error such as a configuration error are placed
+in this directory.
+Currently the site administrator must move these back into
+.I "/usr/spool/smail/input"
+when the error condition is resolved.
+.TP 2.1i
+.I "X_MAILBOX_DIR_X"
+The directory for user mailbox files.
+.PD
+.SH "SEE ALSO"
+.IR binmail (1),
+.IR mailx (1)
+under System V,
+.IR Mail (1)
+under BSD,
+.IR resolver (3),
+.IR named (8),
+.IR pathto (X_MAN1_EXT_X),
+.IR smail (X_MAN8_EXT_X).
+.br
+.IR "Smail Administration and Installation Guide" .
+.br
+DARPA Internet Requests for Comments
+RFC821, RFC822, RFC974, RFC976, and RFC1123.
+.SH BUGS
+Colons cannot be included in the value of a list element.
+.PP
+There should be a way of specifying that different errors encountered
+by smail should result in different actions (i.e., mailing a message
+to the postmaster, storing a detailed error message in a file).
+.SH COPYRIGHT
+Copyright(C)1987, 1988 Ronald S. Karr and Landon Curt Noll
+.br
+Copyright(C)1992 Ronald S. Karr
+.br
+See a file COPYING,
+distributed with the source code,
+or type
+.I "smail -bc"
+for distribution rights and restrictions
+associated with this software.

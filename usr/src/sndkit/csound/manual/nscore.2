@@ -1,0 +1,325 @@
+.bp
+F STATEMENT (or FUNCTION TABLE STATEMENT)
+.i
+\fBf\fR  p1 p2 p3 p4 ...
+.e
+This causes a GEN subroutine to place values in a stored function table
+for use by instruments.
+
+PFIELDS
+.i
+p1	Table number (from 1 to 100) by which the stored function will be known.
+	A negative number requests that the table be destroyed.
+.sp .5
+p2	Action time of function generation (or destruction) in beats
+.sp .5
+p3	Size of function table (i.e. number of points).
+	Must be a power of 2, or a power-of-2 plus 1 (see below).
+	Maximum table size is 16777216 (2**24) points.
+.sp .5
+p4	Number of the GEN routine to be called (see GEN ROUTINES).
+	A negative value will cause rescaling to be omitted.
+.sp .5
+p5	|
+p6	| Parameters whose meaning is determined by the particular GEN routine.
+ .	|
+ .	|
+ .	|
+.e
+
+
+SPECIAL CONSIDERATIONS
+
+Function tables are arrays of floating-point values.  Arrays can be of any
+length in powers of 2; space allocation always provides for 2**n points
+plus an additional \fIguard point\fR.  The guard point value, used during
+interpolated lookup, can be automatically set to reflect the table's
+purpose:
+If \fIsize\fR is an exact power of 2, the guard point will be a copy of
+the first point;  this is appropriate for \fIinterpolated wrap-around\fR
+lookup as in \fBoscili,\fR etc., and should even be used for non-interpolating
+.B oscil
+for safe consistency.
+If \fIsize\fR is set to 2**n + 1, the guard point value automatically extends
+the contour of table values;  this is appropriate for single-scan functions
+such in \fBenvlpx, oscil1, oscil1i\fR, etc.
+
+Table space is allocated in primary memory, along with instrument data space.
+The maximum table number has a soft limit of 100;  this can be extended if
+required.
+
+An existing function table can be removed by an
+.B f
+statement containing a negative p1 and an appropriate action time.
+A function table is also be removed by the generation of another table
+with the same p1.
+Functions are not automatically erased at the end of a score section.
+
+p2 action time is treated in the same way as in
+.B i
+statements with respect to sorting and modification by
+.B t
+statements.  If an
+.B f
+statement and an
+.B i
+statement have the same p2, the sorter gives the
+.B f
+statement precedence so that the function table will be available
+during note initialization.
+
+An \fBf 0\fR statement (zero p1, positive p2) may be used to create an
+action time with no associated action.
+Such time markers are useful for padding out a score section (see
+.B s
+statement).
+.bp
+I STATEMENT (INSTRUMENT or NOTE STATEMENT)
+.i
+\fBi\fR  p1  p2  p3  p4  ...
+.e
+This statement calls for an instrument to be made active at a specific
+time and for a certain duration.  The parameter field values are
+passed to that instrument prior to its Initialization, and remain
+valid throughout its Performance.
+
+
+PFIELDS
+
+.i
+p1	Instrument number, usually a non-negative integer.  An optional
+	fractional part can provide an additional tag for specifying ties
+	between particular notes of consecutive clusters.  A negative p1
+	(including tag) can be used to turn off a particular 'held' note.
+.sp .5
+p2	Starting time in arbitrary units called beats.
+.sp .5
+p3	Duration time in beats (usually positive).  A negative value will
+	initiate a held note (see also \fBihold\fR).  A zero value will invoke
+	an initialization pass without performance (see also \fBinstr\fR).
+.sp .5
+p4	|
+p5	| Parameters whose significance is determined by the instrument.
+ .	|
+ .	|
+.e
+
+
+SPECIAL CONSIDERATIONS
+
+Beats are evaluated as seconds unless there is a
+.B t
+statement in this section.
+
+Starting or action times are relative to the beginning of a section (see
+.B s
+statement), which is assigned time 0.
+
+Note statements within a section may be placed in any order.
+Before being sent to an orchestra, unordered score statements
+must first be processed by Sorter, which will reorder them by ascending
+p2 value.  Notes with the same p2 value will be ordered by ascending p1;
+if the same p1, then by ascending p3.
+
+Notes may be stacked, i.e., a single instrument can perform any
+number of notes simultaneously.  (The necessary copies of the instrument's
+data space will be allocated dynamically by the orchestra loader.)
+Each note will normally turn off when its p3 duration has expired.
+However, an instrument may modify its own duration by modifying its p3 value
+during note initialization.
+
+An instrument may be turned on and left to perform indefinitely either by
+giving it a negative p3 or by including an \fBihold\fR in its I-time code.
+If a held note is active, an
+.B i
+statement \fIwith matching p1\fR will not cause a new allocation
+but will take over the data space of the held note.
+The new pfields (including p3) will now be in effect, and an I-time pass
+will be executed in which the units can either be newly initialized or
+allowed to continue as required for a tied note (see \fBtigoto\fR).
+A held note may be succeeded either by another held note
+or by a note of finite duration.  A held note
+will continue to perform across section endings (see
+.B s
+statement).  It is halted only by \fBturnoff\fR or by an
+.B i
+statement with negative matching p1 or by an
+.B e
+statement.
+
+.bp
+A STATEMENT (or ADVANCE STATEMENT)
+.i
+\fBa\fR p1 p2 p3
+.e
+This causes score time to be advanced by a specified amount without
+producing sound samples.
+
+
+PFIELDS
+.i
+p1	carries no meaning.  Usually zero
+p2	Action time, in beats, at which advance is to begin.
+p3	Durational span (distance in beats) of time advance.
+p4,p5, etc carry no meaning.
+.e
+
+
+
+SPECIAL CONSIDERATIONS
+
+This statement allows the beat count within a score section to be advanced
+without generating intervening sound samples.  This can be of use when a
+score section is incomplete (the beginning or middle is missing) and the user
+does not wish to generate and listen to a lot of silence.
+
+p2 action time and p3 distance are treated as in
+.B i
+statements, with respect to sorting and modification by
+.B t
+statements.
+
+An
+.B a
+statement will be temporarily inserted in the score by the Score Extract
+feature when the extracted segment begins later than the start of a Section.
+The purpose of this is to preserve the beat count and time count of the
+original score for the benefit of the peak amplitudes messages which are
+reported on the user console.
+
+Whenever an
+.B a
+statement is encountered by a performing orchestra, its presence
+and effect will be reported on the user's  console.
+.bp
+T STATEMENT (TEMPO STATEMENT)
+.i
+\fBt\fR  p1 p2 p3 p4 .....  (unlimited)
+.e
+This statement sets the tempo and specifies the accelerations and decelerations
+for the current section.  This is done by converting beats into seconds.
+
+
+PFIELDS
+.i
+p1		must be zero
+p2		initial tempo in beats per minute
+p3, p5, p7, ...	times in beats (in non-decreasing order)
+p4, p6, p8, ...	tempi for the referenced beat times
+.e
+
+
+SPECIAL CONSIDERATIONS
+
+Time and Tempo-for-that-time are given as ordered couples that
+define points on a "tempo vs time" graph.  (The time-axis here is
+in beats so is not necessarily linear.)  The beat-rate of a Section can
+be thought of as a movement from point to point on that graph:
+motion between two points of equal height signifies constant tempo, while
+motion between two points of unequal height will cause an accelarando or
+ritardando accordingly.  The graph can contain discontinuities:  two
+points given equal times but different tempi will cause an immediate
+tempo change.
+
+Motion between different tempos over non-zero time is inverse linear.
+That is, an accelarando between two tempos M1 and M2 proceeds by linear
+interpolation of the single-beat durations from 60/M1 to 60/M2.
+
+The first tempo given must be for beat 0.
+
+A tempo, once assigned, will remain in effect from that time-point unless
+influenced by a succeeding tempo, i.e. the last specified tempo will
+be held to the end of the section.
+
+A
+.B t
+statement applies only to the score section in which it appears.
+Only one
+.B t
+statement is meaningful in a section;  it can be placed anywhere within that
+section.  If a score section contains no
+.B t
+statement, then beats are interpreted as seconds (i.e. with an implicit
+\fBt 0 60\fR statement).
+.bp
+S STATEMENT
+.i
+\fBs\fR   anything
+.e
+The
+.B s
+statement marks the end of a section.
+
+PFIELDS
+
+All pfields are ignored.
+
+
+SPECIAL CONSIDERATIONS
+
+Sorting of the \fBi, f\fR and
+.B a
+statements by action time is done section by section.
+
+Time warping for to the
+.B t
+statement is done section by section.
+
+All action times within a section are relative to its beginning.  A section
+statement establishes a new relative time of 0, but has no other reinitializing
+effects (e.g. stored function tables are preserved across section boundaries).
+
+A section is considered complete when all action times and finite durations
+have been satisfied (i.e., the "length" of a section is determined by the
+last occurring action or turn-off).  A section can be extended by the
+use of an \fBf 0\fR statement.
+
+A section ending automatically invokes a Purge of inactive instrument
+and data spaces.
+
+N.B. Since score statements are processed section by section, the amount of
+memory required depends on the maximum number of score statements in a section.
+Memory allocation is dynamic, and the user will be informed as extra memory
+blocks are requested during score processing.
+
+For the end of the final section of a score, the
+.B s
+statement is optional; the
+.B e
+statement may be used instead.
+.bp
+E STATEMENT
+.i
+\fBe\fR  anything
+.e
+This statement may be used to mark the end of the last section of the score.
+
+
+PFIELDS
+
+All pfields are ignored
+
+
+SPECIAL CONSIDERATIONS
+
+The
+.B e
+statement is contextually identical to an
+.B s
+statement.
+Additionally, the
+.B e
+statement terminates all signal generation (including indefinite performance)
+and closes all input and output files.
+
+If an
+.B e
+statement occurs before the end of a score, all subsequent score lines
+will be ignored.
+
+The
+.B e
+statement is optional in a score file yet to be sorted.  If a score file has no
+.B e
+statement, then Sort processing will supply one.
+

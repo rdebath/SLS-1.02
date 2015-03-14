@@ -1,0 +1,16 @@
+#! /bin/sh
+# sendsys - mail sys file to sender identified in stdin's headers
+
+# =()<. ${NEWSCONFIG-@<NEWSCONFIG>@}>()=
+. ${NEWSCONFIG-/usr/local/lib/news/config}
+export NEWSCTL NEWSBIN NEWSARTS
+PATH=$NEWSCTL/bin:$NEWSBIN/relay:$NEWSBIN:$NEWSPATH ; export PATH
+umask $NEWSUMASK
+
+SENDER="`newsreply`"
+(echo "Subject: response from `newshostname` to your sendsys"; echo "";
+case "$1" in
+"")	cat $NEWSCTL/sys ;;
+*)	awk -f $NEWSBIN/relay/canonsys.awk $NEWSCTL/sys | egrep "^$1:" ;;
+esac ) | mail "$SENDER"
+echo "$NEWSCTL/sys file has been sent to $SENDER.  Remain calm." | mail $NEWSMASTER

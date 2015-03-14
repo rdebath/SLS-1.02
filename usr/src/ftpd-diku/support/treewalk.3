@@ -1,0 +1,115 @@
+.\" Copyright (c) 1988 Regents of the University of California.
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms are permitted
+.\" provided that the above copyright notice and this paragraph are
+.\" duplicated in all such forms and that any documentation,
+.\" advertising materials, and other materials related to such
+.\" distribution and use acknowledge that the software was developed
+.\" by the University of California, Berkeley.  The name of the
+.\" University may not be used to endorse or promote products derived
+.\" from this software without specific prior written permission.
+.\" THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
+.\" WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+.\"
+.\"	@(#)treewalk.3	5.2 (Berkeley) 8/4/88
+.\"
+.TH TREEWALK 3 August 4, 1988
+.UC 4
+.SH NAME
+ftw, treewalk \- tree walk
+.SH SYNOPSIS
+.nf
+.B #include <ftw.h>
+.PP
+.B ftw(path, function, maxfds)
+.B char *path;
+.B int (*function)(), maxfds;
+
+.B treewalk(path, function, maxfds, options)
+.B char *path;
+.B int (*function)(), maxfds, options;
+.fi
+.SH DESCRIPTION
+.PP
+The \fItreewalk\fP call descends the directory hierarchy rooted in
+\fIpath\fP, visiting each node in turn.  Visiting a node consists of
+calling the routine \fIfunction\fP with three arguments.  The first
+is the current path name, the second a pointer to a stat structure
+containing information about the path name, and the third a flag
+value.  The declaration of the function may be as follows:
+.nf
+
+	#include <sys/stat.h>
+
+	function(path, st, flag)
+	char *path;
+	struct stat *st;
+	int flag;
+.fi
+.PP
+The \fIflag\fP value will be one the following values, as specified in
+<\fIftw.h\fP>.
+.PP
+.RS
+ FTW_F		a regular file
+ FTW_D		a directory
+ FTW_D2	second visit to a directory
+ FTW_DNR	an unreadable directory
+ FTW_NS	an unknown type, the stat failed
+.RE
+.PP
+If the flag value is \fIFTW_NS\fP, the contents of the stat buffer are
+undefined.
+.PP
+\fIMaxfds\fP governs the number of file descriptors that \fItreewalk\fP may
+use.  If passed as -1, no limit is set.  Unless \fIfunction\fP needs
+to open files, -1 is the suggested behavior.
+.PP
+\fIOptions\fP is a bit mask which changes the behavior of \fItreewalk\fP.
+Its value is set by or'ing together any of the following values specified
+in <\fIftw.h\fP>.
+.PP
+.RS
+ FTW_CHDIR		\fItreewalk\fP may change directories
+ FTW_DIRLAST		visit the node after its descendents
+ FTW_SYMLINK	follow symbolic links
+.RE
+.PP
+\fIFTW_CHDIR\fP allows \fItreewalk\fP to descend the tree using the
+\fIchdir\fP(2) system call.  This makes \fItreewalk\fP run much faster.
+A side effect of this flag is that all path names passed to \fIfunction\fP
+are relative, not absolute.
+.PP
+By default, \fItreewalk\fP does a depth-first search, visiting each node
+before any of its descendents.  If \fIfunction\fP returns any other value
+than 0 or -1, \fItreewalk\fP will not continue, but will return this value
+to its caller.  If the returned value is -1, \fItreewalk\fP will continue,
+but no descendents of the current node will be visited.  The
+\fIFTW_DIRLAST\fP flag causes \fItreewalk\fP to visit the node again after
+all of its descendents have been visited.  The second visit to the directory
+will call \fIfunction\fP with the \fIFTW_D2\fP flag instead of \fIFTW_D\fP.
+.PP
+If \fIFTW_SYMLINK\fP is set, \fItreewalk\fP will pass the result of a
+\fIstat\fP(2) call to \fIfunction\fP, rather than an \fIlstat\fP(2) call.
+In the case of symbolic links pointing to directories, \fItreewalk\fP
+will continue down the directory tree pointed to by the link.  If
+\fItreewalk\fP is unable to indirect through the link, the node will
+be ignored and \fIfunction\fP will not be called.  It should also be
+noted that if the symbolic links form a loop, \fItreewalk\fP will not
+detect this condition.
+.PP
+If \fItreewalk\fP detects any error other than EACCES (see \fIFTW_NS\fP,
+\fIFTW_DNR\fP, and \fIFTW_CHDIR\fP, above) or EMFILE (in the case of
+running out of file descriptors) it returns -1 to its caller, leaving
+\fIerrno\fP unchanged.
+.SH BUGS
+The \fIpath\fP string passed to \fIfunction\fP is the buffer currently
+being processed by \fItreewalk\fP and must therefore be copied before
+any modifications are made.
+.SH HISTORY
+The \fItreewalk\fP routine is a superset of the \fIftw\fP routine as
+provided by System V.  \fIFtw\fP is available for compatibility.
+.SH SEE ALSO
+find(1), getdtablesize(2), stat(2), symlink(2), glob(3)

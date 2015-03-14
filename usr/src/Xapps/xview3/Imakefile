@@ -1,0 +1,156 @@
+#include <XView.tmpl>
+
+/**/#########################################################################
+/**/# Top level Imakefile for ProductNameAndRelease
+/**/# @(#)Imakefile	1.6 10/4/91 SMI
+
+#define IHaveSubdirs
+#define PassCDebugFlags
+
+           WORLDOPTS = 
+/**/# If you want to make only the library, then start the build in the lib
+/**/# subdirectory.  Be sure to do a 'make includes' in images and bitmaps first.
+            COREDIRS = lib images bitmaps misc util
+#if InstallOpenLookFonts 
+            FONTSDIR = fonts
+#else
+            FONTSDIR = 
+#endif
+          CLIENTSDIR = clients
+             SUBDIRS = $(COREDIRS) $(FONTSDIR) 
+/**/# even if these subdirs are not included in the general rules, be sure to
+/**/# do a make clean in them.
+       CLEAN_SUBDIRS = clients contrib doc fonts bitmaps images lib misc util
+
+/**/#
+/**/# Be sure to run "make includes" before "make depend" or "make"
+/**/#
+MakeSubdirs($(SUBDIRS))
+DependSubdirs($(SUBDIRS))
+PopulateSubdirs($(SUBDIRS))
+MakeLintLibSubdirs(lib)
+MakeLintSubdirs(lib,install.ln,install.ln)
+InstallSrcsSubdirs($(SUBDIRS))
+
+#ifdef XVDestDir
+/**/# remove all the symlinks before installing the real files if using the
+/**/# same directory for the includes as for the final install.
+install::
+	-@if [ $(BUILDINCDIR) = $(XVDESTDIR) ]; then \
+		echo "deleting temporary build directory $(BUILDINCDIR) ..."; \
+		$(RM) -r $(BUILDINCDIR); \
+	else exit 0; fi
+	$(MKDIRHIER) $(XVDESTDIR)
+#endif
+
+InstallManPage(xview,$(MANDIR))
+
+World::
+	@echo ""
+	@echo "Building Release 3.0 of the XView Toolkit"
+	@echo ""
+	@echo "    If you get the message, 'Can't find include file XView.tmpl',"
+	@echo "    set the environment variable IMAKEINCLUDE to"
+	@echo "    '-I`pwd`/config' and '-I<X11>/config'."
+	@echo "    Where <X11> is the path to your installed X11 R5 build."
+	@echo ""
+	@date
+	@echo ""
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(SUBDIRS)' Makefiles
+	$(MAKE) $(MFLAGS) 'CLEAN_SUBDIRS=$(SUBDIRS)' clean
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(SUBDIRS)' includes
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(SUBDIRS)' depend
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(SUBDIRS)' 'CDEBUGFLAGS=$(CDEBUGFLAGS)' $(WORLDOPTS)
+	@echo ""
+	@date
+	@echo ""
+	@echo "Build of the XView Toolkit complete.  Next step, 'make install'."
+	@echo ""
+	@echo "When install completes, 'make Clients'."
+	@echo "The imake command and other utilities need to be in your PATH."
+#if SharedLibXView
+	@echo ""
+	@echo "When using shared libraries, be sure to do this:"
+	@echo ""
+	@echo "	       % su root"
+	@echo "	       # ldconfig $(LIBRARY_DEST)"
+	@echo "	       # exit"
+	@echo "	       % unsetenv LD_LIBRARY_PATH"
+	@echo ""
+	@echo "Then wait about 5 minutes before starting the Clients build."
+#endif
+	@echo ""
+
+/**/#
+/**/# Rules to build the client programs
+/**/# 
+Clients::
+	@echo ""
+	@echo "Begin build of XView client programs..."
+	@echo ""
+	@echo "    For clients to build properly, the 'make install' command "
+	@echo "    should have completed successfully."
+	@echo ""
+	@date
+	@echo ""
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(CLIENTSDIR)' Makefiles
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(CLIENTSDIR)' depend
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(CLIENTSDIR)' 'CDEBUGFLAGS=$(CDEBUGFLAGS)' $(WORLDOPTS)
+	@echo ""
+	@date
+	@echo ""
+	@echo "Build of XView clients complete.  Next step, make SUBDIRS='$(CLIENTSDIR)' install."
+	@echo ""
+#if SharedLibXView
+	@echo "    You can verify that these were linked correctly with ldd."
+	@echo "    For example, the command 'ldd clients/cmdtool/cmdtool'"
+	@echo "    should report something similar to:"
+	@echo ""
+	@echo "    cmdtool:"
+	@echo "        -lxview.3 => $(XVDESTDIR)/lib/libxview.so.3.0"
+	@echo "        -lolgx.3 => $(XVDESTDIR)/lib/libolgx.so.3.0"
+	@echo "        -lX11.4 => $(DESTDIR)/lib/libX11.so.4.3"
+	@echo "        -lc.1 => /usr/lib/libc.so.1.3"
+	@echo ""
+	@echo "    If this is not the case, then may need to do the following:"
+	@echo ""
+	@echo "	       % su root"
+	@echo "	       # ldconfig $(LIBRARY_DEST)"
+	@echo "	       # exit"
+	@echo "	       % unsetenv LD_LIBRARY_PATH"
+	@echo ""
+	@echo "    Then wait about 5 minutes before starting the Clients build."
+	@echo ""
+#endif
+
+/**/#
+/**/# Rules to build contrib
+/**/# 
+Contrib::
+	@echo ""
+	@echo "Begin build of XView contrib programs..."
+	@echo ""
+	@echo "    For contrib to build properly, the 'make install' command "
+	@echo "    should have completed successfully."
+	@echo ""
+	@date
+	@echo ""
+	$(MAKE) $(MFLAGS) 'SUBDIRS=contrib' Makefiles
+	$(MAKE) $(MFLAGS) 'SUBDIRS=contrib' depend
+	$(MAKE) $(MFLAGS) 'SUBDIRS=contrib' 'CDEBUGFLAGS=$(CDEBUGFLAGS)' $(WORLDOPTS)
+	@echo ""
+	@date
+	@echo ""
+	@echo "Build of XView contrib complete.  Next step, make SUBDIRS='contrib' install."
+	@echo "Examples will be installed into $(XVDESTDIR)/
+	@echo ""
+
+/**/#
+/**/# Rule to clean all subdirs
+/**/#
+Clean::
+	@echo ""
+	@echo "Cleaning for all subdirs..."
+	$(MAKE) $(MFLAGS) 'SUBDIRS=$(CLEAN_SUBDIRS)' clean
+	@echo "Removing temporary build directory ./build"
+	$(RM) -r ./build

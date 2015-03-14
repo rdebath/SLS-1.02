@@ -1,0 +1,57 @@
+.nf
+
+	ar	\fBcomb\fR	asig, krvt, ilpt[, istor]
+	ar	\fBalpass\fR	asig, krvt, ilpt[, istor]
+	ar	\fBreverb\fR	asig, krvt[, istor]
+.fi
+
+An input signal is reverberated for \fIkrvt\fR seconds with "colored"
+(\fBcomb\fR), flat (\fBalpass\fR), or "natural room" (\fBreverb\fR)
+frequency response.
+
+
+INITIALIZATION
+
+\fIilpt\fR - loop time in seconds, which determines the "echo density" of
+the reverberation.  This in turn characterizes the "color" of the
+\fBcomb\fR filter whose frequency response curve will contain \fIilpt * sr/2\fR
+peaks spaced evenly between 0 and \fIsr/2\fR (the Nyquist frequency).  Loop
+time can be as large as available memory will permit.  The space required
+for an \fIn\fR second loop is 4\fIn * sr\fR bytes.  \fBcomb\fR and
+\fBalpass\fR delay space is allocated and returned as in \fBdelay\fR.
+
+\fIistor\fR (optional) - initial disposition of delay-loop data space (cf.
+\fBreson\fR).  The default value is 0.
+
+
+PERFORMANCE
+
+These filters reiterate input with an echo density determined by loop time
+\fIilpt\fR.  The attenuation rate is independent and is determined by
+\fIkrvt\fR, the reverberation time (defined as the time in seconds for a
+signal to decay to 1/1000, or 60 db down from its original amplitude).
+Output from a \fBcomb\fR filter will appear only after \fIilpt\fR seconds;
+\fBalpass\fR output will begin to appear immediately.
+
+A \fBreverb\fR unit is composed of four \fBcomb\fR filters in parallel
+followed by two \fBalpass\fR units in series.  Looptimes are set for
+optimal "natural room response." Core storage requirements for this unit
+are proportional only to the sampling rate, each unit requiring
+approximately 3K words for every 10KC.  It is usually expedient to mix
+several signals together before reverberation.  Since \fBreverb\fR output
+will begin to appear only after 1/20 second or so of delay, and often with
+less than three-fourths of the original power, it is common to output both
+the source and the reverberated signal together.
+
+
+
+.nf
+Example:
+
+	a1	oscili	k1, a1, 1   	;create two signals
+	a2	oscili	k2, a2, 2
+	a3	reverb	a1+a2, 1.5	;mix, then reverberate
+		outs	a1+a3, a2+a3	;send 1 source + both reverbs
+					;through each speaker
+.fi
+.bp

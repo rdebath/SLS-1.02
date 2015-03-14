@@ -1,0 +1,482 @@
+31 Aug. 1989:
+   1. A(min(i,j)) now is translated correctly (where A is an array).
+   2. 7 and 8 character variable names are allowed (but elicit a
+      complaint under -ext).
+   3. LOGICAL*1 is treated as LOGICAL, with just one error message
+      per LOGICAL*1 statement (rather than one per variable declared
+      in that statement).  [Note that LOGICAL*1 is not in Fortran 77.]
+      Like f77, f2c now allows the format in a read or write statement
+      to be an integer array.
+
+5 Sept. 1989:
+   Fixed botch in argument passing of substrings of equivalenced
+variables.
+
+15 Sept. 1989:
+   Warn about incorrect code generated when a character-valued
+function is not declared external and is passed as a parameter
+(in violation of the Fortran 77 standard) before it is invoked.
+Example:
+
+	subroutine foo(a,b)
+	character*10 a,b
+	call goo(a,b)
+	b = a(3)
+	end
+
+18 Sept. 1989:
+   Complain about overlapping initializations.
+
+20 Sept. 1989:
+   Warn about names declared EXTERNAL but never referenced;
+include such names as externs in the generated C (even
+though most C compilers will discard them).
+
+24 Sept. 1989:
+   New option -w8 to suppress complaint when COMMON or EQUIVALENCE
+forces word alignment of a double.
+   Under -A (for ANSI C), ensure that floating constants (terminated
+by 'f') contain either a decimal point or an exponent field.
+   Repair bugs sometimes encountered with CHAR and ICHAR intrinsic
+functions.
+   Restore f77's optimizations for copying and comparing character
+strings of length 1.
+   Always assume floating-point valued routines in libF77 return
+doubles, even under -R.
+   Repair occasional omission of arguments in routines having multiple
+entry points.
+   Repair bugs in computing offsets of character strings involved
+in EQUIVALENCE.
+   Don't omit structure qualification when COMMON variables are used
+as FORMATs or internal files.
+
+2 Oct. 1989:
+   Warn about variables that appear only in data stmts; don't emit them.
+   Fix bugs in character DATA for noncharacter variables
+involved in EQUIVALENCE.
+   Treat noncharacter variables initialized (at least partly) with
+character data as though they were equivalenced -- put out a struct
+and #define the variables.  This eliminates the hideous and nonportable
+numeric values that were used to initialize such variables.
+   Treat IMPLICIT NONE as IMPLICIT UNDEFINED(A-Z) .
+   Quit when given invalid options.
+
+8 Oct. 1989:
+  Modified naming scheme for generated intermediate variables;
+more are recycled, fewer distinct ones used.
+  New option -W nn specifies nn characters/word for Hollerith
+data initializing non-character variables.
+  Bug fix: x(i:min(i+10,j)) used to elicit "Can't handle opcode 31 yet".
+  Integer expressions of the form (i+const1) - (i+const2), where
+i is a scalar integer variable, are now simplified to (const1-const2);
+this leads to simpler translation of some substring expressions.
+  Initialize uninitialized portions of character string arrays to 0
+rather than to blanks.
+
+9 Oct. 1989:
+  New option -c to insert comments showing original Fortran source.
+  New option -g to insert line numbers of original Fortran source.
+
+10 Oct. 1989:
+  ! recognized as in-line comment delimiter (a la Fortran 88).
+
+24 Oct. 1989:
+  New options to ease coping with systems that want the structs
+that result from COMMON blocks to be defined just once:
+  -E causes uninitialized COMMON blocks to be declared Extern;
+if Extern is undefined, f2c.h #defines it to be extern.
+  -ec causes a separate .c file to be emitted for each
+uninitialized COMMON block: COMMON /ABC/ yields abc_com.c;
+thus one can compile *_com.c into a library to ensure
+precisely one definition.
+  -e1c is similar to -ec, except that everything goes into
+one file, along with comments that give a sed script for
+splitting the file into the pieces that -ec would give.
+This is for use with netlib's "execute f2c" service (for which
+-ec is coerced into -e1c, and the sed script will put everything
+but the COMMON definitions into f2c_out.c ).
+
+28 Oct. 1989:
+  Convert "i = i op ..." into "i op= ...;" even when i is a
+dummy argument.
+
+13 Nov. 1989:
+  Name integer constants (passed as arguments) c__... rather
+than c_... so
+	common /c/stuff
+	call foo(1)
+	...
+is translated correctly.
+
+19 Nov. 1989:
+  Floating-point constants are now kept as strings unless they
+are involved in constant expressions that get simplified.  The
+floating-point constants kept as strings can have arbitrarily
+many significant figures and a very large exponent field (as
+large as long int allows on the machine on which f2c runs).
+Thus, for example, the body of
+
+	subroutine zot(x)
+	double precision x(6), pi
+	parameter (pi=3.1415926535897932384626433832795028841972)
+	x(1) = pi
+	x(2) = pi+1
+	x(3) = 9287349823749272.7429874923740978492734D-298374
+	x(4) = .89
+	x(5) = 4.0005
+	x(6) = 10D7
+	end
+
+now gets translated into
+
+    x[1] = 3.1415926535897932384626433832795028841972;
+    x[2] = 4.1415926535897931;
+    x[3] = 9.2873498237492727429874923740978492734e-298359;
+    x[4] = (float).89;
+    x[5] = (float)4.0005;
+    x[6] = 1e8;
+
+rather than the former
+
+    x[1] = 3.1415926535897931;
+    x[2] = 4.1415926535897931;
+    x[3] = 0.;
+    x[4] = (float)0.89000000000000003;
+    x[5] = (float)4.0004999999999997;
+    x[6] = 100000000.;
+
+  Recognition of f77 machine-constant intrinsics deleted, i.e.,
+epbase, epprec, epemin, epemax, eptiny, ephuge, epmrsp.
+
+22 Nov. 1989:
+  Workarounds for glitches on some Sun systems...
+  libf77: libF77/makefile modified to point out possible need
+to compile libF77/main.c with -Donexit=on_exit .
+  libi77: libI77/wref.c (and libI77/README) modified so non-ANSI
+systems can compile with USE_STRLEN defined, which will cause
+	sprintf(b = buf, "%#.*f", d, x);
+	n = strlen(b) + d1;
+rather than
+	n = sprintf(b = buf, "%#.*f", d, x) + d1;
+to be compiled.
+
+26 Nov. 1989:
+  Longer names are now accepted (up to 50 characters); names may
+contain underscores (in which case they will have two underscores
+appended, to avoid clashes with library names).
+
+28 Nov. 1989:
+  libi77 updated:
+	1. Allow 3 (or, on Crays, 4) digit exponents under format Ew.d .
+	2. Try to get things right on machines where ints have 16 bits.
+
+29 Nov. 1989:
+  Supplied missing semicolon in parameterless subroutines that
+have multiple entry points (all of them parameterless).
+
+30 Nov. 1989:
+  libf77 and libi77 revised to use types from f2c.h.
+  f2c now types floating-point valued C library routines as "double"
+rather than "doublereal" (for use with nonstandard C compilers for
+which "double" is IEEE double extended).
+
+1 Dec. 1989:
+  f2c.h updated to eliminate #defines rendered unnecessary (and,
+indeed, dangerous) by change of 26 Nov. to long names possibly
+containing underscores.
+  libi77 further revised: yesterday's change omitted two tweaks to fmt.h
+(tweaks which only matter if float and real or double and doublereal are
+different types).
+
+2 Dec. 1989:
+  Better error message (than "bad tag") for NAMELIST, which no longer
+inhibits C output.
+
+4 Dec. 1989:
+  Allow capital letters in hex constants (f77 extension; e.g.,
+x'a012BCd', X'A012BCD' and x'a012bcd' are all treated as the integer
+167848909).
+  libi77 further revised: lio.c lio.h lread.c wref.c wrtfmt.c tweaked
+again to allow float and real or double and doublereal to be different.
+
+6 Dec. 1989:
+  Revised f2c.h -- required for the following...
+  Simpler looking translations for abs, min, max, using #defines in
+revised f2c.h .
+  libi77: more corrections to types; additions for NAMELIST.
+  Corrected casts in some I/O calls.
+  Translation of NAMELIST; libi77 must still be revised.  Currently
+libi77 gives you a run-time error message if you attempt NAMELIST I/O.
+
+7 Dec. 1989:
+  Fixed bug that prevented local integer variables that appear in DATA
+stmts from being ASSIGNed statement labels.
+  Fillers (for DATA statements initializing EQUIVALENCEd variables and
+variables in COMMON) typed integer rather than doublereal (for slightly
+more portability, e.g. to Crays).
+  libi77: missing return values supplied in a few places; some tests
+reordered for better working on the Cray.
+  libf77: better accuracy for complex divide, complex square root,
+real mod function (casts to double; double temporaries).
+
+9 Dec. 1989:
+  Fixed bug that caused needless (albeit harmless) empty lines to be
+inserted in the C output when a comment line contained trailing blanks.
+  Further tweak to type of fillers: allow doublereal fillers if the
+struct has doublereal data.
+
+11 Dec. 1989:
+  Alteration of rule for producing external (C) names from names that
+contain underscores.  Now the external name is always obtained by
+appending a pair of underscores.
+
+12 Dec. 1989:
+  C production inhibited after most errors.
+
+15 Dec. 1989:
+  Fixed bug in headers for subroutines having two or more character
+strings arguments:  the length arguments were reversed.
+
+19 Dec. 1989:
+  f2c.h libf77 libi77: adjusted so #undefs in f2c.h should not foil
+compilation of libF77 and libI77.
+  libf77: getenv_ adjusted to work with unsorted environments.
+  libi77: the iostat= specifier should now work right with internal I/O.
+
+20 Dec. 1989:
+  f2c bugs fixed: In the absence of an err= specifier, the iostat=
+specifier was generally set wrong.  Character strings containing
+explicit nulls (\0) were truncated at the first null.
+  Unlabeled DO loops recognized; must be terminated by ENDDO.
+(Don't ask for CYCLE, EXIT, named DO loops, or DO WHILE.)
+
+29 Dec. 1989:
+  Nested unlabeled DO loops now handled properly; new warning for
+extraneous text at end of FORMAT.
+
+30 Dec. 1989:
+  Fixed bug in translating dble(real(...)), dble(sngl(...)), and
+dble(float(...)), where ... is either of type double complex or
+is an expression requiring assignment to intermediate variables (e.g.,
+dble(real(foo(x+1))), where foo is a function and x is a variable).
+Regard nonblank label fields on continuation lines as an error.
+
+3 Jan. 1990:
+  New option -C++ yields output that should be understood
+by C++ compilers.
+
+6 Jan. 1989:
+  -a now excludes variables that appear in a namelist from those
+that it makes automatic.  (As before, it also excludes variables
+that appear in a common, data, equivalence, or save statement.)
+  The syntactically correct Fortran
+	read(*,i) x
+	end
+now yields syntactically correct C (even though both the Fortran
+and C are buggy -- no FORMAT has not been ASSIGNed to i).
+
+7 Jan. 1990:
+  libi77: routines supporting NAMELIST added.  Surrounding quotes
+made optional when no ambiguity arises in a list or namelist READ
+of a character-string value.
+
+9 Jan. 1990:
+  f2c.src made available.
+
+16 Jan. 1990:
+  New options -P to produce ANSI C or C++ prototypes for procedures
+defined.  Change to -A and -C++: f2c tries to infer prototypes for
+invoked procedures unless the new -!P option is given.  New warning
+messages for inconsistent calling sequences among procedures within
+a single file.  Most of f2c/src is affected.
+  f2c.h: typedefs for procedure arguments added; netlib's f2c service
+will insert appropriate typedefs for use with older versions of f2c.h.
+
+17 Jan. 1990:
+  f2c/src: defs.h exec.c format.c proc.c putpcc.c version.c xsum0.out
+updated.  Castargs and protofile made extern in defs.h; exec.c
+modified so superfluous else clauses are diagnosed; unused variables
+omitted from declarations in format.c proc.c putpcc.c .
+
+21 Jan. 1990:
+  No C emitted for procedures declared external but not referenced.
+  f2c.h: more new types added for use with -P.
+  New feature: f2c accepts as arguments files ending in .p or .P;
+such files are assumed to be prototype files, such as produced by
+the -P option.  All prototype files are read before any Fortran files
+and apply globally to all Fortran files.  Suitable prototypes help f2c
+warn about calling-sequence errors and can tell f2c how to type
+procedures declared external but not explicitly typed; the latter is
+mainly of interest for users of the -A and -C++ options.  (Prototype
+arguments are not available to netlib's "execute f2c" service.)
+  New option -it tells f2c to try to infer types of untyped external
+arguments from their use as parameters to prototyped or previously
+defined procedures.
+  f2c/src: many minor cleanups; most modules changed.  Individual
+files in f2c/src are now in "bundle" format.  The former f2c.1 is
+now f2c.1t; "f2c.1t from f2c" and "f2c.1t from f2c/src" are now the
+same, as are "f2c.1 from f2c" and "f2c.1 from f2c/src".  People who
+do not obtain a new copy of "all from f2c/src" should at least add
+	fclose(sortfp);
+after the call on do_init_data(outfile, sortfp) in format_data.c .
+
+22 Jan. 1990:
+  Cleaner man page wording (thanks to Doug McIlroy).
+  -it now also applies to all untyped EXTERNAL procedures, not just
+arguments; to get changed files, ask netlib to
+	send f2c.1 f2c.1t putpcc.c version.c xsum0.out from f2c/src
+
+23 Jan. 01:34:00 EST 1990:
+  Bug fixes: under -A and -C++, incorrect C was generated for
+subroutines having multiple entries but no arguments.
+  Under -A -P, subroutines of no arguments were given prototype
+calling sequence () rather than (void).
+  Character-valued functions elicited erroneous warning messages
+about inconsistent calling sequences when referenced by another
+procedure in the same file.
+  f2c.1t: omit first appearance of libF77.a in FILES section;
+load order of libraries is -lF77 -lI77, not vice versa (bug
+introduced in yesterday's edits); define .F macro for those whose
+-man lacks it.  (For a while after yesterday's fixes were posted,
+f2c.1t was out of date.  Sorry!)
+  f2c/src files affected:
+	f2c.1 f2c.1t format.c pread.c putpcc.c version.c xsum0.out
+
+23 Jan. 9:53:24 EST 1990:
+  Character substring expressions involving function calls having
+character arguments (including the intrinsic len function) yielded
+incorrect C.
+  Procedures defined after invocation (in the same file) with
+conflicting argument types also got an erroneous message about
+the wrong number of arguments.
+  f2c/src files affected: expr.c putpcc.c version.c xsum0.out
+
+24 Jan. 11:44:00 EST 1990:
+  Bug fixes: -p omitted #undefs; COMMON block names containing
+underscores had their C names incorrectly computed; a COMMON block
+having the name of a previously defined procedure wreaked havoc;
+if all arguments were .P files, f2c tried reading the second as a
+Fortran file.
+  New feature: -P emits comments showing COMMON block lengths, so one
+can get warnings of incompatible COMMON block lengths by having f2c
+read .P (or .p) files.  Now by running f2c twice, first with -P -!c
+(or -P!c),  then with *.P among the arguments, you can be warned of
+inconsistent COMMON usage, and COMMON blocks having inconsistent
+lengths will be given the maximum length.  (The latter always did
+happen within each input file; now -P lets you extend this behavior
+across files.)
+  f2c/src files affected:
+	main.c names.c pread.c proc.c version.c xsum0.out
+
+26 Jan. 16:44:00 EST 1990:
+  Option -it made less aggressive: untyped external procedures that
+are invoked are now typed by the rules of Fortran, rather than by
+previous use of procedures to which they are passed as arguments
+before being invoked.
+  Option -P now includes information about references, i.e., called
+procedures, in the prototype files (in the form of special comments).
+This allows iterative invocations of f2c to infer more about untyped
+external names, particularly when multiple Fortran files are involved.
+  As usual, there are some obscure bug fixes:
+1.  Repair of erroneous warning messages about inconsistent number of
+arguments that arose when a character dummy parameter was discovered
+to be a function or when multiple entry points involved character
+variables appearing in a previous entry point.
+2.  Repair of memory fault after error msg about "adjustable character
+function".
+3.  Under -U, allow MAIN_ as a subroutine name (in the same file as a
+main program).
+4.  Change for consistency: a known function invoked as a subroutine,
+then as a function elicits a warning rather than an error.
+  f2c/src files updated:
+	defs.h exec.c expr.c format.c gram.dcl main.c misc.c
+	output.c pread.c proc.c putpcc.c version.c xsum0.out
+
+26 Jan. 22:32:00 EST 1990:
+  Fixed two bugs that resulted in incorrect C for substrings, within
+the body of a character-valued function, of the function's name, when
+those substrings were arguments to another function (even implicitly,
+as in character-string assignment).
+  f2c/src files updated: expr.c output.c version.c xsum0.out
+
+28 Jan. 18:32:00 EST 1990:
+  libf77, libi77: checksum files added; "make check" looks for
+transmission errors.  NAMELIST read modified to allow $ rather than &
+to precede a namelist name, to allow $ rather than / to terminate
+input where the name of another variable would otherwise be expected,
+and to regard all nonprinting ASCII characters <= ' ' as spaces.
+
+29 Jan. 02:11:00 EST 1990:
+  "fc from f2c" added.
+  -it option made the default; -!it turns it off.  Type information is
+now updated in a previously missed case.
+  -P option tweaked again; message about when rerunning f2c may change
+prototypes or declarations made more accurate.
+  New option -Ps implies -P and returns exit status 4 if rerunning
+f2c -P with prototype inputs might change prototypes or declarations.
+Now you can execute a crude script like
+
+	cat *.f >zap.F
+	rm -f zap.P
+	while :; do
+		f2c -P -!c zap.[FP]
+		case $? in 4) ;; *) break;; esac
+		done
+
+to get a file zap.P of the best prototypes f2c can determine for *.f .
+ f2c/src files updated:
+	f2c.1 f2c.1t expr.c format.c main.c
+	pread.c proc.c putpcc.c version.c xsum0.out
+
+Jan. 29 07:30:21 EST 1990:
+  Forgot to check for error status when setting return code 4 under -Ps;
+error status (1, 2, 3, or, for caught signal, 126) now takes precedence.
+  f2c/src files updated: main.c version.c xsum0.out
+
+Jan 29 14:17:00 EST 1990:
+  Incorrect handling of
+	open(n,'filename')
+repaired -- now treated as
+	open(n,file='filename')
+(and, under -ext, given an error message).
+  New optional source file memset.c for people whose systems don't
+provide memset, memcmp, and memcpy; #include <string.h> in mem.c
+changed to #include "string.h" so BSD people can create a local
+string.h that simply says #include <strings.h> .
+  f2c/src files changed:
+	README io.c makefile mem.c memset.c version.c xsum0.out
+
+Jan 30 10:34:00 EST 1990:
+  Fix erroneous warning at end of definition of a procedure with character
+arguments when the procedure had previously been called with a numeric
+argument instead of a character argument.  (There were two warnings, the
+second one incorrectly complaining of a wrong number of arguments.)
+  f2c/src files changed: putpcc.c version.c xsum0.out
+
+Jan 30 16:29:41 EST 1990:
+  Fix case where -P and -Ps erroneously reported another iteration
+necessary.  (Only harm is the extra iteration.)
+  f2c/src files changed: format.c putpcc.c version.c xsum0.out
+
+Feb 3 01:40:00 EST 1990:
+  Supply semicolon occasionally omitted under -c .
+  Try to force correct alignment when numeric variables are initialized
+with character data (a non-standard and non-portable practice).  You must
+use the -W option if your code has such data statements and is meant to
+run on a machine with other than 4 characters/word; e.g., for code meant
+to run on a Cray, you would specify -W8 .
+  Allow parentheses around expressions in output lists (in write and
+print statements).
+  Rename source files so their names are <= 12 characters long
+(so there's room to append .Z and still have <= 14 characters);
+renamed files:  formatdata.c niceprintf.c niceprintf.h safstrncpy.c .
+  f2c material made available by anonymous ftp from research.att.com
+(look in dist/f2c ).
+  f2c/src files changed:
+	defs.h equiv.c format.c formatdata.c gram.io init.c
+	makefile niceprintf.h output.h proc.c version.c xsum0.out
+
+Feb 3 03:49:00 EST 1990:
+  Repair memory fault that arose from use (in an assignment or
+call) of a non-argument variable declared CHARACTER*(*).
+  f2c/src files changed: format.c putpcc.c version.c xsum0.out

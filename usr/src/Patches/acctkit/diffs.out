@@ -1,0 +1,214 @@
+diff -u -r linux.old/fs/exec.c linux/fs/exec.c
+--- linux.old/fs/exec.c	Wed Mar 31 11:28:20 1993
++++ linux/fs/exec.c	Wed Apr 14 18:26:10 1993
+@@ -434,6 +434,7 @@
+ 	int sh_bang = 0;
+ 	unsigned long p=PAGE_SIZE*MAX_ARG_PAGES-4;
+ 	int ch;
++	int running_setuid=0;	/* For accounting (see below) */
+ 
+ 	if ((0xffff & eip[1]) != 0x000f)
+ 		panic("VFS: execve called from supervisor mode");
+@@ -470,6 +471,8 @@
+ 		e_uid = current->euid;
+ 		e_gid = current->egid;
+ 	} else {
++		if(i & S_ISUID)
++			running_setuid=1;	/* Note the fact */
+ 		e_uid = (i & S_ISUID) ? inode->i_uid : current->euid;
+ 		e_gid = (i & S_ISGID) ? inode->i_gid : current->egid;
+ 	}
+@@ -584,6 +587,12 @@
+ 	}
+ /* OK, This is the point of no return */
+ 	current->dumpable = 1;
++
++/* Now we can check for setuid root and sort the flags out for accounting */
++	if(e_uid == 0 && running_setuid)
++		current->flags|=PF_BEENSUID;
++	current->flags&=~PF_FORKNEXEC;		/* Clear fork no exec flag */
++	
+ 	for (i=0; (ch = get_fs_byte(filename++)) != '\0';)
+ 		if (ch == '/')
+ 			i = 0;
+diff -u -r linux.old/include/linux/sched.h linux/include/linux/sched.h
+--- linux.old/include/linux/sched.h	Mon Mar 22 20:14:09 1993
++++ linux/include/linux/sched.h	Wed Apr 14 18:26:48 1993
+@@ -215,6 +215,11 @@
+ #define PF_PTRACED	0x00000010	/* set if ptrace (0) has been called. */
+ #define PF_TRACESYS	0x00000020	/* tracing system calls */
+ 
++/* Accounting flags */
++#define PF_BEENSUID	0x00000100	/* We have been setuid */
++#define PF_FORKNEXEC	0x00000200	/* A fork that didnt exec */
++/* End accounting */
++
+ /*
+  *  INIT_TASK is used to set up the first task table, touch at
+  * your own risk!. Base=0, limit=0x1fffff (=2MB)
+diff -u -r linux.old/kernel/exit.c linux/kernel/exit.c
+--- linux.old/kernel/exit.c	Wed Mar 24 09:44:07 1993
++++ linux/kernel/exit.c	Wed Apr 14 18:24:22 1993
+@@ -327,6 +327,9 @@
+ 	int i;
+ 
+ fake_volatile:
++        /* Added AGC - log the process exit information */
++        acct_process(code);
++        /* End of section */
+ 	free_page_tables(current);
+ 	for (i=0 ; i<NR_OPEN ; i++)
+ 		if (current->filp[i])
+diff -u -r linux.old/kernel/fork.c linux/kernel/fork.c
+--- linux.old/kernel/fork.c	Fri Apr 16 14:48:30 1993
++++ linux/kernel/fork.c	Wed Apr 14 18:24:35 1993
+@@ -83,6 +83,9 @@
+ 		return nr;
+ 	}
+ 	task[nr] = p;
++	/* Added AGC - acct() logs forks that don't then exec */
++	p->flags |= PF_FORKNEXEC;	/* forked but not done an execute */
++	/* End of change */
+ 	*p = *current;
+ 	p->kernel_stack_page = 0;
+ 	p->state = TASK_UNINTERRUPTIBLE;
+diff -u -r linux.old/kernel/sys.c linux/kernel/sys.c
+--- linux.old/kernel/sys.c	Mon Mar 22 16:51:25 1993
++++ linux/kernel/sys.c	Wed Apr 14 18:25:05 1993
+@@ -16,7 +16,11 @@
+ #include <linux/signal.h>
+ #include <linux/string.h>
+ #include <linux/ptrace.h>
+-
++/* Added AGC - Needed for acct */
++#include <linux/vfs.h>
++#include <linux/fcntl.h>
++#include <linux/acct.h>
++/* End */
+ #include <asm/segment.h>
+ 
+ /*
+@@ -298,9 +302,102 @@
+ 	return 0;
+ }
+ 
+-int sys_acct(void)
++/* 
++ * 	System accounting support. Its not as tidy as it could be but at least
++ *	its in.
++ *	Alan Cox 1993.
++ */
++
++struct file acctfile;
++int acct_active=0;
++
++/*
++ *	do_exit() calls this to account for processes
++ */
++
++void acct_process(long code)
+ {
+-	return -ENOSYS;
++	struct acct ac;
++	struct inode *i;
++	unsigned short fs;
++	if(acct_active==0)
++		return;
++	ac.ac_exitcode=code;
++	ac.ac_utime=current->utime;
++	ac.ac_stime=current->stime;
++	ac.ac_btime=CT_TO_SECS(current->start_time)+startup_time;
++	ac.ac_tty=current->tty;
++	ac.ac_uid=current->uid;
++	ac.ac_gid=current->gid;
++	strncpy(ac.ac_comm,current->comm,8);
++	ac.ac_flag=0;
++	if(current->flags&PF_BEENSUID)
++		ac.ac_flag|=ASU;
++	if(current->flags&PF_FORKNEXEC)
++		ac.ac_flag|=AFORK;
++	
++	if (!acctfile.f_op || !acctfile.f_op->write)
++		return;
++	i=acctfile.f_inode;
++	__asm__("mov %%fs,%0":"=r" (fs));	/* Magic to map kernel as user space - nicked from NFS */
++	__asm__("mov %0,%%fs"::"r" ((unsigned short) 0x10));
++	if(acctfile.f_op->write!=NULL)	/* Just in case some bozo acct()s to a really _stupid_ place */
++		acctfile.f_op->write(i,&acctfile,(void *)&ac,sizeof(struct acct));
++	__asm__("mov %0,%%fs"::"r" (fs));	/* Return to real kernel/user map */
++}
++
++int sys_acct(const char *name)
++{
++/* Added AGC */
++	struct inode *inode = NULL;
++	int i;
++	unsigned short fs;
++	if (!suser())		/* Accounting is restricted to the superuser */
++		return -EPERM;
++	if(acct_active==0 && name==NULL)	/* Turn off and its off */
++		return 0;
++	if(acct_active==1 && name!=NULL)	/* V7 manual says this one IS an error.. */
++		return -EBUSY;
++	/* Basically duplicate half of open, because the kernel doesn't have a task and fd table */
++
++	if(name!=NULL)
++	{
++		char *tmp;
++		acctfile.f_flags=1|O_APPEND;
++		acctfile.f_mode=2;
++		i=getname(name,&tmp);	/* Move name to kernel space */
++		if(i)
++			return i;	/* Failed */
++		i=open_namei(tmp,2,0,&inode,NULL);
++		putname(tmp);		/* Free kernel name copy */
++		if(i)
++			return i;
++		acctfile.f_count = 1;	/* close checks this! */
++		acctfile.f_inode = inode;
++		acctfile.f_pos = 0;
++		acctfile.f_reada = 0;
++		acctfile.f_op = NULL;
++		if(inode->i_op)
++			acctfile.f_op = inode->i_op->default_file_ops;
++		if(acctfile.f_op && acctfile.f_op->open)
++		{
++			i = acctfile.f_op->open(inode,&acctfile);
++			if (i)
++			{
++				iput(inode);
++				acctfile.f_count=0;
++				return i;
++			}
++		}
++		acct_active = 1;
++		return 0;
++	}
++	/* Guess what - same idea again, only this time the fs support is there */
++	i=close_fp(&acctfile);
++	if(i==0)
++		acct_active = 0;
++	return i;
++/* End */
+ }
+ 
+ int sys_phys(void)
+@@ -373,6 +470,9 @@
+ 			return(-EPERM);
+ 		}
+ 	}
++	/* Accounting flags */
++	if(current->euid==0)
++		current->flags|=PF_BEENSUID;
+ 	return 0;
+ }
+ 
+@@ -395,6 +495,8 @@
+ 		current->euid = uid;
+ 	else
+ 		return -EPERM;
++	if(current->euid==0)
++		current->flags|=PF_BEENSUID;
+ 	return(0);
+ }
+ 

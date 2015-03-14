@@ -1,0 +1,462 @@
+.TL
+5. CSCORE
+.sp 1
+.PP
+\fBCscore\fR is a program for generating and manipulating numeric score files.
+It comprises a number of \fIfunction\fR subprograms, called into operation
+by a user-written \fImain\fR program.
+The \fIfunction\fR programs augment the \fBC\fR language library functions;
+they can optionally read \fIstandard numeric\fR score files,
+can massage and expand the data in various ways, then write the data out
+as a new score file to be read by a \fBCsound\fR orchestra.
+.PP
+The user-written \fImain\fR program is also in \fBC\fR.
+It is not essential to know the \fBC\fR language well to write a main program,
+since the function calls have a simple syntax, and are powerful enough
+to do most of the complicated work.
+Additional power can come from \fBC\fR later as the need arises.
+.SH
+Events, Lists, and Operations
+.PP
+An \fIevent\fR in \fBCscore\fR is equivalent to one statement of a
+\fIstandard numeric score\fR.  It is either created or read in from an
+existing score file.  An event is comprised of an \fIopcode\fR and an array of
+\fIpfield\fR values stored somewhere in memory.
+Storage is organized by the following structure:
+.i
+struct event {
+	char op;   		/* opcode */
+	char tnum;
+	short pcnt;
+	float p[PMAX+1];    	/* pfields */
+};
+.e
+Any function subprogram that creates, reads, or copies an event function
+will return a \fIpointer\fR to the storage structure holding the event data.
+The event pointer can be used to access any component of the structure,
+in the form of \fIe->op\fR or \fIe->p[n]\fR.
+Each newly stored event will give rise to a new pointer, and a sequence of
+new events will generate a sequence of distinct pointers that must themselves
+be stored away.  Groups of event pointers are stored in a \fIlist\fR,
+which has its own structure:
+.i
+struct evlist {
+	int nslots;		/* size of this list */
+	struct event *e[1];   	/* list of event pointers */
+};
+.e
+Any function that creates or modifies a \fIlist\fR will return a \fIpointer\fR
+to the new list.  The list pointer can be used to access any of its component
+event pointers, in the form of \fIa->e[n]\fR.  Event pointers and list pointers
+are thus primary tools for manipulating the data of a score file.
+.PP
+\fIPointers\fR and \fIlists of pointers\fR can be copied and reordered
+without modifying the data values they refer to.  This means that
+notes and phrases can be copied and manipulated from a high level of control.
+Alternatively, the data within an \fIevent\fR or \fIgroup of events\fR
+can be modified without changing the event or list pointers.
+\fBCscore\fR provides a library of programming \fImethods\fR or
+\fIfunction subprograms\fR by which scores can be created and manipulated
+in this way.  
+.PP
+In the following summary of \fBCscore\fR function calls,
+some simple naming conventions are used:
+.i
+the symbols \fIe, f\fR are pointers to events (notes);
+the symbols \fIa, b\fR are pointers to lists(arrays) of such events;
+the letters \fIev\fR at the end of a function name signify operation on an \fIevent\fR;
+the letter \fIl\fR at the start of a function name signifies operation on a \fIlist\fR.
+
+   calling syntax      	   description
+
+e = createv(n);		create a blank event with n pfields
+e = defev("...");		defines an event as per the character string ...
+e = copyev(f);		make a new copy of event f
+e = getev();		read the next event in the score input file
+putev(e);   		write event e to the score output file
+putstr("...");		write the character string ... to score output
+
+a = lcreat(n);		create an empty event list with n slots
+a = lappev(a,e);      	append event e to list a
+n = lcount(a);		count the events now in list a
+a = lcopy(b);		copy the list b (but not the events)
+a = lcopyev(b);		copy the events of b, making a new list
+a = lget();		read events from score input (to next s or e)
+lput(a);       		write the events of list a to score output
+a = lsepf(b);		separate the f statements from list b into list a
+a = lcat(a,b);		concatenate (append) the list b onto the list a
+lsort(a);   		sort the list a into chronological order by p[2]
+a = lxins(b,"...");	 	extract notes of instruments ... (no new events)
+a = lxtimev(b,from,to);	extract notes of time-span, creating new events
+
+relev(e);   		release the space of event e
+lrel(a);       		release the space of list a (but not events)
+lrelev(a);    		release the events of list a, and the list space
+.e
+.SH
+Writing a Main program.
+.PP
+The general format for a main program is:
+.i
+#include <csound/cscore.h>
+main()
+{
+	/* VARIABLE DECLARATIONS */
+
+	/* PROGRAM BODY */
+}
+.e
+The \fIinclude\fR statement will define the event and list structures
+for the program.
+The following C program will read from a standard numeric score,
+up to (but not including) the first
+.B s
+or
+.B e
+statement, then write that data (unaltered) as output.
+.i
+#include <csound/cscore.h>
+main()
+{
+	struct evlist *a;      	/* a is allowed to point to an event \fIlist\fR */
+
+	a = lget();		/* read events in, return the list pointer */
+	lput(a);       		/* write these events out (unchanged) */
+	putstr("e");		/* write the string e to output */
+}
+.e
+.PP
+After execution of \fIlget()\fR, the variable
+.I a
+points to a list of event addresses, each of which points to a stored event.
+We have used that same pointer
+to enable another list function (\fIlput\fR) to access and write out
+all of the events that were read.
+If we now define another symbol
+.I e
+to be an \fIevent\fR pointer, then the statement
+.i
+e = a->e[4];
+.e
+will set it to the \fIcontents\fR of the 4th slot in the evlist structure.
+The contents is a pointer to an event, which is itself comprised of an array
+of parameter field values.  Thus the term e->p[5] will mean
+the value of parameter field 5 of the 4th event in the evlist denoted by
+.I a.
+The program below will multiply the value of that pfield by 2 before writing
+it out.
+.i
+#include <csound/cscore.h>
+main()
+{
+	struct event  *e;     	/* a pointer to an event */
+	struct evlist *a;
+
+	a = lget();		/* read a score as a list of events	*/
+	e = a->e[4];		/* point to event 4 in event list \fIa\fR    */
+	e->p[5] *= 2;		/* find pfield 5 and multiply its value by 2 */
+	lput(a);       		/* write out the list of events		*/
+	putstr("e");		/* add a "score end" statement		*/
+}
+.e
+Now consider the following score, in which p[5] contains frequency in cps.
+.i
+f 1 0 257 10 1
+f 2 0 257 7 0 300 1 212 .8
+i 1 1 3 0 440 10000
+i 1 4 3 0 256 10000
+i 1 7 3 0 880 10000
+e
+.e
+If this score were given to the preceding main program,
+the resulting output would look like this:
+.i
+f 1 0 257 10 1
+f 2 0 257 7 0 300 1 212 .8
+i 1 1 3 0 440 10000
+i 1 4 3 0 512 10000		; p[5] has become 512 instead of 256.
+i 1 7 3 0 880 10000
+e
+.e
+Note that the 4th event is in fact the second note of the score.
+So far we have not distinguished between notes and function table setup
+in a numeric score.  Both can be classed as events.
+Also note that our \fI4th\fR event has been stored in e[4] of the structure.
+For compatibility with \fBCsound\fR pfield notation, we will ignore
+p[0] and e[0] of the event and list structures, storing p1 in p[1],
+event 1 in e[1], etc.  The \fBCscore\fR functions all adopt this convention.
+.PP
+As an extension to the above, we could decide to use
+.I a
+and
+.I e
+to examine each of the events in the list.
+Note that
+.I e
+has not preserved the numeral 4, but the contents of that slot.
+To inspect p5 of the previous listed event we need only redefine
+.I e
+with the assignment
+.i
+e = a->e[3];
+.e
+More generally, if we declare a new variable
+.I f
+to be a \fIpointer to a pointer\fR to an event, the statement
+.i
+f = &a->e[4];
+.e
+will set
+.I f
+to the address of the fourth event in the event list
+.I a,
+and
+.I *f
+will signify the \fIcontents\fR of the slot, namely the event pointer itself.
+The expression
+.i
+(*f)->p[5],
+.e
+like e->p[5], signifies the fifth pfield of the selected event.
+However, we can advance to the next slot in the evlist by advancing the pointer
+\fIf\fR.  In C this is denoted by
+.I f++.
+.PP
+In the following program we will use the same input score. This time we
+will separate the ftable statements from the note statements.
+We will next write the three note-events stored in the list \fIa\fR, then
+create a second score section consisting of the original pitch set and
+a transposed version of itself.  This will bring about an octave doubling.
+.PP
+By pointing the variable
+.I f
+to the first note-event and incrementing
+.I f
+inside a \fBwhile\fR block which iterates n times (the number of events
+in the list), one statement can be made to act upon the same pfield
+of each successive event.
+.i
+#include <csound/cscore.h>
+main()
+{
+	struct event *e,**f;    	/* declarations. see pp.8-9 in the */
+	struct evlist *a,*b;		/* C language programming manual */
+	int n;
+
+	a = lget();		/* read score into event list "a" */
+	b = lsepf(a);		/* separate f statements */
+	lput(b);       		/* write f statements out to score */
+	lrelev(b);    		/* and release the spaces used */
+	e = defev("t 0 120");	/* define event for tempo statement */
+	putev(e);    		/* write tempo statement to score */
+	lput(a);      		/* write the notes */
+	putstr("s");		/* section end */
+	putev(e);     		/* write tempo statement again */
+	b = lcopyev(a);		/* make a copy of the notes in "a" */
+	n = lcount(b);		/* and count the number copied */
+	f = &a->e[1];
+	while (n--)		/* iterate the following line n times: */
+	   (*f++)->p[5] *= .5;	/*   transpose pitch down one octave */
+	a = lcat(b,a);		/* now add these notes to original pitches */
+	lput(a);
+	putstr("e");
+}
+.e
+The output of this program is:
+.i
+f 1 0 257 10 1
+f 2 0 257 7 0 300 1 212 .8
+t 0 120
+i 1 1 3 0 440 10000
+i 1 4 3 0 256 10000
+i 1 7 3 0 880 10000
+s
+t 0 120
+i 1 1 3 0 440 10000
+i 1 4 3 0 256 10000
+i 1 7 3 0 880 10000
+i 1 1 3 0 220 10000
+i 1 4 3 0 128 10000
+i 1 7 3 0 440 10000
+e
+.e
+.PP
+Next we extend the above program by using the \fBwhile\fR statement
+to look at p[5] and p[6].   In the original score p[6] denotes amplitude.
+To create a diminuendo in the added lower octave, which is
+independent from the original set of notes, a variable called
+\fIdim\fR will be used.
+.i
+#include <csound/cscore.h>
+main()
+{
+	struct event *e,**f;
+	struct evlist *a,*b;
+	int n, dim;		/* declare new variable as integer */
+
+	a = lget();
+	b = lsepf(a);
+	lput(b);
+	lrelev(b);
+	e = defev("t 0 120");
+	putev(e);
+	lput(a);
+	putstr("s");
+	putev(e);			/* write out another tempo statement */
+	b = lcopyev(a);
+	n = lcount(b);
+	dim = 0;			/* initialize dim to 0 */
+	f = &a->e[1];
+	while (n--){
+	     (*f)->p[6] -= dim; 	/* subtract current value of dim */
+	     (*f++)->p[5] *= .5;  	/* transpose, move f to next event */
+	     dim += 2000;		/* increase dim for each note */
+	}
+	a = lcat(b,a);
+	lput(a);
+	putstr("e");
+}
+.e
+.PP
+The increment of
+.I f
+in the above programs has depended on certain precedence rules of
+.B C.
+Although this keeps the code tight, the practice can be dangerous for beginners.
+Incrementing may alternately be written as a separate statement
+to make it more clear.
+.i
+	while (n--){
+	    (*f)->p[6] -= dim;
+	    (*f)->p[5] *= .5;
+	    dim += 2000;
+	    f++;
+	}
+.e
+Using the same input score again, the output from this program is:
+.i
+f 1 0 257 10 1
+f 2 0 257 7 0 300 1 212 .8
+t 0 120
+i 1 1 3 0 440 10000
+i 1 4 3 0 256 10000
+i 1 7 3 0 880 10000
+s
+t 0 120
+i 1 1 3 0 440 10000		; Three original notes at
+i 1 4 3 0 256 10000		; beats 1,4 and 7 with no dim.
+i 1 7 3 0 880 10000
+i 1 1 3 0 220 10000		; three notes transposed down one octave
+i 1 4 3 0 128 8000   		; also at beats 1,4 and 7 with dim.
+i 1 7 3 0 440 6000
+e
+.e
+.PP
+In the following program the same three-note sequence will be repeated
+at various time intervals.  The starting time of each group is determined
+by the values of the array \fIcue\fR.  This time the dim. will occur for each
+group of notes rather than each note.  Note the position of the statement
+which increments the variable \fIdim\fR outside the inner \fBwhile\fR block.
+.i
+#include <csound/cscore.h>
+
+int cue[3]={0,10,17};		/* declare array of 3 integers */
+
+main()
+{
+	struct event *e, **f;
+	struct evlist *a, *b;
+	int n, dim, cuecount, holdn;	/* declare new variables */
+
+	a = lget();
+	b = lsepf(a);
+	lput(b);
+	lrelev(b);
+	e = defev("t 0 120");
+	putev(e);
+	n = lcount(a);
+	holdn = n;		/* hold the value of "n" to reset below */
+	cuecount = 0;		/* initilize cuecount to "0" */
+	dim = 0;
+	while (cuecount <= 2) {	/* count 3 iterations of inner "while" */
+	    f = &a->e[1];		/* reset pointer to first event of list "a" */
+	    n = holdn;		/* reset value of "n" to original note count */
+	    while (n--) {
+		(*f)->p[6] -= dim;
+		(*f)->p[2] += cue[cuecount];  	/* add values of cue */
+		f++;
+	    }
+	    printf("%s %d0, "; diagnostic:  cue=", cue[cuecount]);
+	    cuecount++;
+	    dim += 2000;
+	    lput(a);
+	}
+	putstr("e");
+}
+.e
+
+.PP
+Here the inner \fBwhile\fR block looks at the events of list
+.I a
+(the notes) and the outer
+.B while
+block looks at each repetition of the events of list
+.I a
+(the pitch group repetitions).
+This program also demonstrates a useful trouble-shooting device
+with the \fBprintf\fR function. The semi-colon is first in the character
+string to produce a comment statement in the resulting score file.
+In this case the value of \fIcue\fR is being
+printed in the output to insure that the program is taking the
+proper array member at the proper time. When output data is wrong
+or error messages are encountered, the \fBprintf\fR function can help
+to pinpoint the problem.
+
+Using the identical input file, the C program above will generate:
+
+.i
+f 1 0 257 10 1
+f 2 0 257 7 0 300 1 212 .8
+t 0 120
+
+; diagnostic:  cue= 0
+i 1 1 3 0 440 10000
+i 1 4 3 0 256 10000
+i 1 7 3 0 880 10000
+
+; diagnostic:  cue= 10
+i 1 11 3 0 440 8000
+i 1 14 3 0 256 8000
+i 1 17 3 0 880 8000
+
+; diagnostic:  cue= 17
+i 1 28 3 0 440 4000
+i 1 31 3 0 256 4000
+i 1 34 3 0 880 4000
+e
+.e
+
+.PP
+Further development of these scores will lead the composer to techniques
+of score manipulation which are similar to serial techniques of composition.
+Pitch sets may be altered with regard to any of the parameter fields.
+The programing allows for transpositions, time warping, pitch retrograding
+and dynamic controls, to name a few.
+
+.SH
+Compiling a Cscore program
+.PP
+A \fBCscore\fR program named \fIexample.c\fR can be compiled and linked
+with its library modules by the command:
+.i
+$ cc example.c -lcscore
+.e
+The resulting executable file is called "a.out".  It is run by typing:
+.i
+$ a.out				(no input, output printed on the screen)
+
+$ a.out < scorin       		(input score named \fIscorin\fR, output on screen)
+
+$ a.out < scorin > scorout     	(input as above, output into a file)
+.e
+

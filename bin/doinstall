@@ -1,0 +1,253 @@
+#!/bin/sh
+# copyright Softlanding Software 92,93.  Distribute freely, don't restrict
+
+function usage()  {
+	echo " "
+	echo "Installs SLS onto a hard disk from floppies, tape, CD, HD or Network"
+	echo "usage: doinstall PART [ PART2 MNT2 ...]"
+	echo "where: PART is the partition to install to, optionally followed by" 
+	echo "partition/directory pairs to mount on root.   for example"
+	echo "       doinstall /dev/hda2"
+	echo "or:    doinstall /dev/hda2 /dev/hda3 /usr /dev/hdb1 /usr/spool"
+	exit 1
+}
+
+function domount() {
+	if [ ! -b $1 ]; then
+		echo "Error: $1 is not a block device, can not mount on $2";
+		usage;
+		exit 2
+	fi
+	echo -n "Is $1 an Extended FS(2) partition, instead of the default minix? (n/y)"
+	read ans
+	if [ "$ans" = "Y" -o "$ans" = "y" ]; then
+		MOUNTTYPE="ext2"
+	else
+		MOUNTTYPE="minix"
+	fi
+	mount -t $MOUNTTYPE $1 $2
+	MNTSTAT=$?;
+	if [ $MNTSTAT != 0 ]; then
+		echo "Error: can not mount $1.  Did you use: mkfs $1 SIZE"
+		echo "where SIZE is the number of blocks shown by fdisk?"
+		exit 1;
+	fi
+}
+
+if [ $# -lt 1 ]; then
+	usage;
+	exit 1
+fi
+ROOTDEVICE=$1
+INSTSRC=
+INSTTYPE=
+INSTMEDIA=
+INSTDEV=/dev/fd0
+
+function mountsource() {
+	case $1 in 
+	harddrive)
+		INSTSRC=/mnt/install
+		echo -n "Enter the partition that the source is on (eg. /dev/hda1):"
+		read hdloc;
+		echo -n "Enter the type of the filesystem (minix/ext2/msdos)";
+		read hdtype;
+		mount -t $hdtype $hdloc /mnt
+	;;
+	cdrom)
+		INSTSRC=/mnt/install
+		echo -n "Is this a Mitsumi CDROM player (y/n)"
+		read ans;
+		if [ "$ans" = "y" -o "$ans" = "Y" ]; then
+			mount -t iso9660 /dev/mcd0 /mnt
+		else
+			echo "Assuming SCSI CDROM"
+			mount -t iso9660 /dev/sr0 /mnt
+		fi
+	;;
+	network)
+		INSTSRC=/mnt/install
+		echo "Following is your current IP setup"
+		cat /etc/hosts
+		echo -n "Do you wish to change or set your IP address(y/n)?: "
+		read ans;
+		if [ "y" = "$ans" ]; then
+			if [ "/dev/ram /" = `rdev` ]; then
+				echo -n "Sorry: can not change IP addr from ramdisk"
+				exit 4
+			fi
+			echo -n "Enter your IP address (eg, 192.0.2.129): "
+			read ans;
+			echo "$ans	`hostname`" > /etc/hosts
+			echo -n "Enter your Network address (eg, 192.0.2.0): "
+			read ans;
+			echo "$ans	network" >> /etc/hosts
+			echo -n "Enter your Router address, if any (eg, 192.0.2.1): "
+			read ans;
+			if [ "" != "$ans" ]; then
+				echo "$ans	router" >> /etc/hosts
+			fi
+			echo "127.0.0.1	localhost" >> /etc/hosts
+			sync
+			echo "IP setup is now changed: Please reboot now";
+			exit 0
+		fi
+		echo -n "Enter IP address of NFS server:"
+		read ipaddr;
+		echo -n "Enter directory on server where SLS sources are located:"
+		read path;
+		mount -t nfs $ipaddr:$path /mnt || mount -t nfs $ipaddr:$path /mnt
+	;;
+	esac
+	MNTSTAT=$?
+	if [ $MNTSTAT != 0 ]; then
+		echo "error: can not mount source"
+		exit 2;
+	fi
+	if [ -d $INSTSRC/a4 -a -d $INSTSRC/a3 ]; then
+		return
+	else
+		echo "error: SLS distribution files not found in $INSTSRC"
+		usage
+	fi
+}
+
+echo "Welcome to the SLS installation program (copyright 92,93 Softlanding Software)"
+while [ 0 ]; do
+	umount /mnt >& /dev/null
+	echo ''
+	echo '    1 - Install from Floppy Disks'
+	echo '    2 - Install from Hard Disk'
+	echo '    3 - Install from Tape'
+	echo '    4 - Install from CDROM'
+	echo '    5 - Install from Network (via NFS)'
+	echo ' '
+	echo -n 'Where will you be installing SLS from?'
+	read ans;
+	case $ans in
+		1 ) INSTMEDIA=floppy
+		while [ 0 ];do 
+			echo " "
+			echo '    1)  Drive A: 5 1/4 inch'
+			echo '    2)  Drive A: 3 1/2 inch'
+			echo '    3)  Drive B: 5 1/4 inch'
+			echo '    4)  Drive B: 3 1/2 inch'
+			echo " "
+			echo -n "Enter Drive You Will Be Doing The Installation From (1/2/3/4): "
+			read answer; 
+			case $answer in
+				1) INSTDEV=/dev/fd0h1200;;
+				2) INSTDEV=/dev/fd0H1440;;
+				3) INSTDEV=/dev/fd1h1200;;
+				4) INSTDEV=/dev/fd1H1440;;
+				*) continue;;
+			esac
+			umount $INSTDEV
+			break;
+		done 
+		;;
+		2 ) INSTMEDIA=harddrive; mountsource harddrive ;;
+		3 ) INSTMEDIA=tape ;;
+		4 ) INSTMEDIA=cdrom; mountsource cdrom ;;
+		5) INSTMEDIA=network; mountsource network ;;
+		*) echo "$ans invalid, pick again"; continue;; 
+	esac
+	break;
+done
+while [ "$INSTMEDIA" != tape ]; do
+	echo ' '
+	echo '    1 - Install a minimal system (12 Meg)'
+	echo '    2 - Install the full base system (50 Meg)'
+	echo '    3 - Install base system + X11 (70 Meg)'
+	echo '    4 - Install everything (90 Meg)'
+	echo " "
+	echo -n 'Enter type of install (1/2/3/4)'
+	read ans;
+	if [ $ans = 1 ]; then
+		INSTTYPE="mini"
+		break;
+	elif [ $ans = 2 ]; then
+		INSTTYPE="base"
+		break;
+	elif [ $ans = 3 ]; then
+		INSTTYPE="all"
+		break;
+	elif [ $ans = 4 ]; then
+		INSTTYPE="everything"
+		break;
+	fi
+done
+umount $ROOTDEVICE >& /dev/null
+domount $ROOTDEVICE /root
+mkdir -p /root/install/installed
+mkdir -p /root/install/disks
+mkdir -p /root/install/scripts
+mkdir -p /root/install/catalog
+echo "$ROOTDEVICE	/		$MOUNTTYPE	defaults" > /root/fstab.tmp
+while [ 0 ]; do
+	if [ "" != "$2" -a "" != "$3" ]; then
+		mkdir /root$3
+		domount $2 /root$3
+		echo "$2	$3		$MOUNTTYPE	defaults" >> /root/fstab.tmp
+		shift 2;
+	else
+		break;
+	fi
+done
+if [ -f /root/doinst.sh ]; then
+	sh /root/doinst.sh;
+fi
+echo -n 'Do you want to be prompted, with a description, before installing each package? (y/n): '
+read ans
+if [ "$ans" = "Y" -o "$ans" = "y" ]; then
+	DOPROMPT="-doprompt"
+fi
+if [ "$INSTSRC" != "" ]; then
+	INSTSRC="-instsrc $INSTSRC"
+fi
+if [ "$INSTMEDIA" = tape ]; then
+	export DOPROMPT
+	tarsh /dev/rmt0 /bin/tapeinstall
+else
+	echo "sysinstall -instdev $INSTDEV $INSTSRC -instroot /root $DOPROMPT -$INSTTYPE"
+	sysinstall -instdev $INSTDEV $INSTSRC -instroot /root $DOPROMPT -$INSTTYPE
+fi
+mv /root/fstab.tmp /root/etc/fstab
+if [ "$INSTDEV" != "" ]; then
+	if [ $INSTDEV =  /dev/fd1H1440 ]; then
+		INSTDEV=/dev/fd0h1200;
+	elif [ $INSTDEV =  /dev/fd1h1200 ]; then
+		INSTDEV=/dev/fd0H1440;
+	fi
+	echo "FLOPPYA $INSTDEV" >> /root/etc/hwconfig
+fi
+echo "ROOTDEV $ROOTDEVICE" >> /root/etc/hwconfig
+VGAMODE=-3
+if [ "/dev/ram /" = "`rdev`" ]; then
+	echo -n 'Now put the freshly formatted floppy into your boot drive and hit enter: '
+	read ans;
+	dd if=/root/Image of=$INSTDEV
+	rdev $INSTDEV $ROOTDEVICE
+	echo -n "Do you wish to have the video mode preset at boot time? (y/n): "
+	read ans;
+	if [ "$ans" = "y" ]; then
+		echo -n "Enter the mode (-1 for 80x25 mode, or the key 1, 2, 3, ...): "
+		read VGAMODE;
+		rdev -v $INSTDEV $VGAMODE
+	fi
+	sync
+fi
+echo "VGAMODE $VGAMODE" >> /root/etc/hwconfig
+if [ -x /root/etc/syssetup ]; then
+	(cd /root; etc/syssetup -instroot /root -install )
+fi
+sync
+echo "Installation is complete.  You may now hard reset your computer and use"
+if [ "/dev/ram /" = "`rdev`" ]; then
+	echo "this newly created boot disk to start Linux from your hard drive."
+else
+	echo "this disk when rebooting to using Linux on your hard drive as follows:"
+	echo '     - when you see the word "LILO", hold down the ALT key'
+	echo "     - type \"harddisk root=$ROOTDEV\" to boot to your installation"
+	echo 'Once there, you can use "makebootdisk" to create a boot floppy'
+fi

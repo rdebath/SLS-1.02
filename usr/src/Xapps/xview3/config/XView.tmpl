@@ -1,0 +1,399 @@
+#ifndef XViewTmpl
+#define XViewTmpl YES
+
+#include <XView.cf>
+/**/###########################################################################
+/**/# @(#)XView.tmpl	1.8 10/4/91 SMI
+/**/# XView.tmpl for XView release 3.0.  Template to add additional config
+/**/# rules to those supplied with X Version 11 release 5.
+
+/***************************************************************************/
+/***************************************************************************/
+/*
+ * NOTE:The variables that can be changed without significantly
+ *	affecting the build process have been defined with the
+ *	"#ifndef value, #define value, #endif" CPP notation which allows
+ *	one to override any of these definitions in the site.def
+ *	file.  The site.def file is included before this file in the process of
+ *	creating the Makefile.
+ *
+ ***************************************************************************/
+/***************************************************************************/
+/*
+ *	Where to install XView libraries
+ */
+#ifndef XVLibraryDestination
+#define XVLibraryDestination $(XVDESTDIR)/lib
+#endif
+/*
+ *	Where to install XView lint libraries
+ */
+#ifndef XVLintLibraryDestination
+#define XVLintLibraryDestination $(XVDESTDIR)/lib/lint
+#endif
+/*
+ *      Where to install the XView clients.  By default, the MIT configuration
+ *      files set this to be $(DESTDIR)/usr/bin/X11.
+ *      These are set up to go into $(XVDESTDIR)/usr/bin/xview by default so
+ *      these programs do not overwrite any others that may be installed
+ *      on the system.
+ */
+#ifndef XVBinDest
+#define XVBinDest $(XVDESTDIR)/bin
+#endif
+/*
+ *	Where to install the XView man pages.  By default, the MIT config
+ *	files set this to be $(DESTDIR)/usr/man.  This allows the XView.cf
+ *	file to provide an obvious way to change the behavior without
+ *	delving too much into the intricacies of Imake and associated
+ *	conventions used by X.V11R4.
+ */
+#if InstallManPagesInXVDestDir
+# ifndef XVManPath
+# define XVManPath $(XVDESTDIR)/man
+# endif
+#else
+# define XVManPath ManPath
+#endif
+/*
+ *	Where to install the include files.
+ */
+#ifndef XVHeaderDest
+#define XVHeaderDest $(XVDESTDIR)/include
+#endif
+/*
+ *	Where to install the source examples.
+ */
+#ifndef XVSourceDest
+#define XVSourceDest $(XVDESTDIR)/share/src/xview
+#endif
+/*
+ *	Where to install the documentation files.
+ */
+#ifndef XVDocDest
+#define XVDocDest $(XVDESTDIR)/share/doc/xview
+#endif
+/*
+ *	Where to install the help files for spot help.
+ */
+#ifndef XVHelpDest
+#define XVHelpDest $(LIBRARY_DEST)/help
+#endif
+/*
+ *	Where to install the extra support files.
+ */
+#ifndef XVExtrasDest
+#define XVExtrasDest $(LIBRARY_DEST)
+#endif
+/*
+ *	What to call the text extras file and where to find it.
+ *	By default, looks for "/usr/lib/.text_extras_menu".
+ */
+#ifndef TextExtrasMenuFileName
+#define TextExtrasMenuFileName XVExtrasDest/**//.text_extras_menu
+#endif
+/*
+ *      Work around small conflict with Project.tmpl file
+ */
+#if UseInstalled
+              MKDIRHIER = BourneShell BinDir/mkdirhier
+#endif
+
+#if OsHasLocale
+         LOCALE_DEFINES = -DOS_HAS_LOCALE
+#endif
+
+#if OsHasMmap
+           MMAP_DEFINES = -DOS_HAS_MMAP
+#endif
+
+                DEFINES = $(LOCALE_DEFINES) $(MMAP_DEFINES)
+
+#ifdef XVDestDir
+              XVDESTDIR = XVDestDir
+           LIBRARY_DEST = XVLibraryDestination
+      LINT_LIBRARY_DEST = XVLintLibraryDestination
+                 BINDIR = XVBinDest
+                MANPATH = XVManPath
+            HEADER_DEST = XVHeaderDest
+               SRC_DEST = XVSourceDest
+               DOC_DEST = XVDocDest
+#else
+           LIBRARY_DEST = $(USRLIBDIR)
+      LINT_LIBRARY_DEST = $(LINTLIBDIR)
+            HEADER_DEST = $(INCROOT)
+#ifdef ProjectRoot
+               SRC_DEST = $(PROJECTROOT)/share/src/xview
+               DOC_DEST = $(PROJECTROOT)/share/doc/xview
+#else
+               SRC_DEST = /usr/share/src/xview
+               DOC_DEST = /usr/share/doc/xview
+#endif
+#endif
+
+/* 
+ *      If you do need these files installed, then put them in an XView 
+ *      location, so need to override the value for configdir. 
+ *	Also affects commands line when using Imake...
+ */
+#if !OnlyNeedsNewXViewConfigInstalled
+# ifndef XVConfigdir 
+# define XVConfigdir $(LIBRARY_DEST)/xview/config
+# endif
+              CONFIGDIR = XVConfigdir
+#endif
+
+               XVLIBSRC = $(TOP)/lib
+              HELP_DEST = XVHelpDest
+    LIBRARY_DEST_EXTRAS = XVExtrasDest
+       TEXT_EXTRAS_MENU = TextExtrasMenuFileName
+                     AR = ArchiveCommand
+                  CHMOD = ChangePermissionsCommand
+#if HasOpenWindows
+                  PSDIR = OpenWindowsHome/etc/NeWS
+               NEWSHDRS = OpenWindowsHome/include
+             NEWSLIBDIR = OpenWindowsHome/lib
+                 CPSLIB = -L$(NEWSLIBDIR) -lcps
+                    CPS = OpenWindowsHome/bin/cps
+             DESKSETDIR = OpenWindowsHome/lib
+             LIBDESKSET = -L$(DESKSETDIR) -ldeskset
+#endif
+/*
+ *      DEC 3100 Config options
+ */
+#ifdef UltrixArchitecture
+                INSTALL = InstallCommand
+#endif
+/*
+ *      Also, we assume that the X11 library has been built by this point, so
+ *      override this variable with a null value.  
+ */
+                DEPXLIB = XVDependentXLib
+/*
+ *      Flags and rules used when compiling assembler source files
+ *	Currently, these are not used, so commented out.
+                 AFLAGS = -P
+                     AS = as
+ */
+/*
+ *	use the same trick X11R5 does for defining rules for installed libs
+ */
+#ifdef UseInstalled
+#define _Use(a,b) a
+#else
+#define _Use(a,b) b
+#endif
+/*
+ *	Temporary directory used during build process before the include
+ *	files are installed.  This is just a place where symbolic links are
+ *	placed to point back to the actual files in the build hierarchy to
+ *	save on disk space.
+ */
+#ifndef XVBuildIncludesDir
+#define XVBuildIncludesDir $(TOP)/build
+#endif
+/*
+ *	This is the path from the include directory to the top of the XView
+ *	source hierarchy.  By default, the includes install in 
+ *	<XVIEW>/build/include/name, so that would be three ".." directories
+ *	back to get back to the <XVIEW> directory.
+ */
+#ifndef XVBuildIncludeTop
+#define XVBuildIncludeTop ../../..
+#endif
+            BUILDINCDIR = XVBuildIncludesDir
+            BUILDINCTOP = XVBuildIncludeTop
+/*
+ *	Used for installation of includes during build and installation
+ *	afterwards.
+ */
+#ifndef XVIncludeDirName
+#define XVIncludeDirName /include
+#endif
+                 INCDIR = XVIncludeDirName
+/*
+ *	The following names should not be changed as the XView library
+ *	sources depend on these names being consistent.
+ */
+               XVPUBINC = xview
+               XVPRIINC = xview_private
+               OLPUBINC = olgx
+               OLPRIINC = olgx_private
+               PSPUBINC = xvps
+               PSPRIINC = xvps_private
+               IMAGEINC = images
+              BITMAPINC = bitmaps
+         PIXRECT_INCDIR = $(INCDIR)/pixrect
+           XVPUB_INCDIR = $(INCDIR)/$(XVPUBINC)
+           XVPRI_INCDIR = $(INCDIR)/$(XVPRIINC)
+           OLPUB_INCDIR = $(INCDIR)/$(OLPUBINC)
+           OLPRI_INCDIR = $(INCDIR)/$(OLPRIINC)
+           PSPUB_INCDIR = $(INCDIR)/$(PSPUBINC)
+           PSPRI_INCDIR = $(INCDIR)/$(PSPRIINC)
+           IMAGE_INCDIR = $(INCDIR)/$(IMAGEINC)
+          BITMAP_INCDIR = $(INCDIR)/$(BITMAPINC)
+    PIXRECT_HEADER_DEST = $(HEADER_DEST)/pixrect
+      XVPUB_HEADER_DEST = $(HEADER_DEST)/$(XVPUBINC)
+      XVPRI_HEADER_DEST = $(HEADER_DEST)/$(XVPRIINC)
+      OLPUB_HEADER_DEST = $(HEADER_DEST)/$(OLPUBINC)
+      OLPRI_HEADER_DEST = $(HEADER_DEST)/$(OLPRIINC)
+      PSPUB_HEADER_DEST = $(HEADER_DEST)/$(PSPUBINC)
+      PSPRI_HEADER_DEST = $(HEADER_DEST)/$(PSPRIINC)
+            IMAGES_DEST = $(HEADER_DEST)/$(IMAGEINC)
+            BITMAP_DEST = $(HEADER_DEST)/$(BITMAPINC)
+/*	
+ *	For pre-R4, FONTINSTDIR should be $(LIBDIR)/fonts, also need to
+ *	change LIBDIR above to the location of fonts for pre-R4 servers.
+ *	For R5, FONTINSTDIR should be $(LIBDIR)/fonts.  Note, do not need to
+ *	install fonts if you have X.V11R4 FCS or X.V11R5 FCS .
+ */
+#if InstallOpenLookFonts
+# ifndef XVFontDest
+# define XVFontDest $(LIBDIR)/fonts
+# endif
+# ifndef XVOLFontDest
+# define XVOLFontDest $(FONTINSTDIR)
+# endif
+# ifndef XVTextFontDest
+# define XVTextFontDest $(FONTINSTDIR)
+# endif
+            FONTINSTDIR = XVFontDest
+   OPENLOOK_FONTINSTDIR = XVOLFontDest
+   TEXTFONT_FONTINSTDIR = XVTextFontDest
+#endif
+/*
+ *	Rules for compiling lint library.
+ */
+                LINTDIR = $(LINT_LIBRARY_DEST)
+/*
+ *	Definitions used for compiling shared libraries
+ */
+#if SharedLibXView 
+# ifndef InstSharedLibFlags 
+# define InstSharedLibFlags -m 0755 
+# endif 
+# ifndef PositionIndependentCodeFlag
+# define PositionIndependentCodeFlag -pic
+# endif
+# ifndef ExtractedStringArrayName
+# define ExtractedStringArrayName _libxview_xstr
+# endif
+# ifndef ObjectSortCommand
+# define ObjectSortCommand ./objsort.sh
+# endif
+# ifndef ObjectOrderListFile
+# define ObjectOrderListFile ./lorder-sparc
+# endif
+                    PIC = PositionIndependentCodeFlag
+                   XSTR = ExtractStringCommand
+             XSTR_ARRAY = ExtractedStringArrayName
+                OBJSORT = ObjectSortCommand
+                OBJLIST = ObjectOrderListFile
+     INSTSHAREDLIBFLAGS = InstSharedLibFlags
+#endif
+/*
+ *	If compiling with shared libraries, sort the objects in the .so
+ *	library so the strings are at the top and the global data 
+ *	initialization routines are at the tail.  Other ordering would
+ *	need to be based on an analysis of usage patterns over time.  If
+ *	a module is omitted from the ORDER_FILE, it will be at the tail of
+ *	the library by default.
+ */
+#if SharedLibXView  
+# ifndef SortObjects
+# define SortObjects YES
+# endif
+#endif
+/*
+ *	set up compile time dependencies for XView clients.
+ *	These rules would be very handy for the site.def file.
+ */
+#if SharedLibXView
+            DEPXVIEWLIB =
+               XVIEWLIB = -L$(LIBRARY_DEST) -lxview
+#else
+            DEPXVIEWLIB = _Use($(LIBRARY_DEST),$(XVLIBSRC)/libxview)/libxview.a
+               XVIEWLIB = LoaderLibPrefix -L$(LIBRARY_DEST) -lxview
+#endif
+#if SharedLibXView
+            DEPOLGXLIB = 
+               OLGXLIB = -L$(LIBRARY_DEST) -lolgx
+#else
+            DEPOLGXLIB = _Use($(LIBRARY_DEST),$(XVLIBSRC)/libolgx)/libolgx.a
+               OLGXLIB = LoaderLibPrefix -L$(LIBRARY_DEST) -lolgx
+#endif
+#if SharedLibXView
+            DEPXVPSLIB = 
+               XVPSLIB = -L$(LIBRARY_DEST) -lxvps
+#else
+            DEPXVPSLIB = _Use($(LIBRARY_DEST),$(XVLIBSRC)/libxvps)/libxvps.a
+               XVPSLIB = LoaderLibPrefix -L$(LIBRARY_DEST) -lxvps
+#endif
+
+#if SharedLibX
+             XLIB = $(EXTENSIONLIB) -lX11
+#else
+             XLIB = $(EXTENSIONLIB) LoaderLibPrefix -lX11
+#endif
+/*
+ *	Define libraries for XView clients
+ */
+#ifndef XViewClientDepLibs
+#define XViewClientDepLibs 
+#endif
+#ifndef XViewClientLibs
+#define XViewClientLibs $(XVIEWLIB) $(OLGXLIB) $(XLIB)
+#endif
+/*
+ *	Define libraries for XView clients using XVPS
+ */
+#if HasOpenWindows
+# ifndef XViewPSClientDepLibs
+# define XViewPSClientDepLibs
+# endif
+# ifndef XViewPSClientLibs
+# define XViewPSClientLibs $(XVPSLIB) $(XVIEWLIB) $(OLGXLIB) $(XLIB) $(CPSLIB)
+# endif
+#endif
+/*
+ *	Do not change this revision number unless you know why.  This number,
+ *	3.1, corresponds to the one for the XView 3.0 release.
+ */
+#if SharedLibXView
+# ifndef SharedXViewRev
+# define SharedXViewRev 3.1
+# endif
+             SOXVIEWREV = SharedXViewRev
+              SOOLGXREV = SharedXViewRev
+# if HasOpenWindows
+              SOXVPSREV = 0.2
+# endif
+#endif
+/*
+ *	Define the subdir names for the text files and the data files for
+ *	building a shared library.
+ */
+#if SharedLibXView
+                  SODIR = shared
+                  SADIR = unshared
+#endif
+/*
+ *	If your machine does not understand "..", then can define these to be
+ *	an absolute path instead of relative paths.  
+ */
+#if SharedLibXView
+             SHARED_DIR = $(TARGETDIR)xshared
+           UNSHARED_DIR = $(TARGETDIR)xunshared
+      XSTR_STRINGS_FILE = $(TARGETDIR)xstrings
+#endif
+/*
+ *	Define the product name and release used in Imakefiles...
+ */
+#ifndef ProductNameAndRelease
+#define ProductNameAndRelease "XView release 3.0"
+#endif
+/*
+ *	Include the XView specific makefile macros.
+ */
+#include <XView.rules>
+#endif /* XViewTmpl */

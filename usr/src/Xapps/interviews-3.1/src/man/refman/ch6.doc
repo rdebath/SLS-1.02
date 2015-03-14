@@ -1,0 +1,532 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 5
+%label{brush}{6.1}
+%label{color}{6.2}
+%label{font}{6.3}
+%label{transformer}{6.4}
+%label{bitmap}{6.5}
+%label{raster}{6.6}
+%label{canvas}{6.7}
+%label{printer}{?}
+
+\begin{document}
+%
+%
+\chapter{Rendering}%
+%
+\float{figure}{6-\pagenumber{00}}%372.72 -642.96 -2
+\float{figure}{6-\pagenumber{00}}%372.72 -642.96 0
+This chapter describes the InterViews classes for drawing on the screen
+and on a printer.  The two primary classes are Canvas, which represents
+an area on the screen, and Printer, which sends output suitable for
+printing to an output stream.  The drawing classes are intended to
+be simple and resolution-independent.  The programming interface resembles
+the PostScript drawing operations.
+
+\quad Printer is a subclass of Canvas, and as such implements the
+same drawing operations as Canvas.  However, it is possible that glyphs
+may use other rendering operations than those provided by Canvas,
+such as for 3D.  In this case, glyphs should provide distinct draw
+and print operations.  If a glyph does not need operations other than
+those provided by Canvas then the glyph can rely on default implementation
+of drawing on a printer, which just calls the canvas-directed draw
+with the printer as the target. %
+%
+\section{Graphics Attributes}%
+%
+InterViews provides classes that represent graphics attributes such
+as colors and fonts.  The instances are all sharable, meaning the
+classes are derived from Resource.  The objects are also display-independent,
+meaning they will correspond to several underlying objects in applications
+that run on multiple displays.  For example, a single InterViews color
+object might have different pixel values on different displays. %
+%
+\subsection{Brush}%
+%
+A brush defines the line thickness and line style for drawing operations.  The
+effect of these operations is as if a line segment equal in length
+to the brush's width were dragged along an infinitely thin path between
+the specified coordinates.  At each point along the path the brush
+is angled perpendicular to the path.  As a special case, a brush width
+of zero specifies a minimal-width line.  Many devices can render minimal-width
+lines more quickly than wide lines, but the resulting display may
+vary slightly across devices.  A solid brush style paints all pixels
+along the path with a single color.  A dashed brush defines alternating
+foreground and background segments, measured along the length of the
+path.  Foreground segments are painted, while background segments
+are not.
+
+\quad Figure \ref{brush} shows the Brush class interface.%
+%
+\code{interface Brush : Resource \{\
+\quad Brush(Coord width);\
+\quad Brush(int* pattern, int count, Coord width);\
+\quad Brush(int pattern, Coord width);\
+\}; %
+%
+\figurecaption{Brush class interface\label{brush}}%
+%
+%-1.52588e-05 -3.84003 1
+}%
+%
+  The first constructor creates a solid brush of the given width.  The
+second constructor creates a brush with the given width and line style.  The
+pattern is an array of integers that specifies the length of successive
+foreground and background segments.  Even-numbered array indices (starting
+from 0) specify the length of foreground segments; odd-numbered indices
+specify background segments.  The {\sf {\size{10}count}} is the number
+of entries in the array.  The count can be zero, which specifies a
+solid brush.  The last constructor defines a brush with a given width
+and a style specified by a bit vector.  The least significant 16 bits
+of {\sf {\size{10}pattern}} are interpreted as a bit pattern, with
+one bits specifying foreground segments and zero bits specifying background
+segments. %
+%
+\subsection{Color}%
+%
+\float{figure}{6-\pagenumber{00}}%373.04 -642.8 -2
+A color object defines an output color, which is specified by a mix
+of RGB (red, green, and blue) intensities, and an alpha value for
+blending.  Figure \ref{color} shows the Color class interface.%
+%
+\code{typedef float ColorIntensity;\
+typedef unsigned int ColorOp;\
+\
+interface Color : Resource \{\
+\quad enum \{ Copy, Xor \};\
+\quad Color(\
+\quad \quad ColorIntensity r, ColorIntensity g, ColorIntensity b,\
+\quad \quad float alpha = 1.0, ColorOp = Copy\
+\quad );\
+\quad Color(const Color\&, float alpha = 1.0, ColorOp = Copy);\
+\quad static const Color* lookup(Display*, const String\& name);\
+\quad static const Color* lookup(Display*, const char*);\
+\quad boolean distinguished(Display*, Color*);\
+\quad void intensities(\
+\quad \quad Display*, ColorIntensity\& r, ColorIntensity\& g, ColorIntensity\&
+b\
+\quad ) const;\
+\quad const Color* brightness(float adjust) const;\
+\}; %
+%
+\figurecaption{Color class interface\label{color}}%
+%
+%4.57764e-05 -5.7601 2
+}%
+%
+  RGB and alpha values are represented as floating point numbers between
+0 and 1, where 1 is full intensity (or visibility in the case of alpha).  A
+color object is created with the RGB intensities, an alpha value (default
+is 1.0), and a drawing operation.  A color drawing operation need
+be specified only on rare occasions.  The default operation, {\sf {\font{Times-Roman}Copy},}
+blends the color in directly.  The {\sf {\font{Times-Roman}Xor}} operation
+uses a pixel value computed by taking the exclusive-or of the color
+and the existing pixel value.  Xor is only useful on a monochrome
+system.
+
+\quad Color::lookup returns the color with the given name as defined
+on the given display or nil if the name is not defined.  Color::distinguished
+determines if two colors are distinct on a particular display.  A
+common use of Color::distinguished is to check if a highlighting color
+is distinct from foreground and background colors.  Color::intensities
+returns the RGB values for a given color on a given display.  Color::brightness
+creates a new color  that is brighter or darker than the given color
+by a certain adjustment.  If the adjust parameter is positive, it
+indicates the new intensity should be the given fraction of the distance
+between the current intensity and full intensity.  If the parameter
+is negative, its absolute value specifies a distance to zero intensity.
+
+\quad InterViews automatically translates an RGB specification to
+the appropriate pixel value for a window.  This approach hides the
+system-dependent details of color management from applications, making
+them more portable and giving greater flexibility to graphics system
+implementors.  Under the X Window System, color-intensive applications
+might not find the default color implementation acceptable.  To assist
+such applications, InterViews provides a way to specify an X visual,
+either on the command-line with the ``-visual'' flag, or with a ``visual''
+X resource defined to the desired visual type.  For example, on displays
+that support TrueColor (which means pixel values can be computed directly
+from RGB values) but for which the default visual is not TrueColor,
+a user could run an application with ``-visual TrueColor'' or define
+``*app*visual:TrueColor'' in the application defaults file. %
+%
+\subsection{Font}%
+%
+A font defines a mapping between character codes and their appearance
+on the screen.  PSFont is a subclass of Font that uses PostScript
+metrics for character widths, if the metrics are available on the
+system.  Figure \ref{font} shows the Font and PSFont class interfaces.%
+%
+\code{interface FontBoundingBox \{\
+\quad Coord left\_bearing() const, right\_bearing() const;\
+\quad Coord width() const, ascent() const, descent() const;\
+\quad Coord font\_ascent() const, font\_descent() const;\
+\};\smallskip
+typedef long FontCharCode;\smallskip
+interface Font : Resource \{\
+\quad Font(const String\&, float scale = 1.0);\
+\quad Font(const char* fullname, float scale = 1.0);\
+\quad static boolean find(\
+\quad \quad const char* family, int size, const char* style,\
+\quad \quad const char*\& fullname, float\& scale\
+\quad );\
+\quad static const Font* lookup(const char*);\
+\quad static const Font* lookup(const String\&);\smallskip
+\quad const char* name() const;\
+\quad const char* encoding() const;\
+\quad Coord size();\
+\
+\quad void font\_bbox(FontBoundingBox\&) const;\
+\quad void char\_bbox(FontCharCode, FontBoundingBox\&) const;\
+\quad void stringt\_bbox(const char*, int, FontBoundingBox\&);\
+\quad virtual Coord width(FontCharCode);\
+\quad virtual Coord width(const char*, int);\
+\quad virtual int index(const char*, int, float offset, boolean between);\
+\};\
+\
+interface PSFont : Font \{\
+\quad PSFont(\
+\quad \quad const char* psname, Coord size, const char* encoding,
+float scale\
+\quad );\
+\}; %
+%
+\figurecaption{Font and PSFont class interfaces\label{font}}%
+%
+%3.05176e-05 -0.960083 3
+}%
+%
+  The Font constructor is given the full name of the font and a scaling
+factor.  If the font is used on a display that does not recognize
+the name, then a default font will be used.  Font::find can be used
+to compute a valid fullname for a font from a given font family name,
+desired point size, and font style (such as italic or bold).  If a
+font is available that matches all but the point size, Font::find
+will return the font with {\it {\font{Helvetica}\size{10}scale}} set
+to the ratio of the desired point size to the actual point size.
+
+\quad Font::name returns the full name of the font.  Font::encoding
+returns the character set identification, such as ``iso8859'' for
+ISO Latin.  Font::size returns the point size of the font.
+
+\quad Font::font\_bbox, Font::char\_bbox, and Font::string\_bbox return
+information about the overall font, a specific character in the font,
+or a string of characters.  Each operation returns a FontBoundingBox
+object, which has operations to return detailed information.
+
+\quad FontBoundingBox::ascent returns the extent above the font's
+baseline; FontBoundingBox::descent returns the extent below the font's
+baseline.  FontBoundingBox::left\_bearing returns the left edge of
+the bitmap associated with a character; FontBoundingBox::right\_bearing
+returns the right edge.
+
+\quad Font::width on a single character returns the width of a character's
+bitmap and on a string it returns the sum of the widths of the individual
+characters.  Font::index returns the index of the character in a string
+that would be {\sf {\size{10}offset}} coordinates from the left if
+the string were displayed.  If {\sf {\size{10}between}} is false,
+the index of the character that contains {\sf {\size{10}offset}} is
+returned; otherwise the index of the character following the between-character
+space that is nearest {\sf {\size{10}offset}} is returned.  In either
+case a negative offset will return an index of zero and an offset
+beyond the end of the string will return an index equal to the length
+of the string. %
+%
+\subsection{Transformer}%
+%
+A transformer object represents a 3x2 matrix for use in translating
+2D coordinates.  Figure \ref{transformer} shows the Transformer class
+interface.%
+%
+\code{interface Transformer : Resource \{\
+\quad Transformer();\
+\quad Transformer(\
+\quad \quad float a00, float a01, float a10, float a11, float a20,
+float a21\
+\quad );\
+\quad boolean identity() const;\
+\quad void premultiply(const Transformer\&);\
+\quad void postmultiply(const Transformer\&);\
+\quad void invert();\
+\quad void translate(float dx, float dy);\
+\quad void scale(float sx, float sy);\
+\quad void rotate(float angle);\
+\quad void skew(float sx, float sy);\
+\quad void transform(floatx, floaty);\
+\quad void transform(float x, float y, floattx, floatty);\
+\quad void inverse\_transform(floatx, floaty);\
+\quad void inverse\_transform(float tx, float ty, floatx, floaty);\
+\quad void matrix(floata00, floata01, floata10, floata11, floata20,
+floata21);\
+\}; %
+%
+\figurecaption{Transformer protocol\label{transformer}}%
+%
+%1.92001 -333.12 4
+}%
+%
+  The transformer constructor with no parameters creates an identity
+matrix.  The other constructor takes the explicit matrix values as
+parameters.  Transformer::identity returns whether the matrix is currently
+the identity matrix.
+
+\quad Transformer::premultiply and Transformer::postmultiply  set
+the matrix to be the result of multiplying the matrix and the given
+matrix.  Two operations are necessary because matrix multiplication
+is not commutative for 2D coordinates.  Premultiply means the current
+matrix is on the left-hand side of the multiplication, postmultiply
+means the current matrix is on the right.  Transformer::invert sets
+the matrix to its inverse.
+
+\quad Transformer::translate modifies the matrix to add {\sf {\size{10}dx}}
+to the x coordinate and {\sf {\size{10}dy}} to the y coordinate.  Transformer::scale
+modifies the matrix to multiply the x and y coordinates by {\sf {\size{10}sx}}
+and {\sf {\size{10}sy},} respectively.  Transformer::rotate modifies
+the matrix to rotate x and y coordinates by a given angle in degrees.  Transformer::skew
+modifies the matrix to skew coordinates by {\sf {\size{10}sx}} and
+{\sf {\size{10}sy}}.
+
+\quad Transformer::transform multiplies the given coordinates by the
+matrix to compute transformed coordinates.  The coordinates can either
+transformed in place stored in specific out parameters (tx, ty).  Transformer::inverse\_transform
+performs the inverse mapping; taking transformed coordinates and returning
+the original coordinates.
+
+\quad The following example shows how to use transformers:\smallskip
+{\sf {\small \quad \quad \quad Transformer t;\quad \quad // start
+with identity\
+\quad \quad \quad t.rotate(90.0);
+
+\quad \quad \quad t.translate(20.0, 10.0);\
+\quad \quad \quad t.scale(0.5, 0.5);\
+\quad \quad \quad float x = 1.0, y = 0.0;\
+\quad \quad \quad float tx, ty;\
+\quad \quad \quad t.transform(x, y, tx, ty);\
+\quad \quad \quad // now tx = 10.0, ty = 5.5}}
+
+Although the transformation is a single step, one can think of it
+as individual steps for each of the rotate, translate, and scale steps.  First
+the given point (1.0,0.0) is rotated to (0.0,1.0), then it is translated
+to (20.0,11.0), finally it is scaled to (10.0,5.5). %
+%
+\subsection{Bitmap}%
+%
+A bitmap is a two-dimensional array of boolean values.  A bitmap is
+useful for stenciling; that is, drawing through a mask that allows
+some pixels to be drawn but prevents others from being changed.  The
+Stencil class can be used to put a bitmap in a glyph graph.
+
+\quad Figure \ref{bitmap} shows the Bitmap class interface.%
+%
+\code{interface Bitmap : Resource \{\
+\quad Bitmap(\
+\quad \quad void*, unsigned int width, unsigned int height, int x0
+= -1, int y0 = -1\
+\quad );\
+\quad Bitmap(Font*, int code, float scale = 1.0);\
+\quad static Bitmap* open(const char* filename);\
+\quad void poke(boolean set, unsigned int x, unsigned int y);\
+\quad void peek(unsigned int x, unsigned int y);\
+\quad Coord width() const, height() const;\
+\quad unsigned int pwidth() const, pheight() const;\
+\quad Coord left\_bearing() const, right\_bearing() const;\
+\quad Coord ascent() const, descent() const;\
+\};%
+%
+\figurecaption{Bitmap protocol\label{bitmap}}%
+%
+%-0.959946 -429.12 5
+}%
+%
+  There are two constructors for bitmaps.  One takes the bitmap data,
+width, height, and origin.  The other constructor creates a bitmap
+for a given character in a font, optionally scaling by a given factor.  In
+this case, the bitmap width and height will reflect the actual size
+of the character glyph and the bitmap origin will be the same as the
+character origin.
+
+\quad Bitmap::open operation tries to open a file containing a bitmap
+definition in the format produced by the X bitmap program.  If the
+file is found and is a valid format, open returns true and sets the
+bitmap information.
+
+\quad Bitmap::peek and Bitmap::poke are used to read and write at
+specified positions in the bitmap.  Bitmap::width and Bitmap::height
+return the width and height of the bitmap in coordinates, while Bitmap::pwidth
+and Bitmap::pheight return the number of bits defined in each dimension.
+
+\quad Treating the bitmap origin as (0,0), Bitmap::left\_bearing,
+Bitmap::right\_bearing, Bitmap::ascent, and Bitmap::descent return
+the left, right, top, and bottom coordinates of the bitmap, respectively.  For
+example, a 16x16 bitmap with its origin at (7,5) would have a left\_bearing
+of -7, a right\_bearing of 9, an ascent of 12, and a descent of -5.
+%
+%
+\subsection{Raster}%
+%
+A raster is a color image specified by a two-dimensional array of
+colors.  The Image class can be used to put a raster in a glyph graph.  The
+TIFFRaster class provides a single operation, load, for reading a
+TIFF image file and creating a raster for it.  If the file is not
+readable or not a valid TIFF file, TIFFRaster::load will return nil.
+
+\quad Figure \ref{raster} shows the Raster and TIFFRaster class interfaces.%
+%
+\code{interface Raster : Resource \{\
+\quad Raster(unsigned int pwidth, unsigned int pheight);\
+\quad Coord width() const, height() const;\
+\quad unsigned int pwidth() const, pheight() const;\
+\quad void peek(\
+\quad \quad unsigned int x, unsigned int y,\
+\quad \quad ColorIntensity\& r, ColorIntensity\& g, ColorIntensity\&
+b, float\& alpha\
+\quad ) const;\
+\quad void poke(\
+\quad \quad unsigned int x, unsigned int y,\
+\quad \quad ColorIntensity r, ColorIntensity g, ColorIntensity b,
+float alpha\
+\quad );\
+\};\smallskip
+interface TIFFRaster \{\
+\quad static Raster* load(const char* filename);\
+\}; %
+%
+\figurecaption{Raster and TIFFRaster protocols\label{raster}}%
+%
+%-0.960007 -390.72 6
+}%
+%
+ The raster constructor is given the size of the array of colors.  Raster::width
+and Raster::height return the dimensions of the raster in coordinates,
+while Raster::pwidth and Raster::pheight return the dimensions of
+the array.  A raster's origin is always the lower left corner.
+
+\quad Raster::peek and Raster::poke read and write the color array,
+accessing colors in terms of the RGB intensities and an alpha value.  Peek
+and poke operations are guaranteed to be cheap; that  is, any processing
+(especially interaction with the window system) will be deferred until
+the raster is  next displayed.%
+%
+\section{Canvas}%
+%
+A canvas is a 2-dimensional area on which to draw.  The base implementation
+draws on a portion of the screen, normally created by a window object
+rather than directly by an application.  The Printer subclass uses
+the same rendering operations to generate PostScript to a file.  Thus,
+it is possible to write a single drawing routine that can be used
+to generate  screen  or printer output.
+
+\quad Figure \ref{canvas}%
+%
+\code{interface Canvas \{\
+\quad Window* window() const;\
+\quad Coord width() const, height() const;\smallskip
+\quad PixelCoord to\_pixels(Coord) const;\
+\quad Coord to\_coord(PixelCoord) const;\
+\quad Coord to\_pixels\_coord(Coord) const;\smallskip
+\quad void new\_path();\
+\quad void move\_to(Coord x, Coord y);\
+\quad void line\_to(Coord x, Coord y);\
+\quad void curve\_to(Coord x, Coord y, Coord x1, Coord y1, Coord x2,
+Coord y2);\
+\quad void close\_path();\
+\quad void stroke(const Color*, const Brush*);\
+\quad void rect(Coord l, Coord b, Coord r, Coord t, const Color*,
+const Brush*);\
+\quad void fill(const Color*);\
+\quad void fill\_rect(Coord l, Coord b, Coord r, Coord t, const Color*);\
+\quad void character(\
+\quad \quad const Font*, int ch, Coord width, const Color*, Coord
+x, Coord y\
+\quad );\
+\quad void stencil(const Bitmap*, const Color*, Coord x, Coord y);\
+\quad void image(const Raster*, Coord x, Coord y);\smallskip
+\quad void push\_transform(), pop\_transform();\
+\quad void transform(const Transformer\&);\
+\quad void transformer(const Transformer\&);\
+\quad const Transformer\& transformer() const;\
+\quad void push\_clipping(), pop\_clipping();\
+\quad void clip();\
+\quad void clip\_rect(Coord l, Coord b, Coord r, Coord t);\smallskip
+\quad void damage(const Extension\&);\
+\quad void damage(Coord l, Coord b, Coord r, Coord t);\
+\quad boolean damaged(const Extension\&) const;\
+\quad boolean damaged(Coord l, Coord b, Coord r, Coord t) const;\
+\};\smallskip
+interface Printer : Canvas \{\
+\quad Printer(ostream*);\
+\quad void resize(Coord left, Coord  bottom, Coord right, Coord top);\
+\quad void comment(const char*);\
+\quad void page(const char*);\
+\quad void flush();\
+\}; %
+%
+\figurecaption{Canvas and printer protocol\label{canvas}s}%
+%
+%0.720047 -0.479889 8
+}%
+%
+ shows the canvas and printer operations.  For screen canvases, Canvas::window
+returns the window containing the canvas; otherwise it returns nil.  Canvas::width
+and Canvas::height return the dimensions of the canvas in coordinates.
+
+\quad The canvas rendering operations are similar to the PostScript
+drawing operations.  Canvas::new\_path, Canvas::move\_to, Canvas::line\_to,
+Canvas::curve\_to, and Canvas::close\_path are used to define a list
+of coordinates on which to perform a drawing operation.  Canvas::move\_to
+sets the position in the path, and Canvas::line\_to extends the path
+to a new position.  Canvas::curve\_to also extends the path, but with
+a Bezier curve between the old and new positions.  Canvas::close\_path
+closes the path.  Canvas::stroke draws along the current path with
+a given brush and color.  Canvas::fill draws inside the path with
+a given color.  Canvas::clip restricts subsequent drawing to be inside
+the path.  Clipping is cumulative; that is, two consecutive clip operations
+will result in a clipping region that is the intersection of the paths
+specified by the two requests.
+
+\quad Canvas::line, Canvas::rect, Canvas::fill\_rect, and Canvas::clip\_rect
+are provided for convenience.  Canvas::line is equivalent to stroking
+a path with two points, Canvas::rect strokes a rectangular path, Canvas::fill\_rect
+fills a rectangular path, and Canvas::clip\_rect restricts subsequent
+output to be within a rectangular path.
+
+\quad Drawing operations are typically batched to improve performance.  For
+example, a series of Canvas::character operations might be combined
+into a single request on many graphics systems.  An application cannot
+determine if or when a particular operation has completed.  No synchronization
+operations are defined on a canvas, as several canvases may be active
+at the same time.  Display::flush or Display::sync can be used to
+wait until the display starts or finishes drawing, respectively.
+
+\quad As an example of the drawing operations, the following code
+draws a filled triangle with corners (x1,y1), (x2,y2), and (x3,y3):\smallskip
+{\sf {\small \quad \quad \quad canvas->new\_path();\
+\quad \quad \quad canvas->move\_to(x1, y1);\
+\quad \quad \quad canvas->line\_to(x2, y2);\
+\quad \quad \quad canvas->line\_to(x3, y3);\
+\quad \quad \quad canvas->close\_path();\
+\quad \quad \quad canvas->fill(color); }}%
+%
+\section{Printer}%
+%
+A printer is a 2-D drawing surface like a canvas, but that generates
+output for hardcopy or previewing.  The printer class normally generates
+PostScript text to a file; other printer formats may be available
+at a particular site.
+
+\quad Printer is a subclass of Canvas with different implementations
+for the drawing operations.  Thus, a printer can be passed to an operation
+expecting a canvas.  The printer class also provides a few additional
+operations.
+
+\quad The printer constructor takes a pointer to an output stream
+where the print representation will be written.  Printer::resize specifies
+the boundaries of the printed page.  Printer::comment generates text
+that will appear in the output stream, but will not show on the printed
+page.  Printer::page generates information about the current page.  This
+operation will not result in any printed output, but is used by previewers.  Printer::flush
+forces any locally-buffered data to be written.  %
+\end{document}

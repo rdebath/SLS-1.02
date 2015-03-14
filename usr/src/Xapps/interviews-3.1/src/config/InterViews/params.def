@@ -1,0 +1,831 @@
+/*
+ * Define which optional parts of the system should be built by default.
+ * You can override these parameters in local.def if needed.
+ */
+#ifndef BuildGLContext
+#define BuildGLContext		NO	/* default is no GL glyphs */
+#endif
+
+#ifndef BuildIV_2_6
+#define BuildIV_2_6		YES	/* until we replace the old stuff */
+#endif
+
+#ifndef BuildLibTask
+#define BuildLibTask		NO	/* not fully working yet */
+#endif
+
+#ifndef BuildLibgraphic
+#define BuildLibgraphic		NO	/* obsoleted by libUnidraw */
+#endif
+
+#ifndef BuildRPCClasses
+#define BuildRPCClasses		NO	/* requires iostreams & TCP sockets */
+#endif
+
+/*
+ * Define which values platform-specific parameters should have by default.
+ * You can override these parameters in local.def too if needed.
+ */
+#ifndef BourneShell
+#define BourneShell /bin/sh		/* force shell in makefile */
+#endif
+
+#ifndef ExecableScripts
+#if SystemV
+#define ExecableScripts		NO
+#else
+#define ExecableScripts		YES	/* kernel exec() can handle #! */
+#endif
+#endif
+
+#ifndef HasLargeTmp
+#define HasLargeTmp		NO	/* be paranoid */
+#endif
+
+#ifndef HasRanlibCmd
+#if SystemV || SystemV4
+#define HasRanlibCmd		NO
+#else
+#define HasRanlibCmd		YES	/* Berkeleyism */
+#endif
+#endif
+
+#ifndef HasSunOSSharedLibraries
+#define HasSunOSSharedLibraries	NO	/* no shared libraries by default */
+#endif
+#if defined(UseNonShared) && defined(InObjectCodeDir)
+#undef  HasSunOSSharedLibraries
+#define HasSunOSSharedLibraries	NO	/* don't use them anyway */
+#endif
+
+#ifndef InstallRelative
+#define InstallRelative		YES	/* install in place */
+#endif
+#ifdef UseInstalled
+#undef  InstallRelative
+#define InstallRelative		NO	/* need absolute pathnames */
+#endif
+
+#ifndef OSMajorVersion
+#define OSMajorVersion          0
+#endif
+
+#ifndef OSMinorVersion
+#define OSMinorVersion          0
+#endif
+
+#ifndef RemoveAfterInstall
+#define RemoveAfterInstall	YES	/* conserve disk space */
+#endif
+
+#ifndef StripInstalledPrograms
+#define StripInstalledPrograms	YES	/* conserve disk space */
+#endif
+
+#ifndef SystemV
+#define SystemV			NO	/* SYSV (R3) */
+#endif
+
+#ifndef SystemV4
+#define SystemV4		NO	/* SVR4 */
+#endif
+
+#ifndef TurnOnDebugging
+#define TurnOnDebugging		NO	/* no debugging by default */
+#endif
+#if defined(UseDebug) && defined(InObjectCodeDir)
+#undef  TurnOnDebugging
+#define TurnOnDebugging		YES	/* force debugging anyway */
+#endif
+
+#ifndef TurnOnOptimizing
+#define TurnOnOptimizing	NO	/* no optimizing by default */
+#endif
+#if defined(UseDebug) && defined(InObjectCodeDir)
+#undef  TurnOnOptimizing
+#define TurnOnOptimizing	NO	/* disable optimizing anyway */
+#endif
+
+              SHELL = BourneShell
+
+/*
+ * Define how to regenerate Makefiles, update their dependencies, and
+ * execute recursive make commands.
+ */
+#ifndef ImakeCmd
+#define ImakeCmd imake
+#endif
+
+#ifndef ImakeFlags
+#define ImakeFlags \							@@\
+		      -T IMAKE_TEMPLATE\				@@\
+		      ImakeIncludes\					@@\
+		      $(SPECIAL_IMAKEFLAGS)
+#endif
+
+#ifndef ImakeIncludes
+#ifdef UseInstalled
+#define ImakeIncludes -I$(CONFIGDIR) -I$(XCONFIGDIR)
+#else
+#define ImakeIncludes -I$(CONFIGSRC) -I$(XCONFIGDIR)
+#endif
+#endif
+
+#ifndef SpecialImakeFlags
+#define SpecialImakeFlags \
+ SpecialInObjectCodeDir SpecialUseDebug SpecialUseInstalled SpecialUseNonShared
+#endif
+
+#ifndef SpecialInObjectCodeDir
+#ifdef InObjectCodeDir
+#define SpecialInObjectCodeDir -f $(SRC)/Imakefile -DInObjectCodeDir
+#else
+#define SpecialInObjectCodeDir /**/
+#endif
+#endif
+
+#ifndef SpecialUseDebug
+#if defined(UseDebug) && defined(InObjectCodeDir)
+#define SpecialUseDebug -DUseDebug
+#else
+#define SpecialUseDebug /**/
+#endif
+#endif
+
+#ifndef SpecialUseInstalled
+#ifdef UseInstalled
+#define SpecialUseInstalled -DUseInstalled
+#else
+#define SpecialUseInstalled /**/
+#endif
+#endif
+
+#ifndef SpecialUseNonShared
+#if defined(UseNonShared) && defined(InObjectCodeDir)
+#define SpecialUseNonShared -DUseNonShared
+#else
+#define SpecialUseNonShared /**/
+#endif
+#endif
+
+#ifndef DependCmd
+#define DependCmd makedepend
+#endif
+
+#ifndef DependCCFlags
+#define DependCCFlags $(CCDEFINES) $(CCINCLUDES) -I/usr/include/CC
+#endif
+
+#ifndef MakeCmd
+#define MakeCmd make
+#endif
+
+#ifndef PassArch
+#define PassArch ARCH="$(ARCH)" SPECIAL_IMAKEFLAGS="$(SPECIAL_IMAKEFLAGS)"
+#endif
+
+#ifndef ArchitectureName
+#define ArchitectureName UNKNOWN
+#endif
+
+#ifndef ArchOrCPU
+#ifdef InObjectCodeDir
+#define ArchOrCPU ArchitectureName
+#else
+#define ArchOrCPU $$CPU
+#endif
+#endif
+
+#ifndef SpecialArch
+#if defined(UseDebug) && defined(InObjectCodeDir)
+#define SpecialArch .debug
+#else
+#if defined(UseNonShared) && defined(InObjectCodeDir)
+#define SpecialArch .noshared
+#else
+#define SpecialArch /**/
+#endif
+#endif
+#endif
+
+              IMAKE = ImakeCmd
+         IMAKEFLAGS = ImakeFlags
+ SPECIAL_IMAKEFLAGS = SpecialImakeFlags
+             DEPEND = DependCmd
+     DEPEND_CCFLAGS = DependCCFlags
+               MAKE = MakeCmd
+           PASSARCH = PassArch
+          ARCHORCPU = ArchOrCPU
+               ARCH = $(ARCHORCPU)$(SPECIAL_ARCH)
+       SPECIAL_ARCH = SpecialArch
+
+/*
+ * Define how to compile a C++ file with the CC driver.
+ * Always use +p ("pure") to flag anachronisms as errors.
+ */
+#ifndef CCDriver
+#define CCDriver CC 			/* might want an absolute path, etc. */
+#endif
+
+#ifndef CCSuffix
+#define CCSuffix c			/* might want cc, cxx, C, etc. */
+#endif
+
+#ifndef SrcDir
+#ifdef InObjectCodeDir
+#define SrcDir ..
+#else
+#define SrcDir .
+#endif
+#endif
+
+#ifndef SrcsList
+#define SrcsList $(SRC)$(SLASH)*.$(CCSUFFIX)
+#endif
+
+#ifndef ObjsList
+#define ObjsList *.o
+#endif
+
+#ifndef AoutName
+#define AoutName a.out
+#endif
+
+           CCDRIVER = CCDriver
+           CCSUFFIX = CCSuffix
+                SRC = SrcDir
+              SLASH = /
+               SRCS = SrcsList
+               OBJS = ObjsList
+               AOUT = AoutName
+
+/*
+ * Define all the flags passed to the CC driver when we compile a C++ file.
+ */
+#ifndef CCFlags
+#define CCFlags $(APP_CCFLAGS) $(IV_CCFLAGS) $(EXTRA_CCFLAGS)
+#endif
+
+#ifndef IvCCFlags
+#define IvCCFlags \							@@\
+		      DefaultDebugCCFlags\				@@\
+		      DefaultOptimizeCCFlags\				@@\
+		      $(SHARED_CCFLAGS)\				@@\
+		      $(CCDEFINES)\					@@\
+		      $(CCINCLUDES)
+#endif
+
+#ifndef DefaultDebugCCFlags
+#if TurnOnDebugging
+#define DefaultDebugCCFlags $(DEBUG_CCFLAGS)
+#else
+#define DefaultDebugCCFlags /**/
+#endif
+#endif
+
+#ifndef DefaultOptimizeCCFlags
+#if TurnOnOptimizing
+#define DefaultOptimizeCCFlags $(OPTIMIZE_CCFLAGS)
+#else
+#define DefaultOptimizeCCFlags /**/
+#endif
+#endif
+
+#ifndef DebugCCFlags
+#if TurnOnOptimizing && !TurnOnDebugging
+#define DebugCCFlags /**/
+#else
+#define DebugCCFlags -g 
+#endif
+#endif
+
+#ifndef OptimizeCCFlags
+#if TurnOnDebugging && !TurnOnOptimizing
+#define OptimizeCCFlags /**/
+#else
+#define OptimizeCCFlags -O
+#endif
+#endif
+
+#ifndef SharedCCFlags
+#if HasSunOSSharedLibraries
+#define SharedCCFlags -PIC
+#else
+#define SharedCCFlags /**/
+#endif
+#endif
+
+#ifndef ExtraCCFlags
+#define ExtraCCFlags /**/
+#endif
+
+            CCFLAGS = CCFlags
+         IV_CCFLAGS = IvCCFlags
+      DEBUG_CCFLAGS = DebugCCFlags
+   OPTIMIZE_CCFLAGS = OptimizeCCFlags
+     SHARED_CCFLAGS = /* defined when MakeLibrary() is used in Imakefile */
+      EXTRA_CCFLAGS = ExtraCCFlags
+
+/*
+ * Define the defines passed to the CC driver when we compile a C++ file.
+ */
+#ifndef CCDefines
+#define CCDefines $(APP_CCDEFINES) $(IV_CCDEFINES) $(EXTRA_CCDEFINES)
+#endif
+
+#ifndef IvCCDefines
+#define IvCCDefines $(LANGUAGE_CCDEFINES) $(BACKWARD_CCDEFINES)
+#endif
+
+#ifndef LanguageCCDefines
+#define LanguageCCDefines -Dcplusplus_2_1
+#endif
+
+#ifndef BackwardCompatibilityCCDefines
+#define BackwardCompatibilityCCDefines -Div2_6_compatible
+#endif
+
+#ifndef ExtraCCDefines
+#if SystemV
+#define ExtraCCDefines -DSYSV
+#else
+#if SystemV4
+#define ExtraCCDefines -DSVR4
+#else
+#define ExtraCCDefines /**/
+#endif
+#endif
+#endif
+
+          CCDEFINES = CCDefines
+       IV_CCDEFINES = IvCCDefines
+ LANGUAGE_CCDEFINES = LanguageCCDefines
+ BACKWARD_CCDEFINES = /* defined when Use_2_6() is used in Imakefile */
+    EXTRA_CCDEFINES = ExtraCCDefines
+
+/*
+ * Define the includes passed to the CC driver when we compile a C++ file.
+ * Ensure TopCCIncludes and XCCIncludes don't pass -I/usr/include to the CC
+ * driver since it could override /usr/include/CC, messing up system headers.
+ */
+#ifndef CCIncludes
+#define CCIncludes $(APP_CCINCLUDES) $(IV_CCINCLUDES) $(EXTRA_CCINCLUDES)
+#endif
+
+#ifndef IvCCIncludes
+#define IvCCIncludes \							@@\
+		      $(BACKWARD_CCINCLUDES)\				@@\
+		      $(TOP_CCINCLUDES)\				@@\
+		      $(X_CCINCLUDES)
+#endif
+
+#ifndef BackwardCompatibilityCCIncludes
+#ifdef UseInstalled
+#define BackwardCompatibilityCCIncludes -I$(INCDIR)/IV-2_6
+#else
+#define BackwardCompatibilityCCIncludes -I$(INCSRC)/IV-2_6
+#endif
+#endif
+
+#ifndef TopCCIncludes
+#ifdef UseInstalled
+#define TopCCIncludes -I$(INCDIR)
+#else
+#define TopCCIncludes -I$(INCSRC)
+#endif
+#endif
+
+#ifndef XCCIncludes
+#ifdef XIncDir
+#define XCCIncludes -I$(XINCDIR)
+#else
+#define XCCIncludes /**/
+#endif
+#endif
+
+#ifndef ExtraCCIncludes
+#define ExtraCCIncludes /**/
+#endif
+
+         CCINCLUDES = CCIncludes
+      IV_CCINCLUDES = IvCCIncludes
+BACKWARD_CCINCLUDES = /* defined when Use_2_6() is used in Imakefile */
+     TOP_CCINCLUDES = TopCCIncludes
+       X_CCINCLUDES = XCCIncludes
+   EXTRA_CCINCLUDES = ExtraCCIncludes
+
+/*
+ * Define the flags passed to the CC driver when we link a C++ program.
+ */
+#ifndef CCLdFlags
+#define CCLdFlags $(APP_CCLDFLAGS) $(IV_CCLDFLAGS) $(EXTRA_CCLDFLAGS)
+#endif
+
+#ifndef IvCCLdFlags
+#define IvCCLdFlags \							@@\
+		      DefaultDebugCCFlags\				@@\
+		      DefaultOptimizeCCFlags\				@@\
+		      $(NONSHARED_CCLDFLAGS)
+#endif
+
+#ifndef NonSharedCCLdFlags
+#if defined(UseNonShared) && defined(InObjectCodeDir)
+#define NonSharedCCLdFlags -Bstatic
+#else
+#define NonSharedCCLdFlags /**/
+#endif
+#endif
+
+#ifndef ExtraCCLdFlags
+#define ExtraCCLdFlags /**/
+#endif
+
+          CCLDFLAGS = CCLdFlags
+       IV_CCLDFLAGS = IvCCLdFlags
+NONSHARED_CCLDFLAGS = NonSharedCCLdFlags
+    EXTRA_CCLDFLAGS = ExtraCCLdFlags
+
+/*
+ * Define all the dependencies a C++ program can have on its libraries.
+ */
+#ifndef CCDepLibs
+#define CCDepLibs $(APP_CCDEPLIBS) $(IV_CCDEPLIBS) $(EXTRA_CCDEPLIBS)
+#endif
+
+#ifndef IvCCDepLibs
+#define IvCCDepLibs \							@@\
+		      $(DEPLIBUNIDRAW)\					@@\
+		      $(DEPLIBGRAPHIC)\					@@\
+		      $(DEPLIBIV)\					@@\
+		      $(DEPLIBXEXT)\					@@\
+		      $(DEPLIBX11)\					@@\
+		      $(DEPLIBM)
+#endif
+
+#ifndef DepPath
+#if HasSunOSSharedLibraries || UseInstalled
+#define DepPath(name) /* as nothing */
+#else
+#define DepPath(name) Concat($(LIBSRC)/name/$(ARCH)/lib,name.a)
+#endif
+#endif
+
+#ifndef Dep_libUnidraw
+#define Dep_libUnidraw DepPath(Unidraw)
+#endif
+#ifndef Dep_libgraphic
+#define Dep_libgraphic DepPath(graphic)
+#endif
+#ifndef Dep_libIV
+#define Dep_libIV DepPath(IV)
+#endif
+#ifndef Dep_libXext
+#define Dep_libXext /* as nothing */
+#endif
+#ifndef Dep_libX11
+#define Dep_libX11 /* as nothing */
+#endif
+#ifndef Dep_libm
+#define Dep_libm /* as nothing */
+#endif
+
+#ifndef ExtraCCDepLibs
+#define ExtraCCDepLibs /**/
+#endif
+
+          CCDEPLIBS = CCDepLibs
+       IV_CCDEPLIBS = IvCCDepLibs
+    EXTRA_CCDEPLIBS = ExtraCCDepLibs
+
+/*
+ * Define all the libraries a C++ program can be linked with.
+ */
+#ifndef CCLdLibs
+#define CCLdLibs $(APP_CCLDLIBS) $(IV_CCLDLIBS) $(EXTRA_CCLDLIBS)
+#endif
+
+#ifndef IvCCLdLibs
+#define IvCCLdLibs \							@@\
+		      $(LIBDIRPATH)\					@@\
+		      $(LDLIBUNIDRAW)\					@@\
+		      $(LDLIBGRAPHIC)\					@@\
+		      $(LDLIBIV)\					@@\
+		      $(XLIBDIRPATH)\					@@\
+		      $(LDLIBXEXT)\					@@\
+		      $(LDLIBX11)\					@@\
+		      $(LDLIBM)\					@@\
+		      $(ABSLIBDIRPATH)
+#endif
+
+#ifndef LibDirPath
+#ifdef UseInstalled
+#define LibDirPath -L$(LIBDIR)
+#else
+#define LibDirPath /* as nothing */
+#endif
+#endif
+
+#ifndef XLibDirPath
+#ifdef XLibDir
+#define XLibDirPath -L$(XLIBDIR)
+#else
+#define XLibDirPath /* as nothing */
+#endif
+#endif
+
+#ifndef AbsLibDirPath
+#if HasSunOSSharedLibraries && !defined(UseInstalled)
+#define AbsLibDirPath -L$(ABSLIBDIR)
+#else
+#define AbsLibDirPath /* as nothing */
+#endif
+#endif
+
+#ifndef LdPath
+#ifdef UseInstalled
+#define LdPath(libname) Concat(-l,libname)
+#else
+#define LdPath(libname) -L$(LIBSRC)/libname/$(ARCH) Concat(-l,libname)
+#endif
+#endif
+
+#ifndef Ld_libUnidraw
+#define Ld_libUnidraw LdPath(Unidraw)
+#endif
+#ifndef Ld_libgraphic
+#define Ld_libgraphic LdPath(graphic)
+#endif
+#ifndef Ld_libIV
+#define Ld_libIV LdPath(IV)
+#endif
+#ifndef Ld_libXext
+#define Ld_libXext -lXext
+#endif
+#ifndef Ld_libX11
+#define Ld_libX11 -lX11
+#endif
+#ifndef Ld_libm
+#define Ld_libm -lm
+#endif
+
+#ifndef ExtraCCLdLibs
+#define ExtraCCLdLibs /**/
+#endif
+
+           CCLDLIBS = CCLdLibs
+        IV_CCLDLIBS = IvCCLdLibs
+     EXTRA_CCLDLIBS = ExtraCCLdLibs
+
+/*
+ * Define how to install a program, library, header, man page, or data file.
+ */
+#ifndef InstallCmd
+#if SystemV || SystemV4
+#ifdef UseInstalled
+#define InstallCmd bsdinst
+#else
+#define InstallCmd $(SHELL) $(SCRIPTSRC)/bsdinst.sh
+#endif
+#else
+#define InstallCmd install
+#endif
+#endif
+
+#ifndef InstPgmFlags
+#if StripInstalledPrograms
+#define InstPgmFlags -s
+#else
+#define InstPgmFlags /**/
+#endif
+#endif
+#ifndef InstBinFlags
+#define InstBinFlags -m 0755
+#endif
+#ifndef InstUidFlags
+#define InstUidFlags -m 4755
+#endif
+#ifndef InstLibFlags
+#define InstLibFlags -m 0644
+#endif
+#ifndef InstIncFlags
+#define InstIncFlags -m 0444
+#endif
+#ifndef InstManFlags
+#define InstManFlags -m 0444
+#endif
+#ifndef InstDatFlags
+#define InstDatFlags -m 0444
+#endif
+#ifndef InstKmemFlags
+#define InstKmemFlags InstUidFlags    /* put -g kmem -m 2755 in local.def */
+#endif
+
+            INSTALL = InstallCmd
+       INSTPGMFLAGS = InstPgmFlags      /* for stripping installed pgms */
+       INSTBINFLAGS = InstBinFlags      /* install flags for binaries */
+       INSTUIDFLAGS = InstUidFlags      /* install flags for setuid programs */
+       INSTLIBFLAGS = InstLibFlags      /* install flags for libraries */
+       INSTINCFLAGS = InstIncFlags      /* install flags for headers */
+       INSTMANFLAGS = InstManFlags      /* install flags for man pages */
+       INSTDATFLAGS = InstDatFlags      /* install flags for data files */
+      INSTKMEMFLAGS = InstKmemFlags     /* install flags for /dev/kmem progs */
+
+/*
+ * Define other commands that Imakefiles may want to use.
+ */
+#ifndef ArCmd
+#if HasLargeTmp || SystemV4
+#define ArCmd ar cq			/* do nothing special */
+#else
+#define ArCmd ar clq			/* use local dir for temp files */
+#endif
+#endif
+
+#ifndef AsCmd
+#define AsCmd as
+#endif
+
+#ifndef CpCmd
+#define CpCmd cp
+#endif
+
+#ifndef CppCmd
+#define CppCmd /lib/cpp
+#endif
+
+#ifndef PreProcessCmd
+#define PreProcessCmd $(CCDRIVER) -E
+#endif
+
+#ifndef LdCmd
+#define LdCmd ld
+#endif
+
+#ifndef LnCmd
+#if SystemV
+#define LnCmd ln /* or even cp */
+#else
+#define LnCmd ln -s
+#endif
+#endif
+
+#ifndef MkdirhierCmd
+#ifdef UseInstalled
+#define MkdirhierCmd mkdirhier
+#else
+#define MkdirhierCmd $(SHELL) $(SCRIPTSRC)/mkdirhier.sh
+#endif
+#endif
+
+#ifndef MvCmd
+#define MvCmd mv
+#endif
+
+#ifndef RanlibCmd
+#define RanlibCmd ranlib
+#endif
+
+#ifndef RanlibInstFlags
+#define RanlibInstFlags /**/
+#endif
+
+#ifndef RmCmd
+#define RmCmd rm -f
+#endif
+
+#ifndef FilesToClean
+#define FilesToClean ,* .emacs_* *..c *.BAK *.CKP *.a *.bak *.ln *.o\
+ a.out core errs make.log make.out tags TAGS
+#endif
+
+#ifndef TroffCmd
+#define TroffCmd psroff
+#endif
+
+                 AR = ArCmd
+                 AS = AsCmd
+                 CP = CpCmd
+                CPP = CppCmd $(EXTRA_CCDEFINES)
+      PREPROCESSCMD = PreProcessCmd $(EXTRA_CCDEFINES)
+                 LD = LdCmd
+                 LN = LnCmd
+          MKDIRHIER = MkdirhierCmd
+                 MV = MvCmd
+             RANLIB = RanlibCmd
+    RANLIBINSTFLAGS = RanlibInstFlags
+                 RM = RmCmd
+             RM_CMD = $(RM) FilesToClean
+              TROFF = TroffCmd
+
+/*
+ * Define where make should find uninstalled binaries, config files,
+ * includes, libraries, and man pages.
+ */
+#ifndef TOPDIR
+#define TOPDIR .
+#endif
+
+#ifndef CURDIR
+#define CURDIR .
+#endif
+
+                TOP = TOPDIR
+        CURRENT_DIR = CURDIR
+#ifndef UseInstalled
+              IVSRC = $(TOP)/src
+             BINSRC = $(IVSRC)/bin
+          CONFIGSRC = $(IVSRC)/config
+             INCSRC = $(IVSRC)/include
+             LIBSRC = $(IVSRC)/lib
+             MANSRC = $(IVSRC)/man
+          SCRIPTSRC = $(BINSRC)/scripts
+#endif
+
+/*
+ * Define where make should find installed binaries, config files,
+ * includes, libraries, application-specific data, and man pages.
+ */
+#ifndef InstalledRoot
+#define InstalledRoot /usr/local/interviews
+#endif
+
+#ifndef BinDir
+#define BinDir InstalledRoot/bin/$(ARCH)
+#endif
+#ifndef RelativeBinDir
+#define RelativeBinDir $(TOP)/installed/bin/$(ARCH)
+#endif
+
+#ifndef ConfigDir
+#define ConfigDir InstalledRoot/config
+#endif
+#ifndef RelativeConfigDir
+#define RelativeConfigDir $(TOP)/installed/config
+#endif
+
+#ifndef IncDir
+#define IncDir InstalledRoot/include
+#endif
+#ifndef RelativeIncDir
+#define RelativeIncDir $(TOP)/installed/include
+#endif
+
+#ifndef LibDir
+#define LibDir InstalledRoot/lib/$(ARCH)
+#endif
+#ifndef RelativeLibDir
+#define RelativeLibDir $(TOP)/installed/lib/$(ARCH)
+#endif
+
+#ifndef LibAllDir
+#define LibAllDir InstalledRoot/lib/all
+#endif
+#ifndef RelativeLibAllDir
+#define RelativeLibAllDir $(TOP)/installed/lib/all
+#endif
+
+#ifndef ManDir
+#define ManDir InstalledRoot/man
+#endif
+#ifndef RelativeManDir
+#define RelativeManDir $(TOP)/installed/man
+#endif
+
+#ifndef XConfigDir
+#define XConfigDir /usr/lib/X11/config
+#endif
+
+#ifndef XIncDir
+#define XIncDir /usr/include
+#endif
+
+#ifndef XLibDir
+#define XLibDir /usr/lib
+#endif
+
+#ifndef PSFontDir
+#define PSFontDir /usr/lib/ps
+#endif
+
+#if InstallRelative
+             BINDIR = RelativeBinDir    /* installed binaries */
+          CONFIGDIR = RelativeConfigDir /* installed config files */
+             INCDIR = RelativeIncDir    /* installed includes */
+             LIBDIR = RelativeLibDir    /* installed libraries */
+          LIBALLDIR = RelativeLibAllDir /* installed app-specific data */
+             MANDIR = RelativeManDir    /* installed man pages */
+#else
+             BINDIR = BinDir            /* installed binaries */
+          CONFIGDIR = ConfigDir         /* installed config files */
+             INCDIR = IncDir            /* installed includes */
+             LIBDIR = LibDir            /* installed libraries */
+          LIBALLDIR = LibAllDir         /* installed app-specific data */
+             MANDIR = ManDir            /* installed man pages */
+#endif
+       ABSCONFIGDIR = ConfigDir         /* installed config files */
+          ABSLIBDIR = LibDir            /* installed libraries */
+       ABSLIBALLDIR = LibAllDir         /* installed app-specific data */
+         XCONFIGDIR = XConfigDir        /* installed X config files */
+            XINCDIR = XIncDir           /* installed X includes */
+            XLIBDIR = XLibDir           /* installed X libraries */
+          PSFONTDIR = PSFontDir         /* installed PS font metrics (afm) */

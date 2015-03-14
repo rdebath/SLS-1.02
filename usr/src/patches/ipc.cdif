@@ -1,0 +1,278 @@
+*** linux-0.99p7/init/main.c	Mon Mar 15 07:53:07 1993
+--- linux/init/main.c	Mon Mar 15 14:05:04 1993
+***************
+*** 68,73 ****
+--- 68,74 ----
+  extern unsigned long simple_strtoul(const char *cp,char **endp,unsigned int
+      base);
+  
++ extern void ipc_init(void);
+  #ifdef CONFIG_SCSI
+  extern unsigned long scsi_dev_init(unsigned long, unsigned long);
+  #endif
+***************
+*** 253,258 ****
+--- 254,260 ----
+  	time_init();
+  	floppy_init();
+  	sock_init();
++ 	ipc_init();
+  	sti();
+  	/*
+  	 * check if exception 16 works correctly.. This is truly evil
+*** linux-0.99p7/kernel/fork.c	Mon Mar 15 07:53:19 1993
+--- linux/kernel/fork.c	Mon Mar 15 14:05:02 1993
+***************
+*** 22,27 ****
+--- 22,28 ----
+  
+  #define MAX_TASKS_PER_USER (NR_TASKS/2)
+  
++ extern int shm_fork (struct task_struct *, struct task_struct *);
+  long last_pid=0;
+  
+  int verify_area(int type, void * addr, unsigned long size)
+***************
+*** 144,150 ****
+  	if (last_task_used_math == current)
+  		__asm__("clts ; fnsave %0 ; frstor %0"::"m" (p->tss.i387));
+  	p->kernel_stack_page = get_free_page(GFP_KERNEL);
+! 	if (!p->kernel_stack_page || copy_vm(p)) {
+  		task[nr] = NULL;
+  		REMOVE_LINKS(p);
+  		free_page(p->kernel_stack_page);
+--- 145,153 ----
+  	if (last_task_used_math == current)
+  		__asm__("clts ; fnsave %0 ; frstor %0"::"m" (p->tss.i387));
+  	p->kernel_stack_page = get_free_page(GFP_KERNEL);
+! 	p->semun = NULL;
+! 	if (!p->kernel_stack_page || copy_vm(p) || 
+! 				(current->shm && shm_fork (current, p)) ) {
+  		task[nr] = NULL;
+  		REMOVE_LINKS(p);
+  		free_page(p->kernel_stack_page);
+*** linux-0.99p7/kernel/exit.c	Mon Mar 15 07:53:19 1993
+--- linux/kernel/exit.c	Mon Mar 15 14:05:02 1993
+***************
+*** 16,21 ****
+--- 16,23 ----
+  #include <linux/tty.h>
+  
+  #include <asm/segment.h>
++ extern void shm_exit (void);
++ extern void sem_exit (void);
+  
+  int sys_close(int fd);
+  int getrusage(struct task_struct *, int, struct rusage *);
+***************
+*** 327,332 ****
+--- 329,338 ----
+  	int i;
+  
+  fake_volatile:
++ 	if (current->shm)
++ 		shm_exit();
++ 	if (current->semun)
++ 		sem_exit();
+  	free_page_tables(current);
+  	for (i=0 ; i<NR_OPEN ; i++)
+  		if (current->filp[i])
+*** linux-0.99p7/fs/exec.c	Mon Mar 15 07:52:42 1993
+--- linux/fs/exec.c	Tue Mar 16 11:19:35 1993
+***************
+*** 34,39 ****
+--- 34,40 ----
+  
+  extern int sys_exit(int exit_code);
+  extern int sys_close(int fd);
++ extern void shm_exit (void);
+  
+  /*
+   * MAX_ARG_PAGES defines the number of pages allocated for arguments
+***************
+*** 591,596 ****
+--- 592,599 ----
+  			if (i < 15)
+  				current->comm[i++] = ch;
+  	current->comm[i] = '\0';
++ 	if (current->shm)
++ 		shm_exit ();
+  	if (current->executable) {
+  		iput(current->executable);
+  		current->executable = NULL;
+*** linux-0.99p7/mm/memory.c	Mon Mar 15 07:53:22 1993
+--- linux/mm/memory.c	Tue Mar 16 11:27:36 1993
+***************
+*** 717,722 ****
+--- 717,724 ----
+  	tmp = *(unsigned long *) page;
+  	if (tmp & PAGE_PRESENT)
+  		return;
++ 	if (((tmp &0xff) >> 1) == SHM_SWP_TYPE) /* assume user_esp, tsk == current */
++ 		return shm_no_page ((unsigned long *) page);
+  	++tsk->rss;
+  	if (tmp) {
+  		++tsk->maj_flt;
+*** linux-0.99p7/mm/swap.c	Mon Mar 15 07:53:22 1993
+--- linux/mm/swap.c	Tue Mar 16 11:16:57 1993
+***************
+*** 23,29 ****
+  #define SWP_USED	1
+  #define SWP_WRITEOK	3
+  
+! #define SWP_TYPE(entry) (((entry) & 0xffe) >> 1)
+  #define SWP_OFFSET(entry) ((entry) >> PAGE_SHIFT)
+  #define SWP_ENTRY(type,offset) (((type) << 1) | ((offset) << PAGE_SHIFT))
+  
+--- 23,29 ----
+  #define SWP_USED	1
+  #define SWP_WRITEOK	3
+  
+! #define SWP_TYPE(entry) (((entry) & 0xfe) >> 1)
+  #define SWP_OFFSET(entry) ((entry) >> PAGE_SHIFT)
+  #define SWP_ENTRY(type,offset) (((type) << 1) | ((offset) << PAGE_SHIFT))
+  
+***************
+*** 41,46 ****
+--- 41,47 ----
+  } swap_info[MAX_SWAPFILES];
+  
+  extern unsigned long free_page_list;
++ extern int shm_swap (int);
+  
+  /*
+   * The following are used to make sure we don't thrash too much...
+***************
+*** 107,113 ****
+  	wake_up(&lock_queue);
+  }
+  
+! static unsigned int get_swap_page(void)
+  {
+  	struct swap_info_struct * p;
+  	unsigned int offset, type;
+--- 108,114 ----
+  	wake_up(&lock_queue);
+  }
+  
+! unsigned int get_swap_page(void)
+  {
+  	struct swap_info_struct * p;
+  	unsigned int offset, type;
+***************
+*** 138,143 ****
+--- 139,146 ----
+  		return 0;
+  	offset = SWP_OFFSET(entry);
+  	type = SWP_TYPE(entry);
++ 	if (type == SHM_SWP_TYPE)
++ 		return 0;
+  	if (type >= nr_swapfiles) {
+  		printk("Trying to duplicate nonexistent swap-page\n");
+  		return 0;
+***************
+*** 163,168 ****
+--- 166,173 ----
+  	if (!entry)
+  		return;
+  	type = SWP_TYPE(entry);
++ 	if (type == SHM_SWP_TYPE)
++ 		return;
+  	if (type >= nr_swapfiles) {
+  		printk("Trying to free nonexistent swap-page\n");
+  		return;
+***************
+*** 343,348 ****
+--- 348,355 ----
+  
+  	while (i--) {
+  		if (shrink_buffers(i))
++ 			return 1;
++ 		if (shm_swap(i))
+  			return 1;
+  		if (swap_out(i))
+  			return 1;
+*** linux-0.99p7/include/linux/sched.h	Thu Feb 25 02:03:44 1993
+--- linux/include/linux/sched.h	Mon Mar 15 14:05:03 1993
+***************
+*** 192,197 ****
+--- 192,199 ----
+  	struct inode * root;
+  	struct inode * executable;
+  	struct vm_area_struct * mmap;
++ 	struct shm_desc *shm;
++ 	struct sem_undo *semun;
+  	struct {
+  		struct inode * library;
+  		unsigned long start;
+***************
+*** 239,244 ****
+--- 241,247 ----
+  /* comm */	"swapper", \
+  /* vm86_info */	NULL, 0, \
+  /* fs info */	0,-1,0022,NULL,NULL,NULL,NULL, \
++ /* ipc */	NULL, NULL, \
+  /* libraries */	{ { NULL, 0, 0, 0}, }, 0, \
+  /* filp */	{NULL,}, \
+  /* cloe */	{{ 0, }}, \
+*** linux-0.99p7/include/linux/mm.h	Mon Mar 15 07:53:04 1993
+--- linux/include/linux/mm.h	Mon Mar 15 15:16:40 1993
+***************
+*** 153,156 ****
+--- 153,161 ----
+  #define GFP_USER	0x02
+  #define GFP_KERNEL	0x03
+  
++ 
++ /* vm_ops not present page code */
++ #define SHM_SWP_TYPE 0x41        
++ extern void shm_no_page (ulong *);
++ 
+  #endif
+*** linux-0.99p7/Makefile	Mon Mar 15 07:52:41 1993
+--- linux/Makefile	Mon Mar 15 14:05:04 1993
+***************
+*** 99,111 ****
+  AR	=ar
+  STRIP	=strip
+  
+! ARCHIVES	=kernel/kernel.o mm/mm.o fs/fs.o net/net.o
+  FILESYSTEMS	=fs/filesystems.a
+  DRIVERS		=kernel/blk_drv/blk_drv.a kernel/chr_drv/chr_drv.a \
+  		 kernel/blk_drv/scsi/scsi.a kernel/chr_drv/sound/sound.a
+  MATH		=kernel/FPU-emu/math.a
+  LIBS		=lib/lib.a
+! SUBDIRS		=kernel mm fs net lib
+  
+  KERNELHDRS	=/usr/src/linux/include
+  
+--- 99,111 ----
+  AR	=ar
+  STRIP	=strip
+  
+! ARCHIVES	=kernel/kernel.o mm/mm.o fs/fs.o net/net.o ipc/ipc.o
+  FILESYSTEMS	=fs/filesystems.a
+  DRIVERS		=kernel/blk_drv/blk_drv.a kernel/chr_drv/chr_drv.a \
+  		 kernel/blk_drv/scsi/scsi.a kernel/chr_drv/sound/sound.a
+  MATH		=kernel/FPU-emu/math.a
+  LIBS		=lib/lib.a
+! SUBDIRS		=ipc kernel mm fs net lib 
+  
+  KERNELHDRS	=/usr/src/linux/include
+  
+*** linux/kernel/sys.c	Thu Mar 18 09:00:07 1993
+--- linux-0.99p7/kernel/sys.c	Mon Mar 15 07:53:21 1993
+***************
+*** 130,140 ****
+  	return -ENOSYS;
+  }
+  
+- int sys_ipc(void)
+- {
+- 	return -ENOSYS;
+- }
+- 
+  unsigned long save_v86_state(struct vm86_regs * regs)
+  {
+  	unsigned long stack;
+--- 130,135 ----

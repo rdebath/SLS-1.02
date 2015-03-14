@@ -1,0 +1,397 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose	: stores and prints error messages
+ *
+ *	$Author: grosch $
+ *	$Date: 1992/08/07 15:50:06 $
+ *	$Revision: 1.7 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE Errors;
+
+FROM SYSTEM	IMPORT
+  ADDRESS	, ADR		, TSIZE		;
+
+FROM System	IMPORT
+  Exit		;
+
+FROM Memory	IMPORT
+  Alloc		;
+
+FROM IO		IMPORT
+  tFile		, StdError	, WriteC	, WriteS	,
+  WriteI	, WriteNl	, CloseIO	;
+
+FROM General	IMPORT
+  Min		;
+
+FROM Strings	IMPORT
+  tString	;
+
+FROM Scanner	IMPORT
+  Attribute	;
+
+FROM Idents	IMPORT
+  tIdent	, NoIdent	, WriteIdent	;
+
+FROM Positions	IMPORT
+  tPosition	;
+
+IMPORT Strings;
+
+CONST
+  cMaxError	= 64;
+  cNoWarnings	= TRUE;
+
+TYPE
+  tArray	= ARRAY [0..255] OF CHAR;
+  ErrorEntry	= RECORD
+		     CASE : SHORTCARD OF
+		     | None	:
+		     | Integer	: vInteger	: INTEGER	;
+		     | String	: vString	: POINTER TO tString	;
+		     | Array	: vArray	: POINTER TO tArray	;
+		     | Ident	: vIdent	: tIdent	;
+		     END;
+		         	  InfoClass	: SHORTCARD	;
+		     		  ErrorNumber	: SHORTCARD	;
+		     		  ErrorCode	: SHORTCARD	;
+		     		  ErrorClass	: SHORTCARD	;
+				  File		: tIdent	;
+		     		  Line		: SHORTCARD	;
+		     		  Column	: SHORTCARD	;
+		  END;
+
+VAR
+  ErrorTable	: ARRAY [1..cMaxError] OF ErrorEntry;
+  ErrorCount	: CARDINAL;
+  ClassCount	: ARRAY [Fatal .. Information] OF CARDINAL;
+  ErrorClass	: CARDINAL;
+
+(*------- ErrorMessageP ------------------------------------------------------*)
+
+PROCEDURE ErrorMessageP	(ErrorCode, ErrorClass: CARDINAL; Pos: tPosition);
+  (* record an error message			*)
+  BEGIN
+    ErrorMessagePI (ErrorCode, ErrorClass, Pos, None, NIL);
+  END ErrorMessageP;
+
+(*------- ErrorMessagePI -----------------------------------------------------*)
+
+PROCEDURE ErrorMessagePI(ErrorCode, ErrorClass: CARDINAL; Pos: tPosition;
+			 InfoClass: CARDINAL; Info: ADDRESS);
+  (* record an error message with additional information of type	*)
+  (* 'InfoClass' at address 'Info'					*)
+  BEGIN
+    StoreMessage (ErrorCode, ErrorClass, Pos.File, Pos.Line, Pos.Column, InfoClass, Info);
+    IF ErrorClass = Fatal THEN
+      PrintMessages (cNoWarnings);
+      CloseIO;
+      Exit (1);
+    END; (* IF *)
+  END ErrorMessagePI;
+
+(*------- ErrorMessage -------------------------------------------------------*)
+
+PROCEDURE ErrorMessage	(ErrorCode, ErrorClass: CARDINAL; Pos: tPosition);
+  (* record an error message			*)
+  BEGIN
+    ErrorMessageI (ErrorCode, ErrorClass, Pos, None, NIL);
+  END ErrorMessage;
+
+(*------- ErrorMessageI ------------------------------------------------------*)
+
+PROCEDURE ErrorMessageI	(ErrorCode, ErrorClass: CARDINAL; Pos: tPosition;
+			 InfoClass: CARDINAL; Info: ADDRESS);
+  (* record an error message with additional information of type	*)
+  (* 'InfoClass' at address 'Info'					*)
+  BEGIN
+    StoreMessage (ErrorCode, ErrorClass, Pos.File, Pos.Line, Pos.Column, InfoClass, Info);
+    IF ErrorClass = Fatal THEN
+      PrintMessages (cNoWarnings);
+      CloseIO;
+      Exit (1);
+    END; (* IF *)
+  END ErrorMessageI;
+
+(*------- CompilerError ------------------------------------------------------*)
+
+PROCEDURE CompilerError	(Proc: ARRAY OF CHAR);
+  (* report a compiler error in procedure 'Proc' and	*)
+  (* terminate program with exit status 1		*)
+BEGIN
+  WriteS (StdError, Proc); WriteS (StdError, ": assertion violation");
+  WriteNl (StdError);
+  CloseIO;
+  Exit (1);
+END CompilerError;
+
+(*------- NumberOfErrors -----------------------------------------------------*)
+
+PROCEDURE NumberOfErrors(): CARDINAL;
+  (* returns total number of errors in error	*)
+  (* classes Fatal, Restriction, and Error	*)
+  BEGIN
+    RETURN ClassCount [Fatal]		+
+	   ClassCount [Restriction]	+
+	   ClassCount [Error]		;
+  END NumberOfErrors;
+
+(*------- PrintMessages ------------------------------------------------------*)
+
+PROCEDURE PrintMessages	(NoWarnings: BOOLEAN);
+  (* print sorted error messages to StdError	*)
+  VAR
+    MaxError	,
+    CurError	,
+    CurClass	: CARDINAL;
+    PrevFile	: tIdent;
+
+  BEGIN
+    IF ErrorCount = 0 THEN RETURN; END;
+
+    IF NoWarnings AND (ErrorCount = ClassCount [Warning]) THEN RETURN; END;
+
+    MaxError := Min (cMaxError, ErrorCount);
+
+    SortMessages (1, MaxError);
+
+    PrevFile := NoIdent;
+
+    FOR CurError := 1 TO MaxError DO (* print error messages	*)
+      WITH ErrorTable [CurError] DO
+	IF NoWarnings AND (ErrorClass = Warning) THEN 
+	  (* do not print warning	*)
+        ELSE
+	  IF File # PrevFile THEN
+	    WriteIdent (StdError, File);
+	    WriteC (StdError, ':');
+	    WriteNl (StdError);
+	    PrevFile := File;
+	  END; (* IF *)
+	  WriteMessage (StdError, ErrorCode, ErrorClass, Line, Column);
+	  WriteInfo (StdError, InfoClass, ADR (vInteger));
+	  WriteNl (StdError);
+	END; (* IF *)
+      END; (* WITH *)
+    END; (* FOR *)
+
+    FOR CurClass := Fatal TO Information DO (* print number of errors	*)
+					    (* in each error class	*)
+      IF NoWarnings AND (CurClass = Warning) THEN
+	(* do not print number of warnings	*)
+      ELSE
+        IF ClassCount [CurClass] > 0 THEN     (* in each error class	*)
+	  WriteS (StdError, "  ");
+	  WriteI (StdError, ClassCount [CurClass], 1);
+          WriteC (StdError, ' ');
+	  CASE CurClass OF
+	  | Fatal	: WriteS (StdError, "fatal error(s)"	);
+	  | Restriction	: WriteS (StdError, "restriction(s)"	);
+	  | Error	: WriteS (StdError, "error(s)"		);
+	  | Warning	: WriteS (StdError, "warning(s)"	);
+	  | Repair	: WriteS (StdError, "repair(s)"		);
+	  | Note	: WriteS (StdError, "note(s)"		);
+	  | Information	: WriteS (StdError, "information(s)"	);
+	  END; (* CASE *)
+        END; (* IF *)
+      END; (* IF *)
+    END; (* FOR *)
+    WriteNl (StdError);
+  END PrintMessages;
+
+(*------- StoreMessage -------------------------------------------------------*)
+
+PROCEDURE StoreMessage	(pErrorCode, pErrorClass: CARDINAL;
+			 pFile: tIdent; pLine, pColumn: CARDINAL;
+			 pInfoClass: CARDINAL; pInfo: ADDRESS);
+  (* store an error message in the array 'ErrorTable' *)
+  VAR
+    PtrToInteger	: POINTER TO INTEGER;
+    PtrToString		: POINTER TO tString;
+    PtrToArray		: POINTER TO tArray;
+    PtrToIdent		: POINTER TO tIdent;
+  BEGIN
+    INC (ClassCount [pErrorClass]);
+    IF ErrorCount < cMaxError THEN
+      INC (ErrorCount);
+
+      WITH ErrorTable [ErrorCount] DO
+        ErrorNumber	:= ErrorCount	;
+        ErrorCode	:= pErrorCode	;
+        ErrorClass	:= pErrorClass	;
+        File		:= pFile	;
+        Line		:= pLine	;
+        Column		:= pColumn	;
+        InfoClass	:= pInfoClass	;
+        CASE InfoClass OF
+        | Integer  : PtrToInteger  := pInfo; vInteger	:= PtrToInteger	^;
+        | String   : PtrToString   := pInfo; vString	:= Alloc (TSIZE (tString));
+					     vString^	:= PtrToString	^;
+        | Array    : PtrToArray    := pInfo; vArray	:= Alloc (TSIZE (tArray));
+					     vArray^	:= PtrToArray	^;
+        | Ident    : PtrToIdent    := pInfo; vIdent	:= PtrToIdent	^;
+        ELSE
+        END; (* CASE *)
+
+        IF ErrorCount = cMaxError THEN
+          ErrorCode	:= TooManyErrors;
+	  ErrorClass	:= Restriction	;
+	  InfoClass	:= None		;
+	END; (* IF *)
+      END; (* WITH *)
+    ELSE
+      INC (ErrorCount);
+    END; (* IF *)
+  END StoreMessage;
+
+(*------- SortMessages -------------------------------------------------------*)
+
+PROCEDURE SortMessages (lwb, upb: INTEGER);
+  (* sort the error messages using quicksort *)
+  VAR i, j: INTEGER;
+  BEGIN
+    IF lwb < upb THEN
+      i := lwb + 1;
+      j := upb;
+
+      REPEAT
+	WHILE (i < upb) AND IsLess (i, lwb) DO
+	  INC (i);
+	END; (* WHILE *)
+	WHILE (lwb < j) AND IsLess (lwb, j) DO
+	  DEC (j);
+	END; (* WHILE *)
+	IF i < j THEN
+	  Swap (i, j);
+	END; (* IF *)
+      UNTIL i >= j;
+
+      Swap (lwb, j);
+      SortMessages (lwb, j-1);
+      SortMessages (j+1, upb);
+    END; (* IF *)
+  END SortMessages;
+
+(*------- IsLess -------------------------------------------------------------*)
+
+PROCEDURE IsLess (i, j: INTEGER): BOOLEAN;
+  (* check if error message 'i' should be printed before message 'j' *)
+  BEGIN
+    WITH ErrorTable [i] DO
+      IF File	< ErrorTable [j].File   THEN RETURN TRUE ; END;
+      IF File	> ErrorTable [j].File   THEN RETURN FALSE; END;
+      IF Line   < ErrorTable [j].Line   THEN RETURN TRUE ; END;
+      IF Line   > ErrorTable [j].Line   THEN RETURN FALSE; END;
+      IF Column < ErrorTable [j].Column THEN RETURN TRUE ; END;
+      IF Column > ErrorTable [j].Column THEN RETURN FALSE; END;
+      RETURN ErrorNumber < ErrorTable [j].ErrorNumber;
+    END; (* WITH *)
+  END IsLess;
+
+(*------- Swap ---------------------------------------------------------------*)
+
+PROCEDURE Swap (i, j: INTEGER);
+  (* swap two error messages 'i' and 'j' in the array 'ErrorTable' *)
+  VAR t: ErrorEntry;
+  BEGIN
+    t := ErrorTable [i];
+    ErrorTable [i] := ErrorTable [j];
+    ErrorTable [j] := t;
+  END Swap;
+
+(*------- WriteMessage -------------------------------------------------------*)
+
+PROCEDURE WriteMessage (f: tFile; ErrorCode, ErrorClass: CARDINAL;
+			Line, Column: CARDINAL);
+  (* print class and text of an error message *)
+  BEGIN
+     WriteI (f, Line, 3);
+     WriteS (f, ", ");
+     WriteI (f, Column, 2);
+     WriteS (f, ": ");
+
+     CASE ErrorClass OF
+     | Fatal		: WriteS (f, "Fatal        ");
+     | Restriction	: WriteS (f, "Restriction  ");
+     | Error		: WriteS (f, "Error        ");
+     | Warning		: WriteS (f, "Warning      ");
+     | Repair		: WriteS (f, "Repair       ");
+     | Note		: WriteS (f, "Note         ");
+     | Information	: WriteS (f, "Information  ");
+     END; (* CASE *)
+
+     CASE ErrorCode OF
+     | TooManyErrors	:
+	 WriteS (f, "too many errors"					);
+     | SyntaxError	:
+	 WriteS (f, "syntax error"					);
+     | ExpectedTokens	:
+	 WriteS (f, "expected tokens:"					);
+     | RestartPoint	:
+	 WriteS (f, "restart point"					);
+     | TokenInserted	:
+	 WriteS (f, "token inserted :"					);
+     | ReadParseTable:
+	 WriteS (f, "error reading parse table"				);
+     | IllegalChar	:
+	 WriteS (f, "illegal character"					);
+     | UnclosedComment	:
+	 WriteS (f, "unclosed comment"					);
+     | UnclosedString	:
+	 WriteS (f, "unclosed string"					);
+     | CyclicDefMods	:
+	 WriteS (f, "cyclic module dependency"				);
+     | ModNotFound	:
+	 WriteS (f, "cannot find definition module"			);
+     | NoNEWPROCESS	:
+         WriteS (f, "cannot translate standard procedure NEWPROCESS"	);
+     | NoTRANSFER	:
+         WriteS (f, "cannot translate standard procedure TRANSFER"	);
+     | NoIOTRANSFER	:
+         WriteS (f, "cannot translate standard procedure IOTRANSFER"	);
+     | StructTypeReq	:
+	 WriteS (f, "cannot translate forward reference to non structured type");
+     | OpaqueConflict	:
+	 WriteS (f, "cannot resolve name conflict with opaque type"	);
+     | ForeignConflict	:
+	 WriteS (f, "name conflict with FOREIGN procedure"		);
+     | Underscores	:
+	 WriteS (f, "use of '_' in identifiers may lead to name conflicts");
+     | OutOfLongRange	:
+	 WriteS (f, "constant out of long range"			);
+     ELSE
+       WriteI (f, ErrorCode, 1);
+     END; (* CASE *)
+  END WriteMessage;
+
+(*------- WriteInfo ----------------------------------------------------------*)
+
+PROCEDURE WriteInfo	(f: tFile; InfoClass: CARDINAL; Info: ADDRESS);
+  (* print the additional information of an error message *)
+  VAR
+    PtrToInteger	: POINTER TO INTEGER;
+    PtrToString		: POINTER TO tString;
+    PtrToArray		: POINTER TO tArray;
+    PtrToIdent		: POINTER TO tIdent;
+  BEGIN
+    IF InfoClass = None THEN RETURN; END;
+    WriteC (f, ' ');
+    CASE InfoClass OF
+    | Integer	: PtrToInteger := Info; WriteI	(f, PtrToInteger^, 1);
+    | String	: PtrToString  := Info; Strings.WriteS (f, PtrToString^);
+    | Array	: PtrToArray   := Info; WriteS (f, PtrToArray^);
+    | Ident	: PtrToIdent   := Info; WriteIdent (f, PtrToIdent^);
+    ELSE
+    END; (* CASE *)
+  END WriteInfo;
+
+BEGIN
+  ErrorCount	:= 0;
+  FOR ErrorClass := Fatal TO Information DO
+    ClassCount [ErrorClass] := 0;
+  END; (* FOR *)
+END Errors.

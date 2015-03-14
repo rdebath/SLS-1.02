@@ -1,0 +1,74 @@
+A quick run down of the internal structure.
+
+main.c:
+	main() Just sets things up. Opens socket, and set terminal
+		to non-blocking. calls main_loop();
+
+	main_loop() program sits here untill exit.
+		Runs in a loop doing select().
+		calls do_serial_out() to set data to modem.
+		do_link_out() to queue packets.
+		update_time() to maintain 1/20th second clock.
+		do_serial_in() to builld packets from raw serial.
+		
+
+serial.c
+	do_serial_out(). Runs down the list of queued packets looking for
+		one to send. Picks the one that has been waiting the longest
+		for an ack.
+	do_serial_in(). a FSM, that builds packets from serial. Tries
+		to find a header, then uses header to get length of packet
+		and reads in that packet. calls get_serial() which may	
+		return -1 if there is nothing in serial in buffer.
+
+	do_ack(). Takes an outgoing packet of the queue. It has been acked.
+		
+	send_ack(). We correctly received a packet, so send an ack.
+
+	check_sum() is not a good one. Someone write a better one. :)
+
+link.c:
+	do_link_out(). Builds a packet if there is space on the queue.
+		calls get_data() to build the packets.
+
+	do_link_in(). Takes a packet of the in queue, uncompressed it if
+		nessecary, and gives it to put_data().
+
+	get_data(). Call get_client_byte untill we have a full packet, or
+		have run out of data, and then (optionally) compress it.
+	
+	do_control(). Handle control messages. This routine handle only
+		remote control messages. I.e. messages sent from the other
+		end.
+
+	get_next_client() returns the struct for the next client ready to 
+		give data.
+
+	get_client_data returns the next byte from the client.
+
+	put_client_data() handles control messages calling do_control(), and
+		puts non-control data in client buffer.
+
+	
+	get_client_byte() returns the next bytes from the client. handles
+		local control messages. Handles stream switching. Yet another
+		finite state machine...
+
+	
+	put_data(). Put data to clients. Handles stream switching, swicth
+		char escapeing, and thats about it. calls put_client_data()
+		to send actual data or client control messages.
+
+	
+		
+
+	
+Protocols:
+Closeing down.
+	state is 1 while running.
+	if an error on read or write occurs then state goes to 2.
+	then when buffer is empty, a C_CLOSE is sent, and state goes
+	to 3.
+
+	if a C_CLOSE is recevied, then state goes to 3.
+	

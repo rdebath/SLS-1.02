@@ -1,0 +1,332 @@
+(*
+ *	M T C  -  Modula-2 to C Translator
+ *      ----------------------------------
+ *
+ *	Purpose: administration of Modula-2 identifiers used in the
+ *		 generated C program(s) (according to C scope rules)
+ *
+ *	$Author: grosch $
+ *	$Date: 1991/11/21 16:57:59 $
+ *	$Revision: 1.3 $
+ *
+ ***)
+
+IMPLEMENTATION MODULE UniqueIds;
+
+FROM Errors	IMPORT
+  CompilerError	;
+
+FROM Idents	IMPORT
+  tIdent	, MakeIdent	, MaxIdent	;
+
+FROM Strings	IMPORT
+  tString	, ArrayToString	;
+
+FROM Sets	IMPORT
+  tSet		, MakeSet	, ReleaseSet	, Include	,
+  IsElement	, AssignEmpty	;
+
+FROM DynArray	IMPORT
+  MakeArray	, ExtendArray	, ReleaseArray	;
+
+CONST
+  Infinite	= 1048576;
+  InitialSize	= 4;		(* initial size of IdStack	*)
+  MaxKeyword	= 90;		(* number of keywords		*)
+
+VAR
+  KeywordTable	: ARRAY [1 .. MaxKeyword] OF tIdent;	(* keywords	*)
+
+(*------- administration of Modula-2 identifiers -----------------------------*)
+(*------- used in the generated C program(s)     -----------------------------*)
+
+VAR
+  ModulaIds	,	(* keywords and all Modula-2 identifiers (used	*)
+			(* in the generated C program(s))		*)
+  PervasiveIds	: tSet;	(* keywords, type and constant identifiers	*)
+
+  StackPtr	,
+  StackSize	: LONGINT;
+  IdStack	: POINTER TO ARRAY [0 .. Infinite] OF tSet;
+  (* IdStack^ [0] procedure identifiers, global variable identifiers,	*)
+  (* and variable identifiers declared in local modules			*)
+  (* IdStack^ [StackPtr] local variable identifiers of current proc.	*)
+
+  KeywordCount	: LONGINT;
+
+  SetSize	: CARDINAL;
+
+(*------- NameConflict -------------------------------------------------------*)
+
+PROCEDURE NameConflict	(
+			Idents		: tIdents;
+			IdentClass	: tIdentClass;
+			Ident		: tIdent
+			):		  BOOLEAN;
+(* Check if a name conflict with an identifier which has been	*)
+(* already declared would result from using the identifier	*)
+(* 'Ident' of class 'IdentClass' in the generated C program(s)	*)
+BEGIN
+  IF Ident > SetSize THEN
+    CompilerError ("UniqueIds.NameConflict");
+  END;
+  CASE IdentClass OF
+  | eField	: RETURN IsElement (Ident, PervasiveIds);
+
+  | eConst	,
+    eType	: RETURN IsElement (Ident, ModulaIds);
+
+  | eProc	: RETURN IsElement (Ident, PervasiveIds) OR
+			 IsElement (Ident, IdStack^ [0]);
+
+  | eVar	: RETURN IsElement (Ident, PervasiveIds) OR
+			 IsElement (Ident, IdStack^ [StackPtr]);
+
+  | eModuleVar	: RETURN IsElement (Ident, PervasiveIds) OR
+			 IsElement (Ident, IdStack^ [StackPtr]) OR
+  (* note: a variable declared in a local module (in Modula-2) may hide	*)
+  (*	   a global variable or procedure (in C) 			*)
+			 IsElement (Ident, IdStack^ [0]);
+
+  | eKeyword	: RETURN TRUE;
+  END; (* CASE *)
+END NameConflict;
+
+(*------- DeclareIdent -------------------------------------------------------*)
+
+PROCEDURE DeclareIdent	(
+			Idents		: tIdents;
+			IdentClass	: tIdentClass;
+			Ident		: tIdent
+			):		  tIdents;
+(* Declare the identifier 'Ident' of class 'IdentClass' as used	*)
+(* in the generated C program(s)				*)
+BEGIN
+  IF Ident > SetSize THEN
+    CompilerError ("UniqueIds.DeclareIdent");
+  END;
+  Include (ModulaIds, Ident);
+  CASE IdentClass OF
+  | eKeyword	,
+    eConst	,
+    eType	: Include (PervasiveIds, Ident);
+
+  | eProc	: Include (IdStack^ [0], Ident);
+
+  | eVar	: Include (IdStack^ [StackPtr], Ident);
+
+  | eModuleVar	: Include (IdStack^ [StackPtr], Ident);
+  (* note: a variable declared in a local module (in Modula-2) may hide	*)
+  (*	   a global variable or procedure (in C) 			*)
+		  Include (IdStack^ [0], Ident);
+
+  ELSE ;
+  END; (* CASE *)
+  RETURN Idents;
+END DeclareIdent;
+
+(*------- BeginUniqueIds -----------------------------------------------------*)
+
+PROCEDURE BeginUniqueIds;
+(* Initialize module UniqueIds	*)
+VAR i : LONGINT; Idents: tIdents;
+BEGIN
+  SetSize := MaxIdent ();
+  MakeSet (ModulaIds, SetSize);
+  MakeSet (PervasiveIds, SetSize);
+
+  StackPtr  := 0;
+  StackSize := InitialSize;
+  MakeArray (IdStack, StackSize, SIZE (tSet));
+  FOR i := 0 TO StackSize - 1 DO
+    MakeSet (IdStack^ [i], SetSize);
+  END;
+
+  AssignEmpty (ModulaIds);
+  AssignEmpty (PervasiveIds);
+  AssignEmpty (IdStack^ [StackPtr]);
+
+  (* declare keywords		*)
+  FOR i := 1 TO KeywordCount DO
+    Idents := DeclareIdent (Idents, eKeyword, KeywordTable [i]);
+  END; (* FOR *)
+END BeginUniqueIds;
+
+(*------- CloseUniqueIds -----------------------------------------------------*)
+
+PROCEDURE CloseUniqueIds;
+(* Finalize module UniqueIds	*)
+VAR
+  i	: LONGINT;
+BEGIN
+  ReleaseSet (ModulaIds);
+  ReleaseSet (PervasiveIds);
+
+  FOR i := 0 TO StackSize - 1 DO
+    ReleaseSet (IdStack^ [i]);
+  END;
+  ReleaseArray (IdStack, StackSize, SIZE (tSet));
+END CloseUniqueIds;
+
+(*------- EnterProc ----------------------------------------------------------*)
+
+PROCEDURE EnterProc		(Idents: tIdents): tIdents;
+(* Enter local declarations of a procedure	*)
+VAR
+  OldSize, i	: LONGINT;
+BEGIN
+  INC (StackPtr);
+
+  IF StackPtr >= StackSize THEN
+    OldSize := StackSize;
+    ExtendArray (IdStack, StackSize, SIZE (tSet));
+    FOR i := OldSize TO StackSize - 1 DO
+      MakeSet (IdStack^ [i], SetSize);
+    END;
+  END; (* IF *)
+
+  AssignEmpty (IdStack^ [StackPtr]);
+
+  RETURN Idents;
+END EnterProc;
+
+(*------- LeaveProc ----------------------------------------------------------*)
+
+PROCEDURE LeaveProc		(Idents: tIdents): tIdents;
+(* Leave local declarations of a procedure	*)
+BEGIN
+  DEC (StackPtr);
+
+  RETURN Idents;
+END LeaveProc;
+
+(*------- DefineKeyword -----------------------------------------------*)
+
+PROCEDURE DefineKeyword (Name: ARRAY OF CHAR);
+VAR String : tString;
+BEGIN
+  INC (KeywordCount);
+  IF KeywordCount > MaxKeyword THEN
+    CompilerError ("UniqueIds.DefineKeyword");
+  END; (* IF *)
+  ArrayToString (Name, String);
+  KeywordTable [KeywordCount] := MakeIdent (String);
+END DefineKeyword;
+
+BEGIN
+  KeywordCount := 0;
+
+  (* define keywords		*)
+
+  (* C keywords and preprocessor directives	*)
+  DefineKeyword ("auto"		);
+  DefineKeyword ("break"	);
+  DefineKeyword ("case"		);
+  DefineKeyword ("char"		);
+  DefineKeyword ("continue"	);
+  DefineKeyword ("default"	);
+  DefineKeyword ("define"	);
+  DefineKeyword ("do"		);
+  DefineKeyword ("double"	);
+  DefineKeyword ("else"		);
+  DefineKeyword ("endif"	);
+  DefineKeyword ("entry"	);
+  DefineKeyword ("enum"		);
+  DefineKeyword ("extern"	);
+  DefineKeyword ("float"	);
+  DefineKeyword ("for"		);
+  DefineKeyword ("goto"		);
+  DefineKeyword ("if"		);
+  DefineKeyword ("ifdef"	);
+  DefineKeyword ("ifndef"	);
+  DefineKeyword ("include"	);
+  DefineKeyword ("int"		);
+  DefineKeyword ("line"		);
+  DefineKeyword ("long"		);
+  DefineKeyword ("register"	);
+  DefineKeyword ("return"	);
+  DefineKeyword ("short"	);
+  DefineKeyword ("sizeof"	);
+  DefineKeyword ("static"	);
+  DefineKeyword ("struct"	);
+  DefineKeyword ("switch"	);
+  DefineKeyword ("typedef"	);
+  DefineKeyword ("undef"	);
+  DefineKeyword ("union"	);
+  DefineKeyword ("unsigned"	);
+  DefineKeyword ("void"		);
+  DefineKeyword ("while"	);
+
+  (* standard constants		*)
+  DefineKeyword ("TRUE"		);
+  DefineKeyword ("FALSE"	);
+  DefineKeyword ("NIL"		);
+
+  (* basic types		*)
+  DefineKeyword ("SHORTINT"	);
+  DefineKeyword ("INTEGER"	);
+  DefineKeyword ("LONGINT"	);
+  DefineKeyword ("SHORTCARD"	);
+  DefineKeyword ("CARDINAL"	);
+  DefineKeyword ("LONGCARD"	);
+  DefineKeyword ("BOOLEAN"	);
+  DefineKeyword ("CHAR"		);
+  DefineKeyword ("REAL"		);
+  DefineKeyword ("LONGREAL"	);
+
+  (* standard types		*)
+  DefineKeyword ("BITSET"	);
+  DefineKeyword ("PROC"		);
+  DefineKeyword ("BYTE"		);
+  DefineKeyword ("WORD"		);
+  DefineKeyword ("ADDRESS"	);
+
+  (* standard functions		*)
+  DefineKeyword ("ABS"		);
+  DefineKeyword ("ABSSI"	);
+  DefineKeyword ("ABSLI"	);
+  DefineKeyword ("ABSSC"	);
+  DefineKeyword ("ABSLC"	);
+  DefineKeyword ("ABSR"		);
+  DefineKeyword ("ABSLR"	);
+  DefineKeyword ("CAP"		);
+  DefineKeyword ("CHR"		);
+  DefineKeyword ("FLOAT"	);
+  DefineKeyword ("ORD"		);
+  DefineKeyword ("TRUNC"	);
+  DefineKeyword ("VAL"		);
+  DefineKeyword ("ODD"		);
+
+  (* standard procedures	*)
+  DefineKeyword ("INC"		);
+  DefineKeyword ("INC1"		);
+  DefineKeyword ("DEC"		);
+  DefineKeyword ("DEC1"		);
+  DefineKeyword ("EXCL"		);
+  DefineKeyword ("INCL"		);
+  DefineKeyword ("ADR"		);
+  DefineKeyword ("ADR1"		);
+
+  (* compiler types		*)
+  DefineKeyword ("OPAQUE"	);
+  DefineKeyword ("STRING"	);
+
+  (* compiler functions		*)
+  DefineKeyword ("CaseError"	);
+  DefineKeyword ("ReturnError"	);
+
+(* (* library functions		*)
+  DefineKeyword ("alloca"	);
+  DefineKeyword ("malloc"	);
+  DefineKeyword ("free"		);
+  DefineKeyword ("memcpy"	);
+  DefineKeyword ("strncpy"	);
+  DefineKeyword ("exit"		); *)
+
+  (* flag for conditional compilation		*)
+  DefineKeyword ("StackAlloc"	);
+
+  (* (some) compiler generated identifiers	*)
+  DefineKeyword ("A"		);
+  DefineKeyword ("dummy"	);
+END UniqueIds.

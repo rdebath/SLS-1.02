@@ -1,0 +1,84 @@
+# Commands covered:  source
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright 1991 Regents of the University of California
+# Permission to use, copy, modify, and distribute this
+# software and its documentation for any purpose and without
+# fee is hereby granted, provided that this copyright notice
+# appears in all copies.  The University of California makes no
+# representations about the suitability of this software for any
+# purpose.  It is provided "as is" without express or implied
+# warranty.
+#
+# $Header: /sprite/src/lib/tcl/tests/RCS/source.test,v 1.6 91/09/11 17:30:17 ouster Exp $ (Berkeley)
+
+if {[string compare test [info procs test]] == 1} then {source defs}
+
+test source-1.1 {source command} {
+    set x "old x value"
+    set y "old y value"
+    set z "old z value"
+    exec cat << {
+	set x 22
+	set y 33
+	set z 44
+    } > source.file
+    source source.file
+    list $x $y $z
+} {22 33 44}
+test source-1.2 {source command} {
+    exec cat << {list result} > source.file
+    source source.file
+} result
+
+test source-2.1 {source error conditions} {
+    list [catch {source} msg] $msg
+} {1 {wrong # args: should be "source fileName"}}
+test source-2.2 {source error conditions} {
+    list [catch {source a b} msg] $msg
+} {1 {wrong # args: should be "source fileName"}}
+test source-2.3 {source error conditions} {
+    exec cat << {
+	set x 146
+	error "error in sourced file"
+	set y $x
+    } > source.file
+    list [catch {source source.file} msg] $msg $errorInfo
+} {1 {error in sourced file} {error in sourced file
+    while executing
+"error "error in sourced file""
+    (file "source.file" line 3)
+    invoked from within
+"source source.file"}}
+test source-2.4 {source error conditions} {
+    exec cat << {break} > source.file
+    catch {source source.file}
+} 3
+test source-2.5 {source error conditions} {
+    exec cat << {continue} > source.file
+    catch {source source.file}
+} 4
+test source-2.6 {source error conditions} {
+    string tolower [list [catch {source _non_existent_} msg] $msg $errorCode]
+} {1 {couldn't read file "_non_existent_": no such file or directory} {unix enoent {no such file or directory}}}
+
+test source-3.1 {return in middle of source file} {
+    exec cat << {
+	set x new-x
+	return allDone
+	set y new-y
+    } > source.file
+    set x old-x
+    set y old-y
+    set z [source source.file]
+    list $x $y $z
+} {new-x old-y allDone}
+
+catch {exec rm source.file}
+
+# Generate null final value
+
+concat {}

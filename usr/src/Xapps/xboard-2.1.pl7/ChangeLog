@@ -1,0 +1,894 @@
+CHANGES
+
+Version 1.1 -- Mon Jan  7 14:46:03 PST 1991
+
+  - Fixed a bug in HandleUserMove() where the user could make a move while the
+    machine was thinking.  The fix detects and ignores these moves.  onMove
+    was not being used and was removed.
+
+  - Substantially rewrote and simplified the clock code.  If a game was paused
+    and then resumed, the clocks were out of sync.
+
+  - Konstantinos Konstantinides added the -searchTime option.
+
+  - Rewrote TwoMachinesPlay mode.
+
+  - Rewrote DisplayClocks().
+
+  - Hal Peterson contributed a new Imakefile.
+
+  - Added a declaration, xtVersion, which will quickly break on R3 Intrinsics.
+
+  - For people who don't like or use chess clocks a clockMode switch
+    has been added.  It is on by default.  It can be turned off in the
+    .Xdefaults file with
+
+        XBoard.clockMode:    False
+
+  - Detect if the visual doesn't support color.  If so, run in monoMode.
+    An alternative would be to detect grayscale visual and use a collection
+    of gray user interface colors.
+
+  - Works with gcc now.  gcc complained about casting float constants
+    as XtPointers.
+
+  - Added keyboard equivalents.  Added an iconify keystroke, C or c.
+
+  - Added StrStr() because many systems don't have this ANSI function.
+
+  - Substantially rewrote and simplified the Two Machine code.
+
+  - The bitmaps have been pushed into the bitmaps directory.
+
+  - Fixed a bug where a player could play after a game had been finished.
+
+  - Fixed a bug where hint didn't work.  The local version of gnuchessr
+    had been hacked.  The fix was to clone stderr and stdout for gnuchessr.
+
+  - Kayvan Sylvan contributed a patch for ESIX.
+    It seems that select() on pipes is broken on his system.  We declined
+    to incorporate his patch though, because it was a work-around for
+    something that was broken on one system, and selfishly, that system
+    was not my own.  Nevertheless, it is likely that other System V users
+    on PC's may need to use this patch and it is is included as the file
+    ESIX.patch.  To use it, type
+
+        patch xboard.c ESIX.patch
+
+  - Any button restarts a paused game.
+
+  - Warning messages get displayed in the message box.
+
+  - getlogin() does not work in all cases.
+    It was replaced by getpwuid(getuid())->pw_name).
+
+  - For systems with smaller screens, XBoard can use smaller pieces,
+    and a smaller board.  -bigSizeMode False uses a smaller set of pieces.
+    These are scaled versions of the large pieces.  They look ok but could
+    be improved.
+
+  - -iconic doesn't work properly.  If XBoard is opened iconic then
+    iconifying it later with a keystroke doesn't work.  I think
+    this is an Xt bug.
+
+  - the remoteShell resource was added for HP-UX systems
+    and other systems where the remoteShell isn't rsh.
+
+  - older non-ANSI versions of Sun compilers complain vociferously.
+
+  - Roger Dubar, Konstantinos Konstantinides, Wolfgang S. Rupprecht,
+    Paul Scowen, Mvh Smidt and Kayvan Sylvan all helped immensely during
+    beta-testing.
+
+Version 1.2 -- Tue Jun 11 17:14:12 PDT 1991
+
+  - Added a lex parser for algebraic games.  It should be easy to use the parser
+    for other interfaces such as the Microsoft Windows version.
+    It parses comments of the form [anything] and ! to the end of a line.
+
+  - Corrected the queening code.  XBoard was sending the wrong syntax.
+    It was sending for example h8(Q) when it should have been sending h8q.
+    Thanks to Paul Vaughan and Mike McGann for pointing this out.
+
+  - Moved the man page from xboard.1 to xboard.man.  This makes imake man page
+    installs work correctly.  Thanks to Richard K. Lloyd for pointing this out.
+
+  - Changed the forwards/backwards/readgamefile code to allow a play to step
+    back and forth in a game.  If he steps all the way to the beginning
+    he has to restart the game.  If he gets into a mated position, same problem.
+
+  - Modified the code to use the R4 routines rather than R3 compatibility.
+
+  - Added a PopUp dialog for getting file names.
+
+  - If the first character of the file is not `1' then the first line
+    of a game or position file is displayed as the name in a label widget.
+
+  - Minor hacks to work with R5 alpha.  Had to add an event handler to the
+    boardWidget to get translations to work.  This may go away with the real R5.
+    Added <Message>WM_PROTOCOLS: QuitProc() for R5 ICCCM compatibility.
+
+  - If the DisplayWidth or DisplayHeight is less than 800, use small size mode.
+    Also the size of the name widget was reduced from 500 pixels to 400 pixels
+    because in small size mode there was a gap on the right.
+    Changed the default font from fixed to helvetica_oblique14 to:
+        -*-helvetica-bold-r-normal--14-*-*-*-*-*-*-*
+    helvetica_oblique14 is a font alias not on all R4 systems.
+    Curiously enough, the 17 point is not available on 75dpi systems
+    and the 18 point font is not available on 100dpi systems.
+    Thanks to Richard K. Lloyd for pointing these out.
+
+  - Fixed a compiler warning for gcc and an error for the IBM RT compilers.
+    This is the VOID_PROC macro in xboard.h.  Thanks to David Jensen for this.
+
+  - -iconic doesn't work at all now.  The Iconify() does work.  This was
+    a tradeoff and it is really an Xt bug.
+
+  - fixed a problem with the new version of gnuchessr where xboard wasn't
+    getting gnuchessr error messages for illegal moves.  The problem seems
+    to be fixed *without* any gnuchess changes but this is likely to be
+    highly system dependant.  There should be a new line on line 246 of nondsp.c
+
+        printz ("Illegal move (no matching move generated)");
+
+    The xboard fix was to set non-blocking i/o on the read pipe for gnuchessr
+
+        fcntl(from_prog[0], F_SETFL, O_NDELAY);
+
+  - The bitmap file names were changed so that none exceeded 14 characters.
+    This is necessary for R5.
+
+  - Added the CHESSDIR environment variable.  Game and position files are
+    found in this directory.  If this variable is not declared, then the
+    current directory is used.  File names starting with / are treated
+    specially.
+
+  - Fixed a bug where saving a long game, resetting and saving a short game
+    resulted in appending the end of the long game to the short one.
+    If a game is just being played out and there is no reason for gnuchessr
+    to be used, ignore pipe signals.  This allows people to use xboard
+    as a chess board without need for gnuchess.  Also, trivially bad moves
+    such as e2e2 are not passed on to gnuchessr but instead ignored out of
+    hand.  This allows people using xboard as a chessboard with gnuchessr
+    to pick a piece up, think and put it back down without making a move.
+    Thanks to Jeff Kenton for pointing these out.
+
+  - Fixed a bug where the checkmate message wasn't being parsed and xboard
+    kept playing.  Also, the message was added to game file if saved.
+    Thanks to Scott Hemhill for pointing this out.
+
+  - enumerations are not really integers on some C compilers.  I added casting.
+    The new version of gnuchess expects the "go" command for two machine
+    and machine plays white cases.  The whiteString resource is for
+    compatibility with previous gnuchess versions which get confused by go.
+    Thanks to Martin D. for catching these.
+
+  - There was an off by one error with the clock resetting code.  Also,
+    the clock display highliting was wrong.  Thanks to Bill Shauck for
+    pointing these out.
+
+  - Changed the protocol that xboard uses to work with the new version of
+    gnuchessr.
+
+  - For version 1.2, Jeff Kenton, Richard LLoyd, David Jensen, Martin D.,
+    Bill Schmidt, Scott Hemphill, Paul Vaughan and Bill Shauck all found
+    a lot of bugs that we put into xboard just to see if they were paying
+    attention.  They were.
+
+Thu Jun 20 15:04:06 PDT 1991
+
+  Minor fixes to the 1.2 release
+
+  - Multiple uses of the get positition file button got confused
+    on the second click.
+
+  - Long game file comments cause core dumps on HP systems.
+
+  - Parsed comments as [ ..............text follows ] into d7d5
+
+  - New-line wasn't always being added to forward move strings sent to gnuchess.
+
+  - Put easy back into the initString.  This DISABLES easy mode which by
+    default is ON.
+
+  - Can't do a backward move when it isn't your turn because gnuchess
+    gets confused.  Similar bug for forward move.  Do a bunch of moves,
+    back up move and go forward.  These get filtered out now.
+
+Thu Jun 27 15:06:25 PDT 1991
+
+  - Bug in my forward move fix.  Didn't work for playgamefile mode.
+
+  - Remove comment popups during a reset.
+
+Version 1.3 -- Thu Dec 19 18:19:00 PST 1991  mann@src.dec.com (Tim Mann)
+
+I've fixed a slew of bugs in this version of xboard.
+
+- Backward/Forward now seem to work in all cases.  Previously using these
+buttons during a game against the machine would get xboard out of sync with
+gnuchess's idea of what was going on, resulting in chaos.  Now using these
+buttons puts xboard in ForceMoves mode; you can bring gnuchess back into the
+game using the MachineWhite or MachineBlack buttons.
+
+- PlayFromFile now leaves xboard in ForceMoves mode after playing through all
+the moves in the file.  You can use Backward/Forward, make moves, get gnuchess
+to join the game with MachineWhite or MachineBlack, etc.  The game file can end
+with either white or black to play.
+
+- SetupFromFile now leaves you (effectively) in ForceMoves mode.  This
+eliminates some cases where the program would get into an inconsistent state,
+and hopefully is more intuitive for the user, too.
+
+- SavePosition/SetupFromFile now handle black-to-play positions.  If it's
+black's move in a saved position, the line "black to play" is printed
+immediately after the board display.  Upon loading a position, xboard
+looks for "black" at the beginning of this line to determine whether it's
+black's move.
+
+- gnuchess 3.1+ has a bug that makes it try to think on its opponent's time
+even when in force mode; this causes problems with xboard's SetupFromFile
+command because gnuchess's saved hint move is garbage after the new position is
+loaded, so gnuchess prints out an error message when it tries to think about
+what it would do if the user made this move.  Here is a patch for gnuchess
+3.1+:
+
+*** nondsp.c~   Mon Dec  2 12:37:18 1991
+--- nondsp.c    Thu Dec 19 15:36:06 1991
+***************
+*** 1223,1229 ****
+    ok = flag.quit = false;
+    player = opponent;
+    ft = 0;
+!   if (hint > 0 && !flag.easy && Book == NULL)
+      {
+        fflush (stdout);
+        time0 = time ((long *) 0);
+--- 1223,1229 ----
+    ok = flag.quit = false;
+    player = opponent;
+    ft = 0;
+!   if (hint > 0 && !flag.easy && Book == NULL && !flag.force)
+      {
+        fflush (stdout);
+        time0 = time ((long *) 0);
+
+
+- Now updates the to-move indicator (highlight on clock display) when you use
+Forward/Backward or ForceMoves.
+
+- Now starts the machine's clock if you hit MachineWhite when white is on move
+or MachineBlack when black is on move.
+
+- Fixed one or two bugs where the clock was started when it shouldn't have
+been.  I think one example was if you tried an illegal move in ForceMoves mode.
+
+- As I received it, the distribution had an extra period glued on the front
+of every line that started with a period.  This broke the manpage in an
+obvious way.  It also broke parser.l in a nonobvious way that stopped
+PlayFromFile from working.
+
+- xboard.c got three compiler warnings due to arguments that didn't match the
+prototypes on X toolkit functions.  I got rid of them by adding some casts, and
+adding extra unused arguments to the ReceiveFromProgram function.
+
+- programName is now the last pathname component of argv[0], not all of it.
+
+- Removed the feature of putting an indication of how the game ended into the
+internal move list when playing from a file.  The only benefit of this was that
+it would get written back out if you saved the game at that point.  This
+feature doesn't seem too useful, since you are unlikely to save a game you've
+read in without making any changes, and it caused a lot of problems in the code
+and user interface.  The end condition is still displayed as a message when
+it's first read in from the file.  End conditions when playing against gnuchess
+are still saved, too.
+
+- Added a wait() after each successful call to kill() to avoid leaving zombie
+processes around.
+
+- I removed the parser feature of considering "!" as a comment delimiter.
+"!" is so common as an annotation in game scores that this feature seems like a
+very bad idea.
+
+- The parser now recognizes "white resigns" and "black resigns" (in any
+combination of upper and lower case, with or without the closing "s").  These
+used to be misinterpreted as meaning "white wins" or "black wins" respectively!
+Added "1 - 0" and "0 - 1" as equivalents for "1-0" and "0-1".
+
+- ForceMoves button is now legal in PlayFromFile mode.  It closes the game file
+and lets you force moves (or go Backward) from whatever position you've
+reached.
+
+- Note: the "force" command to gnuchess is a toggle.  I fixed a couple of
+places in xboard where "force" was being issued when gnuchess was already in
+force mode, which resulted in chaos.  I don't know if they were in 1.2 or if I
+added them myself in the course of putting in new features.
+
+- You can now back up from the end of a game, even if gnuchess was playing
+against you.  Since gnuchess exits upon mate or draw (when it's not in force
+mode), this feature works by starting up a new copy of gnuchess and feeding it
+the saved starting position and moves.  Drawback: the new gnuchess starts with
+clocks at the beginning of a fresh time control.
+
+Mon Feb 24 20:10:22 PST 1992
+
+- Merged fixes received from Stuart Cracraft and Mike McGann, to iconic mode
+and to ShutdownChessPrograms.  (They both sent the same fixes.)  I did not
+install the change that removed "easy" from the initialization string, so
+xboard will still try to run gnuchessx in "hard" mode (thinking on opponent's
+time) by sending this command.
+
+Sat Mar 14 14:55:24 PST 1992 (patchlevel 7)
+
+- Added code to send SIGINT to gnuchess before trying to move, if gnuchess
+might be busy thinking on our time.  The code is ifdef'ed out because it's
+not necessary; only beta-test versions of gnuchess 4.0 at patchlevel 19 or
+below require it.
+
+- Added pop-up dialog to allow underpromotion.  Moving a pawn to the last rank
+pops up a dialog to let you select what piece to promote to.  Also added code
+to handle underpromotion moves from gnuchess or from a game file correctly.
+
+- More permissive about game file format.  The first line is not assumed
+to be a header comment unless it starts with "#".  We don't insist on
+seeing a "1." before the first move.
+
+- Bug fix:  No longer hangs if no start-of-game is found in a game file.
+
+- Prints "White to play" or "Black to play" after loading a position file.
+
+- Bug fix:  Doesn't get confused if you hit Machine Black (White) while
+the machine is already playing black (white) and is on move.
+
+- Bug fix:  Doesn't exit at the end of a game that was started by pressing
+the Two Machines button.
+
+- Relabeled buttons to reduce confusion (Play From File --> Load Game;
+Setup From File --> Load Position).
+
+- Cleaned up lots of bugs and kruft in parser.l.  It's a wonder the old version
+worked at all.  Improved rejection of random text interspersed with the moves.
+
+Mon Mar 16 16:49:00 PST 1992 (patchlevel 8)
+
+- Underpromotion moves from gnuchess really work now.
+
+- Game and position files are saved in CHESSDIR as well as loaded from there.
+We actually chdir there, so gnuchess listing files also wind up there.
+
+Tue Mar 17 21:00:35 PST 1992 (patchlevel 9)
+
+- Bug fix: Was clobbering memory by mallocing one byte too few for the filename
+in SetupPositionFromFileProc.  This usually resulted in a crash on the second
+attempt to load a position from a file.
+
+- My trick for setting up a black-to-play position broke in the transition from
+gnuchess 3.1+ to 4.0.  Installed a different trick that works with both.
+
+- Setting -searchTime turns off -clockMode.
+
+- Saved games against gnuchess indicate who won (restored and debugged 1.2
+feature). 
+
+- Cleaned up handling of illegal moves in game files.  Now we just stop reading
+and go into ForceMoves mode.
+
+- Bug fix: The program would sometimes lose track of the board position after
+the end of the game, drawing a board full of white pawns next time it got an X
+redraw request.  Now fixed.
+
+- Matches between two machines can now start from a black-to-play position or
+black-to-play opening.
+
+- Now waits for chess program to print its first message (normally "Chess")
+before sending it any commands.
+
+- Removed non-working code that tried to recover when a remote chess program
+could not be started; now exits with a message instead.
+
+Sat Mar 21 14:57:37 PST 1992 (patchlevel 10)
+
+- Added -searchLevel option and corrected handling of -searchTime to reflect
+the way gnuchess really handles command line options instead of what the
+documentation used to say.  Allowed optional ":seconds" on times.
+
+- Bug fix:  SwitchSides button is now disabled when machine is on move.
+
+- Sends o-o or o-o-o to gnuchess instead of O-O or O-O-O.
+
+- ForceMoves and Backward/Forward now work at the end of a game started by
+the TwoMachines button.
+
+- TwoMachines now works from MachineWhite or MachineBlack mode.
+
+Thu Apr  2 15:30:22 PST 1992 (patchlevel 11)
+
+- Bug fix:  Hint button is now disabled when machine is on move.
+
+- UI improvement: Button representing current program mode is kept highlighted.
+
+- Promotion popup now appears near rank to which pawn is moving.
+
+- Reformatted xboard.c to eliminate long lines.
+
+- Added EditPosition mode.
+
+- Removed SwitchSides button to make room for EditPosition.  Left code in
+place, ifdef'ed out.
+
+- parser accepts ":" notation for captures
+
+- parser accepts "=" in front of promotion piece
+
+- added -noChessProgram option to allow use as a passive chessboard without
+gnuchess, replacing old buggy scheme that tried to do this automatically when
+gnuchess was not found on the search path.
+
+- added error message feedback to many cases where the user's button press is
+rejected because it isn't allowed in the current mode.
+
+- Bugfix:  Match started with TwoMachines button now handles the case where
+user loaded/edited a position *and* forced some moves.
+
+Version 2.0 -- Thu Apr  2 16:04:54 PST 1992 (patchlevel 12)
+
+- Changed version number to 2.0 because others have used "1.3" for patched
+versions of 1.2.  Display version number and patchlevel at startup.
+
+- Put back feature of skipping over stuff in game files before a start of game
+marker.  This helps when loading electronic mail messages that have things
+like "00" in the header (looks like castling), or that talk about moves in
+running text before the actual game score.  Tradeoff is that we can't load
+games that don't either have move numbers or say "gnuchess game" just before
+the moves.
+
+- Tightened parser's definition of a move number to help further with skipping
+over stuff before the first move.
+
+- Removed "To play" from edit position menus, since it's redundant.  Left
+support code in so it can be restored if someone wants it.
+
+- Made "Pawn" the default on edit position menus.
+
+- SavePosition while in EditPosition mode now gets side to play right.
+
+- Saved position files now say "white to play" if it's white's move.
+
+- Improved man page.
+
+- Added small 40x40 pixel pieces; board size now specified as small, medium, or
+large. 
+
+Mon Apr 13 18:32:27 PDT 1992 (patchlevel 13)
+
+- Debugged man page.
+
+- Improved error handling when gnuchessx crashes.  Now displays a message and
+enters EndOfGame state without exiting.  This should help with diagnosing
+gnuchessx problems, since the position and move history are not lost.
+
+Tue May 19 11:58:06 PDT 1992 (patchlevel 14)
+
+- Fixes one small bug: If LoadGame does not find a game in the file, it resets
+xboard to BeginningOfGame mode (as if the Reset button was pressed), instead of
+leaving it in LoadGame mode.
+
+Thu May 21 12:30:09 PDT 1992 (patchlevel 15)
+
+- Bugfix: code to exit if chess program couldn't be started had bug in error
+message printing.
+
+- Added casts in parser.l to prevent warning messages from some C compilers.
+
+- Removed -g from Imakefile.
+
+Fri May 22 13:40:50 PDT 1992 (patchlevel 16)
+
+- Added GNU copyleft notices covering version 2.0 enhancements.
+
+- First real (non-beta) release of version 2.0.
+
+Sun May 31 08:00:00 PDT 1992 (patchlevel 17) Bart Massey bart@cs.uoregon.edu
+
+-  'xboard' suffered from a couple of serious bugs.  An initial
+   size needed to be given to the message label to avoid a race
+   condition (!) so I gave it some text (otherwise occasionally
+   xboard would fail because the message widget was 0 width under
+   MIT X11R4).  The sizes needed to be Dimension, not int, because
+   they were written in by Xt -- on my big-endian box Dimension
+   is short, causing chaos.  Also, I hacked a declaration in for
+   strrchr() to shut the compiler up -- this is arguably a kludge,
+   but I couldn't think of anything better; maybe you can.
+
+Wed Jun  3 17:50:37 PDT 1992 (patchlevel 18) mann@src.dec.com
+
+Thanks to Richard K. Lloyd, Konstantinos Konstantinides, Mark Seiden, Erik
+Schoenfelder, Andreas Stolcke, Rainer Orth, Henry Thomas, and Kris Van Hees for
+bug reports and help with fixes.
+
+- Removed code that tries to put the file descriptor used to read messages from
+gnuchess into nonblocking mode.  I don't see how this kludge could ever have
+fixed the problem it was intended to (see above), and it seemed to be causing
+a race condition when we were waiting for the initial message from gnuchess
+after it started up.
+
+- InitChessProgram returns immediately if chess program died while we were
+waiting for it to say "Chess".  I think this fixes a bug that could make xboard
+crash or go into an infinite loop printing "Warning: Select failed; error code
+9" if gnuchess crashed there.
+
+- Fixed a bunch of type errors uncovered by compilers that check more carefully
+than the one I was using.  I just patched many of them with casts---typically
+cases where a function didn't take the same number and type of arguments as the
+X header file prototype said it should---because I didn't see any other way to
+fix them.  The versions of the X header files that I have don't actually have
+full prototypes for these function types; they declare only the return type and
+just give the argument types as comments.
+
+- Removed the declaration of strrchr, which was causing problems for some
+people, and added an include of <string.h> or <strings.h> instead.
+
+- Fixed a bug in CatchPipeSignal; was testing the wrong variable to determine
+which chess program got the signal.
+
+- Added an include of sys/fcntl.h to pick up the definition of O_RDWR for
+System V users.
+
+Fri Jun  5 13:06:08 PDT 1992 (patchlevel 19)
+
+Thanks to Christoph Strozyk for another bug report, and to several of the folks
+mentioned under patchlevel 18 for testing it.
+
+- Changed variable name that conflicted with SVR4 ttyname function.
+
+- Removed bogus files from distribution.
+
+- Note: xboard does not seem to work when compiled with gcc 1.40 on a PS/2
+running AIX.  It crashes at the sscanf in line 768 of xboard.c.  You can work
+around the problem by specifying the -timeControl option on the command line
+instead of defaulting it.  This does not seem to be a bug in xboard itself; it
+runs okay on PS/2 AIX when compiled with MetaWare High C.
+
+Mon Jun  8 11:39:18 PDT 1992 (patchlevel 20)
+
+Thanks to Mitch Wright, Ranier Orth, and Henrik Schmiediche for bug reports.
+
+- Minor fix to some usage error messages; was reversing program name and
+erroneous argument value.
+
+- Changed code to work with old-fashioned tolower() macro that requires its
+argument to be an uppercase letter.
+
+- Fix to "parser bug" messages in parser.l.
+
+- Include time.h to get ctime() declaration.
+
+- Fixed confusion of NULL and '\000'.
+
+- "Flag dropped" messages now show up on the top line, beside the clocks, so
+that they don't obscure more interesting messages on the second line.
+
+- Improved clock code.  It now keeps accurate track of fractional seconds of
+clock running time, if your system has gettimeofday(); if not, it is generous
+about them---if a clock has been going for n.m seconds when it is stopped, only
+n seconds are charged.  Previously, xboard would charge one second immediately
+when a clock was started, so if n.m had elapsed when it was stopped, n+1 would
+be charged.  This should stop xboard from thinking gnuchess has let its flag
+fall on the last move of a time control, as it often did before.  I also
+improved the comments and condensed the code a little.  I hope there are no
+systems that have X11 and don't have gettimeofday(), but if there are, I'd like
+to know what to replace it with.
+
+- Redid -searchDepth (formerly -searchLevel) and -searchTime code.  They both
+work correctly with gnuchess 3.1 now.  The -searchDepth option also works
+correctly with gnuchess 4.0.  The -searchTime option does not work with
+gnuchess 4.0.pl50 or earlier because those gnuchess versions do not have a
+working searchTime feature.  Instead of having xboard do a half-baked emulation
+of this feature by using a 1-move time control, I will be submitting a patch to
+the gnuchess folks to restore the feature as in 3.1.
+
+- Documented default value of initString and explained what it means.  This
+paragraph also serves to inform the user that xboard by default will tell
+gnuchess to think on his time, something one user apparently didn't understand.
+
+Mon Jun 22 13:24:38 PDT 1992 (patchlevel 21)
+
+Thanks for reports from Mike Pearlman, Stephen Meatheringham, Kayvan Sylvan,
+d87-mal@nada.kth.se, Urban Koistinen, and Ronald Cole.
+
+- Added include of <sys/time.h> conditional on HAS_GETTIMEOFDAY.  I hope this
+works for all systems; on mine, <time.h> and <sys/time.h> are the same file,
+but with an #ifndef that makes it harmless to include both.
+
+- Man page fixes: corrected -sl to -sd, updated LIMITATIONS.
+
+- Fixed yet another bug in using XtGetValues; code to inhibit shell resizing
+was leaving a null pointer as the place to store the current sizes.
+
+- The ATTENTION code is needed when compiling for the ESIX operating system,
+because ESIX has a bug in the FIONREAD ioctl, so the code in gnuchess that
+lets you interrupt its thinking on your time just by typing in your move does
+not work.  Perhaps gnuchess will have a workaround for this eventually.
+
+- Fixed a problem with ATTENTION code.  On some operating systems, you have to
+be even more cautious about when you send a SIGINT to gnuchess, because the
+signal handler gets deinstalled each time it is used, and gnuchess does not
+reinstall it immediately.  In particular, if you send a SIGINT and make an
+illegal move or ask for a hint, gnuchess does not reinstall the handler until
+*after* you make your next move, so you had better not send a SIGINT before
+it.  I put a workaround for this case into xboard; I hope there are no more.
+
+- Note:  Stephen Meatheringham reports a bug causing xboard to crash with an
+error from the X server when run on a Sun Sparcstation IPX with Solaris 1.0.1
+and OpenWindows 3.0.  This bug has not been tracked down yet.
+
+- Added some SVR4 support code from Ronald Cole.  It's Greek to me.
+
+Mon Jul  6 17:55:32 PDT 1992 (patchlevel 22) mann@src.dec.com
+
+- Added a small ESIX patch from Kayvan Sylvan.
+
+- Corrected clocks to work as in real tournaments.  Time is *added* when you
+reach time control; previously the clocks were simply set to the length of the
+new time period.  Also, when a player's flag falls, he still does not receive a
+new time allotment at the next time control, but his opponent does still
+receive more time if *his* flag has not fallen; previously, time controls were
+ignored for both players if either flag fell.  I forget who reported this bug.
+
+- Despite one complaint, I kept the feature of changing both clocks when black
+makes time control, rather than changing each individually when the player
+involved makes it.  This is to avoid having it look like White is way ahead on
+time while Black is thinking about the last move of the time control period
+(i.e., when White has made time control but Black hasn't yet).
+
+- Swapped EditPosition and Pause buttons to reduce danger of losing the
+game in progress by hitting EditPosition when you wanted Backward.  Thanks
+to Ove Lundberg for complaining (though it bugged me too).
+
+- Added optional display of algebraic notation coordinates along left and
+bottom edges of board.  This was inspired by some code from Jean-Christophe
+Engel; thanks!
+
+- Fixed a couple of problems compiling on IRIX; thanks to Michel Arsenault
+and Alan Walsh for bug reports and help with fixes.
+
+- After hitting the Backward button we see the last move made instead of
+the word "Pausing" displayed.
+
+- AIXV3 patch from Tom McConnell; thanks!
+
+Mon Aug 10 18:40:47 PDT 1992 (patchlevel 23) mann@src.dec.com
+
+- Fixed parser bugs in handling moves with rank or file disambiguator,
+e.g. N1f3 or Ngf3.
+
+- Added code so parser can handle fully qualified algebraic, e.g.,
+Ng1-f3, N/g1-f3, Ng1f3, or even Pe2-e4.  The "P" and "/" work only for
+fully qualified moves, not generally.
+
+Mon Sep 14 13:19:01 PDT 1992 (patchlevel 24) mann@src.dec.com
+
+- The parser now detects when a move is ambiguous and returns an
+error, instead of arbitrarily choosing one possibility as it used to.
+
+- The parser no longer munges the move it is parsing; in the past, for
+instance, it would remove the "x" from a move like dxc5 before echoing
+it to the screen.
+
+- A move like fxe5 can no longer be interpreted as an e.p. capture if
+there isn't a pawn on e5 to be captured.  Previously this could happen
+erroneously if there were pawns on both f4 and f5, and the f4 pawn was
+capturing a piece on e5.
+
+- A move like fxe6 or fe6 is now interpreted as an e.p. capture of the
+pawn on e5 if there is one there and e6 is empty.
+
+- It's not really correct to write an ep capture of a pawn on e5 as
+fxe5; this should be written as fxe6 because e6 is where the capturing
+pawn ends up.  Nevertheless, the parser now interprets fxe5 as the ep
+capture f5xe6 unless there is a pawn on f4, in which case it
+interprets fxe5 as f4xe5.  By design, the parser does not flag fxe5 as
+ambiguous if there are pawns on both f4 and f5; instead it prefers the
+more legitimate f4xe5 interpretation.
+
+Fri Oct 30 20:16:40 PST 1992 (patchlevel 25) mann@src.dec.com
+
+- Added code to format moves in normal abbreviated algebraic notation
+(for example, e4, exd4, f8Q, Nf6, 0-0) instead of coordinate algebraic
+(for example, e2e4, e3d4, f7f8q, g1f6, e1g1).  Moves entered with the
+mouse or received from gnuchess are translated into this canonical
+format for display on the message line or in saved game files.  Moves
+read from game files are not translated, however; they are shown and
+saved just as they appear in the file.
+
+- gnuchess now castles by sending us "o-o" or "o-o-o" (starting with a
+preliminary version of 4.0.pl60 that I have).  Added code to handle
+this.  The old format ("e1g1", etc.) still works too.
+
+Version 2.1, patchlevel 0 -- Fri Nov 27 02:00:00 PST 1992 -- mann@src.dec.com
+
+- Merged in code from John Chanak to make xboard a front end to the
+Internet Chess Server, and added several improvements of my own.
+(These include parsing end of game messages, loading the current state
+and previous history of a game that's joined in progress via "watch"
+or "load", automatic switch from board style 1 to 8 when needed,
+removing irrelevant buttons and adding some new ones, adding the
+useTelnet and gateway resources, and miscellaneous code cleanup, bug
+fixes, and documentation.)  Many thanks to John for writing and
+contributing the initial version of this code.
+
+- Send "quit" to gnuchess before trying to kill it.  I needed this
+locally because sending a SIGTERM to rsh was not killing the remote
+program on some internal field test systems we have.
+
+- Parser understands things that look like time indications, e.g., (0:12),
+instead of popping them up as comments.
+
+- Improved error checking when trying to read from gnuchess.
+
+- Saved games that start from other than the standard initial position
+now begin with a postion diagram as in saved position files.  The
+loader is modified to understand such save files.
+
+- Added option to ring the bell after opponents' moves.
+
+- Forward and Backward now change only the board display unless you
+are in ForceMoves mode.  Pause mode keeps new moves that are received
+from being displayed on your screen until you unpause (or use
+Forward).
+
+- Pause, Backward, Forward, ForceMoves, and EditPosition now work from
+TwoMachines mode.
+
+- The reason a game ended is now remembered even if you move backward
+and forward after it ends.  It is forgotten only if you make a move
+(which is as it should be---this is now a different game, which hasn't
+ended yet).  The message saying why the game ended no longer wipes out
+the last move.
+
+- Attempts to move the wrong color piece or an empty square are filtered
+out in xboard instead of being passed on to GNU Chess or the ICS.
+
+- Filename dialog pops up under the mouse cursor, so that it's got the
+keyboard focus if the window manager is using pointer focus.
+
+- Uses "time" command of gnuchess 4.0 and following to keep clocks in
+sync.  Still works with older versions without this command; we test
+whether the command is present the first time each chess program is
+started.
+
+2.0 patchlevel 1 -- Fri Nov 27 02:45:00 PST 1992 -- mann@src.dec.com
+
+- A last minute change before patchlevel 0 went out broke
+ParseGameHistory().  Immediately fixed in patchlevel 1.
+
+2.0 patchlevel 2 -- Fri Nov 27 23:30:00 PST 1992 -- mann@src.dec.com
+
+- Many changes to get rid of picky compiler warnings and generally
+clean up the code.
+
+- Fixed bug with PromoPiece in call to MakeAlg from MakeMove.
+
+- Added autoSaveGames mode.
+
+- Changed load{Game,Position}File resources to trigger automatic load
+on program startup.  Changed save{Game,Position}File resources to
+trigger automatic save after every completed game and on program exit.
+
+- Changed Save{Game,Position} functions to append instead of
+overwriting if file exists.  Changed Load{Game,Position} functions to
+deal with multiple games/positions per file.
+
+- Fixed bugs in Forward/Backward while in LoadGame mode.
+
+- Fixed yylexstr() so calls to it can be interspersed with calls to
+yylex().
+
+- If you move the comment popup, the next time it pops up it will come
+back where you put it.
+
+patchlevel 3 -- Tue Dec  1 19:40:40 PST 1992 -- mann@src.dec.com
+
+- Bug fix: An extra Forward was required to skip over time indications
+in game files.
+
+- Default fonts now vary with board size, and are chosen by pixel size
+instead of point size (since piece bitmaps have a fixed pixel size).
+
+- Moves read from game files or received from ICS are now translated
+into canonical algebraic form just like all other moves.  Minor nit:
+If you use Reset while playing or observing a game in ICS mode, the
+game history (including the current board position) is lost, so the
+next move of the current game can't be translated.
+
+- (Tried to put in a feature that recognizes the current game in a
+game file must have ended when we see the start of a new one, but had
+to disable it because we have too many false hits with the current
+parser, especially in gnuchess listing files.)
+
+- Redid ParseBoard8 to use sscanf.  Code is a good deal cleaner now.
+Also, we now parse out the game number too, though we don't make much
+use of it yet.
+
+- Added code to try to prevent user from watching and/or playing more
+than one game at a time.  There is a race condition inherent here; if
+we get more than one board from the game before our command to stop
+watching it takes effect, we'll think the user started it again.  Not
+clear how to fix this.
+
+- Don't issue just "refresh" when watching a game; use game number.
+Upcoming new version of ICS may need this.
+
+- ResetProc always clears title line now.
+
+- Handles ICS message "* has restored your old game"
+
+- Fixed bugs in code for loading old position files that don't start
+with "#" and for handling case where user asked for nth position in
+file but there aren't that many.
+
+- Fixed bug in previous fix to yylexstr().
+
+- Added AcceptMatch button for ICS mode.
+
+- Handles ICS messages "Draw : neither player has mating
+material" and "Draw : White has no material, Black has no time."
+
+2.1, patchlevel 4 -- Sun Dec  6 02:55:42 PST 1992 -- mann@src.dec.com
+
+- Initial processing for a new game being watched or played now
+happens when we see the first board image.  Removes the need to parse
+some messages and unifies some code.
+
+- Now handles revised messages from new version of ICS.  New ICS is
+not released yet, so this code might change further.  Next patchlevel
+will remove support for old ICS; both are there now.
+
+2.1, patchlevel 5 -- Sun Dec  6 19:52:40 PST 1992 -- mann@src.dec.com
+
+- Added AcceptMatch button and mention of 50-move rule for Draw button
+to man page.
+
+- Corrected setting of mode to ForceMoves when game file ends or
+contains an AmbiguousMove or BadMove.  Previous bug was harmless.
+
+- Removed gcc and CDEBUGFLAGS from Imakefile.
+
+2.1, patchlevel 6 -- Tue Dec  8 10:48:44 PST 1992 -- mann@src.dec.com
+
+Thanks to Danny Sleator and Joe Peterson for bug reports.
+
+- Added code to recognize "both sides are out of time" draw message
+proposed for next version of ICS.
+
+- Added missing casts for compilers that distinguish enums from ints
+and missing cast in connect call.
+
+- Removed code to say "refresh n" instead of "refresh"; was broken and
+wasn't needed anyway.
+
+- Added workaround for minor bug in ICS; game number on first board
+can be wrong.
+
+- Added code for more variants of messages about games being adjourned
+or aborted.  These messages need to be unified in new version of ICS.
+
+- AcceptMatch button now works after a counterchallenge, too.
+
+- Removed some code that uses an X11R5 feature, XrmGetDatabase.
+Without this, the auto font sizing code is harder to make work, so to
+keep my sanity I had to change it to affect only the fonts that appear
+in the main window and the comment popup, not the other popups.  Maybe
+this is better anyway.
+
+- Changed searchDepth kludge back to using "help" instead of "bd"; the
+latter didn't work because the output contains a line starting with
+"White", so we think gnuchess is telling us that White won.  Oops.
+
+- Kludged around bug in keeping comment popup where you put it by
+adding borderXoffset and borderYoffset resources that give the width
+of the borders added by the window manager.  Yucch.
+
+2.1, patchlevel 7 - Fri Dec 11 17:40:56 PST 1992 - mann@src.dec.com
+
+- Track change to "Illegal move" message in new ICS.

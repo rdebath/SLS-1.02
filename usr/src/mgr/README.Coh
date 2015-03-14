@@ -1,0 +1,225 @@
+[This file is not up to date -- Michael]
+
+Readme for alpha/beta MGR under Coherent 4.0
+********************************************
+
+MGR is copyright 1988 Bellcore.  This release is based on the linux port of MGR.
+I would like to thank all the people at Bellcore, and all the people who worked
+on the linux port, and Vance Petree & Grant Edwards & Udo Munk for their work on
+Hercules, and Udo Munk for his work on serial mouse initialization & select, and
+Norman Bartek & Hal Snyder at Mark Williams Co. for their help with some bugs &
+with Coherent device drivers.  This is not the work of any one person!
+
+This is the combined Linux/Coherent release of MGR.  The main purpose of this
+release is to coordinate efforts in the development of MGR.  The use of 
+emulation header files and libraries allows Coherent to virtually use the same
+source code as the Linux version.
+
+This is the alpha/beta release of MGR for Coherent.  I have tested it under EGA
+640x200, EGA 640x350, VGA640x480.  I hope that it works under SVGA800x600 and 
+Trident SVGA1024x768.  I don't have an SVGA monitor so I can't test those 
+modes.  If you successfully (or unsuccessfully!) test a new mode, please let me
+know!
+
+I have also tested 2-button Microsoft mouses and 3-button Mousesystems mouses.
+There isn't support for bus mice yet.  If you get one working, let me know!
+(This will require extensive modification of get_mouse.c, and some modification
+of mgr.c and set_mode.c.)
+
+To use this package, you need Coherent 4.0.1r68 or later, Device Driver Kit 2.0
+or later, EGA, VGA (or SVGA or Hercules) graphics, and a serial mouse.  You 
+also need ~5MB of disk space for this package without objects and binaries.
+The objects and binaries will add another 2-3MB, so you should have at least 
+7MB free to install MGR.
+
+Please note that you must use gnu m4 to generate Configfile.  You need gnu m4 
+because Coherent's m4 doesn't support the -D option, used in Configure.
+
+Also note that you must use gnu make for these makefiles.  You need gnu make 
+because the makefiles use include, which Coherent's make doesn't have.
+
+Finally, you need my install program to run some of the 'make install' runs.
+
+You can get gnu m4, gnu make and install from me.  You should also be able to
+get these from MWC or raven (if they aren't there now, then they will be soon).
+
+Here are the basic steps involved in compiling and installing MGR:
+******************************************************************
+
+First, you must compile bm (the generic bit-mapped display driver) and link
+it into the kernel.  Then you must create /dev/bm.  You can get bm.tar.Z from
+raven.alaska.edu (/pub/coherent/incoming/MGR/ or /pub/coherent/sources32/MGR)
+or Udo Munk's private machine (contact udo@umunk.GUN.de for details).
+
+Run 'Configure' (remember you must use gnu m4).  Obviously, you should choose
+Coherent as the operating system.  Chose whatever video card you have.  Then
+choose your mouse type; if in doubt, try microsoft.  Don't choose MOVIE unless
+you are really adventurous (I haven't even looked at MOVIE yet).  The directory
+for MGR should be the directory you are in RIGHT NOW!
+
+Then check Configfile to make sure it matches your system.
+
+If not already done so, you must add the lines:
+
+#ifdef COHERENT
+#include "emulib.h"
+#endif
+
+to the top of the following files:
+
+include/bitmap.h
+src/clients/icon/snap.c
+src/clients/misc/close.c
+src/clients/misc/oclose.c
+src/libbitblit/movie/timestamp.c
+src/libmgr/term.c
+src/mgr/Write.c
+src/mgr/copyright.c
+src/mgr/cut.c
+src/mgr/destroy.c
+src/mgr/do_buckey.c
+src/mgr/do_button.c
+src/mgr/down_load.c
+src/mgr/emulib.inc
+src/mgr/get_info.c
+src/mgr/get_menus.c
+src/mgr/getshell.c
+src/mgr/mgr.c
+src/mgr/put_window.c
+src/mgr/set_mode.c
+src/mgr/startup.c
+src/mgr/subs.c
+src/mgr/utmp.c
+src/mgr/win_make.c
+src/mgr/win_stack.c
+src/mgr/write_ok.c
+
+Then link <signal.h> to <sys/signal.h> and <termio.h> to <termios.h>.  Touch
+<sys/wait.h> and <sys/file.h>.
+
+Now you must make the libraries, some utilities and finally mgr itself!  Just
+go into the directories and type 'make install'.  'make all' from this 
+directory won't work.  If you want a simpler install then this one, get the MGR
+package from raven.alaska.edu (all the files in /pub/coherent/incoming/MGR/ or
+/pub/coherent/sources32/MGR/); this package may not be as up to date as this 
+one but is easier to install.
+
+Now you must create /dev/mouse which is a link to the COM port which contains 
+your serial mouse.  My mouse is plugged into COM1 and I am running COM3 in 
+polled mode, so I used 'ln /dev/com1l /dev/mouse'.  You need to be root to
+execute this command.
+
+Go to src/misc.  'cat termcap>>/etc/termcap' to add the termcap entries for mgr
+to /etc/termcap (or edit them in if you like a particular order, etc.).  Then 
+type 'tic terminfo' to compile the terminfo entry for mgr.  You need to be root
+to alter termcap and you need to be root or bin to run tic.
+
+Now edit /etc/ttys.  Add the entries '0lttyp0' through '0lttyp9'.  You need to
+be root to edit /etc/ttys.
+
+OK, you have now compiled MGR!  For a simple test, don't copy the .mgrc file to
+your home directory yet.  Just go to bin/ and type mgr!  If everything was done 
+correctly, and my port is OK, then you should see the nifty-neato MGR Bellcore 
+copyright screen.  This screen is animated.  If it is working then much of the 
+graphics stuff has just been tested.  
+
+Press a key to go on.  You should see a 'herringbone' pattern and a mouse 
+cursor.  Try moving the mouse.  If that works, try pressing the LEFT mouse 
+button.  You should see a menu.  Pick 'new window'.  Now you will see an 
+'elastic band' box.  Hold down the left mouse button and 'sweep out' a box the
+size of the window that you want.  You should get a window with a shell in it.
+Play around for a bit!  If some programs (vi, other screen oriented programs)
+do not work properly, it is probably because your window is not 80x24
+characters in size.
+
+Now, copy miscstuff/mgrc to $HOME/.mgrc and modify it if you want.  Now exit 
+MGR (if you haven't already) and try starting it again.  You should start up 
+with two 80x24 terminal windows, an analog clock and a mailbox!
+
+Compile notes:
+**************
+
+I chose the gal7x11r font because it suits VGA640x480 on a 14" monitor.  You may
+want to change the default font later.  There is also a command-line option to 
+MGR (which doesn't work :-( ) and a line in $HOME/.mgrc to change the default 
+font.
+
+If you have Hercules and you already have a working adjust.S and hgc.c then you
+will want to copy them to src/libbitblit/coherent before you make the bitblit
+library.
+
+If you don't have a Video7 VGA card, try compiling the libbitblit stuff without
+that flag.  If you compile without the VIDEO7 flag and MGR does weird things on
+the screen, then you probably have a card which is not register compatible with
+IBM VGA (like my Video7 card).  If your VGA card does not work properly with
+or without the VIDEO7 macro defined, mail me and we will discuss the problem.
+
+You may need to add -T0 to the list of compile flags or else some source files
+will not be able to compile.  Most of them are small but there are also a few
+biggies.  I have 8MB of RAM and even I needed the -T0 for icon_server.c, so I
+changed src/mgr/Makefile to automatically use -T0 for that file.  [Note that
+if I don't do a 'make all' but instead go into src/mgr and do a 'make', I don't
+need the -T0 flag; three levels of gnu make take up a lot of memory!]
+
+Miscellaneous notes:
+********************
+
+Don't change the size of MAXSHELL in src/mgr/defs.h to 128.  This causes 
+problems for some weird reason.  This is probably a pty bug.  If you have
+applications hanging ("ttyoq" in the even field from 'ps -lax') then try 
+putting this value to 80 or 1024 and see if the problem goes away.
+
+I can bring Coherent to its knees (I can lock up the system tight as a marching
+snare drum).  I can do this by choosing the destroy option of the window menu
+under some situations.  The system will hang at the next poll/read/write cycle.
+I don't know why.  I think this is a poll/read/write bug.  As a workaround, add
+a sleep(1) after the kill() call in the destroy function in destroy.c.  This 
+seems to delay something long enough that nothing goes wrong.
+
+I have reported both of these bugs to MWC, so there isn't any need to report to
+them unless you find a new insight into the problems, in which case you should
+definitely report it!
+
+more and scat don't work for some reason.  I may be setting something up wrong
+in src/mgr/set_mode.c or src/mgr/getshell.c that causes these programs to fail.
+
+My pututline() routine only works if the user has permission to write to 
+/etc/utmp.  I don't know any way around this problem; the solution is to make
+/etc/utmp writible by all.  If you don't want to do this then you might as well
+compile with WHO undefined.  By default, WHO is not defined.  If you want to 
+use utmp logging, you must add -DWHO to MGRFLAGS and you must add getutmp.o to 
+the EMULIB and MEMULIB variables.
+
+Some programs do not work properly unless the screen is exactly or very close 
+to 80x24 characters in size.  If you get weird screen cursor positions, etc., 
+then you probably have a window that is too small or too big.
+
+If you get link conflicts inside libbitblit.a then you probably left both vga.o
+and hgc.o in the src/libbitblit/coherent directory when you maked libbitblit.
+Remove the one you are not using and it will link just fine.
+
+****
+
+If some clients don't compile right away, try adding the lines
+
+#ifdef COHERENT
+#include "emulib.h"
+#endif
+
+to the source files and see if they will compile.
+
+I have compiled many of the clients already.  Some work, some don't, some core
+dump, etc.  Some won't compile yet.  Please compile some clients!  Most 
+compiles are very easy.  The ones that want termios instead of termio can make
+use of the macros and stuff I have defined in src/mgr/set_mode.c.  I am not a 
+real terminal expert so someone who is may want to have a look at set_mode.c 
+and getshell.c.
+
+If you can't get MGR compiled or anything else, PLEASE EMAIL ME and I will see 
+what I forgot to tell you about...
+
+Please report all problems, bug fixes, etc. to me:
+
+Harry Pulley
+hcpiv@grumpy.cis.uoguelph.ca
+hcpiv@snowhite.cis.uoguelph.ca

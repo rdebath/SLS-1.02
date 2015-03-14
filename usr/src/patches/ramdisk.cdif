@@ -1,0 +1,42 @@
+*** ramdisk.c	Wed Feb 17 19:25:55 1993
+--- /usr/src/lx99p7/kernel/blk_drv/ramdisk.c	Tue Mar 30 19:52:22 1993
+***************
+*** 8,13 ****
+--- 8,14 ----
+  #include <linux/config.h>
+  #include <linux/sched.h>
+  #include <linux/minix_fs.h>
++ #include <linux/ext2_fs.h>
+  #include <linux/fs.h>
+  #include <linux/kernel.h>
+  #include <linux/string.h>
+***************
+*** 100,105 ****
+--- 101,108 ----
+  		(int) rd_start);
+  	if (MAJOR(ROOT_DEV) != 2)
+  		return;
++ 	if ((rd_length >> BLOCK_SIZE_BITS) > (1200-block))
++ 		block=0;
+  	bh = breada(ROOT_DEV,block+1,block,block+2,-1);
+  	if (!bh) {
+  		printk("Disk error while looking for ramdisk!\n");
+***************
+*** 108,115 ****
+  	*((struct minix_super_block *) &s) = *((struct minix_super_block *) bh->b_data);
+  	brelse(bh);
+  	if (s.s_magic != MINIX_SUPER_MAGIC)
+! 		/* No ram disk image present, assume normal floppy boot */
+! 		return;
+  	nblocks = s.s_nzones << s.s_log_zone_size;
+  	if (nblocks > (rd_length >> BLOCK_SIZE_BITS)) {
+  		printk("Ram disk image too big!  (%d blocks, %d avail)\n", 
+--- 111,118 ----
+  	*((struct minix_super_block *) &s) = *((struct minix_super_block *) bh->b_data);
+  	brelse(bh);
+  	if (s.s_magic != MINIX_SUPER_MAGIC)
+! 			/* No ram disk image present, assume normal floppy boot */
+! 			return;
+  	nblocks = s.s_nzones << s.s_log_zone_size;
+  	if (nblocks > (rd_length >> BLOCK_SIZE_BITS)) {
+  		printk("Ram disk image too big!  (%d blocks, %d avail)\n", 

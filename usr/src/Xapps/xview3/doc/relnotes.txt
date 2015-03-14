@@ -1,0 +1,437 @@
+The XView Toolkit
+
+
+6
+
+
+Overview
+
+
+This chapter describes the new and noteworthy changes to the XView 3.0 
+toolkit for the OpenWindows Version 3 environment. It also describes XView 
+issues, problems, and workarounds. For additional information, refer to the  
+XView Reference Manual  and the XView Programming Manual by O'Reilly and 
+Associates.  
+
+
+XView Issues, Problems, and Workarounds
+
+
+Linking Applications
+
+
+When an application links in libraries, all libraries must be dynamically or 
+statically linked. That is, some libraries cannot be dynamically linked while 
+others are statically linked.
+
+
+If an application used and modified XView 2.0 source and dynamically linked 
+the libraries when the application was built, the application will not run with 
+the XView 3.0 toolkit. The application must either re-link all XView 2.0 libraries 
+statically or remove the modified XView source.
+
+
+Saved Command Line Options
+
+
+In the XView 2.0 toolkit, only certain XView command line options are saved in 
+the .openwin-init file when a Save Workspace operation is performed. An 
+XView Version 2.0 workaround is to use the WIN_CMD_LINE attribute when 
+the base frame is created. This workaround ensures that all XView command 
+line options are stored in the .openwin-init file.
+
+
+The XView 3.0 environment now saves all XView command line options (those 
+seen when an XView application is invoked with the -help option) in the 
+.openwin-init file. Applications that still use WIN_CMD_LINE to store 
+XView command line options in the .openwin-init file will create entries 
+that contain duplicate command line options. Thus, instead of:
+
+
+	myprogram ... -label foo ...
+
+
+the entry would be:
+
+
+	myprogram ... -label foo ... -label foo ...
+
+
+To remove this duplication, do not pass in any XView command line options 
+with the attribute WIN_CMD_LINE.
+
+
+Selections Between XView 2.0 and 3.0 Panel Text Items
+
+
+There is a known selection problem between XView 2.0 panel text items and 
+XView 3.0 panel text items. Under certain circumstances quick selections 
+(secondary) will not work. Quick selections between XView 3.0 applications 
+will work.
+
+
+event_is_ascii()
+
+
+The macro event_is_ascii(event) is now defined as:
+
+
+((event_action(event) >= ASCII_FIRST)&&
+(event_action(event) <= ASCII_LAST))
+
+
+Previous to the XView 3.0 toolkit, event_is_ascii(event) was defined as:
+
+
+((event_id(event) >= ASCII_FIRST) && 
+(event_id(event) <= ASCII_LAST)
+
+
+This change may affect those applications that rely on event codes instead of 
+XView semantic actions. The new version of event_is_ascii() complies 
+with the OPEN LOOK Mouseless Model, which was implemented in this 
+version of the XView toolkit. Applications may be affected by the 
+event_is_ascii() change only when they recompile, since 
+event_is_ascii() is a macro, not a procedure.
+
+
+event_is_iso(event)
+
+
+The macro event_is_iso(event) is now defined as:
+
+
+((event_id(event) >= ISO_FIRST) &&
+(event_id(event) <= ISO_LAST))
+
+
+Previous to the XView 3.0 toolkit, event_is_iso(event) was defined as:
+
+
+((event_action(event) >= ISO_FIRST) &&
+(event_action(event) <= ISO_LAST))
+
+
+Since event_is_meta(event) is defined as:
+
+
+(event_is_iso(event) && event_meta_is_down(event))
+
+
+the definition for event_is_meta(event) has also changed.
+
+
+Applications that do not use XView semantic actions (for example, terminal 
+emulators) should not use these macros, since some XView semantic actions 
+are now mapped to ASCII characters in combination with modifier keys (for 
+example, the Meta keys). Instead, these programs should examine 
+event_id(event) directly, and ignore the event->action mapping.
+
+
+WIN_RESIZE Changes
+
+
+XView 2.0 applications that created window-based objects such as a CANVAS 
+or a PANEL typically received a WIN_RESIZE event after xv_main_loop() 
+was called, but before the window was mapped. This was due to a bug in the 
+XView 2.0 toolkit which has been fixed in 3.0. Note that application window-
+based objects should not rely on receiving a WIN_RESIZE event when created.
+
+
+Notifier Error
+
+
+Due to a bug in the XView toolkit, certain XView application such as 
+Command Tool or Text Editor may print a warning when killed with the kill 
+command. The warning appears as follows, and can be ignored:
+
+
+XView warning: Notifier error : Unknown client
+
+
+This warning bug does not appear when the application is quit using the 
+window menu.
+
+
+xvps
+
+
+Although the XView PostScript Support libraries (xvps) are still included with 
+this OpenWindows release, the demo programs and sample source code that 
+illustrated how to use xvps in previous OpenWindows releases are not being 
+included. Refer to the XView Programming Manual for instructions on how to 
+use xvps. Note that xvps is still a demo-quality product, and you should not 
+base your product around it. 
+
+
+PSCANVAS Transform for libxvps
+
+
+The current default transform for a PSCANVAS is the NeWS coordinate space 
+(origin in the bottom left corner). In xvps 0.2, there is one exception to the 
+above case, and that is when repaint_proc() is called. 
+
+
+When repaint_proc() is called, the xvps library switches the transform for 
+the PSCANVAS to the X-coordinate system (origin in the top left corner). xvps 
+clients should be aware of this switch to the X-coordinate space, when the 
+repaint_proc() is called.
+
+
+CUT, COPY, and PASTE Problems
+
+
+Cut, Copy, and Paste operations from within Deskset applications may become 
+disabled if the default modifier map for the Cut and Paste key is changed. The 
+Cut and Paste modifier map entries must be together on a single modifier map 
+entry line. This can be verified by entering the command xmodmap<Return>. 
+Props, Cut, and Paste keymappings (F13, F18, and F20 respectively) should all 
+be on a single line entry as follows:
+
+
+modX       F13 (0x20),  F18 (0x50),  F20 (0x68)
+
+
+where X can be any integer. If there are any other key entries (for example, 
+Mode_switch or Num_Lock) in the same entry, Cut, Copy, and Paste 
+operations may fail to work.
+
+
+Modifier maps are usually changed through an xmodmap entry in the user's 
+.xinitrc or .openwin-init. Check these files in your home directory if 
+problems occur with the Cut, Copy, and Paste operations.
+
+
+New and Noteworthy Features for the XView 3.0 Toolkit
+
+
+Binary Compatibility
+
+
+The XView 3.0 toolkit is binary compatible with Version 2.0.
+
+
+Multi-visual Support
+
+
+In the past, the XView toolkit supported only 8-bit and 1-bit visuals. This 
+version of the XView toolkit now supports any visual that the X11 server 
+supports, including 24- and 4-bit visuals.
+
+
+New Selection Package
+
+
+Although the old selection API is still supported, a new SELECTION package 
+has been added to the XView toolkit. This package is more consistent with the 
+rest of the XView API, and is much simpler to use.
+
+
+Notices
+
+
+Notices are now created by using the NOTICE package. The NOTICE package is 
+a new first class XView package subclassed from the GENERIC package, and is 
+consistent with the XView API. In addition, three types of notices can now be 
+created. The first notice type locks the screen. The other notice types lock the 
+application and may or may not block the thread of execution. Refer to the 
+XView Programming Manual for further details. notice_prompt() is still 
+supported.
+
+
+Drag and Drop
+
+
+The XView toolkit now provides a new drag and drop package called 
+DRAGDROP, which is a subclass of SELECTION. The previous version of the 
+XView toolkit had no API for sourcing a drag, and did not support drop 
+previewing (drop-site image changes to show that a drop site is a valid drop-
+site) or drag feedback (the pointer image changes to indicate that it is over a 
+valid drop-site). However, using xv_decode_drop() is not recommended.
+
+
+The xv_decode_drop() function is provided for binary compatibility 
+purposes only, and we do not recommend using it. It will continue to work for 
+applications compiled with the XView 2.0 libraries and dynamically linked 
+with the XView 3.0 libraries. If the application is recompiled under the XView 
+3.0 libraries, xv_decode_drop() will no longer accept drops from XView 3.0 
+applications. Applications recompiled under XView 3.0 should take advantage 
+of the new drag and drop support.
+
+
+Compatibility Between the XView 2.0 and 3.0 Toolkits
+
+
+Sun recommends that XView 2.0 drag and drop code be replaced with the 
+XView 3.0 drag and drop API. For XView 2.0 dynamically-linked applications, 
+there is some limited compatibility. If the application implements a drop site 
+and uses the compatibility routine xv_decode_drop(), then dragging from 
+an XView 3.0 application should work. If the application implements a drag 
+source, then it will only be able to drop on other XView 2.0 applications that 
+use xv_decode_drop(); dropping on XView 3.0 clients will fail. In general, 
+XView 3.0 applications using the new API will be able to drop on other 3.0 
+applications or XView 2.0 applications that use xv_decode_drop(). The 
+following figure outlines acceptable drag and drop patterns.
+
+
+
+
+
+Figure 6-1	Allowable Drag and Drop Operations
+
+
+Due to X Consortium standards work in the area of drag and drop, the future 
+drag and drop protocol may not be compatible with the protocol used in this 
+release. Sun will make every effort to maintain compatibility, but it cannot be 
+guaranteed.
+
+
+Panel Drop Items
+
+
+A new panel item called PANEL_DROP_TARGET has been added to the 
+PANEL_DROP_TARGET is a bordered image in the panel area used to source a 
+drag or receive a drop from another application. An example is shown below.
+
+
+
+
+
+Figure 6-2	Panel Drop Target
+
+
+Mouseless
+
+
+The XView toolkit now supports mouseless operation. All operations that are 
+normally done with a mouse can now be done with the keyboard. Key 
+mappings can be defined to the user's preference, and are completely 
+transparent to the application. Mouseless operation is implemented by setting 
+the X resource OpenWindows.KeyboardCommands. Refer to the XView 
+Reference Manual and XView Programming Manual for details on setting this 
+resource.
+
+
+Soft Function Keys
+
+
+Soft Function Keys provide a way to label and display the functions keys 
+specified by applications. When you change the input area to a window that 
+uses the soft function keys, the soft function keys are automatically updated to 
+reflect the new set of functions. An example is shown below.
+
+
+Figure 6-3	Soft Function Keys
+
+
+In addition to displaying the functions assigned for each application, you can 
+activate the functions by selecting the on-screen function keys with the mouse. 
+
+
+window_loop()
+
+
+The XView toolkit now supports the SunView window_loop() and 
+window_return() functions. These functions allow you to create a blocking 
+pop-up. The new functions are called xv_window_loop() and 
+xv_window_return(). xv_window_loop() causes the pop-up to display 
+and receive all input directed to the application. The function will not return 
+until xv_window_return() is called from one of the pop-up's notify 
+procedures.
+
+
+Panel Item Extensions
+
+
+You can now create panel item extensions without using private header files. A 
+number of attributes have been created to support this. Refer to the XView 
+Programming Manual for further details.
+
+
+Internationalization Support
+
+
+The XView toolkit now provides support for internationalization. This 
+includes:
+
+
+Locale Setting
+
+
+Locale is the language and cultural conventions used in an application. It is the 
+first setting that a user must specify to use an internationalized application. 
+Locale Setting is the method by which the language or cultural environment is 
+set.
+
+
+Localized Text Handling
+
+
+When creating internationalized applications, developers need to write 
+application strings (i.e. error messages, menu labels, button labels, etc.) in the 
+native language, and have those strings appear at run time in the language 
+specified by the locale. This process is called Localized Text Handling.
+
+
+Object Layout
+
+
+When an application is localized to a certain locale, the dimensions and/or 
+positions of objects may change. This may occur because the dimensions of 
+strings (after translation) in objects have changed, or because explicit 
+repositioning when switching locales is required. Object Layout is the 
+mechanism by which the screen location of objects is changed to accommodate 
+these changes in position and size.
+
+
+Change to PANEL_LABEL_WIDTH
+
+
+In Version 2, PANEL_LABEL_WIDTH was the width of an entire 
+PANEL_BUTTON.  In Version 3, PANEL_LABEL_WIDTH is the width of the 
+string or image inside the button.  PANEL_LABEL_WIDTH does not include 
+the width of a panel button's end caps or any menu mark which may be 
+present.
+
+
+XView Extensions and Customizable Attributes
+
+
+When writing extensions to the XView toolkit, new attributes that are 
+introduced can be made customizable (via the X resource database) with the 
+function xv_add_custom_attrs(). 
+
+
+The format of xv_add_custom_attrs() is:
+
+
+	xv_add_custom_attrs(pkg, va_alist)
+	Xv_pkg	*pkg;
+	va_dcl	/* var args list */
+
+
+pkg is the XView package for which the attributes are customizable.  va_alist 
+is a null terminated list of attribute pairs in the following format:
+
+
+	<customizable attribute,	attribute resource name> 
+	 (type Attr_attribute)	(type char*)
+
+
+Example usage:
+
+
+	xv_add_custom_attrs(pkg, 
+			<attribute1, attribute1 resource name>,
+			<attribute2, attribute2 resource name>,
+			<attribute3, attribute3 resource name>,
+			<attribute4, attribute4 resource name>,
+			...
+			NULL);
+
+
+The attribute resource name is used to construct the key for database lookup 
+when the attribute is used with XV_USE_DB.
+
+
+

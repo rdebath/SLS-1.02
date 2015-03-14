@@ -1,0 +1,56 @@
+
+.nf
+	ar	\fBdelayr\fR	idlt[, istor]
+		\fBdelayw\fR	asig
+	ar	\fBdelay\fR	asig, idlt[, istor]
+	ar	\fBdelay1\fR	asig[, istor]
+.fi
+
+A signal can be read from or written into a delay path, or it can be
+automatically delayed by some time interval.
+
+
+INITIALIZATION
+
+\fIidlt\fR - requested delay time in seconds.  This can be as large as
+available memory will permit.  The space required for \fIn\fR
+seconds of delay is 4\fIn\fR * \fBsr\fR bytes.
+It is allocated at the time the instrument is first initialized,
+and returned to the pool at the end of a score section.
+
+\fIistor\fR (optional) - initial disposition of delay-loop data space (see
+\fBreson\fR).  The default value is 0.
+
+
+PERFORMANCE
+
+\fBdelayr\fR reads from an automatically established digital delay line, in
+which the signal retrieved has been resident for \fIidlt\fR seconds.  This
+unit must be paired with and precede an accompanying \fBdelayw\fR unit.
+Any other \fBCsound\fR statements can intervene.
+
+\fBdelayw\fR writes \fIasig\fR into the delay area established by the
+preceding \fBdelayr\fR unit.  Viewed as a pair, these two units permit the
+formation of modified feedback loops, etc.  However, there is a lower bound
+on the value of \fIidlt\fR, which must be at least 1 control period (or
+1/\fBkr\fR).
+
+\fBdelay\fR is a composite of the above two units, both reading from and
+writing into its own storage area.  It can thus accomplish signal
+time-shift, although modified feedback is not possible.  There is no
+minimum delay period.
+
+\fBdelay1\fR is a special form of \fBdelay\fR that serves to delay the
+audio signal \fIasig\fR by just one sample.  It is thus functionally
+equivalent to "\fBdelay\fR asig,1/srate" but is more efficient
+in both time and space.  This unit is particularly useful in the
+fabrication of generalized non-recursive filters.
+
+.nf
+Example:
+
+		tigoto	contin		;except on a tie,
+	a2	delay	a1, .05, 0   	;begin 50 msec clean delay of sig
+	contin:
+.fi
+.bp

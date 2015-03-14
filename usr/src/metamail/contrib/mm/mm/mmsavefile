@@ -1,0 +1,195 @@
+#!/bin/sh
+#
+# Copyright(c) 1992 Wimsey Information Technologies
+# Stuart Lynne <sl@wimsey.bc.ca>
+# Portions adapted from work by Nathaniel Borenstein <nsb@bellcore.com>
+# Copyright (c) 1991 Bell Communications Research, Inc. (Bellcore)
+#
+# Permission to use, copy, modify, and distribute this material 
+# for any purpose and without fee is hereby granted, provided 
+# that the above copyright notice and this permission notice 
+# are included.
+#
+# WE MAKE NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+# OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+# WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+#
+#
+
+
+#
+# usage: mmshowfile type file [name]
+
+PATH=$PATH:/usr/local/bin:/usr/local/lib/mm
+RC=1
+
+mmreset() {
+    if [ -x /usr/bin/tput ] ; then
+	echo `tput clear`
+    elif [ -x /usr/ucb/reset ] ; then
+	/usr/ucb/reset
+    fi
+}
+
+if [ -x /usr/bin/tput ] ; then
+    bd=`tput bold`
+    rv=`tput smso`
+    Off=`tput rmso`
+    cls=`tput clear`
+fi
+
+clean(){
+    echo ${Off}
+    echo
+    if [ $RC != 0 ] ; then
+	echo 
+	echo "Press any key to continue ...\c"
+	char=`/usr/local/lib/mm/mmgetchar`
+	echo
+    fi
+    exit $RC
+}
+
+skip() {
+    trap clean 1 2 15
+    echo ${Off}
+    #echo caught TRAP
+    continue
+}
+
+trap "clean" 0 1 2 15
+
+mmreset 
+echo ${bd}mmshowfile:${Off} $*
+echo
+
+if [ $# -gt 1 ] ; then
+    type=$1;
+    shift;
+fi
+if [ $# -ge 1 ] ; then
+    file=$1;
+    shift;
+fi
+if [ $# -ge 1 ] ; then
+    name=$1;
+    shift;
+fi
+
+ans=
+until [ "$answer" = "q" ] ; do
+    trap "skip;continue" 1 2 15
+
+    mmreset
+    echo "${bd}mmsavefile:${Off} $type $file $name"
+    echo "$MM_HEADERS"
+    echo
+    if [ "$MESG" ] ; then
+	echo
+	echo $MESG
+	echo
+    fi
+    echo "${bd}Message disposition:${Off}"
+    echo 
+    echo "      1 -- Save"
+    echo "      2 -- Forward"
+    if [ "$VIEW" ] ; then
+        echo "      3 -- $VIEW"
+    fi
+    echo
+    echo "      q -- Quit"
+    echo
+    #echo "      4 -- Print"
+    echo
+    echo "  ${bd}Menu selection:${Off} \c"
+
+    answer=`/usr/local/lib/mm/mmgetchar`
+    echo
+
+    case $answer in 
+      1) 
+	  echo
+	  echo "Saving file ${bd}$file${Off} containing ${bd}$type${Off} \c"
+	  if [ "$name" ] ; then
+	      echo "to ${bd}$name${Off} \c"
+	  fi
+	  echo ....
+	  echo
+	  echo
+
+          (
+	  # change to home directory and make MMSave
+	      cd 
+	      if [ ! -d MMSave ] ; then
+		  mkdir MMSave
+	      fi
+	      cd MMSave
+
+	      dest=
+
+	      echo
+	      echo "All files are saved to the ${bd}~/MMSave${Off} directory."
+	      echo
+	      if [ ! "$name" ] ; then
+		  echo "No name was specified. Please enter name: \c"
+		  read dest
+	      else
+		  echo "Enter the the name to save to [$name]: \c"
+		  read newname
+		  if [ "$newname" ] ; then
+		      dest=`basename $newname`
+		  else
+		      dest=$name
+		  fi
+	      fi
+	      if [ -f "$dest" ] ; then
+		  echo
+		  echo "${bd}MMSave/$dest${Off} exists, delete [n]: \c"
+		  ans=`/usr/local/lib/mm/mmgetchar`
+		  case $ans in
+		      y|Y)
+			  rm -rf $dest || echo "Can't delete"
+			  ;;
+		      *)
+			  newname=
+			  dest=
+			  ;;
+		  esac
+	      fi
+
+	      if [ "$dest" ] ; then
+		  echo copying $file $dest
+		  cp $file $dest
+		  echo
+		  echo ${bd}$file${Off} has been copied to ${bd}$HOME/MMSave/$dest${Of}
+		  echo
+		  sleep 2
+	      fi
+	  )
+	  ;;
+      2)
+	  mmreset
+	  echo
+	  echo ${bd}Forwarding${Off} file ${bd}$file${Off} .....
+	  echo 
+	  echo "$MM_HEADERS"
+	  echo
+	  subject=`echo "$MM_HEADERS" | sed -n 's/^Subject: //p;t`
+	  if [ "$subject" ] ; then
+	      dashs="-s"
+	  fi
+	  mmsendsh $dashs "$subject" -m $type -e base64 -f $file
+	  echo
+	  sleep 2
+	  ;;
+      3)
+	  if [ "$VIEW" ] ; then
+	      viewfile
+	  fi
+	  ;;
+    esac
+done
+
+RC=0
+exit 0
+

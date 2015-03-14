@@ -1,0 +1,925 @@
+'\"                        Copyright (c) 1988 Bellcore
+'\"                            All Rights Reserved
+'\"       Permission is granted to copy or use this program, EXCEPT that it
+'\"       may not be sold for profit, the copyright notice must be reproduced
+'\"       on copies, and credit should be given to Bellcore where it is due.
+'\"       BELLCORE MAKES NO WARRANTY AND ACCEPTS NO LIABILITY FOR THIS PROGRAM.
+'\"
+.Fh m_font n
+.Fs m_font 6 "Change to a new font"
+Change to font
+.Fi n .
+The line positioning is adjusted to keep
+the baseline of the new and old fonts the same.
+Font numbers are small integers
+(currently no more than 15).
+Font 0 (zero) always refers to the built-in or
+.I default
+font.
+The actual fonts associated with the font numbers may be set in the \*M
+.I startup
+file, or changed by clients on the fly
+(see
+.Fr m_loadfont
+).
+.Fe
+.Fh m_func mode 
+.Fs m_func 4 "Set the bit-blt and graphics drawing mode"
+.Fs m_func 5 "Set the bit-blt function"
+Set the drawing mode.
+This specifies the drawing mode for all
+.I graphics
+and
+.I bit-blt
+operations.
+The integer
+.Fi mode
+is one of 16 possible boolean combinations of
+the
+.I source
+and
+.I destination
+bit patterns.
+Combinations of bit patterns for which
+there is no
+.I source
+bitmap, such as
+.Fr m_bitwrite
+ or
+.Fr m_line
+ use the modes shown in the middle column of the following table.
+Several common
+.Fi mode s
+are specified for the bit patterns in which the source
+bitmap is relevent.
+.TS
+center box;
+c s s
+c | c | c
+l | l | l.
+Names for \fBbit-blt\fP modes
+_
+source	no source	comments
+=
+BIT_SRC	BIT_INV
+BIT_OR	BIT_SET	default
+BIT_NOR	BIT_DST
+BIT_XOR	BIT_CLR
+BIT_AND
+BIT_NAND
+
+.TE
+Alternately,
+.Fi mode
+may be derived with a boolean combination of
+.Fi B_SRC
+and
+.Fi  B_DST,
+thus
+.Fi B_OR
+is equivalent to
+.Fi BUILDOP( B_SRC " \(br "  B_DST, BLACK, WHITE ).
+.Fe
+.Fh m_getchar
+.Fs m_getchar 2 "Read a character from \*M"
+The macro
+.Fr m_getchar
+is equivalent to the
+.I stdio
+routine
+.I getchar() ,
+except the character is retrieved from \*M via the file pointer
+.I m_termin
+instead of
+.I stdin.
+.Fe
+.Fh m_gets buff 
+.Fs m_gets 2 "Read a line from \*M"
+A line of characters is read from \*M and placed into
+.Fi buff .
+The macro 
+.Fr m_gets
+returns
+.SM
+.I NULL
+.LG
+if the connection to \*M is severed.
+The macro 
+.Fr m_gets
+is equivalent to the stdio
+.I fgets()
+call
+except input is retrieved from \*M.
+.Fe
+.Fh m_getinfo mode 
+.Fs m_getinfo 7 "Ask \*M for information"
+This function requests \*M to return information back to the client program.
+.Fi Mode
+specifies one of (currently) 16 different requests.
+Responses are always terminated with a 
+.I "new line"
+for single line responses, and with a pair of
+.I "new lines"
+for multi-line
+responses.
+Consequently, clients can request and process information requests
+using normal line mode processing.
+The following list of information requests is understood.
+.RS
+'\"	.IP \fBG_ALLFONT\fP 0.5i	Size information for all fonts.
+'\"	.br
+'\"	The
+'\"	.I width
+'\"	and
+'\"	.I height
+'\"	in pixels for a character in each font is listed in a space
+'\"	separated list.
+'\"	The first pair of numbers is the character size of font
+'\"	.B 0 ,
+'\"	the next pair for font
+'\"	.B 1 ,
+'\"	and so on.
+'\"	The first request for
+'\"	.Fi G_ALLFONT
+'\"	can be expensive, as it requires reading each font
+'\"	from the disk that has not yet been used.
+.IP \fBG_ALLMINE\fP 0.5i
+Window status for alternate windows.
+.br
+Information about each window that may be written to by the client program
+is returned, one line of information per window, as a 
+list of space separated items.
+The first two items give the location of the top left
+corner of the window in
+.I display
+coordinates.
+The second two items give the 
+.I height
+and
+.I width
+of the window, 
+also in
+.I display
+coordinates.
+The next field contains the last two characters of the
+.I pseudo tty
+associated with each window.
+Normally the 
+.I pseudo tty
+is the same for each window reported.
+The next field contains the 
+.I "window id" ,
+which is 0 (zero)
+for the primary window, 
+and the value returned by the call to 
+.Fr m_makewindow
+for the other windows (if any).
+The final field contains the visual status of the window,
+which is either 
+.SM
+.I C_EXPOSED
+.LG
+('e')
+if the window is completely visible,
+or
+.SM
+.I C_OBSCURED
+.LG
+('o')
+if the window is partly or completely obscured.
+The window information is printed in order from
+.I front
+to 
+.I back .
+A sample line might look something like:
+.TS
+center box;
+c.
+492 2 652 570 p6 2 o
+.TE
+which indicates that the window at
+.Fr "" 492 2
+ is 
+.Fi 652
+pixels
+.I wide
+and
+.Fi 570
+pixels
+.I high ,
+has a controlling
+.I pseudo tty
+of
+.I /dev/tty\fBp6\fP,
+is alternate window number
+.Fi 2,
+and is at least partially obscured.
+.IP \fBG_ALL\fP 0.5i
+Status of all windows.
+.br
+Information about all windows
+is returned, one line of information per window, as a
+list of space separated items.
+The first two items give the location of the top left
+corner of the window in
+.I display
+coordinates.
+The second two items give the 
+.I height
+and
+.I width
+of the window, 
+also in
+.I display
+coordinates.
+The next field contains the last two characters of the
+.I pseudo tty
+associated with each window.
+Normally the 
+.I pseudo tty
+is the same for each window controlled by the same client.
+The next field contains the 
+.I "window id" ,
+which is 0 (zero)
+for a primary window, 
+and the value returned by the call to 
+.Fr m_makewindow
+for alternate windows.
+The final field contains the visual status of the window,
+which is either 
+.SM
+.I C_EXPOSED
+.LG
+('e')
+if the window is completely visible,
+or
+.SM
+.I C_OBSCURED
+.LG
+('o')
+if the window is partly or completely obscured.
+The window information for each window is printed in order from
+.I front
+to 
+.I back.
+Thus the first line returned is currently the
+.I active
+window.
+A sample line might look something like:
+.TS
+center box;
+c.
+492 2 652 570 p6 0 o
+.TE
+Which indicates that the window at
+.Fr "" 492 2
+ is 
+.Fi 652
+pixels
+.I wide
+and
+.Fi 570
+pixels
+.I high,
+has a controlling
+.I pseudo tty
+of
+.I /dev/tty\fBp6\fP,
+is a main window,
+and is at least partially obscured.
+.IP \fBG_COORDS\fP 0.5i
+Window coordinates.
+.br
+A single line is returned containing the location and size of the
+window in 
+.I display
+coordinates.
+The first pair of numbers is the position of the top left
+corner of the window,
+the second pair of numbers is the window's
+.I width
+and
+.I height
+in pixels.
+.IP \fBG_CURSOR\fP 0.5i
+.br
+A single line is returned containing the position of the
+.I character
+and the
+.I graphics
+cursor.
+The first pair of numbers is the current
+.I column
+and
+.I row
+in character coordinates
+and the second pair of numbers is the
+current
+.I graphics location
+in window coordinates.
+The graphics cursor location is reported in either
+.I absolute
+or
+.I relative
+window coordinates,
+depending upon the window coordinate mode setting.
+.IP \fBG_FONT\fP 0.5i
+Current font information.
+.br
+A single line is returned which contains current font information.
+The first pair of numbers is the character
+.I width
+and
+.I height,
+in pixels.
+The next number is the
+.I "font number"
+as would be used in a call to
+.Fi m_font ,
+and the final field is the ascii name of the font.
+.IP \fBG_ID\fP 0.5i
+Alternate window number.
+.br
+A single line is returned containing the window's alternate window
+id ( 0 for the main window), 
+followed by the number of windows controlled by the client 
+program.
+.IP \fBG_MOUSE\fP 0.5i
+Mouse coordinates.
+.br
+The mouse position, in 
+.I display 
+coordinates are returned, followed by the most recent button transition,
+which is one of
+.Fi 1 , -1 , 2 , -2 .
+The numbers
+.Fi 1
+and
+.Fi 2
+represent buttons
+.I one
+and
+.I two
+on the mouse respectively.
+The third mouse button is reserved for system use and is not accessible to
+client programs.
+A negative value means the button was released;
+a positive value indicates the button is still depressed.
+.IP \fBG_MOUSE2\fP 0.5i
+Scaled mouse coordinates.
+.br
+The mouse coordinates, in 
+.I window 
+coordinates are returned, followed by the most recent button transition,
+which is one of
+.Fi 1 , -1 , 2 , -2 .
+The numbers
+.Fi 1
+and
+.Fi 2
+represent buttons
+.I one
+and
+.I two
+respectively.
+A negative value means the button was last released;
+a positive value indicates the button is still depressed.
+If the 
+mouse is above
+or to the left of the window,
+a negative coordinate value is returned.
+In addition if the window is in
+.I relative
+coordinate mode, coordinate values between
+0 and 999 will be reported only if the mouse is within the window.
+.IP \fBG_STATUS\fP 0.5i
+Window status.
+.br
+A line is returned containing a single character,
+either
+.SM
+.I C_EXPOSED
+.LG
+('e'),
+.SM
+.I C_OBSCURED
+.LG
+('o'),
+or
+.SM
+.I C_ACTIVE
+('a')
+.LG
+depending upon whether the window is
+exposed but not the
+.I active
+window,
+partially or totally obscured,
+or exposed and the
+.I active
+window.
+.IP \fBG_SYSTEM\fP 0.5i
+System global information.
+.br
+A single line containing constant global information is returned.
+There are currently four fields:
+.RS
+.IP 1) 3
+The 
+.I hostname
+of the machine \*M is running on,
+as returned by 
+.I gethostname() .
+.IP 2) 3
+The width of the display in pixels.
+.IP 3) 3
+The height of the display
+in pixels.
+.IP 4) 3
+The size of the window borders in pixels.
+.RE
+.IP \fBG_TERMCAP\fP 0.5i
+.br
+A single line is returned which contains a 
+.I \s-2TERMCAP\s+2
+entry for \*M.
+The 
+.I \s-2TERMCAP\s+2
+entry is always the same, except for
+.I lines
+and
+.I columns 
+entries (li# and co#),
+which vary to reflect the current window size.
+.IP \fBG_TEXT\fP 0.5i
+.br
+A single line containing four integers is returned
+with the current text region size.
+The first pair of numbers is the top left corner of the text region,
+in
+.I window
+coordinates, the second pair of numbers is the
+.I width
+and
+.I height
+of the text region.
+If no text region is defined, implying the entire window is the text
+region, all four numbers are returned as 0 (zero).
+.IP \fBG_WINSIZE\fP 0.5i
+.br
+A single line is returned containing the current number of 
+.I columns
+and
+.I rows
+in the 
+.I "text region" .
+If no text region is defined, 
+the number of 
+.I lines
+and
+.I columns
+for the entire window is returned.
+.IP \fBG_FLAGS\fP 0.5i
+Window flags.
+.br
+A single line is returned containing a hexadecimal number representing
+the current window mode bits.
+For color \*M three additional fields are returned which indicate the
+current foreground color, background color, and graphics color.
+For the first, or mode field, each mode is represented by a bit in the word.
+Many of the modes may be
+.I set
+or
+.I cleared
+with
+.Fr m_setmode
+ or
+.Fr m_clearmode
+\&.
+See the discussion of
+.Fr m_setmode
+ for a detailed discussion of these flags.
+The meaningful mode bits are:
+.RS
+.IP 0x000001 10
+The window is completely exposed.
+.IP 0x000004 10
+It is possible to use the system
+.I cut
+function in this window.
+This mode is restored by clearing the window.
+See
+.Fr m_clear
+\&.
+.IP 0x000008 10
+The window is
+.I white
+text on a
+.I black
+background.
+.IP 0x000010 10
+The window is in standout mode.
+Individual characters are printed in reverse.
+.IP 0x000020 10
+The window has died.
+If a client sees this flag, the window is about to go away.
+.IP 0x000040 10
+Expose the window upon shell output.
+The window will be automatically activated 
+when the next character arrives for output on the window.
+.IP 0x000080 10
+Permit a partially or totally obscured window to update.
+.IP 0x000100 10
+Do not kill the window when the original process started in it dies.
+This flag may only be set from the startup file.
+.IP 0x000200 10
+.I Vi
+mode is turned on.
+Pushing the right mouse button sends the characters:
+.TS
+center box;
+c.
+\fBrow\fP H \fBcolumn\fP \(br
+.TE
+where
+.Fi row
+and
+.Fi column
+specifies the character location the mouse is sitting on.
+This has the effect of aligning 
+.I vi 's
+notion of the current character position with the mouse.
+.IP 0x000800 10
+Keyboard input is refused when the window is active.
+.IP 0x001000 10
+Auto wrap mode is turned on.
+The character cursor automatically wraps to the
+beginning of the next row when it reaches the right margin of the text region.
+.IP 0x002000 10
+Overstrike mode is turned on.
+Characters are written to the window using the the current drawing mode,
+as set by
+.Fr m_func
+\&.
+.IP 0x004000 10
+The window is in
+.I absolute
+window coordinate mode.
+.IP 0x010000 10
+The system
+.I cut
+function snarfs complete lines only.
+.IP 0x020000 10
+The system
+.I cut
+function changes spaces to tabs whenever possible.
+Tabs are assumed to be every 8 spaces.
+.IP 0x040000 10
+The system
+.I cut
+function will attempt to snarf text even if errors occur.
+.RE
+.RE
+.Fe
+.Fh m_go x y
+.Fs m_go 4 "Move the graphics point"
+Move the
+.I "graphics point"
+to the window position
+.Fr "" x y
+ in the current window coordinates.
+.Fe
+.Fh m_gotext
+.Fs m_gotext 4 "Align the graphics point with the character cursor"
+The graphics point is moved to the bottom left corner of the
+current character cursor location.
+.Fe
+.Fh m_halfwin X Y Dwidth Dheight
+.Fs m_halfwin 11 "Create a window with no process connected to it"
+A window is created at 
+.Fi X , Y
+of size
+.Fi Dwidth
+by
+.Fi Dheight 
+with no process connected to it.
+\*M returns the name of the file, a
+.I pseudo-tty ,
+that must be opened in order to
+talk to the new window.
+A process which opens that 
+.I pseudo-tty
+becomes a client program, communicating with \*M and the new
+window in the usual fashion.
+For a single process managing multiple windows, use
+.Fr m_newwin
+\&.
+.Fe
+.Fh m_highlight X Y Dwidth Dheight
+.Fs m_highlight 13 "Highlight a portion of the display"
+\*M flashes the rectagular portion of the display starting at
+.Fi X , Y
+of size
+.Fi Dwidth
+by
+.Fi Dheight .
+This is an experimental capability and may be removed in the future.
+.Fe
+.Fh m_incr n
+.Fs m_incr 13 "Adjust the character cursor position"
+The current character position is adjusted to the left or 
+right
+.Fi n
+units
+in 
+.I window
+coordinates.
+The argument
+.Fi n
+may be signed to indicate movement to the left (if negative) or to the
+right (if positive or unsigned).
+This is useful for client programs dealing with proportionally
+spaced text.
+.Fe
+.Fh m_left n 
+.Fs m_left 13 "Move character cursor left by tenths of a character width"
+Move the character cursor left 
+.Fi n
+tenths of a character width.
+See also
+.Fr m_down
+.Fr m_right
+and
+.Fr m_up
+\&.
+.Fe
+.Fh m_line x1 y1 x2 y2
+.Fs m_line 4 "Draw a line"
+Draw a line in the current window from the coordinate
+.Fr ""  x1 y1
+ to the coordinate
+.Fr "" x2 y2
+\&.
+The line is either set,
+cleared or inverted as determined by the last call to
+.Fr m_func
+\&.
+.Fe
+.Fh m_linecolor mode color
+.Fs m_linecolor 14 "Set the graphics mode and color"
+The drawing mode and color is set for all graphics and bit-blt operations.
+The integer
+.Fi mode
+sets the drawing mode, in the manner of 
+.Fr m_func
+\&.
+The integer
+.Fi color
+is the index into the color lookup table for the drawing color.
+This command is equivalent to
+.Fr m_func
+on a monochrome display.
+See also 
+.Fr m_fcolor
+and
+.Fr m_linecolor
+\&.
+.Fe
+.Fh m_lineto to x1 y1 x2 y2
+.Fs m_lineto 4 "Draw a line on a scratchpad bitmap"
+Draw a line 
+on the scratchpad bitmap
+.Fi to
+from the coordinate
+.Fr ""  x1 y1
+ to the coordinate
+.Fr "" x2 y2
+\&.
+The line is either set,
+cleared or inverted as determined by the last call to
+.Fr m_func
+\&.
+.Fe
+.Fh m_linkmenu parent item child mode
+.Fs m_linkmenu 8 "Link two menus together"
+The menus
+.Fi parent
+and
+.Fi child 
+are linked together.
+When menu
+.Fi parent
+is popped up and item number
+.Fi item
+(starting from zero)
+is highlighted, sliding off to the right of the
+.Fi parent
+menu causes the
+.Fi child
+menu to pop up.
+When an item is chosen, \*M sends the
+concatenation of the action strings associated with each of the
+popped-up menus,
+from left to right (i.e.
+.Fi parent
+to 
+.Fi child  ).
+An arbitrary tree of menus
+may be created by linking successive menus together in this
+manner.
+It is up to the application to indicate on the parent
+menu item that sliding to the right will pop up a child menu.
+Typically "\fB\(->\fP" is used.
+.sp
+The
+.Fi mode
+argument,
+if not zero,
+changes the menu options
+for the
+.Fi parent
+menu.
+The flag settings,
+which may be
+.I or -ed
+together (except for
+.SM
+.Fi MF_CLEAR
+.LG
+) are:
+.RS
+.IP \fBMF_SNIP\fP 0.5i
+.br
+By default, when an item in a
+.I child
+menu is selected,
+the values associated with the highlighted items for all of the ancestor menus
+are concatenated to the
+.I child 's
+item value.
+When
+.SM
+.Fi MF_SNIP
+.LG
+is enabled, only the string associated with the child menu is returned.
+.IP \fBMF_PAGE\fP 0.5i
+.br
+Normally, whenever a menu is popped-up, the previously
+chosen item is initially highlighted.
+If
+.SM
+.Fi MF_PAGE
+.LG
+is enabled, this behavior is extended to paged menus.
+\*M automatically pages through a set of paged
+menus to highlight the currently selected item.
+.IP \fBMF_AUTO\fP 0.5i
+.br
+\*M will automatically slide to the right and pop up
+a child menu
+to highlight the previously selected item.
+.IP \fBMF_CLEAR\fP 0.5i
+.br
+Clears the mode
+.SM
+.Fi MF_SNIP ,
+.Fi MF_PAGE ,
+.LG
+and
+.SM
+.Fi MF_AUTO .
+.LG
+.RE
+See also
+.Fr m_loadmenu
+,
+.Fr m_selectmenu
+, and
+.Fr m_unlinkmenu
+\&.
+.Fe
+.Fh m_loadfont n name
+.Fs m_loadfont 6 "Download a font"
+The \*M font whose pathname is
+.Fi name
+is downloaded into
+\*M, replacing the font currently located at position
+.Fi n .
+Any subsequent calls to
+.Fr m_font
+will select the newly downloaded font.
+The font that used to be at position
+.Fi n
+remains available to windows that are already using it, 
+but is unavailable for future use.
+The format of \*M font files is described in
+.I font.h .
+.Fe
+.Fh m_loadmenu n string
+.Fs m_loadmenu 8 "Down load a menu"
+The text
+.Fi string
+is downloaded into menu position
+.Fi n .
+The first character of
+.Fi string
+is the 
+.I "menu delimiter"
+character.
+All of the menu item strings are concatenated,
+followed by all of their action strings.
+The 
+.I "menu delimiter"
+character separates all of the items and actions
+and terminates the list.
+Menus are downloaded at once, as a single entity.
+The macro
+.Fr m_selectmenu
+ is used to have the menu pop-up when a mouse button is pushed.
+.Fe
+.Fh m_move column row
+.Fs m_move 3 "Move the character cursor"
+The character cursor is moved to character location
+.Fi column , row
+, where
+.Fr "" 0 0
+ is the top left character position on the window, or on
+the current text region if one is specified
+(see
+.Fr m_textregion
+).
+.Fe
+.Fh m_movecursor x y
+.Fs m_movecursor 13 "Move the character cursor to an arbitrary coordinate location"
+Move the character cursor to the position
+.Fr "" x y
+ in window coordinates.
+This permits characters to be placed at arbitrary pixel locations,
+not just on character boundaries.
+Use
+.Fr m_move
+to move to a
+.Fi row
+and
+.Fi column
+position.
+.Fe
+.Fh m_movemouse X Y
+.Fs m_movemouse 6 "Move the mouse position"
+Move the mouse to position
+.Fr "" X Y
+ in
+.I display
+coordinates.
+Excessive use of this macro is anti-social.
+.Fe
+.Fh m_moveprint x y string
+.Fs m_moveprint 13 "Print a string at a given location"
+Print
+.Fi string
+at the window coordinate
+.Fr "" x y
+\&.
+This macro is equivalent to calling
+.Fr m_movecursor
+ followed by
+.Fr m_printstr
+\&.
+.Fe
+.Fh m_movewindow X Y
+.Fs m_movewindow 6 "Move a window"
+Move the window to the display location
+.Fr "" X Y 
+ in 
+.I display
+coordinates.
+If the new position is too close to the edge of the display for the window
+to fit entirely at the requested location,
+the right edge or bottom of the window is truncated at the boundary of the
+display.
+.Fe
+.Fh m_newwin X Y Dwide Dhigh
+.Fs m_newwin 11 "Make a new window"
+An alternate window is created with the size and location indicated.
+The arguments
+.Fi X
+and
+.Fi Y
+specify the upper left corner of the window,
+.Fi Dwide
+and
+.Fi Dhigh
+the size.
+If the window is to be to fit at the requested location,
+its size is truncated appropriately.
+\*M will return a window number if the creation is successful, or
+a 
+.I newline
+if the window could not be created.
+The newly created window is made the
+.I active 
+window.
+The macro
+.Fr m_selectwin
+is used to enable writing on the newly created window.
+.Fe

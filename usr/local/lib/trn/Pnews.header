@@ -1,0 +1,216 @@
+case $# in
+0)
+    ng=h
+    while $test "$ng" = h ; do
+	$echo ""
+	$echo $n "Newsgroup(s): $c"
+	read ng
+	case $ng in
+	h)
+	    $cat <<'EOH'
+
+Type the name of one or more newsgroups to which you wish to post an article.
+If you want to post to multiple newsgroups, it is better to do them all at
+once than to post to each newsgroup individually, which defeats the news
+reading programs' strategies of eliminating duplicates.
+
+Separate multiple newsgroup names with commas.
+EOH
+	    ;;
+	esac
+    done
+    ;;
+*)
+    ng=$1
+    shift
+    ;;
+esac
+case $ng in
+*\ *)
+    ng=`$echo "$ng" | $sed 's/[, ] */,/g'`
+    ;;
+esac
+case $ng in
+bit.*|pubnet.*|bionet.*|vmsnet.*|comp.*|news.*|sci.*|rec.*|misc.*|soc.*|talk.*|alt.*)
+    defdist=world
+    dist=h
+    ;;
+ddn.*)
+    defdist=inet
+    dist=h
+    ;;
+to.*)
+    defdist=''
+    dist=''
+    ;;
+*.*)
+    defdist=`expr "X$ng" : 'X\([a-z0-9]*\)'`
+    dist=h
+    ;;
+*)
+    defdist=''
+    dist=''
+    ;;
+esac
+
+while $test "$dist" = h ; do
+    if $test -f $lib/distributions; then
+	$echo " "
+	$echo "Your local distribution prefixes are:"
+	$cat $lib/distributions
+	$echo " "
+    else
+	$egrep -v '[	 ]none$' <<EOM
+
+Your local distribution prefixes are:
+    Local organization:	$loc
+    Organization:	$org
+    City:		$city
+    $Stpr:  		$state
+    $multistpr:	$multistate
+    Country:		$cntry
+    Continent:		$cont
+    Everywhere:		world
+
+EOM
+    fi
+    $echo $n "Distribution ($defdist): $c"
+    read dist
+    case $dist in
+    '') dist=$defdist ;;
+    esac
+    case $dist in
+    h)
+	$cat <<'EOH'
+
+The Distribution line may be used to limit the distribution of an article
+to some subset of the systems that would receive the article based only on
+the Newsgroups line.  For example, if you want to sell your car in talk.auto,
+and you live in New Jersey, you might want to put "nj" on the Distribution
+line to avoid advertising in California, which has enough problems of its own.
+The actual area designators to use depend on where you are, of course.
+EOH
+	;;
+    ''|$loc*|$org*|$city*|$state*|$multistate*|$cntry*|$cont*|$defdist)
+	;;
+    world*|comp*|news*|sci*|rec*|misc*|soc*|talk*|alt*)
+	dist=''
+	;;
+    *)  
+	if $test -f $lib/distributions && \
+	  $egrep "^$dist[ 	]" $lib/distributions >$tmpart && \
+	  $test -s $tmpart; then
+	    : null
+	else
+	    $echo "Unrecognized distribution prefix--type h for help, CR to use anyway."
+	    defdist=$dist
+	    dist=h
+	fi
+	;;
+    esac
+done
+
+follow=""
+
+# LCP 16-Oct-91 Subject line is required.  Make it a little more
+# difficult to omit.  Added "while : ; do", ... "done", and "if"
+# at end of while loop.
+while :
+do
+  case $# in
+  0)
+    title=h
+    while $test "$title" = h ; do
+	$echo ""
+	$echo $n "Title/Subject: $c"
+	read title
+	case $title in
+	h)
+	    $cat <<'EOH'
+
+Type the title for your article.  Please make it as informative as possible
+(within reason) so that people who aren't interested won't have to read the
+article to find out they aren't interested.  This includes marking movie
+spoilers as (spoiler), and rotated jokes as (rot 13).
+EOH
+	;;
+	esac
+    done
+    ;;
+  *)
+    title="$*"
+    # LCP 16-Oct-91 Added "set" and "shift".  Must insure $# is 0
+    # in case the title is all white space and we make another
+    # pass thru this loop.
+    set X
+    shift
+    ;;
+  esac
+  if expr "X$title" : "^X[    ]*$" > /dev/null 2>&1
+  then
+    $cat <<'EOH'
+
+Articles without a "Subject:" line will not be accepted by the News
+system.  Please give a Title/Subject line for your article.
+EOH
+  else
+     break
+  fi
+done
+
+
+# now build a file with a header for them to edit
+
+set X ${USER-${LOGNAME-`who am i`}}
+shift
+logname=$1
+case $logname in
+*!*) logname=`expr "$logname" : '!\(.*\)$'` ;;
+esac
+case ${NAME-$nametype} in
+bsd)
+	if $test "$ypmatch" != ""; then
+		fullname=`$ypmatch $logname passwd 2>/dev/null | $sed -e "s/^[^:]*:[^:]*:[^:]*:[^:]*:\([^,:;]*\).*"'$'"/\1/"`
+	elif $test "$nidump" != ""; then
+		fullname=`$nidump passwd / | $sed -e "/^$logname:/{s/^[^:]*:[^:]*:[^:]*:[^:]*:\([^,:;]*\).*"'$'"/\1/" -e "q" -e "}" -e "d"`
+	fi
+     if $test "$fullname" = ""; then
+		fullname=`$sed </etc/passwd -e "/^$logname:/{s/^[^:]*:[^:]*:[^:]*:[^:]*:\([^,:;]*\).*"'$'"/\1/" -e "q" -e "}" -e "d"`
+	fi
+    case $fullname in
+    *'&'*) : GACK
+	lname=`$echo $logname | $tr 'a-z' 'A-Z'`
+	lname=`$echo $lname $logname | $sed 's/^\(.\)[^ ]* ./\1/'`
+	fullname=`$echo "$fullname" | $sed "s/&/${lname}/"`
+	;;
+    esac
+    ;;
+usg)
+	if $test "$ypmatch" != ""; then
+		fullname=`$ypmatch $logname passwd 2>/dev/null | $sed -e "s/^[^:]*:[^:]*:[^:]*:[^:]*:\([^(:]*\).*"'$'"/\1/" -e "s/^.*-//" -e "q"`
+	fi
+     if $test "$fullname" = ""; then
+    fullname=`$sed </etc/passwd -e "/^$logname:/{s/^[^:]*:[^:]*:[^:]*:[^:]*:\([^(:]*\).*"'$'"/\1/" -e "s/^.*-//" -e "q" -e "}" -e "d"`
+	fi
+    ;;
+*)
+    fullname=${NAME-`$cat $dotdir/.fullname`}
+    ;;
+esac
+
+case $orgname in
+/*) orgname=`$cat $orgname` ;;
+esac
+
+$sed -e '/^Reply-To: $/d' > $tmpart <<EOHeader
+Newsgroups: $ng
+Subject: $title
+Summary: 
+Reply-To: $REPLYTO
+Followup-To: $follow
+Distribution: $dist
+Organization: $orgname
+Keywords: 
+
+EOHeader
+

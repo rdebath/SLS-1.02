@@ -1,0 +1,514 @@
+%Doc-1.0
+\documentstyle{manual}
+
+%Doc-1.0
+%counter{chapter}[arabic] = 1
+%label{glyph}{2.1}
+%label{req}{?}
+%label{allot}{2.4}
+%label{char}{2.5}
+%label{glue}{2.7}
+%label{layout}{2.8}
+%label{box}{2.9}
+%label{deck}{2.10}
+%label{page}{2.11}
+%label{monoglyph}{2.7}
+%label{background}{?}
+%label{margin}{?}
+%label{shadow}{?}
+%label{markers}{?}
+%label{tformsetter}{?}
+%label{center}{?}
+%label{composition}{?}
+%label{compositor}{?}
+%label{patch}{2.8}
+%label{rule}{2.6}
+%label{hit}{2.2}
+%label{requisition}{2.3}
+%label{polyglyph}{2.6}
+%label{extension}{2.5}
+
+\begin{document}
+%
+%
+\chapter{Glyphs}%
+%
+\float{figure}{2-\pagenumber{00}}%372.72 -645.84 0
+Glyphs are the basic building blocks for the presentation side of
+a user interface, providing a unified substrate for interactive objects,
+structured graphics, and formatted text.  The glyph protocol supports
+geometry, drawing, picking, composition, and structure.  Glyph subclasses
+provide higher-level operations, such as input handling and update
+management.
+
+\quad The base class defines no storage and operations are passed
+contextual information during rendering. Thus, glyphs may be shared
+and a glyph structure need not be strictly hierarchical; it may be
+a directed acyclic graph.  Figure \ref{glyph} shows the glyph protocol.%
+%
+\code{typedef long GlyphIndex;\
+typedef unsigned int GlyphBreakType;\
+\
+interface Glyph : Resource \{\
+\quad void request(Requisition\&) const;\
+\quad void allocate(Canvas*, const Allocation\&, Extension\&);\
+\quad void draw(Canvas*, const Allocation\&) const;\
+\quad void undraw();\
+\quad void print(Printer*, const Allocation\&) const;\
+\quad void pick(Canvas*, const Allocation\&, int depth, Hit\&);\
+\
+\quad enum \{ no\_break, pre\_break, in\_break, post\_break \};\
+\quad Glyph* compose(GlyphBreakType) const;\
+\
+\quad void append(Glyph*);\
+\quad void prepend(Glyph*);\
+\quad void insert(GlyphIndex, Glyph*);\
+\quad void remove(GlyphIndex);\
+\quad void replace(GlyphIndex, Glyph*);\
+\quad void change(GlyphIndext);\
+\quad GlyphIndex count() const;\
+\quad Glyph* component(GlyphIndex) const;\
+\quad void allotment(GlyphIndext, DimensionName, Allotment\&) const;\
+\}; %
+%
+\figurecaption{Glyph protocol\label{glyph}}%
+%
+%-4.57764e-05 -3.05176e-05 1
+}%
+%
+%
+%
+\section{Geometry management}%
+%
+Glyph::request asks a glyph to specify its desired geometry.  This
+operation should be fast to allow a composite glyph to compute rather
+than store the desired geometry of its components.  Glyph::allocate
+notifies a glyph that a portion of the canvas has been allocated for
+it and returns an area that represents a conservative estimate of
+the actual area where the glyph will draw.%
+%
+\section{Drawing}%
+%
+\float{figure}{2-\pagenumber{00}}%372.24 -644.96 -2
+Glyph::draw displays the glyph on the canvas at the position and size
+specified by the allocation.  No clipping or translation is implicit
+in this operation--the canvas is the entire drawing area and the allocation
+is in canvas coordinates.  However, a composite glyph may set clipping
+on the canvas before drawing its children.
+
+\quad There is no guarantee that a call to draw will affect the screen
+immediately because of the possibility (indeed, likelihood) that the
+canvas is double-buffered.  Furthermore, drawing order is important
+for glyphs when they are partially transparent and are drawn in the
+same plane.  A glyph's draw operation therefore should not be called
+directly, but rather is implicitly called during screen update.
+
+\quad Glyph::undraw notifies a glyph that its allocation is no longer
+valid.  This operation is generally a performance hint to free cached
+information associated with drawing or inhibit some operation that
+is unnecessary while the glyph is not visible, such as cursor blinking.  Glyph::undraw
+is {\font{Times-Italic}not} to be used when a glyph's allocation changes;
+in that case, allocate and draw can simply be called with different
+parameters.
+
+\quad Glyph::print generates a representation of the glyph graph suitable
+for printing.  The canvas and printer rendering interfaces are identical,
+and the default implementation of print is simply to call draw.  Most
+glyphs therefore need not define a print operation.  The reason for
+a distinct print operation is to allow a glyph to use different rendering
+requests for the screen and a printer.  For example, a glyph might
+use 3D requests to the screen, or might compute more precise output
+for printing.
+
+\quad Glyph::pick finds the glyphs that intersect a point or rectangle
+specified in canvas-relative coordinates. Conceptually, picking is
+like drawing and determining what glyphs intersect the specified point
+or rectangle.  The coordinates are contained in the hit parameter.  The
+depth parameter specifies which level in the Hit object to store the
+intersecting glyphs.  When pick returns, the Hit parameter contains
+the glyphs that were hit.
+
+\quad Figure%
+%
+\code{interface Hit \{\
+\quad Hit(const Event*);\
+\quad Hit(Coord x, Coord y);\
+\quad Hit(Coord left, Coord bottom, Coord right, Coord top);\smallskip
+\quad const Event* event() const;\
+\quad Coord left() const, bottom() const, right() const, top() const;\smallskip
+\quad void push\_transform();\
+\quad void transform(const Transformer\&);\
+\quad void pop\_transform();\smallskip
+\quad void begin(int depth, Glyph*, GlyphIndex, Handler* = nil);\
+\quad void target(int depth, Glyph*, GlyphIndex, Handler* = nil);\
+\quad void end();\
+\quad void remove(int depth, GlyphIndex target = 0);\
+\quad void retarget(\
+\quad \quad int depth, Glyph*, GlyphIndex, Handler* = nil, GlyphIndex
+= 0\
+\quad );\smallskip
+\quad boolean any() const;\
+\quad int count() const;\
+\quad int depth(GlyphIndex target = 0) const;\
+\quad Glyph* target(int depth, GlyphIndex target = 0) const;\
+\quad GlyphIndex index(int depth, GlyphIndex = 0) const;\
+\quad Handler* handler() const;\
+\};%
+%
+\figurecaption{Hit class interface\label{hit}.}%
+%
+%1.20001 -30.48 2
+}%
+%
+ \ref{hit} shows the hit protocol.  A hit object may be constructed
+with a point, a rectangle, or an event.  In the case of the event,
+the event pointer coordinates are used to detect intersection and
+glyphs can associate a handler with the pick result.
+
+\quad Hit::event, Hit::left, Hit::bottom, Hit::right, Hit::top return
+information about the specified hit area.  Hit::event returns nil
+if the point or rectangle constructors were used.
+
+\quad Hit::push\_transform, Hit::transform, and Hit::pop\_transform
+modify the current intersection area for picking.  These operations
+are just like the canvas operations with the same names except they
+apply to the hit information instead of a canvas.
+
+\quad Glyphs record information in a hit object with Hit::begin, Hit::target
+and Hit::end.  Hit::target indicates that a glyph's output intersects
+the hit region.  Hit::begin and Hit::end are used by composite glyphs
+that should be on the hit list if and only if one of their components
+calls Hit::target.  The parameters to Hit::begin and Hit::target have
+the same meaning.  The depth is the level in the hit list where the
+information should be stored.  The glyph is the hit glyph.  The index
+is additional information about the hit.  For a composite glyph, this
+is typically the index of the hit child.  Hit::remove and Hit::retarget
+modify the current hit information.
+
+\quad The remaining hit operations return information about a pick.  The
+result is a list of paths, each of which contains a list of glyphs
+terminating with the glyphs that would draw through the pick region.  Hit::count
+returns the number of paths.  Hit::depth returns the index of the
+last glyph in a specified path.  The path corresponding to the top-most
+glyph is in position zero.  Hit::target and Hit::index return the
+information for a given path and depth.
+
+\quad If a pick is done on a hit object constructed from an event,
+and one or more glyphs find the event of interest, they will associate
+a handler with the hit object.  Hit::handler returns the top-most,
+deepest handler, or nil if there is none.%
+%
+\section{Composition}%
+%
+BreakType defines the choices for how a composite glyph might break
+a group of glyphs in a layout.  The break may occur before a glyph
+(pre\_break), in the glyph (in\_break), or after the glyph (post\_break).
+
+\quad Glyph::compose returns a new glyph that should be used to replace
+the target glyph when the break occurs. For example, discretionary
+white space in a document will turn into zero-size glue if a line-break
+or page-break occurs on it. %
+%
+\section{Structure}%
+%
+Several operations are provided to manipulate the list of components
+that make up a composite glyph.  Primitive glyphs ignore these operations,
+while monoglyphs pass the operation through to their body.  A monoglyph
+is therefore ``transparent'' with respect to structure, allowing one
+to put a monoglyph around a composite and pass the result to another
+object that manipulates the components of the composite.
+
+\quad Glyph::append (prepend) adds a given glyph to the end (beginning)
+of the component list.  Glyph::insert adds a given glyph at a specified
+index in the list.  Glyph::remove removes the glyph at the specified
+index.  Glyph::replace replaces the glyph at the specified index with
+the given glyph.  Glyph::change notifies a glyph that its component
+at the given index has changed, and therefore it might be necessary
+to reallocate it.
+
+\quad Glyph::count returns the number of glyphs in its component list.  Glyph::component
+returns the glyph in its component list at the given index.  Glyph::allotment
+returns the allocation information in the given dimension for the
+glyph at the given index in its component list.%
+%
+\section{Requisitions}%
+%
+Glyphs define their geometric needs with a {\bf {\font{Times-Roman}%
+%
+\term{requisition}%
+%
+}}, which specifies a {\bf {\font{Times-Roman}%
+%
+\term{requirement}%
+%
+}} in each dimension.  Figure%
+%
+\code{interface Requisition \{\
+\quad void penalty(int);\
+\quad int penalty() const;\
+\quad boolean equals(const Requisition\&, float epsilon) const;\
+\quad void require(DimensionName, const Requirement\&);\
+\quad const Requirement\& requirement(DimensionName) const;\
+\quad Requirement\& requirement(DimensionName);\
+\};\smallskip
+interface Requirement \{\
+\quad Requirement(Coord natural);\
+\quad Requirement(Coord natural, Coord stretch, Coord shrink, float);\
+\quad Requirement(\
+\quad \quad Coord natural\_lead, Coord max\_lead, Coord min\_lead,\
+\quad \quad Coord natural\_trail, Coord max\_trail, Coord min\_trail\
+\quad );\smallskip
+\quad boolean equals(const Requirement\&, float epsilon) const;\
+\quad boolean defined() const;\
+\quad void natural(Coord), stretch(Coord), shrink(Coord);\
+\quad Coord natural() const, stretch() const, shrink() const;\
+\quad void alignment(float);\
+\quad float alignment() const;\
+\};%
+%
+\figurecaption{Requisition and Requirement classes\label{requisition}.
+}%
+%
+%1.19997 0.23999 4
+}%
+%
+ \ref{requisition} shows the requisition and requirement class interfaces.
+
+\quad Requisition::penalty is overloaded to set or get the penalty
+associated with choosing a break at the position defined by the requisition.  Requisition::require
+sets a requirement in a given dimension.  Requisition::requirement
+returns the requirement for a given dimension.
+
+\quad A requirement consists of a natural size, stretchability, shrinkability,
+and alignment.  The maximum size is the natural size plus the stretchability;
+the minimum is the natural minus the shrinkability.  It is possible
+to have negative minimum sizes.  The alignment is a fraction that
+indicates the origin of the area.  An alignment of zero means the
+origin is at the lower coordinate value; an alignment of one means
+it is at the upper coordinate value.
+
+\quad There are four constructors for requirement: with no parameters,
+which makes the natural size undefined and the other fields zero;
+with a single coordinate that defines the natural size and makes the
+other fields zero; with explicit coordinates for the natural size,
+stretchability, and shrinkability, and a float value for the alignment;
+and with explicit coordinates for specifying the distances on each
+side of the origin.
+
+\quad Requirement::equals compares two requirements (the target object
+and the argument) using a given tolerance for the individual coordinate
+comparisons.  Requirement::defined returns whether the natural size
+has been defined.  The overloaded functions natural, stretch, shrink,
+and alignment set and get the respective values.%
+%
+\section{Allocations}%
+%
+The actual size a glyph is given is defined by an {\bf {\font{Times-Roman}%
+%
+\term{allocation}%
+%
+}}, which specifies an {\bf {\font{Times-Roman}%
+%
+\term{allotment}%
+%
+}} in each dimension.  Figure \ref{allot} shows the allocation and
+allotment class interfaces.%
+%
+\code{interface Allocation \{\
+\quad boolean equals(const Allocation\&, float epsilon) const;\
+\quad void allot(DimensionName, const Allotment\&);\
+\quad Allotment\& allotment(DimensionName);\
+\quad const Allotment\& allotment(DimensionName) const;\
+\quad Coord x() const, y() const;\
+\quad Coord left() const, right() const, bottom() const, top() const;\
+\};\
+\
+interface Allotment \{\
+\quad Allotment(Coord origin, Coord span, float alignment);\
+\quad boolean equals(const Allotment\&, float epsilon) const;\
+\quad void origin(Coord), offset(Coord), span(Coord);\
+\quad Coord origin() const, span() const;\
+\quad void alignment(float);\
+\quad float alignment() const;\
+\quad Coord begin() const;\
+\quad Coord end() const;\
+\}; %
+%
+\figurecaption{Allocation and allotment class interfaces\label{allot}}%
+%
+%-1.52588e-05 -14.4 5
+}%
+%
+ An allotment specifies one dimension of an allocation with three
+values: an origin, a span, and an alignment.  The origin is a position
+within the allotment and the span is the size of the allotment.  The
+alignment is a fraction specifying the position of the origin.  For
+example, if the origin is 1, span is 10, and alignment is 0.5, then
+the allotment begins at -4 and ends at 6.
+
+\quad The allocation constructor initializes each allotment to have
+zero values.  Allocation::equals compares two allocations using a
+tolerance for individual coordinate comparisions.  Allocation::allot
+sets the allotment for a given dimension.  Allocation::allotment returns
+the allotment for a specified dimension.
+
+\quad Several operations are provided for convenience when accessing
+allotments in the X and Y dimensions.  Allocation::x and Allocation::y
+return the X and Y origins.  Allocation::left and Allocation::right
+return the X dimension end-points, Allocation::bottom and Allocation::top
+return the Y dimension end-points.
+
+\quad The Allotment class also provides an equals operation for comparing
+two allotments with a given tolerance.  Allotment::origin, Allotment::span,
+and Allotment::alignment are overloaded names for setting and getting
+the allotment values.  Allotment::offset adds to the current origin.
+
+\quad Allotment::begin and Allotment::end return the end-points of
+an allotment.  Allotment::begin is equivalent to the origin minus
+the alignment times the span.  Allotment::end is equivalent to Allotment::begin
+plus the span.%
+%
+\section{Extensions}%
+%
+The area that defines where a glyph actually draws is called an %
+%
+\term{extension}%
+%
+.  This area is typically used for update.  If a glyph needs to be
+completely redrawn, the glyph's extension must be damaged.
+
+\quad Extensions are represented in device-independent units, but
+must be rounded out to the nearest device-dependent units.  For example,
+if one of the bounds for one glyph's extension is 10.2 and another
+is 10.5, we would need to redraw both glyphs if the bounds translate
+to the same pixel coordinate.  Because extensions are typically used
+to damage a canvas, the extension coordinates are canvas-relative.
+
+\quad A glyph computes its extension as part of the allocate operation.  Typically,
+a glyph will simply return its allocation rounded according to the
+canvas.
+
+\quad Figure%
+%
+\code{interface Extension \{ \
+\quad void set(Canvas*, const Allocation\&);\
+\quad void set\_xy(Canvas*, Coord left, Coord bottom, Coord right,
+Coord top);\
+\quad void clear();\
+\quad void merge(const Extension\&);\
+\quad void merge(Canvas*, const Allocation\&);\
+\quad void merge\_xy(\
+\quad \quad Canvas*, Coord left, Coord bottom, Coord right, Coord
+top\
+\quad );\
+\quad Coord left() const, bottom() const, right() const, top() const;\
+\};%
+%
+\figurecaption{Extension protocol\label{extension}}%
+%
+%4.07998 3.12 6
+}%
+%
+ \ref{extension} shows the Extension protocol.  Extension::set initializes
+an extension to the given allocation transformed and rounded for the
+given canvas.  Extension::clear sets an extension to be an empty area.  Extension::merge
+extends an extension to include a new area in addition to its current
+one.
+
+\quad Extension::set\_xy and Extension::merge\_xy are short-hand for
+adjusting an extension to include a given bounding box.  Extension::left,
+bottom, right, and top return the bounding box.%
+%
+\section{Polyglyphs}%
+%
+A composite glyph contains one or more components.  Any glyph subclass
+may contain subcomponents, but composite glyphs are typically derived
+from PolyGlyph to be able to store and retrieve their children.
+
+\quad The PolyGlyph protocol, shown in Figure \ref{polyglyph} adds%
+%
+\code{interface PolyGlyph : Glyph \{\
+\quad PolyGlyph(GlyphIndex initial\_size = 10);\
+\quad void modified(GlyphIndex);\
+\};%
+%
+\figurecaption{Polyglyph protocol\label{polyglyph}}%
+%
+%0.240013 -2.64008 7
+}%
+%
+ one operation beyond the base class, PolyGlyph::modified(GlyphIndex),
+which notifies the glyph that the given component has changed.  This
+operation is called when a glyph is inserted or removed from the composite.%
+%
+\section{MonoGlyphs}%
+%
+MonoGlyph is an abstract class for glyphs that contain a single glyph,
+called its {\it body}.  The default behavior of monoglyphs is to pass
+operations on to the body.  For example, the implementation of MonoGlyph::draw
+simply calls draw on the body.  This feature is very useful because
+it means that a monoglyph can affect one aspect of the body's behavior
+without changing other aspects.  In particular, monoglyphs usually
+do not change structure management.  Therefore, a monoglyph can be
+\252wrapped\272 around a composite glyph and the result passed to
+an object that modifies the structure of the composite without knowing
+about the presence of the monoglyph.  For example, suppose a prototype
+menu is built and returned to a function that appends the items.  All
+the function need assume is that the prototype is some glyph; it can
+use Glyph::append to put in the items.  The arrangement of the items
+will be defined by the aggregate and any additional decoration, such
+as a 3D borderframe or shadow, can be wrapped around the aggregate
+independently.
+
+%
+%
+\code{interface MonoGlyph : Glyph \{\
+\quad void body(Glyph*);\
+\quad Glyph* body() const;\
+\}; %
+%
+\figurecaption{MonoGlyph protocol\label{monoglyph}}%
+%
+%0.959961 -496.32 7
+}%
+%
+\quad Figure \ref{monoglyph} shows the MonoGlyph base class interface.
+A non-nil glyph specifies the initial body.  MonoGlyph::body is overloaded
+to set and return the body.%
+%
+\subsection{Patches}%
+%
+A patch stores its canvas and allocation for subsequent use to update
+its body.  A patch is useful for objects that need to be redrawn independently,
+such as those that depend on some external data.  Typically, a patch
+appears in the middle of a glyph instance graph, where a change would
+be too expensive to redraw the entire graph.
+
+\quad Figure \ref{patch} shows the Patch class interface.%
+%
+\code{interface Patch : MonoGlyph \{\
+\quad Patch(Glyph*);\
+\quad Canvas* canvas() const;\
+\quad const Allocation\& allocation() const;\
+\quad void reallocate();\
+\quad void redraw() const;\
+\quad boolean repick(int depth, Hit\&);\
+\}; %
+%
+\figurecaption{Patch protocol\label{patch}}%
+%
+%-1.92001 -4.79999 8
+}%
+%
+  Patch::canvas and Patch::allocation return the canvas and allocation
+most recently passed to Patch::draw.  Patch::reallocate calls allocate
+on the body using the current allocation, usually because the body
+has changed in some way and will allocate its itself differently.  Patch::redraw
+calls draw on the body using the current allocation.  Patch::repick
+returns the result of calling pick on the body with the current canvas
+and allocation.%
+%
+\section{Example}%
+%
+See iv/src/examples/circle. %
+\end{document}

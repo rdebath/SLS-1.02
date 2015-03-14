@@ -1,0 +1,94 @@
+#define SWITCH '@'.
+
+there are 4 kinds of commands defined.
+
+
+SWITCH, SWITCH   This just sends the SWITCH character through. Used to escape
+		the switch character.
+
+SWITCH, SWITCH+n Switch to the stream n. Streams are numbered from 1.
+
+SWITCH, SWITCH-1, "%s" , 0
+	Do the control sequence "%s" on the local end.
+SWITCH, SWITCH-2, "%s" , 0
+	Do the control sequence on the remote end.
+SWITCH, SWITCH-3, "%s", 0
+	Pass the control sequence through to the remote client. This is
+	how the results of commands are passed back to the client. A 
+	switch, switch-3 sequence is generated in the term server, and passed
+	to the client.
+
+"%s" is simply a string of non-zero bytes.
+Legal control sequences are.
+
+C_UPLOAD "%s"
+	To attach a O_TRUNC|O_CREAT file to the file descriptor.
+	(only makes sense as a remote command).
+C_DOWNLOAD "%s"
+	To attach a O_RDONLY file to the file descriptor.
+	(only makes sense as a remote command).
+C_CLOSE
+	Close the file descriptor. Used to close the file. 
+
+C_PTYEXEC "%s"
+	as above, but opens a pty to exec it in first. This is how
+	remote shells are spawned.
+
+C_DUMB  
+	Downgrade clients status to dumb. All control message are now
+	ignored, and all switch characters become escaped. Only makes
+	sense as a local command.
+
+C_COMPRESS "%c" where c is 'y' or 'n' to force turning on 
+	or off of compression respectively. 
+
+C_PORT "%s:%d" to open a connection to port %d on the host %s. The "%s:" may
+	be omitted to open the port on the remote host.
+
+C_SOCKET "%s" to open the unix domain socket with name "%s".
+
+
+C_PRIORITY "%d" to set the clients priority to %d. 0 is default.
+	tupload defaults to -2, and trsh to 2. The local priority is
+	seperate from the remote priority. The priority only determines
+	the order in which clients are checked when looking for more
+	bytes to send. Two clients with equal priority will share bandwidth.
+
+C_STAT "%s" where %s is the name of a remote file. Returns a string being
+	the file size, the type, and the permissions. "%d %d %d". type
+	is 0 for a file, 1 for a directory, 2 for anything else.
+	The permissions are 4+2+1 for the term program (rwx).
+
+C_STATS "%d". where %d is 
+	>= 0 to stat that client number.
+	-1 for a space seperated list of active client numbers.
+	-2 , "%d %d", being the number of bytes fed to the compressor,
+		followed by the number of bytes output by the compressor.
+	-3 "%d %d", being the number of bytes read from the modem port,
+		followed by the number of bytes written to the modem port.
+	-4 "%d %d", being the number of packets in the input queue, followed
+		by the number of the packets in the output queue.
+	-5 "%d" being the baudrate term is operating at.
+	-6 being the client number of the client that asked for the C_STATS.
+
+C_SEEK "%d" lseek()s to that offset on the filedescriptor.
+
+C_NAME "%s" sets the name of this client to be '%s'.  Returned by C_STATS
+
+C_RESIZE "%d %d %d", sets the window size of client %d to be %d columns
+	wide by %d rows high.
+
+C_BIND "%d" binds the remote port %d. When the socket is ready for
+	accept()'ing, a magic number is written to the stream. This number
+	should be passed as a parameter to C_ACCEPT. It is acceptable to 
+	select() on the server socket until it is ready for reading. If it
+	is ready for reading, then the socket must be ready for accepting.
+
+C_ACCEPT "%d" tries to do an accept() on the socket indicated by the magic
+	number. The number is the result of a C_BIND command.
+
+C_DUMP "%d" effectively makes term go dump for the next %d bytes. All command
+	bytes are ignored in the data stream untill %d bytes have passed.
+	Measured from the first byte to be send after the C_DUMP command.
+	Sending 0 means to go dumb permenently.
+

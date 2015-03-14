@@ -1,0 +1,331 @@
+.TH MAILTO 1 "Release 1" "Bellcore Prototype"
+.SH NAME
+mailto - Simple mutlimedia mail sending program
+.SH SYNOPSIS
+.ta 8n
+\fBmailto\fP	[-a] [-c] [-s] [recipient name(s)]
+.br
+.SH DESCRIPTION
+The
+.I mailto
+program is a very simple user interface for sending multimedia mail in MIME format, the proposed standard format for multimedia Internet mail.  It is modelled very heavily on the Berkeley "mail" program.  However it shares NO code with that program -- it is a completely new implementation.
+
+As its name implies, 
+.I
+mailto
+is for 
+.I
+sending
+mail, not for reading it.  None of the mail-reading features of the Berkeley mail program have been implemented in 
+.I
+mailto.
+
+Users who are already familiar with using the Berkeley mail command to send mail should skip the following section, which explains things that are already familiar to you from that program.  Subsequent sections focus on the enhanced features that make this program different than Berkeley mail, notably the ability to include rich text, multimedia objects, and text in non-ASCII languages such as Hebrew or Russian.
+.SH BASIC USE
+[THIS SECTION MAY BE SAFELY SKIPPED BY READERS ALREADY FAMILIAR WITH THE BERKELEY MAIL PROGRAM.]
+
+The basic operation of mailto is very simple.  If you just type "mailto" you will be asked for a list of mail recipients ("To:") a mail subject ("Subject:") and possibly a list of people to receive a carbon copy of your message ("CC:").  Alternately, you can specify all of these things on the command line.  The "-s" option be used to specify the subject, and the "-c" option can be used to specify the carbon copy address.  All other command line arguments are added to the To list.  Thus the following command sends mail to nsb and jxr, with a subject of "Test message" and a carbon copy to kraut:
+
+mailto nsb jxr -s "Test message" -c kraut
+
+For the convenience of users accustomed to mail readers in which names are separated by commas, you may optionally follow each address with a comma, but this is not required.
+
+After these preliminaries are taken care of, you just type in the contents of your message.  Everything you type will be included in your message UNLESS you type a line that begins with the "~" (tilde) character.  Such a line is known as a TILDE ESCAPE, and can be used to give special commands to the mailto program, as will be discussed shortly.
+
+When you are done composing your message, you can cause it to be sent to the intended recipients by simply typing the end-of-file character, typically CONTROL-D.  Depending on your option settings, you may also be able to send the mail by typing "." alone on a line, or by typing "~.".
+
+That's all that you really need to know in order to send mail with mailto.  However, in order to use it to its fullest, you will also want to learn about some of the tilde escapes.  In this section, we describe the most basic ones, which the mailto program shares in common with the Berkeley mail program.   In subsequent sections, we will describe the more interesting tilde escapes which are unique to 
+.I
+mailto.  
+
+If anything in this section seems cryptic, it might be helpful to consult the man page for the mail(1) program, since the user interfaces are very similar.
+
+Any line that starts with a tilde is a tilde escape.  The second character on the line -- the one that follows the tilde -- is then interpreted as a special command to the mailto program.  The simple tilde escapes that mailto and mail have in common are as follows:
+
+    ~? Show help on tilde escapes
+    ~! Shell escape (e.g. "~! ls")
+    ~~ Enter text line starting with a tilde.  The tilde 
+        "quotes" itself, allowing you to input a line of
+        text that starts with a tilde.
+    ~. Send the mail and exit
+    ~c Add to CC list (e.g. "~c nsb")
+    ~d Read in the contents of "~/dead.letter" 
+        (or a named file, "~d filename")
+    ~e Edit the message being composed using the 
+        editor named by the EDITOR environment variable.
+    ~h Edit the To, Subject, and CC headers
+    ~p Print out the message so far
+    ~q Quit, copying the draft to ~/dead.letter
+    ~r Read the named text file into the message
+    ~s Reset the subject header
+    ~t Add to the To list
+    ~v Edit the message being composed using the 
+        editor named by the VISUAL environment variable
+    ~w Write the message being composed to a named file
+        (e.g. "~w filename")
+
+You can also control the behavior of the mailto program to a limited extent by putting commands in a file in your home directory called ".mailrc".  These commands include the ability to define aliases for commonly used mail addresses.  See the section entitled "SUMMARY OF MAILRC FUNCTIONALITY" later in this man page.
+
+.SH ENHANCED FEATURES NOT FOUND IN BERKELEY MAIL
+
+The main difference between mail and mailto is that the latter can be used to generate enhanced mail in MIME format, the proposed standard format for Internet multimedia mail.  However, mailto is intended to be a 
+.I very simple
+multimedia mail generator.  There are, accordingly, lots of things it can't do. However, it has the virtues of being extremely simple, extremely similar to a well-known program (mail), and highly configurable, using the "mailcap" file mechanism to be described below.
+
+Basically, mailto can include the following things in mail:
+
+1.  Simple formatted text, using the MIME type "text/richtext".  This allows you to add emphasis to your message using underlining, bold text, italic (diaplsyed as reverse video), centering, and the like.
+
+2.  Non-text data.  Metamail can include pictures, sounds, and other non-textual data in the middle of any mail message.  The mailcap configuration mechanism can even make this process reasonably user-friendly, but a knowledgable user can include non-textual data even in the absence of a proper mailcap entry.
+
+3.  Text including non-ASCII characters, such as Hebrew or Russian.  Currently, mailto directly supports only the ISO-8859-* family of character sets, which means that it does not meet the needs of Asian users, in particular.  However, languages that can not be expressed in the ISO-8859 family can still be included in the same way non-text data can be included.
+
+These three mechanisms will be discussed separately in the three sections that follow.
+
+.SH ENRICHED TEXT 
+
+Mailto lets you modify the formatting of your text in a few simple but useful ways.  As with everything else, this can be done using simple tilde escapes, as described by the following list:
+
+    ~b Toggle bold mode (turn bold on or off)
+    ~i Toggle italic mode (turn italic/reverse-video on or off)
+    ~j Alter Justification, in particular:
+        ~jc Center subsequent text
+        ~jl Make subsequent text flush-left
+        ~jr Make subsequent text flush-right
+    ~k Toggles whether or not a "blind" copy of the message will be kept.
+    ~n Force newline (hard line break)
+    ~u Toggle underline mode (turn underline on or off)
+    ~> Indent Left Margin
+    ~< Unindent Left Margin
+    ~<R Indent Right Margin
+    ~>R Unindent Right Margin
+    ~Q Toggle quotation (excerpt) mode
+    ~z Add the contents of ~/.signature as a TEXT signature
+
+Some of these may require a little explanation.  Bold, italic, and underline modes are toggles in the sense that alternate uses of ~b, ~i, and ~u turn bold, italic, or underline mode on or off.  The justification, on the other hand, simply switches between the three justification modes, centering, left justified, and right justified.
+
+To understand the "~n" command, it must first be noted that rich text is automatically justified, so that the line breaks you type have no more significance than space characters.  This allows the text to be displayed more nicely on variable-width windows.  (An exception is when you type multiple blank lines, in which case the line breaks become real.)  The "~n" command may be used to foce a line break.  Remember that you can see what your mail looks like at any time using the "~p" command.
+
+Quotation mode, as toggled by "~Q", is useful for formatting excerpts.  If, for example, you turn on quotation mode, insert a file, and then turn off quotation mode, the contents of the file will be considered an excerpt.  Most viewers will show excerpts as indented and/or preceded with "> " to set them apart from the rest of the text.
+
+Finally, "~z" simply includes your text signature file, but formats it as a "signature", which many richtext viewers will display in a smaller font or otherwise set it off from the rest of your message.
+
+.SH MULTIMEDIA OBJECT INCLUSION
+
+The basic command for inserting multimedia objects in a mailto message is "~*".  When you type this command, you will be give a list of options that will vary depending on your configuration.  (How to configure this list will be described below.)   For example, it might look something like this:
+
+ Please choose which kind of data you wish to insert:
+
+ 0: Raw data from a file, with you specifying the content-type by hand.
+ 1: An audio clip
+ 2: Data in 'application/andrew-inset' format
+ 3: An X11 window image dump
+ 4: An interactive mail-based survey
+
+Of these options, only the first one, option 0, will appear at all sites and in all configurations.  
+
+If you choose option 0, you will be asked for the name of a file containing non-textual data and for the correct "content-type" name that describes that type of data.  The content-type values are defined by the MIME standard, and are typically type/subtype pairs that describe the general data type and its specific format.  For example, a picture in GIF format has a content-type of "image/gif", and an audio clip in basic u-law format has a content-type of "audio/basic".  For complete documentation on the content-type field, consult the MIME proposed standard.
+
+More commonly, however, at a well-configured site you will not need to know anything about content-types,  because you will choose one of the non-zero options.  In these cases, a program will run that will allow you to compose data of the given type.  The user interface to this process cannot be described here, because it will necessarily be site-dependent, but such programs are generally designed to be easy for novice users.
+
+An extra mailto command that is useful for including multimedia objects is the "~Z" command.  This can be used to include a multimedia signature file.  The signature file should be a complete MIME-format file, with a Content-type header field at the top.
+
+.SH CONFIGURATION VIA MAILCAP FILES
+
+NOTE:  This section is intended for those who are interested in extending the behavior of mailto to easily include new types of mail.  Users at well-administered sites are unlikely to need to do this very often, as the site administrator will have done it for you.  
+
+For a more complete explanation of the mailcap mechanism, consult the man page for metamail(1).  Here we summarize only those aspects of mailcap files that are relevant to configuring the mailto program.
+
+First of all, mailto uses a search path to find the mailcap file(s) to consult.  Unlike many path searches, mailto will always read 
+.I all
+the mailcap files on its path.  That is, it will keep reading mailcap files until it runs out of them, collecting mailcap entries.  The default search path is equivalent to
+
+$HOME/.mailcap:/etc/mailcap:/usr/etc/mailcap:/usr/local/etc/mailcap
+
+It can be overridden by setting the MAILCAPS environment variable.  Note: mailto does not actually interpret environment variables such as $HOME or the "~" syntax in this path search.
+
+The syntax of a mailcap file is quite simple, at least compared to termcap files.  Any line that starts with "#" is a comment.  Blank lines are ignored.  Otherwise, each line defines a single mailcap entry for a single content type.  Long lines may be continued by ending them with a backslash character, \\.
+
+Each individual mailcap entry consists of a content-type specification, a command to be executed on reading, typically by the metamail(1) program, and (possibly) a set of optional "flag" values.  The mailto program is only interested in mailcap entries that have either or both of the optional "compose" or "edit" flags.  The compose flag is used to tell mailto about a program that can be used to compose data in the given format, while the edit flag can be used to tell mailto how to edit data in the given format.  Thus, for example the following mailcap entry describes how to compose and edit audio data:
+
+audio/basic; showaudio %s; compose=audiocompose %s; edit=audiocompose %s; label="An audio clip"
+
+The optional "label" field is used in composing the prompt that mailto prints in response to the "~*" command.  The compose program is used to compose data in this format, and the edit program is used to edit data in this format.  In each of these, any occurrence of "%s" will be replaced by the name of the file to be composed or edited.  If there is no "%s" in the compose command, it is equivalent to having "> %s" appended to the end of the compose command.
+
+Note that the order in which things appear in mailcap files is highly critical.  The metamail program uses the first matching mailcap entry to 
+.I 
+display
+data.  Mailto, on the other hand, offers the user an alternative for
+.I
+every
+mailcap entry that has a "compose" command.  However, it should be noted that mailto will use the content-type from the mailcap entry in composing content-type headers.  Therefore, compose and edit commands should NOT be specified on wildcard mailcap entries.  If you have a program can display lots of different subtypes, you should probably make a separate entry for displaying and for composing the basic types, e.g.:
+
+ image/*; showpicture %s
+ image/gif; showpicture %s; compose="xwd -frame | xwdtoppm | ppmtogif"; label="An X11 window image dump in GIF format"
+ image/x-xwd; showpicture %s; compose="xwd -frame"; label="An X11 window image dump in XWD format"
+
+For more information on the mailcap file format and syntax, see the metamail(1) man entry.
+
+.SH TEXT IN NON-ASCII LANGUAGES
+
+Mailto provides rudimentary support for the composition of mail in non-ASCII character sets.  Currently, it supports the ISO-8859 family of character sets.  These character sets all have the nice property that they are proper supersets of ASCII.  That is, all ASCII characters are identical in all of the ISO-8859 character sets.  When you use one of these character sets, then, you can still type all ASCII characters as normal.
+
+By default, however, mailto assumes that you are using the US-ASCII character set, and will not allow the inclusion of non-ASCII characters.  To tell mailto that you are using a terminal or terminal window that supports one of the ISO-8859 character sets, you can use the -a switch or the MM_CHARSET environment variable.  For example, typing "mailto -a ISO-8859-8" tells mailto that your terminal understands ISO-8859-8, the ASCII+Hebrew character set.  This is what you would use if you were on a terminal that actually understood this character set.  If you're using a window system such as X11, you'll also need to be sure that your terminal emulator is using the right font.  Thus if you have a font named "heb6x13", you can start a compatible xterm and mailto to send mixed English/Hebrew mail using the command "xterm -fn heb6x13 -e mailto -a iso-8859-8".  In general, having an installed font with the same name as the character set is a good idea, particularly if you're using shownonascii(1).
+
+Once you've got mailto started up using the right character sets, there are two ways to enter non-ASCII characters.  The first, and by far the easiest, is to use the keys as marked, if you're on a physical terminal that uses one of these character sets.  However, if you're using a standard ASCII keyboard, as most X11 users do, you need some other way to enter non-ASCII characters.  To permit this, mailto has an "eight bit mode".  In eight bit mode, all printable characters that you type have the eighth bit turned on, thus turning them into non-ASCII characters.  You can enter eight bit mode using the tilde escape "~+", and you can leave it using "~-".  To see the mapping from your keyboard to eight-bit-mode characters, just give the command "~?+".  
+
+Finally, certain languages that can be expressed in the ISO-8859 family, notably Hebrew and Arabic, go from right to left rather than left to right.  To ease the composition of text in these languages, mailto has a "right to left" mode.  This mode is toggled on or off using the "~^" command.  For added convenience, the right-to-left mode and eight-bit-mode can be toggled on and off together using a single command, "~S" (Semitic mode).
+
+.SH COMPLETE SUMMARY OF TILDE ESCAPES
+
+For easy reference, here is a complete summary of the tilde escapes in the mailto program:
+
+    ~? Show help on tilde escapes
+    ~! Shell escape
+    ~~ Enter text line starting with a tilde
+    ~. Send the mail and exit
+    ~/ Set maximum size before message is split into 
+        multiple parts
+    ~?+ Show help on extended (eight-bit) characters
+    ~> Indent Left Margin
+    ~< Unindent Left Margin
+    ~<R Indent Right Margin
+    ~>R Unindent Right Margin
+    ~+ Enter 8-bit mode for non-ASCII characters
+    ~- Leave 8-bit mode (return to ASCII)
+    ~^ Toggle \"Upside-down\" (right-to-left) mode.
+    ~* Add non-text data (pictures, sounds, etc.) as a new 
+        MIME part (try it!)
+    ~b Toggle bold mode
+    ~c Add to CC list
+    ~d Read from dead.letter (or named file, ~d filename)
+    ~e Edit message being composed
+    ~h Edit the headers
+    ~i Toggle italic mode
+    ~j Alter Justification (~jc = center, ~jl = flushleft, 
+        ~jr = flushright.)
+    ~n Force newline (hard line break)
+    ~p Print out the message so far
+    ~q Quit, copying to dead.letter
+    ~Q Toggle quotation (excerpt) mode
+    ~r Read the named text file into the message
+    ~s Reset the subject
+    ~S Toggle Semitic mode (right-to-left AND eight-bit)
+    ~t Add to To list
+    ~u Toggle underline mode
+    ~v Edit using VISUAL editor
+    ~w Write message to named file
+    ~z Add the contents of ~/.signature as a TEXT signature.
+    ~Z Add the contents of ~/.SIGNATURE as a NON-TEXT 
+        (MIME-format) signature.
+
+.SH SUMMARY OF MAILRC FUNCTIONALITY
+
+The .mailrc file in your home directory is used to customize the Berkeley mail program.  The mailto program is sensitive to some, though not all, of these customizations.  In particular, you can use the .mailrc file to set the following variables (via "set variablename" or "unset variablename") that affect mailto's behavior:
+
+   askcc -- controls whether or not you are prompted for a CC list.
+   dot -- controls whether or not a period alone on a line 
+        should be interpreted as terminating your mail
+   ignore -- controls whether or not interrupts are ignored
+   verbose -- controls the verbosity of output from /usr/lib/sendmail
+   quiet -- controls the verbosity of output from the mailto program.
+   keepblind -- controls whether or not a 'blind' copy of the mail is kept.
+
+The other functionality implemented by the .mailrc file is personal mail aliases.  If you have a friend with a long horrible mail address, you can put a line in your .mailrc file that allows you to refer to him by a more friendly name:
+
+   alias boygeorge  George.Herbert.Walker.Bush%white-house.uucp@nsf-relay.com
+
+Mailto implements the alias feature in a manner that is compatible with Berkeley mail.  Moreover, it also knows how to read ".AMS_aliases" files as used by CMU's Andrew system, so that Andrew users do not need to maintain two different alias files in order to use both Andrew and mailto.
+
+.SH OTHER KNOWN DIFFERENCES FROM BERKELEY MAIL
+
+Although this program was modelled on Berkeley mail, its user interface is inevitably not identical with that program.   What follows is a list of major known differences, beyond the multimedia enhancements, that might confuse users accustomed to the Berkeley mail program:
+
+.I
+Address separators:
+In Berkeley mail, addresses are separated by spaces, which is an abomination to the mail gods.  For backward compatibility, this also works in mailto, but right-thinking people may use commas instead.
+
+.I 
+Newline semantics:  
+Unlike Berkeley mail, in mailto single line breaks are generally regarded as "soft".  This means that your message may be filled and/or justified when it is seen by the recipient.  Explicit line breaks can be added using the "~n" command.  Multiple consecutive line breaks typed by the user WILL have the desired effect.  Alternately, any line that starts with a space or tab character will be preceded by a line break.
+
+.I
+Inclusion of dead.letter files:
+The "~d" command is used to include the contents of the file "dead.letter" in the current message.  Mailto's implementation of this feature differs from Mail's in two ways:  First, the message is included as an encapsulated message rather than as plain text.  While this may sometimes be inconvenient, it allows multimedia dead.letter files  to be retrieved properly.   Second, the "~d" command in mailto can take an argument, which is the name of a file to use instead of the default "~/dead.letter".
+
+.I
+Incompatibilities with Sun's version:
+Sun Microsystems (and no doubt many other vendors with whom the author is less familiar) have enhanced the Berkeley mail command in several ways, a few of which are not compatible with mailto.  In particular, the "~b," "~i,  and "~<" commands, at least, are different in mailto than in Sun's version.
+
+.I
+Potential for failure in ~p:
+In the standard Berkeley mail program, it is inconceivable that "~p" would ever fail.  In mailto, ~p works by calling the metamail(1) program.  If metamail is not on the user's search path, ~p will not work.
+
+.I
+Extended alias searching:
+The mailto program reads both the aliases in the .mailrc file, as does Berkeley mail, and those in the .AMS_aliases file, as used by CMU's Andrew Message System.
+
+.I 
+Altered editing behavior:
+The ~e and ~v commands, which are used to edit the message being composed, will behave differently in mailto if the mail includes non-text portions.  In such cases, each part will be edited separately, in sequence, which makes it impossble for the user to accidentally mess up the inter-part boundaries.  Moreover, if the mailcap entry for a given data type includes an "edit" field, the user will be given the choice of editing with the program named there or editing with his usual (text) editor.  In most cases, this will be a choice between using a structured editor or editing the raw data stream.
+
+.I 
+Altered behavior for large messages:
+Mailto delivers your message using the splitmail(1) program.  This is done so that large messages will be split into a set of smaller parts in a MIME-compliant way, so that MIME readers can automatically reassemble them upon receipt.  By default all messages over 100Kbytes are split, but this can be controlled using the SPLITSIZE environment variable.  See the splitmail(1) man page for more information.
+
+.I
+New -r command-line option 
+The -r comand-line option is not found in standard Berkeley mail.
+
+.SH SUMMARY OF OPTIONS
+-a <charset> -- specifies an alternate character set in use.  This had better be the one your terminal is actually using.  Currently it must be in the iso-8859 character set family.
+
+-c name -- specifies a name for the CC field.  If you want to include multiple values, you'll need to quote the name, as in -c "name1, name2, name3"
+
+-r message-id -- specifies a message-id to be used in constructing an In-Reply-To header field.
+
+-s subject -- specifies the subject for the mail.  If it includes spaces, it will need to be surrounded by double quotes as well.
+
+.SH ENVIRONMENT VARIABLES
+
+.TP 8
+.B MAILCAPS
+This variable can be used to override the default path search for mailcap files.
+.TP 8
+.B PAGER
+If set, this variable overrides "more" as the name of the program to run to paginate output from an interpreter, when pagination has been requested.
+.TP 8
+.B MM_CHARSET
+This variable can be used instead of the -a switch to tell mailto that your terminal (or terminal emulator) implements a character set other than US-ASCII.
+.TP 8
+.B TERM
+This variable tells mailto what your terminal type is.  This is used in conjunction with the termcap(5) facility to figure out how to do bold characters, reverse video, underlining, or other neat stuff on your terminal.
+.TP 8
+.B EDITOR
+This variable names the editor mailto will use when you ask (with ~e) to edit the message you are composing.
+.TP 8
+.B VISUAL
+This variable names the visual editor mailto will use when you ask (with ~v) to edit the message you are composing.
+.SH SEE ALSO
+metamail(1), mmencode(1), richtext(1), audiocompose(1), getfilename(1), mailto-hebrew(1), splitmail(1), shownonasci(1)
+.SH BUGS
+Currently, fgets is used to get each line of input.  An intelligent replacement, in which the effects of right-to-left mode, eight-bit-mode, and the margin- and justification-related commands were immediately evident, would be a big improvement.
+
+Although this program was modelled on Berkeley mail, its user interface is inevitably not identical with that program.  The section entitled "OTHER KNOWN DIFFERENCES FROM BERKELEY MAIL," above, might be considered by some to be an extension of this "BUGS" section.
+
+.SH COPYRIGHT
+Copyright (c) 1992 Bell Communications Research, Inc. (Bellcore)
+
+Permission to use, copy, modify, and distribute this material 
+for any purpose and without fee is hereby granted, provided 
+that the above copyright notice and this permission notice 
+appear in all copies, and that the name of Bellcore not be 
+used in advertising or publicity pertaining to this 
+material without the specific, prior written permission 
+of an authorized representative of Bellcore.  BELLCORE 
+MAKES NO REPRESENTATIONS ABOUT THE ACCURACY OR SUITABILITY 
+OF THIS MATERIAL FOR ANY PURPOSE.  IT IS PROVIDED "AS IS", 
+WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+.SH AUTHOR
+Nathaniel S. Borenstein
+

@@ -1,0 +1,40 @@
+: u-vacation
+# A user delivery file for when you're on vacation.
+#
+# The ALREADY file remembers who you've already mailed vacation messages to.
+# The BEBACK string is the date you will return.
+
+ALREADY=vacation.list
+BEBACK="on July 4, 1776"
+
+echo "$1"               # Keep the mail!
+
+if grep '^'${SENDER}'$' $ALREADY >/dev/null 2>/dev/null
+then
+    exit 0              # We already notified this person; reject
+fi
+
+case $SENDER in
+*uucp)  exit 0 ;;       # Not a human; reject
+*daemon) exit 0 ;;      # Not a human; reject
+*DAEMON) exit 0 ;;      # Not a human; reject
+*!*)    ;;
+*@*)    ;;
+## *)      exit 0 ;;       # Local user; reject (maybe)
+esac
+
+# Remember this person
+echo $SENDER >>$ALREADY
+
+# Send the vacation message
+SUBJECT=`header -f subject $HEADER`
+mail -s "I'm on vacation" $SENDER <<!EOF!
+Your message to me on the subject
+    "$SUBJECT"
+has been delivered.  However, I am on vacation, so I have not yet
+read your message.  I will be back $BEBACK.
+
+This is the only such message you will receive.
+
+Thank you.
+!EOF!

@@ -1,0 +1,106 @@
+# Commands covered:  cd, pwd
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright 1991 Regents of the University of California
+# Permission to use, copy, modify, and distribute this
+# software and its documentation for any purpose and without
+# fee is hereby granted, provided that this copyright notice
+# appears in all copies.  The University of California makes no
+# representations about the suitability of this software for any
+# purpose.  It is provided "as is" without express or implied
+# warranty.
+#
+# $Header: /user6/ouster/tcl/tests/RCS/cd.test,v 1.17 91/12/06 11:49:02 ouster Exp $ (Berkeley)
+
+if {[string compare test [info procs test]] == 1} then {source defs}
+
+catch {exec rm -rf cd.dir}
+exec mkdir cd.dir
+exec cat << "Sample text" > cd.dir/test.file
+set cwd [exec pwd]
+
+test cd-1.1 {simple pwd check} {
+    pwd
+} $cwd
+
+cd cd.dir
+test cd-2.1 {changing directories} {
+    list [exec pwd]
+} $cwd/cd.dir
+test cd-2.2 {changing directories} {
+    pwd
+} $cwd/cd.dir
+test cd-2.3 {changing directories} {
+    exec cat test.file
+} "Sample text"
+cd ..
+test cd-2.4 {changing directories} {
+    exec pwd 
+} $cwd
+test cd-2.5 {changing directories} {
+    pwd 
+} $cwd
+test cd-2.6 {changing directories} {
+    exec cat cd.dir/test.file
+} "Sample text"
+
+# The tests below seem to fail on lots of machines for a variety
+# of reasons, such as the auto-mounter, home directories that are
+# symbolic links, etc.
+
+if $atBerkeley {
+    set home [exec sh -c "cd; pwd"]
+    test cd-2.7 {changing directories} {
+	cd ~
+	set x [list [exec pwd] [pwd]]
+	cd $cwd
+	set x
+    } "$home $home"
+    test cd-2.8 {changing directories} {
+	cd
+	set x [list [exec pwd] [pwd]]
+	cd $cwd
+	set x
+    } "$home $home"
+}
+
+test cd-3.1 {cd return value} {
+    cd .
+} {}
+
+test cd-4.1 {errors in cd command} {
+    list [catch {cd 1 2} msg] $msg $errorCode
+} {1 {wrong # args: should be "cd dirName"} NONE}
+test cd-4.2 {errors in cd command} {
+    string tolower [list [catch {cd _bad_dir} msg] $msg $errorCode]
+} {1 {couldn't change working directory to "_bad_dir": no such file or directory} {unix enoent {no such file or directory}}}
+test cd-4.3 {errors in cd command} {
+    string tolower [list [catch {cd cd.dir/test.file} msg] $msg $errorCode]
+} {1 {couldn't change working directory to "cd.dir/test.file": not a directory} {unix enotdir {not a directory}}}
+test cd-4.4 {errors in cd command} {
+    set home $env(HOME)
+    unset env(HOME)
+    set x [list [catch cd msg] $msg]
+    set env(HOME) $home
+    set x
+} {1 {couldn't find HOME environment variable to expand "~"}}
+
+test cd-5.1 {errors in pwd command} {
+    list [catch {pwd a} msg] $msg
+} {1 {wrong # args: should be "pwd"}}
+exec mkdir cd.dir/child
+cd cd.dir/child
+exec chmod 111 ..
+if {$user != "root"} {
+    test cd-5.2 {errors in pwd command} {
+	catch pwd msg
+    } 1
+}
+cd $cwd
+exec chmod 775 cd.dir
+
+catch {exec rm -rf cd.dir}
+format ""

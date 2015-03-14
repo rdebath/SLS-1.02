@@ -1,0 +1,54 @@
+*** fs/proc/root.c.orig	Fri Jan  1 22:46:31 1993
+--- fs/proc/root.c	Wed Jan 20 13:27:34 1993
+***************
+*** 55,61 ****
+  	{ 3,6,"uptime" },
+  	{ 4,7,"meminfo" },
+  	{ 5,4,"kmsg" },
+! 	{ 6,4,"self" }	/* will change inode # */
+  };
+  
+  #define NR_ROOT_DIRENTRY ((sizeof (root_dir))/(sizeof (root_dir[0])))
+--- 55,62 ----
+  	{ 3,6,"uptime" },
+  	{ 4,7,"meminfo" },
+  	{ 5,4,"kmsg" },
+! 	{ 6,4,"self" },	/* will change inode # */
+! 	{ 7,4,"idle" }	
+  };
+  
+  #define NR_ROOT_DIRENTRY ((sizeof (root_dir))/(sizeof (root_dir[0])))
+*** fs/proc/array.c.orig	Fri Jan  1 22:46:30 1993
+--- fs/proc/array.c	Wed Jan 20 14:14:31 1993
+***************
+*** 46,51 ****
+--- 46,62 ----
+  	return sprintf(buffer,"%d\n",(jiffies+jiffies_offset)/HZ);
+  }
+  
++ /*
++  * the (absolute) idle time is the processing time of task 0, the unswappable
++  * idle task. The current ticks value is also returned, so the relative
++  * idle time can easily computed with two succesive reads of /proc/idle.
++  */
++ static int get_idle(char * buffer)
++ {
++ 	return sprintf(buffer,"%d %d\n",
++ 		task[0]->utime + task[0]->stime, jiffies + jiffies_offset);
++ }
++ 
+  static int get_meminfo(char * buffer)
+  {
+  	struct sysinfo i;
+***************
+*** 295,300 ****
+--- 306,314 ----
+  			break;
+  		case 4:
+  			length = get_meminfo(page);
++ 			break;
++ 		case 7:
++ 			length = get_idle(page);
+  			break;
+  		case 9:
+  			length = get_env(pid, page);

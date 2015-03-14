@@ -1,0 +1,937 @@
+Below are the patches I needed to get gcc (and probably any other ansi
+compiler) to compile it.
+
+cheers
+mark
+
+*** cmds.c~	Wed Jul 29 07:25:02 1992
+--- cmds.c	Tue Aug  4 19:46:14 1992
+***************
+*** 79,89 ****
+--- 79,91 ----
+  #endif
+  #endif
+  
++ #ifndef __GNUC__
+  #ifdef SYSV3
+  extern void exit();
+  #else
+  extern int exit();
+  #endif
++ #endif
+  
+  #define DEFCOLDELIM ':'
+  
+***************
+*** 376,394 ****
+  	case 'r':
+  	case 'l':
+  	case 'h':
+! 	case ctl(f):
+! 	case ctl(b):	return ('r');
+  
+  	case 'c':
+  	case 'j':
+  	case 'k':
+! 	case ctl(p):
+! 	case ctl(n):	return ('c');
+  
+  	case 'm':	return ((ch == 'p') ? 'm' : 0);
+  
+  	case ESC:
+! 	case ctl (g):	return (ESC);
+  
+  	default:	return (0);
+      }
+--- 378,396 ----
+  	case 'r':
+  	case 'l':
+  	case 'h':
+! 	case ctl('f'):
+! 	case ctl('b'):	return ('r');
+  
+  	case 'c':
+  	case 'j':
+  	case 'k':
+! 	case ctl('p'):
+! 	case ctl('n'):	return ('c');
+  
+  	case 'm':	return ((ch == 'p') ? 'm' : 0);
+  
+  	case ESC:
+! 	case ctl ('g'):	return (ESC);
+  
+  	default:	return (0);
+      }
+***************
+*** 693,699 ****
+  	XPeekEvent(dpy,&event);
+  	if (event.type == KeyPress)
+  	{
+! 	count = XLookupString(&event,buffer,8,0,0);
+  	buffer[count] = 0;
+  	ch = buffer[0];
+  	/* ch = nmgetch(); */
+--- 695,701 ----
+  	XPeekEvent(dpy,&event);
+  	if (event.type == KeyPress)
+  	{
+! 	count = XLookupString((XKeyEvent *)&event,buffer,8,0,0);
+  	buffer[count] = 0;
+  	ch = buffer[0];
+  	/* ch = nmgetch(); */
+***************
+*** 811,817 ****
+  	XPeekEvent(dpy,&event);
+  	if (event.type == KeyPress)
+  	{
+! 	count = XLookupString(&event,buffer,8,0,0);
+  	buffer[count] = 0;
+  	ch = buffer[0];
+  	/* ch = nmgetch(); */
+--- 813,819 ----
+  	XPeekEvent(dpy,&event);
+  	if (event.type == KeyPress)
+  	{
+! 	count = XLookupString((XKeyEvent *)&event,buffer,8,0,0);
+  	buffer[count] = 0;
+  	ch = buffer[0];
+  	/* ch = nmgetch(); */
+*** getstr.c~	Wed Jul 29 07:25:19 1992
+--- getstr.c	Tue Aug  4 19:48:51 1992
+***************
+*** 50,56 ****
+   */
+  
+  
+! #define ctl(x) ('x'&037)
+  char *get_str(s, max_str_len)
+    char *s;               /* prompt and returned string */
+    int max_str_len;
+--- 50,56 ----
+   */
+  
+  
+! #define ctl(x) (x&037)
+  char *get_str(s, max_str_len)
+    char *s;               /* prompt and returned string */
+    int max_str_len;
+***************
+*** 109,210 ****
+              case 13: /* carriage return */
+                done =1;
+                break;
+!             case ctl(h):  /* backspace */
+!             case ctl(?):  /* delete */
+!               if (count){
+!                 buf[--count]='_';
+!                 XDrawImageString(dpy,mainwin,maingc,
+!                                  textcol(slen+count+1),textrow(0),
+!                                  "_ ", 2);
+!               } else {
+!                 fprintf(stderr,"\007"); /* bell */
+!               }
+!               break;
+!             default:
+!               if ((keystr[0]>=32) && (keystr[0]<127)){
+!                 if (count<maxcount){
+!                   buf[count++]=keystr[0];
+!                   buf[count]='_';
+!                   XDrawImageString(dpy,mainwin,maingc,
+!                                    textcol(slen+count),textrow(0),
+!                                    buf+count-1, 2);
+!                 } else
+!                     fprintf(stderr,"\007");
+!               } else
+!                   fprintf(stderr,"\007");
+!               break;
+!           } /* switch keystr[0] */
+!         } /* if XLookupString */
+!       } /* switch event.type */
+!     } /* while !done */
+!     buf[count]=0;
+!     strcpy(s,buf);
+!     clearlines(0,0);
+!     show_top_line();
+!     return s;
+! }
+! 
+! #define ctl(x) ('x'&037)
+! char *get_str(s, max_str_len)
+!   char *s;               /* prompt and returned string */
+!   int max_str_len;
+! {
+!   static char buf[1024]; /* hold the characters as they are typed */
+!   int count=0;           /* how many characters have been entered */
+!   int maxcount;          /* the max number of chars to be entered */
+!   int done=0;            /* true when input is finished */
+!   int slen;              /* length of prompt string */
+!   XEvent event;          /* input event structure */
+!   char keystr[3];        /* ASCII version of keypress */
+!   KeySym key;            /* keysym for keypress */
+! 
+!   clearlines(0,0);
+!   slen = strlen(s);
+!   max_str_len--;      /* decrease this to save room for null byte */
+!   maxcount = maintextcols - slen;
+!   maxcount = ((maxcount < max_str_len) ? maxcount : max_str_len);
+!   buf[0]='_'; /* the "cursor" */
+!   if (slen)
+!     XDrawImageString(dpy,mainwin,maingc,
+!                      textcol(0), textrow(0),
+!                      s, slen);
+!   XDrawImageString(dpy,mainwin,maingc,
+!                    textcol(slen), textrow(0),
+!                    "_", 1 );
+!   while (!done){
+!     XNextEvent(dpy,&event);
+!     switch(event.type){
+!       case Expose:
+!         update();
+!         if (slen)
+!           XDrawImageString(dpy,mainwin,maingc,
+!                            textcol(0), textrow(0),
+!                            s, slen);
+!         if (count)
+!           XDrawImageString(dpy,mainwin,maingc,
+!                            textcol(slen), textrow(0),
+!                            buf, count);
+!         XDrawImageString(dpy,mainwin,maingc,
+!                          textcol(slen+count), textrow(0),
+!                          "_", 1 );
+!         break;
+!       case MappingNotify:
+!         XRefreshKeyboardMapping(&event);
+!         break;
+!       case ConfigureNotify:
+!         sc_handleresize(&event);
+!         maxcount = maintextcols - slen;
+!         maxcount = ((maxcount < max_str_len) ? maxcount : max_str_len);
+!         break;
+!       case KeyPress:
+!         if (XLookupString(&event, keystr, 3, key, 0)){
+!           switch( keystr[0]){
+!             case 10: /* linefeed */
+!             case 13: /* carriage return */
+!               done =1;
+!               break;
+!             case ctl(h):  /* backspace */
+!             case ctl(?):  /* delete */
+                if (count){
+                  buf[--count]='_';
+                  XDrawImageString(dpy,mainwin,maingc,
+--- 109,116 ----
+              case 13: /* carriage return */
+                done =1;
+                break;
+!             case ctl('h'):  /* backspace */
+!             case ctl('?'):  /* delete */
+                if (count){
+                  buf[--count]='_';
+                  XDrawImageString(dpy,mainwin,maingc,
+*** help.c~	Wed Jul 29 07:26:01 1992
+--- help.c	Tue Aug  4 19:59:13 1992
+***************
+*** 561,567 ****
+  			break;
+  
+  		    case MappingNotify:
+! 			XRefreshKeyboardMapping(&event);
+  			break;
+  
+  		    case ConfigureNotify:
+--- 561,567 ----
+  			break;
+  
+  		    case MappingNotify:
+! 			XRefreshKeyboardMapping((XMappingEvent *)&event);
+  			break;
+  
+  		    case ConfigureNotify:
+***************
+*** 569,575 ****
+  			break;
+  
+  		    case KeyPress:
+! 			if (XLookupString(&event,buffer,8,0,0))
+  			{
+  				c = buffer[0];
+  				done = 1;
+--- 569,575 ----
+  			break;
+  
+  		    case KeyPress:
+! 			if (XLookupString((XKeyEvent *)&event,buffer,8,0,0))
+  			{
+  				c = buffer[0];
+  				done = 1;
+*** lex.c~	Wed Jul 29 07:26:11 1992
+--- lex.c	Tue Aug  4 19:52:40 1992
+***************
+*** 118,125 ****
+  #include "statres.h"
+      0, 0};
+  
+- #define ctl(x) ('x'&037)
+- 
+  yylex ()
+  {
+      register char *p = line+linelim;
+--- 118,123 ----
+***************
+*** 308,317 ****
+         c = getchar();
+  
+      switch (c) {
+!     case SMG$K_TRM_LEFT:  c = ctl(b); break;
+!     case SMG$K_TRM_RIGHT: c = ctl(f); break;
+!     case SMG$K_TRM_UP:    c = ctl(p); break;
+!     case SMG$K_TRM_DOWN:  c = ctl(n); break;
+      default:   c = c & 0x7f;
+      }
+      return (c);
+--- 306,315 ----
+         c = getchar();
+  
+      switch (c) {
+!     case SMG$K_TRM_LEFT:  c = ctl('b'); break;
+!     case SMG$K_TRM_RIGHT: c = ctl('f'); break;
+!     case SMG$K_TRM_UP:    c = ctl('p'); break;
+!     case SMG$K_TRM_DOWN:  c = ctl('n'); break;
+      default:   c = c & 0x7f;
+      }
+      return (c);
+***************
+*** 373,381 ****
+  #endif
+  
+  char dont_use[] = {
+!     ctl(z), ctl(r), ctl(l), ctl(b), ctl(c), ctl(f), ctl(g), ctl([),
+!     ctl(h), ctl(m), ctl(j), ctl(n), ctl(p), ctl(q), ctl(s), ctl(t),
+!     ctl(u), ctl(v), ctl(e), ctl(a), ctl(i), ctl(w), 0,
+  };
+  
+  charout(c)
+--- 371,379 ----
+  #endif
+  
+  char dont_use[] = {
+!     ctl('z'), ctl('r'), ctl('l'), ctl('b'), ctl('c'), ctl('f'), ctl('g'), ctl('['),
+!     ctl('h'), ctl('m'), ctl('j'), ctl('n'), ctl('p'), ctl('q'), ctl('s'), ctl('t'),
+!     ctl('u'), ctl('v'), ctl('e'), ctl('a'), ctl('i'), ctl('w'), 0,
+  };
+  
+  charout(c)
+***************
+*** 395,404 ****
+      if (tgetent(buf, getenv("TERM")) <= 0)
+  	return;
+  
+!     km[0].k_str = tgetstr("kl", &p); km[0].k_val = ctl(b);
+!     km[1].k_str = tgetstr("kr", &p); km[1].k_val = ctl(f);
+!     km[2].k_str = tgetstr("ku", &p); km[2].k_val = ctl(p);
+!     km[3].k_str = tgetstr("kd", &p); km[3].k_val = ctl(n);
+      ktmp = tgetstr("ks",&p);
+      if (ktmp)  {
+  	(void) strcpy(ks_buf, ktmp);
+--- 393,402 ----
+      if (tgetent(buf, getenv("TERM")) <= 0)
+  	return;
+  
+!     km[0].k_str = tgetstr("kl", &p); km[0].k_val = ctl('b');
+!     km[1].k_str = tgetstr("kr", &p); km[1].k_val = ctl('f');
+!     km[2].k_str = tgetstr("ku", &p); km[2].k_val = ctl('p');
+!     km[3].k_str = tgetstr("kd", &p); km[3].k_val = ctl('n');
+      ktmp = tgetstr("ks",&p);
+      if (ktmp)  {
+  	(void) strcpy(ks_buf, ktmp);
+***************
+*** 428,436 ****
+  #ifdef TIOCSLTC
+      (void)ioctl(fileno(stdin), TIOCGLTC, (char *)&old_chars);
+      new_chars = old_chars;
+!     if (old_chars.t_lnextc == ctl(v))
+  	new_chars.t_lnextc = -1;
+!     if (old_chars.t_rprntc == ctl(r))
+  	new_chars.t_rprntc = -1;
+      (void)ioctl(fileno(stdin), TIOCSLTC, (char *)&new_chars);
+  #endif
+--- 426,434 ----
+  #ifdef TIOCSLTC
+      (void)ioctl(fileno(stdin), TIOCGLTC, (char *)&old_chars);
+      new_chars = old_chars;
+!     if (old_chars.t_lnextc == ctl('v'))
+  	new_chars.t_lnextc = -1;
+!     if (old_chars.t_rprntc == ctl('r'))
+  	new_chars.t_rprntc = -1;
+      (void)ioctl(fileno(stdin), TIOCSLTC, (char *)&new_chars);
+  #endif
+***************
+*** 555,564 ****
+  
+      c = getchar();
+      switch (c) {
+!     case KEY_LEFT:  c = ctl(b); break;
+!     case KEY_RIGHT: c = ctl(f); break;
+!     case KEY_UP:    c = ctl(p); break;
+!     case KEY_DOWN:  c = ctl(n); break;
+  #ifdef KEY_C1
+  /* This stuff works for a wyse wy75 in ANSI mode under 5.3.  Good luck. */
+  /* It is supposed to map the curses keypad back to the numeric equiv. */
+--- 553,562 ----
+  
+      c = getchar();
+      switch (c) {
+!     case KEY_LEFT:  c = ctl('b'); break;
+!     case KEY_RIGHT: c = ctl('f'); break;
+!     case KEY_UP:    c = ctl('p'); break;
+!     case KEY_DOWN:  c = ctl('n'); break;
+  #ifdef KEY_C1
+  /* This stuff works for a wyse wy75 in ANSI mode under 5.3.  Good luck. */
+  /* It is supposed to map the curses keypad back to the numeric equiv. */
+***************
+*** 573,579 ****
+      case KEY_F(10): c = '8'; break;
+      case KEY_F0:    c = '9'; break;
+      case KEY_C3:    c = '.'; break;
+!     case KEY_ENTER: c = ctl(m); break;
+  #endif
+  #ifndef INTERNATIONAL
+      default:   c = c & 0x7f; 
+--- 571,577 ----
+      case KEY_F(10): c = '8'; break;
+      case KEY_F0:    c = '9'; break;
+      case KEY_C3:    c = '.'; break;
+!     case KEY_ENTER: c = ctl('m'); break;
+  #endif
+  #ifndef INTERNATIONAL
+      default:   c = c & 0x7f; 
+*** sc.c~	Fri Jul 31 03:09:06 1992
+--- sc.c	Tue Aug  4 20:00:23 1992
+***************
+*** 985,991 ****
+          } } /* end of else */
+          if (event.type == KeyPress)
+  	{  
+!           if((XLookupString (&event,buffer,8,&key,0)) || IsCursorKey(key))
+  	  {
+  	     if(!IsCursorKey(key))
+  	     {
+--- 985,991 ----
+          } } /* end of else */
+          if (event.type == KeyPress)
+  	{  
+!           if((XLookupString ((XKeyEvent *)&event,buffer,8,&key,0)) || IsCursorKey(key))
+  	  {
+  	     if(!IsCursorKey(key))
+  	     {
+***************
+*** 993,999 ****
+  		if ((c < ' ') || ( c == DEL ))
+  		    switch (c) {
+  	/* #ifdef SIGTSTP
+! 			case ctl (z):
+  			    deraw();
+  			    (void) kill(getpid(),SIGTSTP);
+  
+--- 993,999 ----
+  		if ((c < ' ') || ( c == DEL ))
+  		    switch (c) {
+  	/* #ifdef SIGTSTP
+! 			case ctl ('z'):
+  			    deraw();
+  			    (void) kill(getpid(),SIGTSTP);
+  
+***************
+*** 1002,1015 ****
+  			    goraw();
+  			    break;
+  	#endif */
+! 			case ctl (r):
+! 			case ctl (l):
+  			    FullUpdate++;
+! 			    if (c == ctl (r))
+  				showneed = 1;
+  			    /*(void) clearok(stdscr,1); */
+  			    break;
+! 			case ctl (x):
+  			    FullUpdate++;
+  			    showexpr = 1;
+  			    /*(void) clearok(stdscr,1);*/
+--- 1002,1015 ----
+  			    goraw();
+  			    break;
+  	#endif */
+! 			case ctl ('r'):
+! 			case ctl ('l'):
+  			    FullUpdate++;
+! 			    if (c == ctl ('r'))
+  				showneed = 1;
+  			    /*(void) clearok(stdscr,1); */
+  			    break;
+! 			case ctl ('x'):
+  			    FullUpdate++;
+  			    showexpr = 1;
+  			    /*(void) clearok(stdscr,1);*/
+***************
+*** 1018,1057 ****
+  			    sprintf(stringbuf,"No such command (^%c)", c + 0100); 
+  			    error(stringbuf);
+  			    break;
+! 			case ctl (b):
+  			    backcol(arg);
+  			    break;
+! 			case ctl (c):
+  			    running = 0;
+  			    break;
+  
+! 			case ctl (e):{
+  			    int done  = 0;
+  			    while (!done)
+  			    {
+  				    XPeekEvent(dpy,&event);
+  				    if (event.type == KeyPress)
+! 				    { if(XLookupString(&event,buffer,8,0,0));
+  				       {
+  					       c = buffer[0];
+  					       switch (c) 
+  					       {
+! 						 case ctl (p): case 'k':
+  						 doend (-1, 0);
+  						 break;
+! 						 case ctl (n): case 'j':
+  						 doend ( 1, 0);
+  						 break;
+! 						 case ctl (b): case 'h':
+! 						 case ctl (h): doend ( 0,-1);
+  						 break;
+! 						 case ctl (f): case 'l':
+! 						 case ctl (i): case ' ':
+  						 doend ( 0, 1);
+  						 break;
+  
+  						 case ESC:
+! 						 case ctl (g):
+  						 break;
+  
+  						 default:
+--- 1018,1057 ----
+  			    sprintf(stringbuf,"No such command (^%c)", c + 0100); 
+  			    error(stringbuf);
+  			    break;
+! 			case ctl ('b'):
+  			    backcol(arg);
+  			    break;
+! 			case ctl ('c'):
+  			    running = 0;
+  			    break;
+  
+! 			case ctl ('e'):{
+  			    int done  = 0;
+  			    while (!done)
+  			    {
+  				    XPeekEvent(dpy,&event);
+  				    if (event.type == KeyPress)
+! 				    { if(XLookupString((XKeyEvent *)&event,buffer,8,0,0));
+  				       {
+  					       c = buffer[0];
+  					       switch (c) 
+  					       {
+! 						 case ctl ('p'): case 'k':
+  						 doend (-1, 0);
+  						 break;
+! 						 case ctl ('n'): case 'j':
+  						 doend ( 1, 0);
+  						 break;
+! 						 case ctl ('b'): case 'h':
+! 						 case ctl ('h'): doend ( 0,-1);
+  						 break;
+! 						 case ctl ('f'): case 'l':
+! 						 case ctl ('i'): case ' ':
+  						 doend ( 0, 1);
+  						 break;
+  
+  						 case ESC:
+! 						 case ctl ('g'):
+  						 break;
+  
+  						 default:
+***************
+*** 1065,1075 ****
+  			    }
+  			    break;
+  
+! 			case ctl (f):
+  			    forwcol(arg);
+  			    break;
+! 			case ctl (g):
+! 			case ESC:	/* ctl ([) */
+  			    showrange = 0;
+  			    linelim = -1;
+  			    /*(void) move (1, 0);
+--- 1065,1075 ----
+  			    }
+  			    break;
+  
+! 			case ctl ('f'):
+  			    forwcol(arg);
+  			    break;
+! 			case ctl ('g'):
+! 			case ESC:	/* ctl ('[') */
+  			    showrange = 0;
+  			    linelim = -1;
+  			    /*(void) move (1, 0);
+***************
+*** 1077,1083 ****
+  			    clearlines(1,1);
+  			    break;
+  			case DEL:
+! 			case ctl (h):
+  			    if (linelim <= 0) {	/* not editing line */
+  				backcol(arg);	/* treat like ^B    */
+  				break;
+--- 1077,1083 ----
+  			    clearlines(1,1);
+  			    break;
+  			case DEL:
+! 			case ctl ('h'):
+  			    if (linelim <= 0) {	/* not editing line */
+  				backcol(arg);	/* treat like ^B    */
+  				break;
+***************
+*** 1085,1091 ****
+  			    while (--arg>=0) if (linelim > 0)
+  				line[--linelim] = 0;
+  			    break;
+! 			case ctl (i): 		/* tab */
+  			    if (linelim <= 0) {	/* not editing line */
+  				forwcol(arg);
+  				break;
+--- 1085,1091 ----
+  			    while (--arg>=0) if (linelim > 0)
+  				line[--linelim] = 0;
+  			    break;
+! 			case ctl ('i'): 		/* tab */
+  			    if (linelim <= 0) {	/* not editing line */
+  				forwcol(arg);
+  				break;
+***************
+*** 1102,1109 ****
+  			    }
+  			    linelim = strlen (line);
+  			    break;
+! 			case ctl (m):
+! 			case ctl (j):
+             		    showrange = 0;
+  			    if (linelim < 0)
+  				line[linelim = 0] = 0;
+--- 1102,1109 ----
+  			    }
+  			    linelim = strlen (line);
+  			    break;
+! 			case ctl ('m'):
+! 			case ctl ('j'):
+             		    showrange = 0;
+  			    if (linelim < 0)
+  				line[linelim = 0] = 0;
+***************
+*** 1113,1142 ****
+  				linelim = -1;
+  			    }
+  			    break;
+! 			case ctl (n):
+  			    forwrow(arg);
+  			    break;
+! 			case ctl (p):
+  			    backrow(arg);
+  			    break;
+! 			case ctl (q):
+  			    break;	/* ignore flow control */
+! 			case ctl (s):
+  			    break;	/* ignore flow control */
+! 			case ctl (u):
+  			    narg = arg * 4;
+  			    nedistate = 1;
+  			    break;
+! 			case ctl (v):	/* insert variable name */
+  			    if (linelim > 0) {
+  			    (void) sprintf (line+linelim,"%s", v_name(currow, curcol));
+  				linelim = strlen (line);
+  			    }
+  			    break;
+! 			case ctl (w):	/* insert variable expression */
+  			    if (linelim > 0) editexp(currow,curcol);
+  			    break;
+! 			case ctl (a):	/* insert variable value */
+  			    if (linelim > 0) {
+  				struct ent *p = tbl[currow][curcol];
+  
+--- 1113,1142 ----
+  				linelim = -1;
+  			    }
+  			    break;
+! 			case ctl ('n'):
+  			    forwrow(arg);
+  			    break;
+! 			case ctl ('p'):
+  			    backrow(arg);
+  			    break;
+! 			case ctl ('q'):
+  			    break;	/* ignore flow control */
+! 			case ctl ('s'):
+  			    break;	/* ignore flow control */
+! 			case ctl ('u'):
+  			    narg = arg * 4;
+  			    nedistate = 1;
+  			    break;
+! 			case ctl ('v'):	/* insert variable name */
+  			    if (linelim > 0) {
+  			    (void) sprintf (line+linelim,"%s", v_name(currow, curcol));
+  				linelim = strlen (line);
+  			    }
+  			    break;
+! 			case ctl ('w'):	/* insert variable expression */
+  			    if (linelim > 0) editexp(currow,curcol);
+  			    break;
+! 			case ctl ('a'):	/* insert variable value */
+  			    if (linelim > 0) {
+  				struct ent *p = tbl[currow][curcol];
+  
+***************
+*** 1451,1457 ****
+  		 break;
+  
+  	       case MappingNotify:
+! 		 XRefreshKeyboardMapping (&event);
+  		 break;
+  
+  	       case ConfigureNotify:
+--- 1451,1457 ----
+  		 break;
+  
+  	       case MappingNotify:
+! 		 XRefreshKeyboardMapping ((XMappingEvent *)&event);
+  		 break;
+  
+  	       case ConfigureNotify:
+***************
+*** 1562,1568 ****
+  		if (event.type == KeyPress)
+  		{  
+  		   XNextEvent(dpy,&event);
+! 		   if(XLookupString(&event,buffer,8,0,0))
+  		   {
+  			   ch = buffer[0];
+  			   if (ch != 'y' && ch != 'Y' && ch != 'n' && ch != 'N')
+--- 1562,1568 ----
+  		if (event.type == KeyPress)
+  		{  
+  		   XNextEvent(dpy,&event);
+! 		   if(XLookupString((XKeyEvent *)&event,buffer,8,0,0))
+  		   {
+  			   ch = buffer[0];
+  			   if (ch != 'y' && ch != 'Y' && ch != 'n' && ch != 'N')
+***************
+*** 1575,1581 ****
+  			    if (writefile(curfile, 0, 0, maxrow, maxcol) < 0)
+  				return (1);
+  			    } 
+! 			   else if (ch == ctl (g) || ch == ESC) return(1);
+  			   done = 1;
+                     }
+  		}
+--- 1575,1581 ----
+  			    if (writefile(curfile, 0, 0, maxrow, maxcol) < 0)
+  				return (1);
+  			    } 
+! 			   else if (ch == ctl ('g') || ch == ESC) return(1);
+  			   done = 1;
+                     }
+  		}
+***************
+*** 1603,1609 ****
+  		if (event.type == KeyPress)
+  		{
+  		   XNextEvent(dpy,&event);
+! 		   if(XLookupString(&event,buffer,8,0,0))
+  		   {
+  			   ch = buffer[0];
+  			   if (ch != 'y' && ch != 'Y' && ch != 'n' && ch != 'N')
+--- 1603,1609 ----
+  		if (event.type == KeyPress)
+  		{
+  		   XNextEvent(dpy,&event);
+! 		   if(XLookupString((XKeyEvent *)&event,buffer,8,0,0))
+  		   {
+  			   ch = buffer[0];
+  			   if (ch != 'y' && ch != 'Y' && ch != 'n' && ch != 'N')
+***************
+*** 1729,1735 ****
+  	 break;
+  
+         case MappingNotify:
+! 	 XRefreshKeyboardMapping (&event);
+  	 break;
+  
+         case ConfigureNotify:
+--- 1729,1735 ----
+  	 break;
+  
+         case MappingNotify:
+! 	 XRefreshKeyboardMapping ((XMappingEvent *)&event);
+  	 break;
+  
+         case ConfigureNotify:
+***************
+*** 1739,1745 ****
+         /***** NEEDS TO BE FIXED *****/
+  
+         case KeyPress:
+!          if((XLookupString (&event,buffer,8,&key,0)) || (IsCursorKey(key)))
+  	 { 
+  	   show_screen = 1;
+  	   if(!IsCursorKey(key))
+--- 1739,1745 ----
+         /***** NEEDS TO BE FIXED *****/
+  
+         case KeyPress:
+!          if((XLookupString ((XKeyEvent *)&event,buffer,8,&key,0)) || (IsCursorKey(key)))
+  	 { 
+  	   show_screen = 1;
+  	   if(!IsCursorKey(key))
+***************
+*** 1749,1761 ****
+        /* c = nmgetch(); */
+  
+  	      switch (c) {
+! 		 case ctl (f):
+  		 case 'l': 
+  		 case 'L': 
+  		    choice++;
+  		    if (choice == item_no + 1) choice = 1;
+  		    break; 
+! 		 case ctl (b):
+  		 case ' ':
+  		 case 'h':
+  		 case 'H':
+--- 1749,1761 ----
+        /* c = nmgetch(); */
+  
+  	      switch (c) {
+! 		 case ctl ('f'):
+  		 case 'l': 
+  		 case 'L': 
+  		    choice++;
+  		    if (choice == item_no + 1) choice = 1;
+  		    break; 
+! 		 case ctl ('b'):
+  		 case ' ':
+  		 case 'h':
+  		 case 'H':
+***************
+*** 1762,1779 ****
+  		    choice--;
+  		    if (choice == 0) choice = item_no;
+  		    break;
+! 		 case ctl (p):
+  		 case 'k':
+  		 case 'K':
+  		    choice = 1;
+  		    break;
+! 		 case ctl (n):
+  		 case 'j':
+  		 case 'J':
+  		    choice = item_no;
+  		    break;
+  		 case 27:
+! 		 case ctl (g):
+  		    choice = 0;
+  		    done = 1;
+  		    break;
+--- 1762,1779 ----
+  		    choice--;
+  		    if (choice == 0) choice = item_no;
+  		    break;
+! 		 case ctl ('p'):
+  		 case 'k':
+  		 case 'K':
+  		    choice = 1;
+  		    break;
+! 		 case ctl ('n'):
+  		 case 'j':
+  		 case 'J':
+  		    choice = item_no;
+  		    break;
+  		 case 27:
+! 		 case ctl ('g'):
+  		    choice = 0;
+  		    done = 1;
+  		    break;
+***************
+*** 3288,3294 ****
+          break;
+  
+        case MappingNotify:
+!         XRefreshKeyboardMapping(&event);
+          break;
+        case ConfigureNotify:
+          sc_handleresize(&event);
+--- 3288,3294 ----
+          break;
+  
+        case MappingNotify:
+!         XRefreshKeyboardMapping((XMappingEvent *)&event);
+          break;
+        case ConfigureNotify:
+          sc_handleresize(&event);
+***************
+*** 3296,3309 ****
+          maxcount = ((maxcount < max_str_len) ? maxcount : max_str_len);
+          break;
+        case KeyPress:
+!         if (XLookupString(&event, keystr, 3, 0, 0)){
+            switch( keystr[0]){
+              case 10: /* linefeed */
+              case 13: /* carriage return */
+                done =1;
+                break;
+!             case ctl(h):  /* backspace */
+!             case ctl(?):  /* delete */
+  	    case DEL:
+                if (count){
+                  buf[--count]='_';
+--- 3296,3309 ----
+          maxcount = ((maxcount < max_str_len) ? maxcount : max_str_len);
+          break;
+        case KeyPress:
+!         if (XLookupString((XKeyEvent *)&event, keystr, 3, 0, 0)){
+            switch( keystr[0]){
+              case 10: /* linefeed */
+              case 13: /* carriage return */
+                done =1;
+                break;
+!             case ctl('h'):  /* backspace */
+!             case ctl('?'):  /* delete */
+  	    case DEL:
+                if (count){
+                  buf[--count]='_';
+*** sc.h~	Wed Jul 29 07:27:09 1992
+--- sc.h	Tue Aug  4 19:53:12 1992
+***************
+*** 201,207 ****
+  #define is_leftflush 0010
+  #define is_deleted   0020
+  
+! #define ctl(c) ('c'&037)
+  #define ESC 033
+  #define DEL 0177
+  
+--- 201,207 ----
+  #define is_leftflush 0010
+  #define is_deleted   0020
+  
+! #define ctl(c) (c&037)
+  #define ESC 033
+  #define DEL 0177
+  
+

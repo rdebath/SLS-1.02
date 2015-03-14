@@ -1,0 +1,61 @@
+#!pish -f
+
+option add *Background beige
+option add *Button.Background red
+
+option add *Barchart.foreground navyblue
+option add *Barchart.Geometry 400x200
+option add *Barchart.font *new*century*14* 
+option add *Barchart.BarWidthPct 100 
+option add *Barchart.ShowLegend false
+option add *Barchart.YStepSize 50.0
+option add *Barchart.AxisThickness 2
+option add *Hypertext.Geometry 400x140
+option add *Hypertext.Font *Helvetica*Bold*R*14*
+
+frame .top
+htext .top.msg -text {
+In this example, the bar chart is used like a strip chart
+to display the current load average. It is updated every
+second using the "uptime(1)" command. This will 
+only work on BSD-like versions of uptime.
+
+Hit the %%
+button $this.quit -text {Quit} -command {exit} 
+$this append $this.quit
+%% button when you've seen enough.
+}
+
+barchart .top.bar \
+    -title "Load Average" \
+    -ylabel {Load} -xlabel {Time} \
+    -ysubticks 0 -xticks 0
+
+
+pack append .top .top.bar {top fill} .top.msg { top padx 20 }
+pack append . .top {}
+
+set updateInterval 1000
+set numValues 0
+set Red ff
+set Green 00
+set Blue ff
+
+proc update.load {  } {
+ global updateInterval
+ global numValues barChart Red Blue Green
+
+ incr numValues
+ if { $numValues > 16 } {
+    .top.bar delete [lindex  [ .top.bar show ]  0]
+ }
+ set newLoad 1.0
+ regexp "average:(.*),.*," [ exec uptime ] dummy newLoad
+ set color [format "%0.2x" [expr ($numValues%32)*8]]
+ set newColor #${Red}${color}${color}
+ .top.bar insert $numValues -ydata $newLoad -fg $newColor
+ update
+ after $updateInterval update.load
+}
+
+update.load

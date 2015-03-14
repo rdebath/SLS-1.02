@@ -1,0 +1,167 @@
+		     Information for Linux Users
+		     ---------------------------
+
+Contents
+----------
+	1) Linux versions on which XFree86 has been tested
+	2) Running XFree86
+	3) Compiling XFree86
+	4) Compiling a PEX server
+
+1 - Linux versions on which XFree86 has been tested
+-----------------------------------------------------
+	XFree86 has been tested on Linux version 0.99.4. It should work on
+any later versions without change. Older versions of Linux may not work due
+to missing kernel support for VT switching.
+
+2 - Running XFree86
+---------------------
+	XFree86 is installed in /usr/X386. It requires about 4mb of virtual
+memory to run, although having 8mb of RAM is probably the minimum comfortable
+configuration. A 387 coprocessor is helpful for 386 machines, although
+greater gains in interactive performace are obtained with an increase in
+physical memory. Also, a faster graphics card, bus or RAM, will improve
+server performance.
+
+	This release has added the ability to perform VT switching to and
+from the X server. When first started, X386 will attempt to locate the first
+available VT (one that hasn't been opened by any process), and run on that VT.
+Therefore, it is possible to safely run startx in the background. It is also
+possible to run xdm as a daemon, which wasn't possible before.
+
+	Once running inside X, switching to another VT is accomplished
+by pressing Ctrl-Alt-<Fnnn> where nnn is the number of the VT to switch
+to (starting from 1). To return to the server, simply press Alt-<Fmmm> or
+Ctrl-Alt-<Fmmm>, where mmm is the number of the VT the server is running on
+(this number is printed when the server is started). When the server is
+exited, it will return to the original VT it was started from, but if it dies
+unexpectedly, then the switch must be done manually.
+
+	There are some limitations in this release, and some untested
+drivers. In particular, text restoration may still be problematic, especially
+at higher text resolutions. If there are problems, try running the VT at
+the default resolution. VT switching also may cause text restoration
+troubles, that sometimes seem to go away when the switch is repeated.
+The Hercules driver supposedly allows XFree86 to support dual-monitor
+configurations, but this option has not been tested. The PEX extension is
+also largely untested because it is not supported by XFree86.
+
+3 - Compiling XFree86
+-----------------------
+	There are no special instructions required for compiling XFree86.
+This version was compiled with gcc-2.3.3 and the 4.3 DLL libraries.
+The server has been compiled with -m486, which optimizes it for the 486
+processor, but the binary be run on the 386 processor (there is a slight
+increase in binary size over using -m386).
+
+	The distribution is very large, but it is possible to compile
+XFree86 on a single 64mb partition. Simply run "make World" to create
+the Makefiles, then stop the make and run each piece individually. It
+is not necessary to run "make depend" as well, which saves some space.
+You will need about 10mb of virtual memory to compile the entire server.
+
+	Creating shared libraries for Linux is an area still under
+development. Dirk Hohndel (hohndel@informatik.uni-wuerzburg.de) has been
+primarily responsible for the creation of the DLL X libraries. Here is
+his README:
+
+  README for DLL-X.0.2.tar.z
+  02/04/93	Dirk Hohndel
+
+  This is a test release of the DLL jump libraries for XFree.
+
+  It contains only libX11, libXt + libXmu + libXext, libXaw.
+  I have not decided what to do about libXau, libXdmpc, liboldX,
+  yet.
+
+  This release is based on the DLL libc released by Eric Youngdale and
+  is made using his tools and REALLY ALOT of his help. Thanks.
+
+  What you need to install the libs :
+
+  - libc-4.3.tar.z
+
+  install the linker, crt.o, the libc.so.4.3 (change the link libc.so.4 to
+  point at this) and the stub lib libc.sa
+
+  If you want to regenerate the X libraries you also need the newest
+  tools in
+
+  - tools-1.?.tar.z from tsx11-mit.edu:/pub/linux/GCC
+
+  please follow the instruction here in.
+  Furthermore you need the XFree86 source tree if you want to recompile
+  anything that goes into the libs.
+
+  - DLL-X.tar.z from tsx11-mit.edu:/pub/linux/packages/X11
+
+  To generate the DLL jump libs, go to the lib folder and create
+  single directories for each lib, namely jump-X, jump-Xt, jump-Xaw,
+  jump-Xmu, jump-Xext and a folder for the merged lib jump-Xtmerged.
+
+  The library images and stubs are created in
+  jump-X          : libX11.so.3.0 -> /lib   libX11.sa -> /usr/lib
+  jump-Xaw        : libXaw.so.3.0 -> /lib   libXaw.sa -> /usr/lib
+  jump-Xtmerged   : libXt.so.3.0  -> /lib   libXt.sa libXmu.sa
+  						libXext.sa -> /usr/lib
+
+  There are two rudimentary scripts in the DLL-X.tar file that
+  illustrate how to build the libs.
+
+  Buildlibs.sh shows how to create the input files for building the
+  DLL-X libraries. This will normally not be necessary, since all needed
+  files are in the distribution. Please read carefully before using !
+
+  Mkshlib.sh shows how to create the images and stubs from the data
+  files provided or generated with Buildlibs.sh
+  This is not a drop-and-ready Makefile, but a shellscript that contains
+  the necessary commands all comented out except the installation.
+
+  The padding of the variables in the jump images was done by a really
+  simple heuristic to simply double the space for any non-simple typed
+  variable. The padded values are in jump.vars in the directories, the
+  calculated values are in jump.vars.unpadded.
+
+  Please send comments, corrections and improvements to me.
+
+
+  02/08/93 Dirk Hohndel  (hohndel@informatik.uni-wuerzburg.de)
+
+4 - Compiling a PEX server
+----------------------------
+	PEX is not supported by the XFree86 group because of its poor
+performance, but including it in the server is a straightforward task.
+Start with X11R5 sources patched to level 22, for PEX 5.1.
+
+	1. Obtain PEX sources from the X11R5 (patchlevel 22) distribution:
+		extensions/include/PEX
+		extensions/lib/PEXlib
+		extensions/lib/PEX
+		extensions/server/PEX
+		extensions/test/InsPEX
+		fonts/PEX
+		util/PEX
+
+	2. Change extensions/lib/PEX/util/ut_ntfy.c to include Linux
+	   in the defines for reestablishing the signal handlers once
+	   a signal has taken place (lines 113 and 270)
+
+	3. Change fonts/PEX/to_wfont.y around line 615, moving the
+	   free()'s of table, sp_table and strokes outside the loop.
+	   Change the external declaration of yylineto to be static -
+	   it's only used for error handling.
+
+	4. Edit config/site.def to change BuildPex from NO to YES.
+
+	5. Recompile the server and libraries.
+
+	6. Install the server, libraries and fonts. PEX requires
+	   the phigsmon program, PHIGSerr and PHIGSfnc text files and
+	   the PEX fonts to be installed. If things were set up
+	   properly, then xdpyinfo will list X3D-PEX as an available
+	   extension. If not, then switching to the startup VT should
+	   give a hint as to why the PEX extension was rejected.
+
+
+
+$Header: /home/x_cvs/mit/server/ddx/x386/README.Linux,v 1.3 1993/02/08 11:14:55 dawes Exp $

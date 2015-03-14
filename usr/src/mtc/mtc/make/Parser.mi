@@ -1,0 +1,2547 @@
+IMPLEMENTATION MODULE Parser;
+
+IMPORT Positions, Errors, Scanner, Strings, System, SYSTEM;
+
+(* 'modula.ell' line 3 *)
+
+FROM System	IMPORT Exit;
+FROM IO		IMPORT StdOutput, WriteS, WriteNl, CloseIO;
+FROM Idents	IMPORT tIdent, WriteIdent;
+FROM Scanner	IMPORT BeginScanner, CloseScanner, tScanAttribute;
+FROM Errors	IMPORT NumberOfErrors;
+
+PROCEDURE Halt;
+BEGIN
+  CloseIO;
+  IF NumberOfErrors () = 0 THEN
+    Exit (0);
+  ELSE
+    Exit (1);
+  END;
+END Halt;
+
+CONST xxEof = 0;
+
+TYPE
+  xxtUnionPtr	= POINTER TO xxtUnion;
+  xxtUnion	= RECORD GlobalRecoverySet: xxtUnionPtr; LocalRecoverySet: SHORTCARD; END;
+  xxtSet	= ARRAY [0..2] OF BITSET;
+
+VAR
+  xxToken		: SHORTCARD;
+  xxErrorCount		: INTEGER;
+  xxIsInitialized	: BOOLEAN;
+  xxIsRepairMode	: BOOLEAN;
+  xxHorizontalSet	: ARRAY [0..170] OF xxtSet;
+  xxVerticalSet0	: ARRAY [0..74] OF BITSET;
+  xxVerticalSet1	: ARRAY [0..74] OF BITSET;
+
+PROCEDURE xxTokenName (Token: CARDINAL; VAR Name: ARRAY OF CHAR);
+  PROCEDURE Copy (Source: ARRAY OF CHAR; VAR Target: ARRAY OF CHAR);
+    VAR i, j: CARDINAL;
+    BEGIN
+      IF HIGH (Source) < HIGH (Target)
+      THEN j := HIGH (Source); ELSE j := HIGH (Target); END;
+      FOR i := 0 TO j DO Target [i] := Source [i]; END;
+      IF HIGH (Target) > j THEN Target [j + 1] := CHR (0); END;
+    END Copy;
+  BEGIN
+    CASE Token OF
+    | 0: Copy ('_EndOfFile', Name);
+    | 1: Copy ('Ident', Name);
+    | 2: Copy ('Integer', Name);
+    | 4: Copy ('Char', Name);
+    | 6: Copy ('Real', Name);
+    | 7: Copy ('String', Name);
+    | 8: Copy ('#', Name);
+    | 9: Copy ('(', Name);
+    | 10: Copy (')', Name);
+    | 11: Copy ('*', Name);
+    | 12: Copy ('+', Name);
+    | 13: Copy (',', Name);
+    | 14: Copy ('-', Name);
+    | 15: Copy ('.', Name);
+    | 16: Copy ('..', Name);
+    | 17: Copy ('/', Name);
+    | 18: Copy (':', Name);
+    | 19: Copy (':=', Name);
+    | 20: Copy (';', Name);
+    | 21: Copy ('<', Name);
+    | 22: Copy ('<=', Name);
+    | 24: Copy ('=', Name);
+    | 25: Copy ('>', Name);
+    | 26: Copy ('>=', Name);
+    | 27: Copy ('[', Name);
+    | 28: Copy (']', Name);
+    | 29: Copy ('^', Name);
+    | 30: Copy ('{', Name);
+    | 31: Copy ('|', Name);
+    | 32: Copy ('}', Name);
+    | 34: Copy ('AND', Name);
+    | 35: Copy ('ARRAY', Name);
+    | 36: Copy ('BEGIN', Name);
+    | 37: Copy ('BY', Name);
+    | 38: Copy ('CASE', Name);
+    | 39: Copy ('CONST', Name);
+    | 40: Copy ('DEFINITION', Name);
+    | 41: Copy ('DIV', Name);
+    | 42: Copy ('DO', Name);
+    | 43: Copy ('ELSE', Name);
+    | 44: Copy ('ELSIF', Name);
+    | 45: Copy ('END', Name);
+    | 46: Copy ('EXIT', Name);
+    | 47: Copy ('EXPORT', Name);
+    | 48: Copy ('FOR', Name);
+    | 49: Copy ('FROM', Name);
+    | 50: Copy ('IF', Name);
+    | 51: Copy ('IMPLEMENTATION', Name);
+    | 52: Copy ('IMPORT', Name);
+    | 53: Copy ('IN', Name);
+    | 54: Copy ('LOOP', Name);
+    | 55: Copy ('MOD', Name);
+    | 56: Copy ('MODULE', Name);
+    | 57: Copy ('NOT', Name);
+    | 58: Copy ('OF', Name);
+    | 59: Copy ('OR', Name);
+    | 60: Copy ('POINTER', Name);
+    | 61: Copy ('PROCEDURE', Name);
+    | 62: Copy ('QUALIFIED', Name);
+    | 63: Copy ('RECORD', Name);
+    | 64: Copy ('REPEAT', Name);
+    | 65: Copy ('RETURN', Name);
+    | 66: Copy ('SET', Name);
+    | 67: Copy ('THEN', Name);
+    | 68: Copy ('TO', Name);
+    | 69: Copy ('TYPE', Name);
+    | 70: Copy ('UNTIL', Name);
+    | 71: Copy ('VAR', Name);
+    | 72: Copy ('WHILE', Name);
+    | 73: Copy ('WITH', Name);
+    | 74: Copy ('FOREIGN', Name);
+    END;
+  END xxTokenName;
+
+PROCEDURE Parser (): INTEGER;
+  BEGIN
+    xxErrorCount := 0;
+    BeginParser;
+    xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    yyCompilationUnit (ParsAttribute, NIL);
+    IF xxToken # xxEof THEN xxRecoveryLiteral (xxEof, 0, NIL); END;
+    RETURN xxErrorCount;
+  END Parser;
+
+PROCEDURE xxIsElement (VAR Set: xxtSet; Element: SHORTCARD): BOOLEAN;
+  BEGIN
+    RETURN Element MOD 32 IN Set [Element DIV 32];
+  END xxIsElement;
+
+PROCEDURE xxUnexpected (LocalRecoverySet: SHORTCARD; GlobalRecoverySet: xxtUnionPtr);
+  BEGIN
+    IF NOT xxIsRepairMode THEN
+      INC (xxErrorCount);
+      Errors.ErrorMessage (Errors.SyntaxError, Errors.Error, Scanner.Attribute.Position);
+      xxSkipTokens (LocalRecoverySet, GlobalRecoverySet);
+    END;
+  END xxUnexpected;
+
+PROCEDURE xxExpected (ExpectedSet: SHORTCARD; LocalRecoverySet: SHORTCARD; GlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Token		: SHORTCARD;
+    TokenArray		: ARRAY [0..127] OF CHAR;
+    TokenString		: Strings.tString;
+    ContinueString	: Strings.tString;
+  BEGIN
+    IF NOT xxIsRepairMode THEN
+      INC (xxErrorCount);
+      Errors.ErrorMessage (Errors.SyntaxError, Errors.Error, Scanner.Attribute.Position);
+      Strings.AssignEmpty (ContinueString);
+      FOR Token := 0 TO 74 DO
+        IF xxIsElement (xxHorizontalSet [ExpectedSet], Token) THEN
+	  xxTokenName (Token, TokenArray);
+	  Strings.ArrayToString (TokenArray, TokenString);
+	  IF (Strings.Length (ContinueString) + Strings.Length (TokenString) + 1 <= Strings.cMaxStrLength) THEN
+	    Strings.Concatenate (ContinueString, TokenString);
+	    Strings.Append (ContinueString, ' ');
+	  END;
+        END;
+      END;
+      Errors.ErrorMessageI (Errors.ExpectedTokens, Errors.Information, Scanner.Attribute.Position, Errors.String, SYSTEM.ADR (ContinueString));
+      xxSkipTokens (LocalRecoverySet, GlobalRecoverySet);
+    END;
+  END xxExpected;
+
+PROCEDURE xxRecoveryLiteral (Expected: SHORTCARD; LocalRecoverySet: SHORTCARD; GlobalRecoverySet: xxtUnionPtr);
+  VAR TokenString: ARRAY [0..127] OF CHAR;
+  BEGIN
+    IF NOT xxIsRepairMode THEN
+      INC (xxErrorCount);
+      Errors.ErrorMessage (Errors.SyntaxError, Errors.Error, Scanner.Attribute.Position);
+      xxTokenName (Expected, TokenString);
+      Errors.ErrorMessageI (Errors.ExpectedTokens, Errors.Information, Scanner.Attribute.Position, Errors.Array, SYSTEM.ADR (TokenString));
+      xxSkipTokens (LocalRecoverySet, GlobalRecoverySet);
+    END;
+    IF xxToken # Expected THEN
+      xxTokenName (Expected, TokenString);
+      Errors.ErrorMessageI (Errors.TokenInserted, Errors.Repair, Scanner.Attribute.Position, Errors.Array, SYSTEM.ADR (TokenString));
+    ELSE
+      IF xxToken # xxEof THEN xxToken := Scanner.GetToken (); END;
+      xxIsRepairMode := FALSE;
+    END;
+  END xxRecoveryLiteral;
+
+PROCEDURE xxRecoveryTerminal (Expected: SHORTCARD; LocalRecoverySet: SHORTCARD; GlobalRecoverySet: xxtUnionPtr; VAR RepairAttribute: Scanner.tScanAttribute);
+  VAR TokenString: ARRAY [0..127] OF CHAR;
+  BEGIN
+    IF NOT xxIsRepairMode THEN
+      INC (xxErrorCount);
+      Errors.ErrorMessage (Errors.SyntaxError, Errors.Error, Scanner.Attribute.Position);
+      xxTokenName (Expected, TokenString);
+      Errors.ErrorMessageI (Errors.ExpectedTokens, Errors.Information, Scanner.Attribute.Position, Errors.Array, SYSTEM.ADR (TokenString));
+      xxSkipTokens (LocalRecoverySet, GlobalRecoverySet);
+    END;
+    IF xxToken # Expected THEN
+      xxTokenName (Expected, TokenString);
+      Errors.ErrorMessageI (Errors.TokenInserted, Errors.Repair, Scanner.Attribute.Position, Errors.Array, SYSTEM.ADR (TokenString));
+      Scanner.ErrorAttribute (Expected, RepairAttribute);
+    ELSE
+      RepairAttribute := Scanner.Attribute;
+      IF xxToken # xxEof THEN xxToken := Scanner.GetToken (); END;
+      xxIsRepairMode := FALSE;
+    END;
+  END xxRecoveryTerminal;
+
+PROCEDURE xxSkipTokens (LocalRecoverySet: SHORTCARD; GlobalRecoverySet: xxtUnionPtr);
+  VAR RecoverySet: xxtSet;
+      TokensSkipped: BOOLEAN;
+  BEGIN
+    RecoverySet := xxHorizontalSet [LocalRecoverySet];
+    INCL (RecoverySet [0], xxEof);
+    WHILE GlobalRecoverySet # NIL DO
+      RecoverySet [0] := RecoverySet [0] + xxHorizontalSet [GlobalRecoverySet^.LocalRecoverySet] [0];
+      RecoverySet [1] := RecoverySet [1] + xxHorizontalSet [GlobalRecoverySet^.LocalRecoverySet] [1];
+      RecoverySet [2] := RecoverySet [2] + xxHorizontalSet [GlobalRecoverySet^.LocalRecoverySet] [2];
+      GlobalRecoverySet := GlobalRecoverySet^.GlobalRecoverySet;
+    END;
+    TokensSkipped := FALSE;
+    WHILE NOT xxIsElement (RecoverySet, xxToken) DO
+      xxToken := Scanner.GetToken ();
+      TokensSkipped := TRUE;
+    END;
+    IF TokensSkipped THEN
+      Errors.ErrorMessage (Errors.RestartPoint, Errors.Information, Scanner.Attribute.Position);
+    END;
+    xxIsRepairMode := TRUE;
+  END xxSkipTokens;
+
+PROCEDURE BeginParser;
+  VAR
+    xxTableFile: System.tFile;
+    xxSize: CARDINAL;
+  BEGIN
+    IF xxIsInitialized THEN RETURN; END;
+(* 'modula.ell' line 21 *)
+ BeginScanner; 
+    xxTableFile := System.OpenInput (ParsTabName);
+    IF xxTableFile < 0 THEN
+      Errors.ErrorMessage (Errors.ReadParseTable, Errors.Fatal, Positions.NoPosition);
+    END;
+    xxSize := System.Read (xxTableFile, SYSTEM.ADR (xxHorizontalSet), SIZE (xxHorizontalSet));
+    IF xxSize # SIZE (xxHorizontalSet) THEN
+      Errors.ErrorMessage (Errors.ReadParseTable, Errors.Fatal, Positions.NoPosition);
+    END;
+    xxSize := System.Read (xxTableFile, SYSTEM.ADR (xxVerticalSet0), SIZE (xxVerticalSet0));
+    IF xxSize # SIZE (xxVerticalSet0) THEN
+      Errors.ErrorMessage (Errors.ReadParseTable, Errors.Fatal, Positions.NoPosition);
+    END;
+    xxSize := System.Read (xxTableFile, SYSTEM.ADR (xxVerticalSet1), SIZE (xxVerticalSet1));
+    IF xxSize # SIZE (xxVerticalSet1) THEN
+      Errors.ErrorMessage (Errors.ReadParseTable, Errors.Fatal, Positions.NoPosition);
+    END;
+    System.Close (xxTableFile);
+    xxIsInitialized := TRUE;
+  END BeginParser;
+
+PROCEDURE CloseParser;
+  BEGIN
+(* 'modula.ell' line 23 *)
+ CloseScanner; 
+  END CloseParser;
+
+PROCEDURE yyCompilationUnit (VAR CompilationUnit0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1, Ident2, Ident3, Ident4: Scanner.tScanAttribute;
+    Import1, Import2: tParsAttribute;
+    Definition1: tParsAttribute;
+    Priority1: tParsAttribute;
+    Block1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 40 (* 'DEFINITION' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          CASE xxToken OF
+          | 56 (* 'MODULE' *):
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            IF xxToken # 1 (* Ident *) THEN
+              xxRecoveryTerminal (1, 3, xxGlobalRecoverySet, Ident1); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSE
+              Ident1 := Scanner.Attribute;
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 3, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+(* 'modula.ell' line 103 *)
+ WriteS     (StdOutput, "DEFINITION MODULE ")	; 
+(* 'modula.ell' line 104 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 105 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 106 *)
+ WriteNl    (StdOutput)			; 
+            LOOP
+              IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+                xxUnion.LocalRecoverySet := 6; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)
+              ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+              ELSE
+               
+              xxExpected (4, 5, xxGlobalRecoverySet); (*  'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+              END;
+            END;
+(* 'modula.ell' line 108 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 109 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 110 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 111 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 112 *)
+ Halt;						  
+            EXIT;
+          | 48 (* 'FOR' *):
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            IF xxToken # 1 (* Ident *) THEN
+              xxRecoveryTerminal (1, 2, xxGlobalRecoverySet, Ident2); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSE
+              Ident2 := Scanner.Attribute;
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            IF xxToken # 56 (* 'MODULE' *) THEN
+              xxRecoveryLiteral (56, 2, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            IF xxToken # 1 (* Ident *) THEN
+              xxRecoveryTerminal (1, 3, xxGlobalRecoverySet, Ident3); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSE
+              Ident3 := Scanner.Attribute;
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 3, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+(* 'modula.ell' line 115 *)
+ WriteS     (StdOutput, "DEFINITION MODULE ")	; 
+(* 'modula.ell' line 116 *)
+ WriteIdent (StdOutput, Ident3.Ident)		; 
+(* 'modula.ell' line 117 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 118 *)
+ WriteNl    (StdOutput)			; 
+            LOOP
+              IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+                xxUnion.LocalRecoverySet := 6; yyImport (Import2, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)
+              ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+              ELSE
+               
+              xxExpected (4, 5, xxGlobalRecoverySet); (*  'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+              END;
+            END;
+(* 'modula.ell' line 120 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 121 *)
+ WriteIdent (StdOutput, Ident3.Ident)		; 
+(* 'modula.ell' line 122 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 123 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 124 *)
+ Halt;						  
+            EXIT;
+          ELSE
+            IF xxIsRepairMode THEN
+              IF xxToken # 56 (* 'MODULE' *) THEN
+                xxRecoveryLiteral (56, 2, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+              IF xxToken # 1 (* Ident *) THEN
+                xxRecoveryTerminal (1, 3, xxGlobalRecoverySet, Ident1); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+              ELSE
+                Ident1 := Scanner.Attribute;
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+              IF xxToken # 20 (* ';' *) THEN
+                xxRecoveryLiteral (20, 3, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+(* 'modula.ell' line 103 *)
+ WriteS     (StdOutput, "DEFINITION MODULE ")	; 
+(* 'modula.ell' line 104 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 105 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 106 *)
+ WriteNl    (StdOutput)			; 
+              LOOP
+                IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+                  xxUnion.LocalRecoverySet := 6; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)
+                ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+                ELSE
+                 
+                xxExpected (4, 5, xxGlobalRecoverySet); (*  'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+                END;
+              END;
+(* 'modula.ell' line 108 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 109 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 110 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 111 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 112 *)
+ Halt;						  
+              EXIT;
+            END;
+            xxExpected (8, 9, xxGlobalRecoverySet); (*  'CONST' 'END' 'FOR' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'FOR' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+        END;
+        LOOP
+          IF (2 IN xxVerticalSet0 [xxToken] (*  'CONST' 'PROCEDURE' 'TYPE' 'VAR' *)) THEN
+            xxUnion.LocalRecoverySet := 11; yyDefinition (Definition1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'END' *)
+          ELSIF (xxToken = 45 (* 'END' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (10, 6, xxGlobalRecoverySet); (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+        END;
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 11, xxGlobalRecoverySet); (*  Ident '.' 'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 12, xxGlobalRecoverySet, Ident4); (*  Ident '.' *)
+        ELSE
+          Ident4 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 15 (* '.' *) THEN
+          xxRecoveryLiteral (15, 13, xxGlobalRecoverySet); (*  '.' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 74 (* 'FOREIGN' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 56 (* 'MODULE' *) THEN
+          xxRecoveryLiteral (56, 2, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 3, xxGlobalRecoverySet, Ident1); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          Ident1 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 3, xxGlobalRecoverySet); (*  Ident '.' ';' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+(* 'modula.ell' line 129 *)
+ WriteS     (StdOutput, "FOREIGN MODULE ")	; 
+(* 'modula.ell' line 130 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 131 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 132 *)
+ WriteNl    (StdOutput)			; 
+        LOOP
+          IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+            xxUnion.LocalRecoverySet := 6; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)
+          ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (4, 5, xxGlobalRecoverySet); (*  'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'FROM' 'IMPORT' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+        END;
+(* 'modula.ell' line 134 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 135 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 136 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 137 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 138 *)
+ Halt;						  
+        LOOP
+          IF (2 IN xxVerticalSet0 [xxToken] (*  'CONST' 'PROCEDURE' 'TYPE' 'VAR' *)) THEN
+            xxUnion.LocalRecoverySet := 11; yyDefinition (Definition1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'END' *)
+          ELSIF (xxToken = 45 (* 'END' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (10, 6, xxGlobalRecoverySet); (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+        END;
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 11, xxGlobalRecoverySet); (*  Ident '.' 'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 12, xxGlobalRecoverySet, Ident2); (*  Ident '.' *)
+        ELSE
+          Ident2 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 15 (* '.' *) THEN
+          xxRecoveryLiteral (15, 13, xxGlobalRecoverySet); (*  '.' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 51 (* 'IMPLEMENTATION' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 56 (* 'MODULE' *) THEN
+          xxRecoveryLiteral (56, 16, xxGlobalRecoverySet); (*  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 16, xxGlobalRecoverySet, Ident1); (*  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          Ident1 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        LOOP
+          IF (xxToken = 27 (* '[' *)) THEN
+            xxUnion.LocalRecoverySet := 18; yyPriority (Priority1, SYSTEM.ADR (xxUnion)); (*  Ident '.' ';' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+            EXIT;
+          ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (17, 16, xxGlobalRecoverySet); (*  ';' '[' /  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        END;
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 18, xxGlobalRecoverySet); (*  Ident '.' ';' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+(* 'modula.ell' line 142 *)
+ WriteS     (StdOutput, "IMPLEMENTATION MODULE "); 
+(* 'modula.ell' line 143 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 144 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 145 *)
+ WriteNl    (StdOutput)			; 
+        LOOP
+          IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+            xxUnion.LocalRecoverySet := 21; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (19, 20, xxGlobalRecoverySet); (*  'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+        END;
+(* 'modula.ell' line 147 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 148 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 149 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 150 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 151 *)
+ Halt;						  
+        xxUnion.LocalRecoverySet := 12; yyBlock (Block1, SYSTEM.ADR (xxUnion)); (*  Ident '.' *)
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 12, xxGlobalRecoverySet, Ident2); (*  Ident '.' *)
+        ELSE
+          Ident2 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 15 (* '.' *) THEN
+          xxRecoveryLiteral (15, 13, xxGlobalRecoverySet); (*  '.' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 56 (* 'MODULE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 16, xxGlobalRecoverySet, Ident1); (*  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          Ident1 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        LOOP
+          IF (xxToken = 27 (* '[' *)) THEN
+            xxUnion.LocalRecoverySet := 18; yyPriority (Priority1, SYSTEM.ADR (xxUnion)); (*  Ident '.' ';' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+            EXIT;
+          ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (17, 16, xxGlobalRecoverySet); (*  ';' '[' /  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        END;
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 18, xxGlobalRecoverySet); (*  Ident '.' ';' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+(* 'modula.ell' line 155 *)
+ WriteS     (StdOutput, "PROGRAM MODULE ")	; 
+(* 'modula.ell' line 156 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 157 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 158 *)
+ WriteNl    (StdOutput)			; 
+        LOOP
+          IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+            xxUnion.LocalRecoverySet := 21; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (19, 20, xxGlobalRecoverySet); (*  'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+        END;
+(* 'modula.ell' line 160 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 161 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 162 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 163 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 164 *)
+ Halt;						  
+        xxUnion.LocalRecoverySet := 12; yyBlock (Block1, SYSTEM.ADR (xxUnion)); (*  Ident '.' *)
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 12, xxGlobalRecoverySet, Ident2); (*  Ident '.' *)
+        ELSE
+          Ident2 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 15 (* '.' *) THEN
+          xxRecoveryLiteral (15, 13, xxGlobalRecoverySet); (*  '.' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 56 (* 'MODULE' *) THEN
+            xxRecoveryLiteral (56, 16, xxGlobalRecoverySet); (*  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          IF xxToken # 1 (* Ident *) THEN
+            xxRecoveryTerminal (1, 16, xxGlobalRecoverySet, Ident1); (*  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          ELSE
+            Ident1 := Scanner.Attribute;
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          LOOP
+            IF (xxToken = 27 (* '[' *)) THEN
+              xxUnion.LocalRecoverySet := 18; yyPriority (Priority1, SYSTEM.ADR (xxUnion)); (*  Ident '.' ';' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+              EXIT;
+            ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+            xxExpected (17, 16, xxGlobalRecoverySet); (*  ';' '[' /  Ident '.' ';' '[' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          END;
+          IF xxToken # 20 (* ';' *) THEN
+            xxRecoveryLiteral (20, 18, xxGlobalRecoverySet); (*  Ident '.' ';' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+(* 'modula.ell' line 155 *)
+ WriteS     (StdOutput, "PROGRAM MODULE ")	; 
+(* 'modula.ell' line 156 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 157 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 158 *)
+ WriteNl    (StdOutput)			; 
+          LOOP
+            IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+              xxUnion.LocalRecoverySet := 21; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident '.' 'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+            ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+            ELSE
+             
+            xxExpected (19, 20, xxGlobalRecoverySet); (*  'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  Ident '.' 'BEGIN' 'CONST' 'END' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+            END;
+          END;
+(* 'modula.ell' line 160 *)
+ WriteS     (StdOutput, "END ")		; 
+(* 'modula.ell' line 161 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 162 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 163 *)
+ WriteNl    (StdOutput)			; 
+(* 'modula.ell' line 164 *)
+ Halt;						  
+          xxUnion.LocalRecoverySet := 12; yyBlock (Block1, SYSTEM.ADR (xxUnion)); (*  Ident '.' *)
+          IF xxToken # 1 (* Ident *) THEN
+            xxRecoveryTerminal (1, 12, xxGlobalRecoverySet, Ident2); (*  Ident '.' *)
+          ELSE
+            Ident2 := Scanner.Attribute;
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          IF xxToken # 15 (* '.' *) THEN
+            xxRecoveryLiteral (15, 13, xxGlobalRecoverySet); (*  '.' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          EXIT;
+        END;
+        xxExpected (22, 22, xxGlobalRecoverySet); (*  'DEFINITION' 'IMPLEMENTATION' 'MODULE' 'FOREIGN' /  'DEFINITION' 'IMPLEMENTATION' 'MODULE' 'FOREIGN' *)
+      END;
+    END;
+  END yyCompilationUnit;
+
+PROCEDURE yyNumber (VAR Number0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Integer1: Scanner.tScanAttribute;
+    Char1: Scanner.tScanAttribute;
+    Real1: Scanner.tScanAttribute;
+  BEGIN
+    LOOP
+      CASE xxToken OF
+      | 2 (* Integer *):
+        Integer1 := Scanner.Attribute;
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 4 (* Char *):
+        Char1 := Scanner.Attribute;
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 6 (* Real *):
+        Real1 := Scanner.Attribute;
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 2 (* Integer *) THEN
+            xxRecoveryTerminal (2, 23, xxGlobalRecoverySet, Integer1); (*  Integer *)
+          ELSE
+            Integer1 := Scanner.Attribute;
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          EXIT;
+        END;
+        xxExpected (26, 26, xxGlobalRecoverySet); (*  Integer Char Real /  Integer Char Real *)
+      END;
+    END;
+  END yyNumber;
+
+PROCEDURE yyQualident (VAR Qualident0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+  BEGIN
+    LOOP
+      IF xxToken # 1 (* Ident *) THEN
+        xxRecoveryTerminal (1, 12, xxGlobalRecoverySet, Ident1); (*  Ident '.' *)
+      ELSE
+        Ident1 := Scanner.Attribute;
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+      IF NOT ((xxToken = 15 (* '.' *))) THEN
+        IF (4 IN xxVerticalSet0 [xxToken] (*  ')' ',' ';' '[' '|' 'ELSE' 'END' 'OF' *)) THEN EXIT; END;
+        xxExpected (13, 12, xxGlobalRecoverySet); (*  '.' /  Ident '.' *)
+        IF NOT ((xxToken = 15 (* '.' *)) OR (xxToken = 1 (* Ident *))) THEN EXIT; END;
+      END;
+      IF xxToken # 15 (* '.' *) THEN
+        xxRecoveryLiteral (15, 12, xxGlobalRecoverySet); (*  Ident '.' *)
+      ELSE
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+    END;
+  END yyQualident;
+
+PROCEDURE yyConstantDeclaration (VAR ConstantDeclaration0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    ConstExpression1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 27, xxGlobalRecoverySet, Ident1); (*  Ident Integer Char Real String '(' '+' '-' '=' '{' 'NOT' *)
+    ELSE
+      Ident1 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    IF xxToken # 24 (* '=' *) THEN
+      xxRecoveryLiteral (24, 27, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '=' '{' 'NOT' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    xxUnion.LocalRecoverySet := 0; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  *)
+  END yyConstantDeclaration;
+
+PROCEDURE yyConstExpression (VAR ConstExpression0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Expression1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 0; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  *)
+  END yyConstExpression;
+
+PROCEDURE yyTypeDeclaration (VAR TypeDeclaration0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    Type1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 28, xxGlobalRecoverySet, Ident1); (*  Ident '(' '=' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+    ELSE
+      Ident1 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    IF xxToken # 24 (* '=' *) THEN
+      xxRecoveryLiteral (24, 28, xxGlobalRecoverySet); (*  Ident '(' '=' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    xxUnion.LocalRecoverySet := 0; yyType (Type1, SYSTEM.ADR (xxUnion)); (*  *)
+  END yyTypeDeclaration;
+
+PROCEDURE yyType (VAR Type0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Type1: tParsAttribute;
+    SimpleType1: tParsAttribute;
+    FieldListSequence1: tParsAttribute;
+    FormalTypeList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 1 (* Ident *), 9 (* '(' *), 27 (* '[' *):
+        xxUnion.LocalRecoverySet := 0; yySimpleType (SimpleType1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 35 (* 'ARRAY' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          xxUnion.LocalRecoverySet := 29; yySimpleType (SimpleType1, SYSTEM.ADR (xxUnion)); (*  Ident '(' ',' '[' 'ARRAY' 'OF' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+          IF NOT ((xxToken = 13 (* ',' *))) THEN
+            IF (xxToken = 58 (* 'OF' *)) THEN EXIT; END;
+            xxExpected (30, 29, xxGlobalRecoverySet); (*  ',' 'OF' /  Ident '(' ',' '[' 'ARRAY' 'OF' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+            IF NOT ((xxToken = 13 (* ',' *)) OR (5 IN xxVerticalSet0 [xxToken] (*  Ident '(' '[' *))) THEN EXIT; END;
+          END;
+          IF xxToken # 13 (* ',' *) THEN
+            xxRecoveryLiteral (13, 29, xxGlobalRecoverySet); (*  Ident '(' ',' '[' 'ARRAY' 'OF' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        IF xxToken # 58 (* 'OF' *) THEN
+          xxRecoveryLiteral (58, 31, xxGlobalRecoverySet); (*  Ident '(' '[' 'ARRAY' 'OF' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yyType (Type1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 63 (* 'RECORD' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 33; yyFieldListSequence (FieldListSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 66 (* 'SET' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 58 (* 'OF' *) THEN
+          xxRecoveryLiteral (58, 35, xxGlobalRecoverySet); (*  Ident '(' '[' 'OF' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yySimpleType (SimpleType1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 60 (* 'POINTER' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 68 (* 'TO' *) THEN
+          xxRecoveryLiteral (68, 36, xxGlobalRecoverySet); (*  Ident '(' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' 'TO' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yyType (Type1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 61 (* 'PROCEDURE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 9 (* '(' *)) THEN
+            xxUnion.LocalRecoverySet := 0; yyFormalTypeList (FormalTypeList1, SYSTEM.ADR (xxUnion)); (*  *)
+            EXIT;
+          ELSIF (6 IN xxVerticalSet0 [xxToken] (*  ';' '|' 'ELSE' 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (38, 38, xxGlobalRecoverySet); (*  '(' /  '(' *)
+        END;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          xxUnion.LocalRecoverySet := 0; yySimpleType (SimpleType1, SYSTEM.ADR (xxUnion)); (*  *)
+          EXIT;
+        END;
+        xxExpected (39, 39, xxGlobalRecoverySet); (*  Ident '(' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' /  Ident '(' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+      END;
+    END;
+  END yyType;
+
+PROCEDURE yySimpleType (VAR SimpleType0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Qualident1: tParsAttribute;
+    ConstExpression1, ConstExpression2: tParsAttribute;
+    IdentList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 1 (* Ident *):
+        xxUnion.LocalRecoverySet := 40; yyQualident (Qualident1, SYSTEM.ADR (xxUnion)); (*  '[' *)
+        LOOP
+          IF (xxToken = 27 (* '[' *)) THEN
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 42; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '..' ']' '{' 'NOT' *)
+            IF xxToken # 16 (* '..' *) THEN
+              xxRecoveryLiteral (16, 42, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '..' ']' '{' 'NOT' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            xxUnion.LocalRecoverySet := 43; yyConstExpression (ConstExpression2, SYSTEM.ADR (xxUnion)); (*  ']' *)
+            IF xxToken # 28 (* ']' *) THEN
+              xxRecoveryLiteral (28, 43, xxGlobalRecoverySet); (*  ']' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            EXIT;
+          ELSIF (7 IN xxVerticalSet0 [xxToken] (*  ',' ';' '|' 'ELSE' 'END' 'OF' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (40, 40, xxGlobalRecoverySet); (*  '[' /  '[' *)
+        END;
+        EXIT;
+      | 9 (* '(' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 45; yyIdentList (IdentList1, SYSTEM.ADR (xxUnion)); (*  ')' *)
+        IF xxToken # 10 (* ')' *) THEN
+          xxRecoveryLiteral (10, 45, xxGlobalRecoverySet); (*  ')' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 27 (* '[' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 42; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '..' ']' '{' 'NOT' *)
+        IF xxToken # 16 (* '..' *) THEN
+          xxRecoveryLiteral (16, 42, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '..' ']' '{' 'NOT' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 43; yyConstExpression (ConstExpression2, SYSTEM.ADR (xxUnion)); (*  ']' *)
+        IF xxToken # 28 (* ']' *) THEN
+          xxRecoveryLiteral (28, 43, xxGlobalRecoverySet); (*  ']' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          xxUnion.LocalRecoverySet := 40; yyQualident (Qualident1, SYSTEM.ADR (xxUnion)); (*  '[' *)
+          LOOP
+            IF (xxToken = 27 (* '[' *)) THEN
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              xxUnion.LocalRecoverySet := 42; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '..' ']' '{' 'NOT' *)
+              IF xxToken # 16 (* '..' *) THEN
+                xxRecoveryLiteral (16, 42, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '..' ']' '{' 'NOT' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+              xxUnion.LocalRecoverySet := 43; yyConstExpression (ConstExpression2, SYSTEM.ADR (xxUnion)); (*  ']' *)
+              IF xxToken # 28 (* ']' *) THEN
+                xxRecoveryLiteral (28, 43, xxGlobalRecoverySet); (*  ']' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+              EXIT;
+            ELSIF (7 IN xxVerticalSet0 [xxToken] (*  ',' ';' '|' 'ELSE' 'END' 'OF' *)) OR xxIsRepairMode THEN EXIT; END;
+            xxExpected (40, 40, xxGlobalRecoverySet); (*  '[' /  '[' *)
+          END;
+          EXIT;
+        END;
+        xxExpected (46, 46, xxGlobalRecoverySet); (*  Ident '(' '[' /  Ident '(' '[' *)
+      END;
+    END;
+  END yySimpleType;
+
+PROCEDURE yyIdentList (VAR IdentList0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+  BEGIN
+    LOOP
+      IF xxToken # 1 (* Ident *) THEN
+        xxRecoveryTerminal (1, 48, xxGlobalRecoverySet, Ident1); (*  Ident ',' *)
+      ELSE
+        Ident1 := Scanner.Attribute;
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+      IF NOT ((xxToken = 13 (* ',' *))) THEN
+        IF (8 IN xxVerticalSet0 [xxToken] (*  ')' ':' ';' *)) THEN EXIT; END;
+        xxExpected (47, 48, xxGlobalRecoverySet); (*  ',' /  Ident ',' *)
+        IF NOT ((xxToken = 13 (* ',' *)) OR (xxToken = 1 (* Ident *))) THEN EXIT; END;
+      END;
+      IF xxToken # 13 (* ',' *) THEN
+        xxRecoveryLiteral (13, 48, xxGlobalRecoverySet); (*  Ident ',' *)
+      ELSE
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+    END;
+  END yyIdentList;
+
+PROCEDURE yyFieldListSequence (VAR FieldListSequence0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    FieldList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      xxUnion.LocalRecoverySet := 49; yyFieldList (FieldList1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+      IF NOT ((xxToken = 20 (* ';' *))) THEN
+        IF (10 IN xxVerticalSet0 [xxToken] (*  '|' 'ELSE' 'END' *)) THEN EXIT; END;
+        xxExpected (49, 50, xxGlobalRecoverySet); (*  ';' /  Ident ';' 'CASE' *)
+        IF NOT ((xxToken = 20 (* ';' *)) OR (9 IN xxVerticalSet0 [xxToken] (*  Ident ';' 'CASE' *))) THEN EXIT; END;
+      END;
+      IF xxToken # 20 (* ';' *) THEN
+        xxRecoveryLiteral (20, 50, xxGlobalRecoverySet); (*  Ident ';' 'CASE' *)
+      ELSE
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+    END;
+  END yyFieldListSequence;
+
+PROCEDURE yyFieldList (VAR FieldList0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    Qualident1: tParsAttribute;
+    Type1: tParsAttribute;
+    FieldListSequence1: tParsAttribute;
+    IdentList1: tParsAttribute;
+    Variant1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 1 (* Ident *):
+        xxUnion.LocalRecoverySet := 51; yyIdentList (IdentList1, SYSTEM.ADR (xxUnion)); (*  Ident '(' ':' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+        IF xxToken # 18 (* ':' *) THEN
+          xxRecoveryLiteral (18, 51, xxGlobalRecoverySet); (*  Ident '(' ':' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yyType (Type1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 38 (* 'CASE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            Ident1 := Scanner.Attribute;
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            EXIT;
+          ELSIF (xxToken = 18 (* ':' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (53, 54, xxGlobalRecoverySet); (*  Ident ':' /  Ident Integer Char Real String '(' '+' '-' ':' '{' '|' 'ELSE' 'END' 'NOT' 'OF' *)
+        END;
+        IF xxToken # 18 (* ':' *) THEN
+          xxRecoveryLiteral (18, 54, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' ':' '{' '|' 'ELSE' 'END' 'NOT' 'OF' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 55; yyQualident (Qualident1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' 'OF' *)
+        IF xxToken # 58 (* 'OF' *) THEN
+          xxRecoveryLiteral (58, 55, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' 'OF' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        LOOP
+          xxUnion.LocalRecoverySet := 56; yyVariant (Variant1, SYSTEM.ADR (xxUnion)); (*  '|' 'ELSE' 'END' *)
+          IF NOT ((xxToken = 31 (* '|' *))) THEN
+            IF (12 IN xxVerticalSet0 [xxToken] (*  'ELSE' 'END' *)) THEN EXIT; END;
+            xxExpected (56, 57, xxGlobalRecoverySet); (*  '|' 'ELSE' 'END' /  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' *)
+            IF NOT ((xxToken = 31 (* '|' *)) OR (11 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'NOT' *))) THEN EXIT; END;
+          END;
+          IF xxToken # 31 (* '|' *) THEN
+            xxRecoveryLiteral (31, 57, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        LOOP
+          IF (xxToken = 43 (* 'ELSE' *)) THEN
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 33; yyFieldListSequence (FieldListSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+            EXIT;
+          ELSIF (xxToken = 45 (* 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (58, 58, xxGlobalRecoverySet); (*  'ELSE' 'END' /  'ELSE' 'END' *)
+        END;
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 20 (* ';' *), 31 (* '|' *), 43 (* 'ELSE' *), 45 (* 'END' *):
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          EXIT;
+        END;
+xxUnexpected (60, xxGlobalRecoverySet); (*  Ident 'CASE' *)
+      END;
+    END;
+  END yyFieldList;
+
+PROCEDURE yyVariant (VAR Variant0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    FieldListSequence1: tParsAttribute;
+    CaseLabelList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      IF (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)) THEN
+        xxUnion.LocalRecoverySet := 62; yyCaseLabelList (CaseLabelList1, SYSTEM.ADR (xxUnion)); (*  Ident ':' ';' 'CASE' *)
+        IF xxToken # 18 (* ':' *) THEN
+          xxRecoveryLiteral (18, 62, xxGlobalRecoverySet); (*  Ident ':' ';' 'CASE' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yyFieldListSequence (FieldListSequence1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (10 IN xxVerticalSet0 [xxToken] (*  '|' 'ELSE' 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (61, 61, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' /  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)
+    END;
+  END yyVariant;
+
+PROCEDURE yyCaseLabelList (VAR CaseLabelList0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    CaseLabels1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      xxUnion.LocalRecoverySet := 47; yyCaseLabels (CaseLabels1, SYSTEM.ADR (xxUnion)); (*  ',' *)
+      IF NOT ((xxToken = 13 (* ',' *))) THEN
+        IF (xxToken = 18 (* ':' *)) THEN EXIT; END;
+        xxExpected (47, 63, xxGlobalRecoverySet); (*  ',' /  Ident Integer Char Real String '(' '+' ',' '-' '{' 'NOT' *)
+        IF NOT ((xxToken = 13 (* ',' *)) OR (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *))) THEN EXIT; END;
+      END;
+      IF xxToken # 13 (* ',' *) THEN
+        xxRecoveryLiteral (13, 63, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' ',' '-' '{' 'NOT' *)
+      ELSE
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+    END;
+  END yyCaseLabelList;
+
+PROCEDURE yyCaseLabels (VAR CaseLabels0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    ConstExpression1, ConstExpression2: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 64; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  '..' *)
+    LOOP
+      IF (xxToken = 16 (* '..' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 0; yyConstExpression (ConstExpression2, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (14 IN xxVerticalSet0 [xxToken] (*  ',' ':' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (64, 64, xxGlobalRecoverySet); (*  '..' /  '..' *)
+    END;
+  END yyCaseLabels;
+
+PROCEDURE yyFormalTypeList (VAR FormalTypeList0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Qualident1: tParsAttribute;
+    FormalType1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 9 (* '(' *) THEN
+      xxRecoveryLiteral (9, 66, xxGlobalRecoverySet); (*  Ident '(' ')' ':' 'ARRAY' 'VAR' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (15 IN xxVerticalSet0 [xxToken] (*  Ident 'ARRAY' 'VAR' *)) THEN
+        LOOP
+          LOOP
+            IF (xxToken = 71 (* 'VAR' *)) THEN
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              EXIT;
+            ELSIF (16 IN xxVerticalSet0 [xxToken] (*  Ident 'ARRAY' *)) OR xxIsRepairMode THEN EXIT; END;
+            xxExpected (71, 70, xxGlobalRecoverySet); (*  Ident 'ARRAY' 'VAR' /  Ident ')' ',' ':' 'ARRAY' 'VAR' *)
+          END;
+          xxUnion.LocalRecoverySet := 72; yyFormalType (FormalType1, SYSTEM.ADR (xxUnion)); (*  ')' ',' ':' *)
+          IF NOT ((xxToken = 13 (* ',' *))) THEN
+            IF (xxToken = 10 (* ')' *)) THEN EXIT; END;
+            xxExpected (69, 70, xxGlobalRecoverySet); (*  ')' ',' /  Ident ')' ',' ':' 'ARRAY' 'VAR' *)
+            IF NOT ((xxToken = 13 (* ',' *)) OR (15 IN xxVerticalSet0 [xxToken] (*  Ident 'ARRAY' 'VAR' *))) THEN EXIT; END;
+          END;
+          IF xxToken # 13 (* ',' *) THEN
+            xxRecoveryLiteral (13, 70, xxGlobalRecoverySet); (*  Ident ')' ',' ':' 'ARRAY' 'VAR' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        EXIT;
+      ELSIF (xxToken = 10 (* ')' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (67, 68, xxGlobalRecoverySet); (*  Ident ')' 'ARRAY' 'VAR' /  Ident ')' ':' 'ARRAY' 'VAR' *)
+    END;
+    IF xxToken # 10 (* ')' *) THEN
+      xxRecoveryLiteral (10, 73, xxGlobalRecoverySet); (*  ')' ':' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (xxToken = 18 (* ':' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 0; yyQualident (Qualident1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (6 IN xxVerticalSet0 [xxToken] (*  ';' '|' 'ELSE' 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (74, 74, xxGlobalRecoverySet); (*  ':' /  ':' *)
+    END;
+  END yyFormalTypeList;
+
+PROCEDURE yyVariableDeclaration (VAR VariableDeclaration0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Type1: tParsAttribute;
+    IdentList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 51; yyIdentList (IdentList1, SYSTEM.ADR (xxUnion)); (*  Ident '(' ':' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+    IF xxToken # 18 (* ':' *) THEN
+      xxRecoveryLiteral (18, 51, xxGlobalRecoverySet); (*  Ident '(' ':' '[' 'ARRAY' 'POINTER' 'PROCEDURE' 'RECORD' 'SET' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    xxUnion.LocalRecoverySet := 0; yyType (Type1, SYSTEM.ADR (xxUnion)); (*  *)
+  END yyVariableDeclaration;
+
+PROCEDURE yyDesignator (VAR Designator0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1, Ident2: Scanner.tScanAttribute;
+    ExpList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 75, xxGlobalRecoverySet, Ident1); (*  Ident '.' '[' '^' *)
+    ELSE
+      Ident1 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (17 IN xxVerticalSet0 [xxToken] (*  '.' '[' '^' *)) THEN
+        LOOP
+          CASE xxToken OF
+          | 15 (* '.' *):
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            IF xxToken # 1 (* Ident *) THEN
+              xxRecoveryTerminal (1, 77, xxGlobalRecoverySet, Ident2); (*  Ident *)
+            ELSE
+              Ident2 := Scanner.Attribute;
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            EXIT;
+          | 27 (* '[' *):
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 43; yyExpList (ExpList1, SYSTEM.ADR (xxUnion)); (*  ']' *)
+            IF xxToken # 28 (* ']' *) THEN
+              xxRecoveryLiteral (28, 43, xxGlobalRecoverySet); (*  ']' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            EXIT;
+          | 29 (* '^' *):
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            EXIT;
+          ELSE
+            IF xxIsRepairMode THEN
+              IF xxToken # 29 (* '^' *) THEN
+                xxRecoveryLiteral (29, 79, xxGlobalRecoverySet); (*  '^' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+              EXIT;
+            END;
+            xxExpected (76, 76, xxGlobalRecoverySet); (*  '.' '[' '^' /  '.' '[' '^' *)
+          END;
+        END;
+      ELSIF (18 IN xxVerticalSet0 [xxToken] (*  '#' '(' ')' '*' '+' ',' '-' '..' '/' ':' ':=' ';' '<' '<=' '=' '>' '>=' ']' '{' '|' '}' 'AND' 'BY' 'DIV' 'DO' 'ELSE' 'ELSIF' 'END' 'IN' 'MOD' 'OF' 'OR' 'THEN' 'TO' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT;
+      ELSE
+       
+      xxExpected (76, 76, xxGlobalRecoverySet); (*  '.' '[' '^' /  '.' '[' '^' *)
+      END;
+    END;
+  END yyDesignator;
+
+PROCEDURE yyExpList (VAR ExpList0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Expression1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      xxUnion.LocalRecoverySet := 47; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  ',' *)
+      IF NOT ((xxToken = 13 (* ',' *))) THEN
+        IF (19 IN xxVerticalSet0 [xxToken] (*  ')' ']' *)) THEN EXIT; END;
+        xxExpected (47, 63, xxGlobalRecoverySet); (*  ',' /  Ident Integer Char Real String '(' '+' ',' '-' '{' 'NOT' *)
+        IF NOT ((xxToken = 13 (* ',' *)) OR (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *))) THEN EXIT; END;
+      END;
+      IF xxToken # 13 (* ',' *) THEN
+        xxRecoveryLiteral (13, 63, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' ',' '-' '{' 'NOT' *)
+      ELSE
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+    END;
+  END yyExpList;
+
+PROCEDURE yyExpression (VAR Expression0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    SimpleExpression1, SimpleExpression2: tParsAttribute;
+    Relation1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 80; yySimpleExpression (SimpleExpression1, SYSTEM.ADR (xxUnion)); (*  '#' '<' '<=' '=' '>' '>=' 'IN' *)
+    LOOP
+      IF (20 IN xxVerticalSet0 [xxToken] (*  '#' '<' '<=' '=' '>' '>=' 'IN' *)) THEN
+        xxUnion.LocalRecoverySet := 61; yyRelation (Relation1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)
+        xxUnion.LocalRecoverySet := 0; yySimpleExpression (SimpleExpression2, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (21 IN xxVerticalSet0 [xxToken] (*  ')' ',' '..' ':' ';' ']' '|' '}' 'BY' 'DO' 'ELSE' 'ELSIF' 'END' 'OF' 'THEN' 'TO' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (80, 80, xxGlobalRecoverySet); (*  '#' '<' '<=' '=' '>' '>=' 'IN' /  '#' '<' '<=' '=' '>' '>=' 'IN' *)
+    END;
+  END yyExpression;
+
+PROCEDURE yyRelation (VAR Relation0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+  BEGIN
+    LOOP
+      CASE xxToken OF
+      | 24 (* '=' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 8 (* '#' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 21 (* '<' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 22 (* '<=' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 25 (* '>' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 26 (* '>=' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 53 (* 'IN' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 24 (* '=' *) THEN
+            xxRecoveryLiteral (24, 81, xxGlobalRecoverySet); (*  '=' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          EXIT;
+        END;
+        xxExpected (80, 80, xxGlobalRecoverySet); (*  '#' '<' '<=' '=' '>' '>=' 'IN' /  '#' '<' '<=' '=' '>' '>=' 'IN' *)
+      END;
+    END;
+  END yyRelation;
+
+PROCEDURE yySimpleExpression (VAR SimpleExpression0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Term1, Term2: tParsAttribute;
+    AddOperator1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      IF (22 IN xxVerticalSet0 [xxToken] (*  '+' '-' *)) THEN
+        IF (xxToken = 12 (* '+' *)) THEN
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        ELSE 
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSIF (23 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '{' 'NOT' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (61, 88, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' /  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' 'OR' *)
+    END;
+    xxUnion.LocalRecoverySet := 89; yyTerm (Term1, SYSTEM.ADR (xxUnion)); (*  '+' '-' 'OR' *)
+    LOOP
+      IF (24 IN xxVerticalSet0 [xxToken] (*  '+' '-' 'OR' *)) THEN
+        xxUnion.LocalRecoverySet := 90; yyAddOperator (AddOperator1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '{' 'NOT' *)
+        xxUnion.LocalRecoverySet := 0; yyTerm (Term2, SYSTEM.ADR (xxUnion)); (*  *)
+      ELSIF (25 IN xxVerticalSet0 [xxToken] (*  '#' ')' ',' '..' ':' ';' '<' '<=' '=' '>' '>=' ']' '|' '}' 'BY' 'DO' 'ELSE' 'ELSIF' 'END' 'IN' 'OF' 'THEN' 'TO' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT;
+      ELSE
+       
+      xxExpected (89, 89, xxGlobalRecoverySet); (*  '+' '-' 'OR' /  '+' '-' 'OR' *)
+      END;
+    END;
+  END yySimpleExpression;
+
+PROCEDURE yyAddOperator (VAR AddOperator0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+  BEGIN
+    LOOP
+      CASE xxToken OF
+      | 12 (* '+' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 14 (* '-' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 59 (* 'OR' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 12 (* '+' *) THEN
+            xxRecoveryLiteral (12, 91, xxGlobalRecoverySet); (*  '+' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          EXIT;
+        END;
+        xxExpected (89, 89, xxGlobalRecoverySet); (*  '+' '-' 'OR' /  '+' '-' 'OR' *)
+      END;
+    END;
+  END yyAddOperator;
+
+PROCEDURE yyTerm (VAR Term0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Factor1, Factor2: tParsAttribute;
+    MulOperator1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 94; yyFactor (Factor1, SYSTEM.ADR (xxUnion)); (*  '*' '/' 'AND' 'DIV' 'MOD' *)
+    LOOP
+      IF (26 IN xxVerticalSet0 [xxToken] (*  '*' '/' 'AND' 'DIV' 'MOD' *)) THEN
+        xxUnion.LocalRecoverySet := 90; yyMulOperator (MulOperator1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '{' 'NOT' *)
+        xxUnion.LocalRecoverySet := 0; yyFactor (Factor2, SYSTEM.ADR (xxUnion)); (*  *)
+      ELSIF (27 IN xxVerticalSet0 [xxToken] (*  '#' ')' '+' ',' '-' '..' ':' ';' '<' '<=' '=' '>' '>=' ']' '|' '}' 'BY' 'DO' 'ELSE' 'ELSIF' 'END' 'IN' 'OF' 'OR' 'THEN' 'TO' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT;
+      ELSE
+       
+      xxExpected (94, 94, xxGlobalRecoverySet); (*  '*' '/' 'AND' 'DIV' 'MOD' /  '*' '/' 'AND' 'DIV' 'MOD' *)
+      END;
+    END;
+  END yyTerm;
+
+PROCEDURE yyMulOperator (VAR MulOperator0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+  BEGIN
+    LOOP
+      CASE xxToken OF
+      | 11 (* '*' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 17 (* '/' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 41 (* 'DIV' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 55 (* 'MOD' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 34 (* 'AND' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 11 (* '*' *) THEN
+            xxRecoveryLiteral (11, 95, xxGlobalRecoverySet); (*  '*' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          EXIT;
+        END;
+        xxExpected (94, 94, xxGlobalRecoverySet); (*  '*' '/' 'AND' 'DIV' 'MOD' /  '*' '/' 'AND' 'DIV' 'MOD' *)
+      END;
+    END;
+  END yyMulOperator;
+
+PROCEDURE yyFactor (VAR Factor0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    String1: Scanner.tScanAttribute;
+    Number1: tParsAttribute;
+    Expression1: tParsAttribute;
+    Designator1: tParsAttribute;
+    Factor1: tParsAttribute;
+    Set1: tParsAttribute;
+    ActualParameters1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 2 (* Integer *), 4 (* Char *), 6 (* Real *):
+        xxUnion.LocalRecoverySet := 0; yyNumber (Number1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 7 (* String *):
+        String1 := Scanner.Attribute;
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 30 (* '{' *):
+        xxUnion.LocalRecoverySet := 0; yySet (Set1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 1 (* Ident *):
+        xxUnion.LocalRecoverySet := 101; yyDesignator (Designator1, SYSTEM.ADR (xxUnion)); (*  '(' '{' *)
+        LOOP
+          CASE xxToken OF
+          | 8 (* '#' *), 9 (* '(' *), 10 (* ')' *), 11 (* '*' *), 12 (* '+' *), 13 (* ',' *), 14 (* '-' *), 16 (* '..' *), 17 (* '/' *), 18 (* ':' *), 20 (* ';' *), 21 (* '<' *), 22 (* '<=' *), 24 (* '=' *), 25 (* '>' *), 26 (* '>=' *), 28 (* ']' *), 31 (* '|' *), 32 (* '}' *), 34 (* 'AND' *), 37 (* 'BY' *), 41 (* 'DIV' *), 42 (* 'DO' *), 43 (* 'ELSE' *), 44 (* 'ELSIF' *), 45 (* 'END' *), 53 (* 'IN' *), 55 (* 'MOD' *), 58 (* 'OF' *), 59 (* 'OR' *), 67 (* 'THEN' *), 68 (* 'TO' *), 70 (* 'UNTIL' *):
+            LOOP
+              IF (xxToken = 9 (* '(' *)) THEN
+                xxUnion.LocalRecoverySet := 0; yyActualParameters (ActualParameters1, SYSTEM.ADR (xxUnion)); (*  *)
+                EXIT;
+              ELSIF (28 IN xxVerticalSet0 [xxToken] (*  '#' ')' '*' '+' ',' '-' '..' '/' ':' ';' '<' '<=' '=' '>' '>=' ']' '|' '}' 'AND' 'BY' 'DIV' 'DO' 'ELSE' 'ELSIF' 'END' 'IN' 'MOD' 'OF' 'OR' 'THEN' 'TO' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT; END;
+              xxExpected (38, 38, xxGlobalRecoverySet); (*  '(' /  '(' *)
+            END;
+            EXIT;
+          | 30 (* '{' *):
+            xxUnion.LocalRecoverySet := 0; yySet (Set1, SYSTEM.ADR (xxUnion)); (*  *)
+            EXIT;
+          ELSE
+            IF xxIsRepairMode THEN
+              LOOP
+                IF (xxToken = 9 (* '(' *)) THEN
+                  xxUnion.LocalRecoverySet := 0; yyActualParameters (ActualParameters1, SYSTEM.ADR (xxUnion)); (*  *)
+                  EXIT;
+                ELSIF (28 IN xxVerticalSet0 [xxToken] (*  '#' ')' '*' '+' ',' '-' '..' '/' ':' ';' '<' '<=' '=' '>' '>=' ']' '|' '}' 'AND' 'BY' 'DIV' 'DO' 'ELSE' 'ELSIF' 'END' 'IN' 'MOD' 'OF' 'OR' 'THEN' 'TO' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT; END;
+                xxExpected (38, 38, xxGlobalRecoverySet); (*  '(' /  '(' *)
+              END;
+              EXIT;
+            END;
+xxUnexpected (101, xxGlobalRecoverySet); (*  '(' '{' *)
+          END;
+        END;
+        EXIT;
+      | 9 (* '(' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 45; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  ')' *)
+        IF xxToken # 10 (* ')' *) THEN
+          xxRecoveryLiteral (10, 45, xxGlobalRecoverySet); (*  ')' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 57 (* 'NOT' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 0; yyFactor (Factor1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          xxUnion.LocalRecoverySet := 0; yyNumber (Number1, SYSTEM.ADR (xxUnion)); (*  *)
+          EXIT;
+        END;
+        xxExpected (90, 90, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '{' 'NOT' /  Ident Integer Char Real String '(' '{' 'NOT' *)
+      END;
+    END;
+  END yyFactor;
+
+PROCEDURE yySet (VAR Set0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Element1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 30 (* '{' *) THEN
+      xxRecoveryLiteral (30, 103, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' '}' 'NOT' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)) THEN
+        LOOP
+          xxUnion.LocalRecoverySet := 104; yyElement (Element1, SYSTEM.ADR (xxUnion)); (*  ',' '}' *)
+          IF NOT ((xxToken = 13 (* ',' *))) THEN
+            IF (xxToken = 32 (* '}' *)) THEN EXIT; END;
+            xxExpected (104, 105, xxGlobalRecoverySet); (*  ',' '}' /  Ident Integer Char Real String '(' '+' ',' '-' '{' '}' 'NOT' *)
+            IF NOT ((xxToken = 13 (* ',' *)) OR (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *))) THEN EXIT; END;
+          END;
+          IF xxToken # 13 (* ',' *) THEN
+            xxRecoveryLiteral (13, 105, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' ',' '-' '{' '}' 'NOT' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        EXIT;
+      ELSIF (xxToken = 32 (* '}' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (103, 103, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' '}' 'NOT' /  Ident Integer Char Real String '(' '+' '-' '{' '}' 'NOT' *)
+    END;
+    IF xxToken # 32 (* '}' *) THEN
+      xxRecoveryLiteral (32, 106, xxGlobalRecoverySet); (*  '}' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yySet;
+
+PROCEDURE yyElement (VAR Element0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Expression1, Expression2: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 64; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  '..' *)
+    LOOP
+      IF (xxToken = 16 (* '..' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 0; yyExpression (Expression2, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (29 IN xxVerticalSet0 [xxToken] (*  ',' '}' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (64, 64, xxGlobalRecoverySet); (*  '..' /  '..' *)
+    END;
+  END yyElement;
+
+PROCEDURE yyActualParameters (VAR ActualParameters0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    ExpList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 9 (* '(' *) THEN
+      xxRecoveryLiteral (9, 102, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' ')' '+' '-' '{' 'NOT' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)) THEN
+        xxUnion.LocalRecoverySet := 45; yyExpList (ExpList1, SYSTEM.ADR (xxUnion)); (*  ')' *)
+        EXIT;
+      ELSIF (xxToken = 10 (* ')' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (102, 102, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' ')' '+' '-' '{' 'NOT' /  Ident Integer Char Real String '(' ')' '+' '-' '{' 'NOT' *)
+    END;
+    IF xxToken # 10 (* ')' *) THEN
+      xxRecoveryLiteral (10, 45, xxGlobalRecoverySet); (*  ')' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yyActualParameters;
+
+PROCEDURE yyStatement (VAR Statement0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    ConstExpression1: tParsAttribute;
+    Expression1, Expression2: tParsAttribute;
+    Designator1: tParsAttribute;
+    ActualParameters1: tParsAttribute;
+    StatementSequence1, StatementSequence2, StatementSequence3: tParsAttribute;
+    Case1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 1 (* Ident *):
+        xxUnion.LocalRecoverySet := 107; yyDesignator (Designator1, SYSTEM.ADR (xxUnion)); (*  '(' ':=' *)
+        LOOP
+          CASE xxToken OF
+          | 19 (* ':=' *):
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 0; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  *)
+            EXIT;
+          | 9 (* '(' *), 20 (* ';' *), 31 (* '|' *), 43 (* 'ELSE' *), 44 (* 'ELSIF' *), 45 (* 'END' *), 70 (* 'UNTIL' *):
+            LOOP
+              IF (xxToken = 9 (* '(' *)) THEN
+                xxUnion.LocalRecoverySet := 0; yyActualParameters (ActualParameters1, SYSTEM.ADR (xxUnion)); (*  *)
+                EXIT;
+              ELSIF (30 IN xxVerticalSet0 [xxToken] (*  ';' '|' 'ELSE' 'ELSIF' 'END' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT; END;
+              xxExpected (38, 38, xxGlobalRecoverySet); (*  '(' /  '(' *)
+            END;
+            EXIT;
+          ELSE
+            IF xxIsRepairMode THEN
+              LOOP
+                IF (xxToken = 9 (* '(' *)) THEN
+                  xxUnion.LocalRecoverySet := 0; yyActualParameters (ActualParameters1, SYSTEM.ADR (xxUnion)); (*  *)
+                  EXIT;
+                ELSIF (30 IN xxVerticalSet0 [xxToken] (*  ';' '|' 'ELSE' 'ELSIF' 'END' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT; END;
+                xxExpected (38, 38, xxGlobalRecoverySet); (*  '(' /  '(' *)
+              END;
+              EXIT;
+            END;
+xxUnexpected (107, xxGlobalRecoverySet); (*  '(' ':=' *)
+          END;
+        END;
+        EXIT;
+      | 50 (* 'IF' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 110; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'CASE' 'ELSE' 'ELSIF' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'THEN' 'WHILE' 'WITH' *)
+        IF xxToken # 67 (* 'THEN' *) THEN
+          xxRecoveryLiteral (67, 110, xxGlobalRecoverySet); (*  Ident ';' 'CASE' 'ELSE' 'ELSIF' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'THEN' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 111; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'ELSE' 'ELSIF' 'END' *)
+        LOOP
+          IF (xxToken = 44 (* 'ELSIF' *)) THEN
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 112; yyExpression (Expression2, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'CASE' 'ELSE' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'THEN' 'WHILE' 'WITH' *)
+            IF xxToken # 67 (* 'THEN' *) THEN
+              xxRecoveryLiteral (67, 112, xxGlobalRecoverySet); (*  Ident ';' 'CASE' 'ELSE' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'THEN' 'WHILE' 'WITH' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+            xxUnion.LocalRecoverySet := 58; yyStatementSequence (StatementSequence2, SYSTEM.ADR (xxUnion)); (*  'ELSE' 'END' *)
+          ELSIF (12 IN xxVerticalSet0 [xxToken] (*  'ELSE' 'END' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (111, 111, xxGlobalRecoverySet); (*  'ELSE' 'ELSIF' 'END' /  'ELSE' 'ELSIF' 'END' *)
+          END;
+        END;
+        LOOP
+          IF (xxToken = 43 (* 'ELSE' *)) THEN
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence3, SYSTEM.ADR (xxUnion)); (*  'END' *)
+            EXIT;
+          ELSIF (xxToken = 45 (* 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (58, 58, xxGlobalRecoverySet); (*  'ELSE' 'END' /  'ELSE' 'END' *)
+        END;
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 38 (* 'CASE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 55; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' 'OF' *)
+        IF xxToken # 58 (* 'OF' *) THEN
+          xxRecoveryLiteral (58, 55, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' 'OF' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        LOOP
+          xxUnion.LocalRecoverySet := 56; yyCase (Case1, SYSTEM.ADR (xxUnion)); (*  '|' 'ELSE' 'END' *)
+          IF NOT ((xxToken = 31 (* '|' *))) THEN
+            IF (12 IN xxVerticalSet0 [xxToken] (*  'ELSE' 'END' *)) THEN EXIT; END;
+            xxExpected (56, 57, xxGlobalRecoverySet); (*  '|' 'ELSE' 'END' /  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' *)
+            IF NOT ((xxToken = 31 (* '|' *)) OR (11 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'NOT' *))) THEN EXIT; END;
+          END;
+          IF xxToken # 31 (* '|' *) THEN
+            xxRecoveryLiteral (31, 57, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' '|' 'ELSE' 'END' 'NOT' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        LOOP
+          IF (xxToken = 43 (* 'ELSE' *)) THEN
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+            EXIT;
+          ELSIF (xxToken = 45 (* 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (58, 58, xxGlobalRecoverySet); (*  'ELSE' 'END' /  'ELSE' 'END' *)
+        END;
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 72 (* 'WHILE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 116; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        IF xxToken # 42 (* 'DO' *) THEN
+          xxRecoveryLiteral (42, 116, xxGlobalRecoverySet); (*  Ident ';' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 64 (* 'REPEAT' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 118; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' 'UNTIL' *)
+        IF xxToken # 70 (* 'UNTIL' *) THEN
+          xxRecoveryLiteral (70, 118, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' 'UNTIL' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      | 54 (* 'LOOP' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 48 (* 'FOR' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 120, xxGlobalRecoverySet, Ident1); (*  Ident Integer Char Real String '(' '+' '-' ':=' ';' '{' 'BY' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'NOT' 'REPEAT' 'RETURN' 'TO' 'WHILE' 'WITH' *)
+        ELSE
+          Ident1 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 19 (* ':=' *) THEN
+          xxRecoveryLiteral (19, 120, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' ':=' ';' '{' 'BY' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'NOT' 'REPEAT' 'RETURN' 'TO' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 121; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  Ident Integer Char Real String '(' '+' '-' ';' '{' 'BY' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'NOT' 'REPEAT' 'RETURN' 'TO' 'WHILE' 'WITH' *)
+        IF xxToken # 68 (* 'TO' *) THEN
+          xxRecoveryLiteral (68, 121, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' ';' '{' 'BY' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'NOT' 'REPEAT' 'RETURN' 'TO' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 122; yyExpression (Expression2, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'BY' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        LOOP
+          IF (xxToken = 37 (* 'BY' *)) THEN
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            xxUnion.LocalRecoverySet := 116; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+            EXIT;
+          ELSIF (xxToken = 42 (* 'DO' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (123, 122, xxGlobalRecoverySet); (*  'BY' 'DO' /  Ident ';' 'BY' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        END;
+        IF xxToken # 42 (* 'DO' *) THEN
+          xxRecoveryLiteral (42, 116, xxGlobalRecoverySet); (*  Ident ';' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 73 (* 'WITH' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 116; yyDesignator (Designator1, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        IF xxToken # 42 (* 'DO' *) THEN
+          xxRecoveryLiteral (42, 116, xxGlobalRecoverySet); (*  Ident ';' 'CASE' 'DO' 'END' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+        IF xxToken # 45 (* 'END' *) THEN
+          xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 46 (* 'EXIT' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      | 65 (* 'RETURN' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)) THEN
+            xxUnion.LocalRecoverySet := 0; yyExpression (Expression1, SYSTEM.ADR (xxUnion)); (*  *)
+            EXIT;
+          ELSIF (30 IN xxVerticalSet0 [xxToken] (*  ';' '|' 'ELSE' 'ELSIF' 'END' 'UNTIL' *)) OR xxIsRepairMode THEN EXIT; END;
+          xxExpected (61, 61, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' /  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)
+        END;
+        EXIT;
+      | 20 (* ';' *), 31 (* '|' *), 43 (* 'ELSE' *), 44 (* 'ELSIF' *), 45 (* 'END' *), 70 (* 'UNTIL' *):
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          EXIT;
+        END;
+xxUnexpected (127, xxGlobalRecoverySet); (*  Ident 'CASE' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+      END;
+    END;
+  END yyStatement;
+
+PROCEDURE yyStatementSequence (VAR StatementSequence0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Statement1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      xxUnion.LocalRecoverySet := 49; yyStatement (Statement1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+      IF NOT ((xxToken = 20 (* ';' *))) THEN
+        IF (0 IN xxVerticalSet1 [xxToken] (*  '|' 'ELSE' 'ELSIF' 'END' 'UNTIL' *)) THEN EXIT; END;
+        xxExpected (49, 128, xxGlobalRecoverySet); (*  ';' /  Ident ';' 'CASE' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        IF NOT ((xxToken = 20 (* ';' *)) OR (31 IN xxVerticalSet0 [xxToken] (*  Ident ';' 'CASE' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *))) THEN EXIT; END;
+      END;
+      IF xxToken # 20 (* ';' *) THEN
+        xxRecoveryLiteral (20, 128, xxGlobalRecoverySet); (*  Ident ';' 'CASE' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+      ELSE
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+      END;
+    END;
+  END yyStatementSequence;
+
+PROCEDURE yyCase (VAR Case0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    CaseLabelList1: tParsAttribute;
+    StatementSequence1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      IF (13 IN xxVerticalSet0 [xxToken] (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)) THEN
+        xxUnion.LocalRecoverySet := 129; yyCaseLabelList (CaseLabelList1, SYSTEM.ADR (xxUnion)); (*  Ident ':' ';' 'CASE' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        IF xxToken # 18 (* ':' *) THEN
+          xxRecoveryLiteral (18, 129, xxGlobalRecoverySet); (*  Ident ':' ';' 'CASE' 'EXIT' 'FOR' 'IF' 'LOOP' 'REPEAT' 'RETURN' 'WHILE' 'WITH' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 0; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (10 IN xxVerticalSet0 [xxToken] (*  '|' 'ELSE' 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (61, 61, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' /  Ident Integer Char Real String '(' '+' '-' '{' 'NOT' *)
+    END;
+  END yyCase;
+
+PROCEDURE yyProcedureDeclaration (VAR ProcedureDeclaration0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    Block1: tParsAttribute;
+    ProcedureHeading1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    xxUnion.LocalRecoverySet := 130; yyProcedureHeading (ProcedureHeading1, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    IF xxToken # 20 (* ';' *) THEN
+      xxRecoveryLiteral (20, 130, xxGlobalRecoverySet); (*  Ident ';' 'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    xxUnion.LocalRecoverySet := 77; yyBlock (Block1, SYSTEM.ADR (xxUnion)); (*  Ident *)
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 77, xxGlobalRecoverySet, Ident1); (*  Ident *)
+    ELSE
+      Ident1 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yyProcedureDeclaration;
+
+PROCEDURE yyProcedureHeading (VAR ProcedureHeading0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    FormalParameters1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 61 (* 'PROCEDURE' *) THEN
+      xxRecoveryLiteral (61, 131, xxGlobalRecoverySet); (*  Ident '(' 'PROCEDURE' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 132, xxGlobalRecoverySet, Ident1); (*  Ident '(' *)
+    ELSE
+      Ident1 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (xxToken = 9 (* '(' *)) THEN
+        xxUnion.LocalRecoverySet := 0; yyFormalParameters (FormalParameters1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (38, 38, xxGlobalRecoverySet); (*  '(' /  '(' *)
+    END;
+  END yyProcedureHeading;
+
+PROCEDURE yyBlock (VAR Block0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    StatementSequence1: tParsAttribute;
+    Declaration1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      IF (1 IN xxVerticalSet1 [xxToken] (*  'CONST' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) THEN
+        xxUnion.LocalRecoverySet := 134; yyDeclaration (Declaration1, SYSTEM.ADR (xxUnion)); (*  'BEGIN' 'END' *)
+      ELSIF (2 IN xxVerticalSet1 [xxToken] (*  'BEGIN' 'END' *)) OR xxIsRepairMode THEN EXIT;
+      ELSE
+       
+      xxExpected (133, 133, xxGlobalRecoverySet); (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+      END;
+    END;
+    LOOP
+      IF (xxToken = 36 (* 'BEGIN' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 33; yyStatementSequence (StatementSequence1, SYSTEM.ADR (xxUnion)); (*  'END' *)
+        EXIT;
+      ELSIF (xxToken = 45 (* 'END' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (134, 134, xxGlobalRecoverySet); (*  'BEGIN' 'END' /  'BEGIN' 'END' *)
+    END;
+    IF xxToken # 45 (* 'END' *) THEN
+      xxRecoveryLiteral (45, 33, xxGlobalRecoverySet); (*  'END' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yyBlock;
+
+PROCEDURE yyDeclaration (VAR Declaration0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    ConstantDeclaration1: tParsAttribute;
+    TypeDeclaration1: tParsAttribute;
+    VariableDeclaration1: tParsAttribute;
+    ProcedureDeclaration1: tParsAttribute;
+    ModuleDeclaration1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 39 (* 'CONST' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            xxUnion.LocalRecoverySet := 49; yyConstantDeclaration (ConstantDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+          END;
+        END;
+        EXIT;
+      | 69 (* 'TYPE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            xxUnion.LocalRecoverySet := 49; yyTypeDeclaration (TypeDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+          END;
+        END;
+        EXIT;
+      | 71 (* 'VAR' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            xxUnion.LocalRecoverySet := 49; yyVariableDeclaration (VariableDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+          END;
+        END;
+        EXIT;
+      | 61 (* 'PROCEDURE' *):
+        xxUnion.LocalRecoverySet := 49; yyProcedureDeclaration (ProcedureDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      | 56 (* 'MODULE' *):
+        xxUnion.LocalRecoverySet := 49; yyModuleDeclaration (ModuleDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 39 (* 'CONST' *) THEN
+            xxRecoveryLiteral (39, 136, xxGlobalRecoverySet); (*  Ident 'CONST' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          LOOP
+            IF (xxToken = 1 (* Ident *)) THEN
+              xxUnion.LocalRecoverySet := 49; yyConstantDeclaration (ConstantDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+              IF xxToken # 20 (* ';' *) THEN
+                xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+            ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+            ELSE
+             
+            xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+            END;
+          END;
+          EXIT;
+        END;
+        xxExpected (139, 139, xxGlobalRecoverySet); (*  'CONST' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  'CONST' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+      END;
+    END;
+  END yyDeclaration;
+
+PROCEDURE yyFormalParameters (VAR FormalParameters0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Qualident1: tParsAttribute;
+    FPSection1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 9 (* '(' *) THEN
+      xxRecoveryLiteral (9, 140, xxGlobalRecoverySet); (*  Ident '(' ')' ':' 'VAR' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (3 IN xxVerticalSet1 [xxToken] (*  Ident 'VAR' *)) THEN
+        LOOP
+          xxUnion.LocalRecoverySet := 145; yyFPSection (FPSection1, SYSTEM.ADR (xxUnion)); (*  ')' ':' ';' *)
+          IF NOT ((xxToken = 20 (* ';' *))) THEN
+            IF (xxToken = 10 (* ')' *)) THEN EXIT; END;
+            xxExpected (143, 144, xxGlobalRecoverySet); (*  ')' ';' /  Ident ')' ':' ';' 'VAR' *)
+            IF NOT ((xxToken = 20 (* ';' *)) OR (3 IN xxVerticalSet1 [xxToken] (*  Ident 'VAR' *))) THEN EXIT; END;
+          END;
+          IF xxToken # 20 (* ';' *) THEN
+            xxRecoveryLiteral (20, 144, xxGlobalRecoverySet); (*  Ident ')' ':' ';' 'VAR' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        EXIT;
+      ELSIF (xxToken = 10 (* ')' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (141, 142, xxGlobalRecoverySet); (*  Ident ')' 'VAR' /  Ident ')' ':' 'VAR' *)
+    END;
+    IF xxToken # 10 (* ')' *) THEN
+      xxRecoveryLiteral (10, 73, xxGlobalRecoverySet); (*  ')' ':' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (xxToken = 18 (* ':' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        xxUnion.LocalRecoverySet := 0; yyQualident (Qualident1, SYSTEM.ADR (xxUnion)); (*  *)
+        EXIT;
+      ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (74, 74, xxGlobalRecoverySet); (*  ':' /  ':' *)
+    END;
+  END yyFormalParameters;
+
+PROCEDURE yyFPSection (VAR FPSection0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    IdentList1: tParsAttribute;
+    FormalType1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      IF (xxToken = 71 (* 'VAR' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      ELSIF (xxToken = 1 (* Ident *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (138, 146, xxGlobalRecoverySet); (*  Ident 'VAR' /  Ident ':' 'ARRAY' 'VAR' *)
+    END;
+    xxUnion.LocalRecoverySet := 147; yyIdentList (IdentList1, SYSTEM.ADR (xxUnion)); (*  Ident ':' 'ARRAY' *)
+    IF xxToken # 18 (* ':' *) THEN
+      xxRecoveryLiteral (18, 147, xxGlobalRecoverySet); (*  Ident ':' 'ARRAY' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    xxUnion.LocalRecoverySet := 0; yyFormalType (FormalType1, SYSTEM.ADR (xxUnion)); (*  *)
+  END yyFPSection;
+
+PROCEDURE yyFormalType (VAR FormalType0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Qualident1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      IF (xxToken = 35 (* 'ARRAY' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 58 (* 'OF' *) THEN
+          xxRecoveryLiteral (58, 150, xxGlobalRecoverySet); (*  Ident 'OF' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSIF (xxToken = 1 (* Ident *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (148, 148, xxGlobalRecoverySet); (*  Ident 'ARRAY' /  Ident 'ARRAY' *)
+    END;
+    xxUnion.LocalRecoverySet := 0; yyQualident (Qualident1, SYSTEM.ADR (xxUnion)); (*  *)
+  END yyFormalType;
+
+PROCEDURE yyModuleDeclaration (VAR ModuleDeclaration0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1, Ident2: Scanner.tScanAttribute;
+    Import1: tParsAttribute;
+    Priority1: tParsAttribute;
+    Block1: tParsAttribute;
+    Export1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 56 (* 'MODULE' *) THEN
+      xxRecoveryLiteral (56, 151, xxGlobalRecoverySet); (*  Ident ';' '[' 'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 151, xxGlobalRecoverySet, Ident1); (*  Ident ';' '[' 'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    ELSE
+      Ident1 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (xxToken = 27 (* '[' *)) THEN
+        xxUnion.LocalRecoverySet := 152; yyPriority (Priority1, SYSTEM.ADR (xxUnion)); (*  Ident ';' 'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        EXIT;
+      ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (17, 151, xxGlobalRecoverySet); (*  ';' '[' /  Ident ';' '[' 'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    END;
+    IF xxToken # 20 (* ';' *) THEN
+      xxRecoveryLiteral (20, 152, xxGlobalRecoverySet); (*  Ident ';' 'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (0 IN xxVerticalSet0 [xxToken] (*  'FROM' 'IMPORT' *)) THEN
+        xxUnion.LocalRecoverySet := 155; yyImport (Import1, SYSTEM.ADR (xxUnion)); (*  Ident 'BEGIN' 'CONST' 'END' 'EXPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+      ELSIF (4 IN xxVerticalSet1 [xxToken] (*  'BEGIN' 'CONST' 'END' 'EXPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+      ELSE
+       
+      xxExpected (153, 154, xxGlobalRecoverySet); (*  'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  Ident 'BEGIN' 'CONST' 'END' 'EXPORT' 'FROM' 'IMPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+      END;
+    END;
+    LOOP
+      IF (xxToken = 47 (* 'EXPORT' *)) THEN
+        xxUnion.LocalRecoverySet := 157; yyExport (Export1, SYSTEM.ADR (xxUnion)); (*  Ident 'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+        EXIT;
+      ELSIF (3 IN xxVerticalSet0 [xxToken] (*  'BEGIN' 'CONST' 'END' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (156, 155, xxGlobalRecoverySet); (*  'BEGIN' 'CONST' 'END' 'EXPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' /  Ident 'BEGIN' 'CONST' 'END' 'EXPORT' 'MODULE' 'PROCEDURE' 'TYPE' 'VAR' *)
+    END;
+    xxUnion.LocalRecoverySet := 77; yyBlock (Block1, SYSTEM.ADR (xxUnion)); (*  Ident *)
+    IF xxToken # 1 (* Ident *) THEN
+      xxRecoveryTerminal (1, 77, xxGlobalRecoverySet, Ident2); (*  Ident *)
+    ELSE
+      Ident2 := Scanner.Attribute;
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yyModuleDeclaration;
+
+PROCEDURE yyPriority (VAR Priority0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    ConstExpression1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 27 (* '[' *) THEN
+      xxRecoveryLiteral (27, 78, xxGlobalRecoverySet); (*  Ident Integer Char Real String '(' '+' '-' '[' ']' '{' 'NOT' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    xxUnion.LocalRecoverySet := 43; yyConstExpression (ConstExpression1, SYSTEM.ADR (xxUnion)); (*  ']' *)
+    IF xxToken # 28 (* ']' *) THEN
+      xxRecoveryLiteral (28, 43, xxGlobalRecoverySet); (*  ']' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yyPriority;
+
+PROCEDURE yyExport (VAR Export0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    IdentList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    IF xxToken # 47 (* 'EXPORT' *) THEN
+      xxRecoveryLiteral (47, 158, xxGlobalRecoverySet); (*  Ident ';' 'EXPORT' 'QUALIFIED' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+    LOOP
+      IF (xxToken = 62 (* 'QUALIFIED' *)) THEN
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        EXIT;
+      ELSIF (xxToken = 1 (* Ident *)) OR xxIsRepairMode THEN EXIT; END;
+      xxExpected (159, 160, xxGlobalRecoverySet); (*  Ident 'QUALIFIED' /  Ident ';' 'QUALIFIED' *)
+    END;
+    xxUnion.LocalRecoverySet := 49; yyIdentList (IdentList1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+    IF xxToken # 20 (* ';' *) THEN
+      xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+    ELSE
+      xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+    END;
+  END yyExport;
+
+PROCEDURE yyImport (VAR Import0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    IdentList1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 49 (* 'FROM' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        IF xxToken # 1 (* Ident *) THEN
+          xxRecoveryTerminal (1, 162, xxGlobalRecoverySet, Ident1); (*  Ident ';' 'IMPORT' *)
+        ELSE
+          Ident1 := Scanner.Attribute;
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        IF xxToken # 52 (* 'IMPORT' *) THEN
+          xxRecoveryLiteral (52, 162, xxGlobalRecoverySet); (*  Ident ';' 'IMPORT' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        xxUnion.LocalRecoverySet := 49; yyIdentList (IdentList1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+(* 'modula.ell' line 250 *)
+ WriteS     (StdOutput, "   IMPORT ")		; 
+(* 'modula.ell' line 251 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 252 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 253 *)
+ WriteNl    (StdOutput)			; 
+        EXIT;
+      | 52 (* 'IMPORT' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF xxToken # 1 (* Ident *) THEN
+            xxRecoveryTerminal (1, 165, xxGlobalRecoverySet, Ident1); (*  Ident ',' ';' *)
+          ELSE
+            Ident1 := Scanner.Attribute;
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+(* 'modula.ell' line 256 *)
+ WriteS     (StdOutput, "   IMPORT ")		; 
+(* 'modula.ell' line 257 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 258 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 259 *)
+ WriteNl    (StdOutput)			; 
+          IF NOT ((xxToken = 13 (* ',' *))) THEN
+            IF (xxToken = 20 (* ';' *)) THEN EXIT; END;
+            xxExpected (164, 165, xxGlobalRecoverySet); (*  ',' ';' /  Ident ',' ';' *)
+            IF NOT ((xxToken = 13 (* ',' *)) OR (xxToken = 1 (* Ident *))) THEN EXIT; END;
+          END;
+          IF xxToken # 13 (* ',' *) THEN
+            xxRecoveryLiteral (13, 165, xxGlobalRecoverySet); (*  Ident ',' ';' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+        END;
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 52 (* 'IMPORT' *) THEN
+            xxRecoveryLiteral (52, 163, xxGlobalRecoverySet); (*  Ident ',' ';' 'IMPORT' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          LOOP
+            IF xxToken # 1 (* Ident *) THEN
+              xxRecoveryTerminal (1, 165, xxGlobalRecoverySet, Ident1); (*  Ident ',' ';' *)
+            ELSE
+              Ident1 := Scanner.Attribute;
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+(* 'modula.ell' line 256 *)
+ WriteS     (StdOutput, "   IMPORT ")		; 
+(* 'modula.ell' line 257 *)
+ WriteIdent (StdOutput, Ident1.Ident)		; 
+(* 'modula.ell' line 258 *)
+ WriteS     (StdOutput, " ;")			; 
+(* 'modula.ell' line 259 *)
+ WriteNl    (StdOutput)			; 
+            IF NOT ((xxToken = 13 (* ',' *))) THEN
+              IF (xxToken = 20 (* ';' *)) THEN EXIT; END;
+              xxExpected (164, 165, xxGlobalRecoverySet); (*  ',' ';' /  Ident ',' ';' *)
+              IF NOT ((xxToken = 13 (* ',' *)) OR (xxToken = 1 (* Ident *))) THEN EXIT; END;
+            END;
+            IF xxToken # 13 (* ',' *) THEN
+              xxRecoveryLiteral (13, 165, xxGlobalRecoverySet); (*  Ident ',' ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          END;
+          IF xxToken # 20 (* ';' *) THEN
+            xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          EXIT;
+        END;
+        xxExpected (166, 166, xxGlobalRecoverySet); (*  'FROM' 'IMPORT' /  'FROM' 'IMPORT' *)
+      END;
+    END;
+  END yyImport;
+
+PROCEDURE yyDefinition (VAR Definition0: tParsAttribute; xxGlobalRecoverySet: xxtUnionPtr);
+  VAR
+    Ident1: Scanner.tScanAttribute;
+    ConstantDeclaration1: tParsAttribute;
+    Type1: tParsAttribute;
+    VariableDeclaration1: tParsAttribute;
+    ProcedureHeading1: tParsAttribute;
+    xxUnion: xxtUnion;
+  BEGIN
+    xxUnion.GlobalRecoverySet := xxGlobalRecoverySet;
+    LOOP
+      CASE xxToken OF
+      | 39 (* 'CONST' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            xxUnion.LocalRecoverySet := 49; yyConstantDeclaration (ConstantDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+          END;
+        END;
+        EXIT;
+      | 69 (* 'TYPE' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            Ident1 := Scanner.Attribute;
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            LOOP
+              IF (xxToken = 24 (* '=' *)) THEN
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+                xxUnion.LocalRecoverySet := 49; yyType (Type1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+                EXIT;
+              ELSIF (xxToken = 20 (* ';' *)) OR xxIsRepairMode THEN EXIT; END;
+              xxExpected (168, 168, xxGlobalRecoverySet); (*  ';' '=' /  ';' '=' *)
+            END;
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+          END;
+        END;
+        EXIT;
+      | 71 (* 'VAR' *):
+        xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        LOOP
+          IF (xxToken = 1 (* Ident *)) THEN
+            xxUnion.LocalRecoverySet := 49; yyVariableDeclaration (VariableDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+            IF xxToken # 20 (* ';' *) THEN
+              xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+            ELSE
+              xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+            END;
+          ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+          ELSE
+           
+          xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+          END;
+        END;
+        EXIT;
+      | 61 (* 'PROCEDURE' *):
+        xxUnion.LocalRecoverySet := 49; yyProcedureHeading (ProcedureHeading1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+        IF xxToken # 20 (* ';' *) THEN
+          xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+        ELSE
+          xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+        END;
+        EXIT;
+      ELSE
+        IF xxIsRepairMode THEN
+          IF xxToken # 39 (* 'CONST' *) THEN
+            xxRecoveryLiteral (39, 136, xxGlobalRecoverySet); (*  Ident 'CONST' *)
+          ELSE
+            xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+          END;
+          LOOP
+            IF (xxToken = 1 (* Ident *)) THEN
+              xxUnion.LocalRecoverySet := 49; yyConstantDeclaration (ConstantDeclaration1, SYSTEM.ADR (xxUnion)); (*  ';' *)
+              IF xxToken # 20 (* ';' *) THEN
+                xxRecoveryLiteral (20, 49, xxGlobalRecoverySet); (*  ';' *)
+              ELSE
+                xxToken := Scanner.GetToken (); xxIsRepairMode := FALSE;
+              END;
+            ELSIF (1 IN xxVerticalSet0 [xxToken] (*  'CONST' 'END' 'PROCEDURE' 'TYPE' 'VAR' *)) OR xxIsRepairMode THEN EXIT;
+            ELSE
+             
+            xxExpected (77, 77, xxGlobalRecoverySet); (*  Ident /  Ident *)
+            END;
+          END;
+          EXIT;
+        END;
+        xxExpected (170, 170, xxGlobalRecoverySet); (*  'CONST' 'PROCEDURE' 'TYPE' 'VAR' /  'CONST' 'PROCEDURE' 'TYPE' 'VAR' *)
+      END;
+    END;
+  END yyDefinition;
+
+BEGIN
+  xxIsInitialized := FALSE;
+  ParsTabName := 'Parser.Tab';
+END Parser.
