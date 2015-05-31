@@ -113,6 +113,7 @@ main (int argc, char **argv, char **envp) {
       tm.tm_mday = cmos_read(fd, 7);
       tm.tm_mon = cmos_read(fd, 8);
       tm.tm_year = cmos_read(fd, 9);
+      if (tm.tm_year < 70) tm.tm_year += 100;
     } while (tm.tm_min != cmos_read(fd, 2));
     tm.tm_mon--;
   }
