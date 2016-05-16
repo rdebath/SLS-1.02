@@ -18,6 +18,16 @@ But this probably isn't very useful as the CD-ROM is not bootable.
 The CD-ROM contains all the binaries and source uncompressed on the CD-ROM.
 There are floppy disk images for both 3½ and and 5¼ inch floppy drives.
 
+Installed!
+==========
+
+On the other hand a nice plain install of SLS 1.02 may be useful.
+This command should quickly reconstruct it for you.
+
+`$ jigdo-file make-image --jigdo=ISO/sls102_i386.qcow2.jigdo *`
+
+Use the `qemu-system-i386` command below to run it.
+
 How to Install
 ==============
 
